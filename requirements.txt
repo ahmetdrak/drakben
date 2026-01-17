@@ -1,0 +1,6 @@
+requests
+beautifulsoup4
+fpdf
+jinja2
+flask
+tqdm
