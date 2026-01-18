@@ -6,6 +6,8 @@
 
 ![Version](https://img.shields.io/badge/Version-5.0-blue) ![Python](https://img.shields.io/badge/Python-3.13+-green) ![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-orange) ![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passing-success) ![Score](https://img.shields.io/badge/Score-100%2F100-brightgreen)
 
+**If this repo helps you, please ⭐ star it!**
+
 ---
 
 ## 🚀 5-Minute Quick Start
@@ -33,6 +35,12 @@ python3 drakben.py
 🩸 Drakben > target 192.168.1.100
 🩸 Drakben > scan
 ```
+
+---
+
+## 📸 Quick Preview
+
+*(Add a short GIF/screenshot here showing: target → scan_parallel → exploit → ml_summary → results)*
 
 ---
 
