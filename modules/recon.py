@@ -5,10 +5,21 @@ import aiohttp
 import asyncio
 import requests
 from bs4 import BeautifulSoup
-import dns.resolver
-import whois
 import hashlib
 import os
+
+# Optional imports with fallback
+try:
+    import dns.resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    DNS_AVAILABLE = False
+
+try:
+    import whois
+    WHOIS_AVAILABLE = True
+except ImportError:
+    WHOIS_AVAILABLE = False
 
 # AI özetleme için ai_bridge kullanılacak
 from modules import ai_bridge
@@ -88,32 +99,38 @@ async def passive_recon(target):
             pass
 
         # DNS kayıtları
-        try:
-            result["dns_records"]["A"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "A")]
-        except:
-            result["dns_records"]["A"] = []
+        if DNS_AVAILABLE:
+            try:
+                result["dns_records"]["A"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "A")]
+            except:
+                result["dns_records"]["A"] = []
 
-        try:
-            result["dns_records"]["MX"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "MX")]
-        except:
-            result["dns_records"]["MX"] = []
+            try:
+                result["dns_records"]["MX"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "MX")]
+            except:
+                result["dns_records"]["MX"] = []
 
-        try:
-            result["dns_records"]["TXT"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "TXT")]
-        except:
-            result["dns_records"]["TXT"] = []
+            try:
+                result["dns_records"]["TXT"] = [str(r) for r in dns.resolver.resolve(target.replace("https://","").replace("http://",""), "TXT")]
+            except:
+                result["dns_records"]["TXT"] = []
+        else:
+            result["dns_records"]["error"] = "dnspython not installed"
 
         # Whois bilgisi
-        try:
-            w = whois.whois(target.replace("https://","").replace("http://",""))
-            result["whois"] = {
-                "registrar": w.registrar,
-                "creation_date": str(w.creation_date),
-                "expiration_date": str(w.expiration_date),
-                "name_servers": w.name_servers
-            }
-        except Exception as e:
-            result["whois"] = {"error": str(e)}
+        if WHOIS_AVAILABLE:
+            try:
+                w = whois.whois(target.replace("https://","").replace("http://",""))
+                result["whois"] = {
+                    "registrar": w.registrar,
+                    "creation_date": str(w.creation_date),
+                    "expiration_date": str(w.expiration_date),
+                    "name_servers": w.name_servers
+                }
+            except Exception as e:
+                result["whois"] = {"error": str(e)}
+        else:
+            result["whois"] = {"error": "python-whois not installed"}
 
         # AI özetleme
         ai_summary = await ai_bridge.analyze_recon_output(result)

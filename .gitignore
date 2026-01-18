@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
+session.json
+*.bak
+
+# Secrets
+.secrets.json
+.env
+.env.local
+api.env
+config/api.env
+
+# Database files
+*.db
+drakben.db
+nvd_cache.db
+
+# Logs
+logs/*.log
+*.log
+
+# Test reports
+TEST_REPORT.md
+test_output.txt
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+
+# Project specific
+logs/*.log
+config/*.tmp
+*.pid
+drakben.db
+nvd_cache.db
+*.db
+test_*.py
+verify_*.py
+*_REPORT.md
+*_SUMMARY.md
+*_EVALUATION.md
+*_RESULTS.md

@@ -18,28 +18,42 @@ class Executor:
         except Exception as e:
             return f"[Executor Error] {e}"
 
+    def execute(self, command: str) -> str:
+        """Backwards-compatible alias for run()."""
+        return self.run(command)
+
     def run_chain(self, chain: list) -> list:
         """Zincir boyunca komutları sırayla çalıştırır."""
         outputs = []
         for step in chain:
             try:
+                # Hem "suggestion" hem "command" key'ini destekle
+                command_text = step.get("suggestion") or step.get("command")
+                if not command_text:
+                    outputs.append({
+                        "step": step.get("step"),
+                        "command": "[ERROR] Komut bulunamadı",
+                        "output": "Adımda 'suggestion' veya 'command' anahtarı yok"
+                    })
+                    continue
+                    
                 result = subprocess.run(
-                    step["suggestion"],
+                    command_text,
                     shell=True,
                     capture_output=True,
                     text=True
                 )
                 output = (result.stdout + result.stderr).strip()
-                self.log_output(step["suggestion"], output)
+                self.log_output(command_text, output)
                 outputs.append({
-                    "step": step["step"],
-                    "command": step["suggestion"],
+                    "step": step.get("step"),
+                    "command": command_text,
                     "output": output
                 })
             except Exception as e:
                 outputs.append({
-                    "step": step["step"],
-                    "command": step["suggestion"],
+                    "step": step.get("step"),
+                    "command": step.get("suggestion") or step.get("command"),
                     "output": f"[Executor Error] {e}"
                 })
         return outputs
