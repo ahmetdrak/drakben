@@ -12,7 +12,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/drakben.git
+git clone https://github.com/ahmetdrak/drakben.git
 cd drakben/drakbendosyalar
 
 # Install (automatic for Kali Linux)
@@ -96,10 +96,10 @@ ANALYSIS:     results, chain, help, exit
 
 ---
 
-## 🏗️ Archit5.x+ | **Kali Linux 2025+** |
-| Python | **3.13+** | **3.13.9** |
-| RAM | 2 GB | 4 GB+ |
-| Disk | 20ules    | 17 Pentest Modules | LLM Integration
+## 🏗️ Architecture
+
+```
+34 Core Modules    | 17 Pentest Modules | LLM Integration
 ├─ Parallelization | ├─ Recon/Exploit  | ├─ OpenRouter API
 ├─ ML OPSEC        | ├─ Web/Network    | └─ Standalone
 ├─ Lateral Move    | └─ Cloud/Auth     |
@@ -113,10 +113,10 @@ ANALYSIS:     results, chain, help, exit
 
 | Requirement | Minimum | Recommended |
 |-------------|---------|-----------|
-| OS | Linux 4.15+ | **Kali Linux 2025+** |
-| Python | 3.8 | 3.11+ |
+| OS | Linux 5.x+ | **Kali Linux 2025+** |
+| Python | **3.13+** | **3.13.9** |
 | RAM | 2 GB | 4 GB+ |
-| Disk | 150 MB | 500 MB |
+| Disk | 200 MB | 500 MB |
 
 ---
 
@@ -148,28 +148,17 @@ ANALYSIS:     results, chain, help, exit
 ✅ Entire network compromised in 2 hours
 ```
 
----QUICKSTART.md](QUICKSTART.md)** - Fast start guide
-- **[MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md)** - Türkçe/English support
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
-- **[DOCKER.md](DOCKER.md)** - Docker deployment
-
-✅ Multi-layer exploit validation  
-✅ CVE database checks  
-✅ IDS/IPS signature detection  
-✅ Real-time ML anomaly detection  
-✅ Automatic evasion recommendations  
-✅ Complete audit logging  
-
 ---
 
 ## 📚 Documentation
 
 See full guides:
 - **[INSTALLATION.md](INSTALLATION.md)** - Detailed setup for all platforms
-- **[COMMANDS.md](COMMANDS.md)** - Complete command reference
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - FAQ & fixes
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design details
+- **[QUICKSTART.md](QUICKSTART.md)** - Fast start guide
+- **[MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md)** - Türkçe/English support
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[DOCKER.md](DOCKER.md)** - Docker deployment
 
 ---
 
