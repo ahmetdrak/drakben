@@ -1,0 +1,3 @@
+# This file keeps the config directory in git
+# API keys and sensitive config files are ignored via .gitignore
+# Copy .env.example to config/api.env and add your keys

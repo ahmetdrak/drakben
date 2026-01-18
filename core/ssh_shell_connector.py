@@ -3,17 +3,25 @@ SSH Shell Connector - Private Key & Password ile SSH shell
 Remote shell alma ve command execution
 """
 
-import paramiko
 import socket
 import os
 from typing import Optional, Dict, List, Tuple
 import json
+
+try:
+    import paramiko
+    PARAMIKO_AVAILABLE = True
+except ImportError:
+    PARAMIKO_AVAILABLE = False
+    paramiko = None
 
 
 class SSHShellConnector:
     """SSH ile remote shell ve command execution"""
     
     def __init__(self, host: str, port: int = 22, timeout: int = 10):
+        if not PARAMIKO_AVAILABLE:
+            raise ImportError("paramiko is required for SSH connections. Install with: pip install paramiko")
         self.host = host
         self.port = port
         self.timeout = timeout

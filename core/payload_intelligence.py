@@ -5,10 +5,19 @@ import random
 import hashlib
 import os
 from datetime import datetime
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
-from Crypto.Protocol.KDF import PBKDF2
-from Crypto.Util.Padding import pad, unpad
+
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Random import get_random_bytes
+    from Crypto.Protocol.KDF import PBKDF2
+    from Crypto.Util.Padding import pad, unpad
+    PYCRYPTODOME_AVAILABLE = True
+except ImportError:
+    PYCRYPTODOME_AVAILABLE = False
+    AES = None
+    get_random_bytes = lambda n: os.urandom(n)
+    PBKDF2 = None
+    pad = unpad = None
 
 class PayloadIntelligence:
     """2024-2026 Enterprise Payload Generation with Advanced Evasion"""

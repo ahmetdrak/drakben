@@ -36,54 +36,47 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-*.log
 
 # Test cache
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
 
 # Temporary files
 *.tmp
 *.temp
-session.json
 *.bak
 
-# Secrets
-.secrets.json
+# Secrets & Config (IMPORTANT!)
 .env
 .env.local
-api.env
+.env.production
+.secrets.json
 config/api.env
+config/*.env
 
-# Database files
+# Database files (generated at runtime)
 *.db
 drakben.db
 nvd_cache.db
 
-# Logs
-logs/*.log
+# Logs (generated at runtime)
+logs/
 *.log
 
 # Test reports
 TEST_REPORT.md
 test_output.txt
+*_REPORT.md
+*_SUMMARY.md
+
+# Session files
+session.json
+*.pid
 
 # Build artifacts
 *.pyc
 *.pyo
 *.pyd
-
-# Project specific
-logs/*.log
-config/*.tmp
-*.pid
-drakben.db
-nvd_cache.db
-*.db
-test_*.py
-verify_*.py
-*_REPORT.md
-*_SUMMARY.md
-*_EVALUATION.md
-*_RESULTS.md

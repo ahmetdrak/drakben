@@ -3,9 +3,16 @@ Tab completion helper for DRAKBEN
 Provides readline-based autocomplete functionality
 """
 
-import readline
+import os
 import glob
 from typing import List
+
+try:
+    import readline
+    READLINE_AVAILABLE = True
+except ImportError:
+    READLINE_AVAILABLE = False
+    readline = None
 
 
 class DrakbenCompleter:

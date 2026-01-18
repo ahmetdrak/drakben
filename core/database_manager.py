@@ -37,7 +37,7 @@ class DatabaseManager:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    target TEXT NOT NULL,
+                    target TEXT,
                     strategy TEXT DEFAULT 'balanced',
                     status TEXT DEFAULT 'active',
                     start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

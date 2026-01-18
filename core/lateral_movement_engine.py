@@ -3,8 +3,14 @@
 # 2026
 
 import os
-import paramiko
 from typing import List, Set, Dict
+
+try:
+    import paramiko
+    PARAMIKO_AVAILABLE = True
+except ImportError:
+    PARAMIKO_AVAILABLE = False
+    paramiko = None
 
 class LateralMovementEngine:
     """
@@ -14,6 +20,8 @@ class LateralMovementEngine:
     3. Applies automated exploit/privesc
     """
     def __init__(self, initial_targets: List[str], username: str = "root", password: str = None, priv_key_path: str = None):
+        if not PARAMIKO_AVAILABLE:
+            raise ImportError("paramiko is required for lateral movement. Install with: pip install paramiko")
         self.initial_targets = initial_targets
         self.username = username
         self.password = password
