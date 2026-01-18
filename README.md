@@ -15,7 +15,7 @@
 ```bash
 # Clone
 git clone https://github.com/ahmetdrak/drakben.git
-cd drakben/drakbendosyalar
+cd drakben
 
 # Install (automatic for Kali Linux)
 python3 -m venv .venv
@@ -24,9 +24,9 @@ source .venv/bin/activate  # Linux/Kali
 
 pip install -r requirements.txt
 
-# Optional: Add API key
+# Optional: Configure LLM (see .env.example for all options)
+cp .env.example config/api.env
 nano config/api.env
-# OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxx
 
 # Run
 python3 drakben.py
@@ -35,6 +35,17 @@ python3 drakben.py
 🩸 Drakben > target 192.168.1.100
 🩸 Drakben > scan
 ```
+
+### 🤖 LLM Provider Options
+
+| Provider | Setup | Free? |
+|----------|-------|-------|
+| **OpenRouter** | `OPENROUTER_API_KEY=sk-or-xxx` | ✅ Free models available |
+| **Ollama** (Local) | `LOCAL_LLM_URL=http://localhost:11434/api/generate` | ✅ 100% Free |
+| **OpenAI** | `OPENAI_API_KEY=sk-xxx` | ❌ Paid |
+| **Custom API** | `CUSTOM_API_URL=http://your-server/v1/chat/completions` | Depends |
+
+**Free Models (OpenRouter):** `deepseek/deepseek-chat`, `meta-llama/llama-3.1-8b-instruct:free`, `mistralai/mistral-7b-instruct:free`
 
 ---
 
