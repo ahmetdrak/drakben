@@ -1,175 +1,116 @@
-# INSTALLATION GUIDE - DRAKBEN v5.0 (2026)
+# 📦 DRAKBEN v5.0 - Installation Guide
 
-Complete setup instructions for all platforms with 2024-2025 modern features.
+Complete setup instructions for all platforms.
 
 ---
 
-## 🚀 Kali Linux (Recommended)
+## 🐧 Linux (Kali / Ubuntu / Debian)
 
-**Estimated time: 3 minutes**
+**Time: ~2 minutes**
 
-### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/drakben.git
-cd drakben/drakbendosyalar
-```
+# 1. Clone the repository
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 
-### 2. Create Virtual Environment (Python 3.13+)
-```bash
+# 2. Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-```
 
-### 3. Install Dependencies
-```bash
-pip install --upgrade pip
+# 3. Install dependencies
 pip install -r requirements.txt
-```
 
-**Dependencies:**
-- requests, beautifulsoup4, flask
-- paramiko, pycryptodome (SSH/encryption)
-- scikit-learn, numpy (ML OPSEC)
-- pytest (testing)
-- rich, colorama (UI)
-
-### 4. Configure API (Optional - for cloud AI)
-```bash
-nano config/api.env
-# Add your OpenRouter API key:
-# OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxxxxxxx
-# Get free key at: https://openrouter.ai
-```
-
-**Note:** DRAKBEN works 100% offline without API key. Cloud mode adds conversational AI.
-
-### 5. Run DRAKBEN
-```bash
+# 4. Run DRAKBEN
 python3 drakben.py
 ```
 
-**First commands:**
-```
-🩸 Drakben > target 192.168.1.1
-🩸 Drakben > scan
+### Optional: Install Pentest Tools
+
+DRAKBEN works without external tools, but for full functionality:
+
+```bash
+# Kali Linux (most tools pre-installed)
+sudo apt update
+
+# Ubuntu/Debian
+sudo apt install -y nmap sqlmap nikto hydra john hashcat
 ```
 
 ---
 
-## 💻 Linux (Ubuntu/Debian)
+## 🪟 Windows
 
-If not Kali Linux, install missing pentesting tools:
+**Time: ~3 minutes**
 
-### 1. Setup DRAKBEN
-```bash
-# Same as Kali steps 1-4 above
+```powershell
+# 1. Clone the repository
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+
+# 2. Create virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run DRAKBEN
+python drakben.py
 ```
 
-### 2. Install Missing Tools
-```bash
-# For full functionality, install:
-sudo apt-get update
-sudo apt-get install -y nmap sqlmap nikto hydra hashcat john
-
-# Optional but recommended:
-sudo apt-get install -y metasploit-framework
-```
-
-### 3. Run
-```bash
-source .venv/bin/activate
-python3 drakben.py
-```
+> **Note:** Some features (SSH shells, lateral movement) work best on Linux.
 
 ---
 
 ## 🍎 macOS
 
-### 1. Clone & Setup
+**Time: ~3 minutes**
+
 ```bash
-git clone https://github.com/yourusername/drakben.git
-cd drakben/drakbendosyalar
+# 1. Clone the repository
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+
+# 2. Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Run DRAKBEN
+python3 drakben.py
 ```
 
-### 2. Install Tools (via Homebrew)
+### Optional: Install Tools via Homebrew
+
 ```bash
 brew install nmap sqlmap nikto hydra john hashcat
 ```
 
-### 3. Run
+---
+
+## 🐳 Docker
+
+**Time: ~5 minutes**
+
 ```bash
+# 1. Clone the repository
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+
+# 2. Build and run with Docker Compose
+docker-compose up -d
+
+# 3. Enter the container
+docker exec -it drakben bash
+
+# 4. Run DRAKBEN inside container
 python3 drakben.py
 ```
 
-**Note:** Some shell features may need Terminal/iTerm2
+Or manually:
 
----
-
-## 🪟 Windows (PowerShell)
-
-### 1. Clone Repository
-```powershell
-git clone https://github.com/yourusername/drakben.git
-cd drakben\drakbendosyalar
-```
-
-### 2. Create Virtual Environment
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Install Dependencies
-```powershell
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 4. Configure
-```powershell
-notepad config\api.env
-# Add: OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxx
-```
-
-### 5. Run
-```powershell
-python drakben.py
-```
-
-**Note:** Some features (SSH shells, lateral movement) work best on Linux. Windows works for command execution and testing only.
-
----
-
-## 🐳 Docker (Optional - Advanced)
-
-Create `Dockerfile`:
-```dockerfile
-FROM kalilinux/kali-linux-docker
-
-WORKDIR /root/drakben
-
-# Install Python and dependencies
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-venv \
-    nmap sqlmap nikto hydra \
-    metasploit-framework
-
-# Copy project
-COPY . .
-
-# Install Python packages
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install -r requirements.txt
-
-# Run
-CMD ["python3", "drakben.py"]
-```
-
-Build and run:
 ```bash
 docker build -t drakben:latest .
 docker run -it drakben:latest
@@ -177,111 +118,134 @@ docker run -it drakben:latest
 
 ---
 
-## 🔧 Troubleshooting
+## 🤖 AI/LLM Configuration (Optional)
 
-### Issue: `python3: command not found`
-**Solution:** Install Python 3.8+
+DRAKBEN works **100% offline**. For AI features, configure one of these:
+
+### Option A: Ollama (Free, Local)
+
 ```bash
-sudo apt-get install python3.11  # or higher
+# 1. Install Ollama: https://ollama.ai
+# 2. Pull a model
+ollama pull llama3.2
+
+# 3. Configure DRAKBEN
+cp .env.example config/api.env
+nano config/api.env
 ```
 
-### Issue: `paramiko` or `scikit-learn` import error
-**Solution:** Reinstall specific packages
-```bash
-pip install --upgrade paramiko scikit-learn numpy
+Add to `config/api.env`:
+```
+LOCAL_LLM_URL=http://localhost:11434/api/generate
+LOCAL_LLM_MODEL=llama3.2
 ```
 
-### Issue: SSH shell says "connection refused"
-**Solution:** 
-- Ensure target SSH is running: `ssh user@target`
-- Check firewall rules
-- Verify SSH port (default: 22)
+### Option B: OpenRouter (Free models available)
 
-### Issue: No pentest tools available
-**Solution:** DRAKBEN works without external tools (Python-only mode)
-- All core functionality works offline
-- Install tools for enhanced scanning: `sudo apt-get install nmap sqlmap nikto`
-
-### Issue: "API key invalid" error
-**Solution:**
-- Check `config/api.env` is correctly formatted
-- Verify key at https://openrouter.ai/keys
-- DRAKBEN works fine without API (offline mode)
-
-### Issue: Database locked
-**Solution:** Close any open sessions and restart
 ```bash
-rm drakben.db
-python3 drakben.py
+# 1. Get free API key: https://openrouter.ai
+# 2. Configure DRAKBEN
+cp .env.example config/api.env
+nano config/api.env
+```
+
+Add to `config/api.env`:
+```
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_MODEL=deepseek/deepseek-chat
+```
+
+### Option C: OpenAI (Paid)
+
+```bash
+# 1. Get API key: https://platform.openai.com
+# 2. Configure DRAKBEN
+cp .env.example config/api.env
+nano config/api.env
+```
+
+Add to `config/api.env`:
+```
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL=gpt-4o-mini
 ```
 
 ---
 
 ## ✅ Verify Installation
 
-After installation, verify everything works:
-
 ```bash
+# Activate virtual environment (if not active)
+source .venv/bin/activate  # Linux/Mac
+# or
+.\.venv\Scripts\Activate.ps1  # Windows
+
+# Run DRAKBEN
 python3 drakben.py
 
+# Test commands
 🩸 Drakben > help
-# Should show full command menu
-
 🩸 Drakben > target 127.0.0.1
 🩸 Drakben > results
-# Should show ready for operations
-
 🩸 Drakben > exit
-# Should save session and exit cleanly
 ```
 
 ---
 
-## 📊 Post-Installation Setup
+## 🔧 Troubleshooting
 
-### 1. Create Test Target (Optional)
+### `python3: command not found`
 ```bash
-# Run simple HTTP server on localhost
-python3 -m http.server 8000 &
-
-# Then in DRAKBEN:
-🩸 Drakben > target 127.0.0.1:8000
-🩸 Drakben > scan
+# Install Python 3.10+
+sudo apt install python3.11
 ```
 
-### 2. Configure for Your Network
+### `ModuleNotFoundError: No module named 'xxx'`
 ```bash
-🩸 Drakben > target 192.168.1.0/24    # Your subnet
-🩸 Drakben > strategy balanced
-🩸 Drakben > scan_parallel            # Fast scan
+# Reinstall dependencies
+pip install -r requirements.txt
 ```
 
-### 3. Enable Cloud AI (Optional)
+### `paramiko` or `pycryptodome` error
 ```bash
-# Edit config/api.env with your API key
-# Then DRAKBEN automatically uses cloud AI
-🩸 Drakben > ml_analyze              # Uses AI analysis
+# These are optional, install if needed
+pip install paramiko pycryptodome
 ```
+
+### Permission denied on Linux
+```bash
+# Run with sudo or fix permissions
+sudo python3 drakben.py
+# or
+chmod +x drakben.py
+```
+
+### API key not working
+- DRAKBEN works fine without API (offline mode)
+- Check `config/api.env` format
+- Verify key is valid at provider's website
+
+---
+
+## 📋 Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| Python | 3.10+ | 3.11+ |
+| RAM | 2 GB | 4 GB |
+| Disk | 200 MB | 500 MB |
+| OS | Linux/Windows/macOS | Kali Linux |
 
 ---
 
 ## 🚀 Next Steps
 
-1. Read [COMMANDS.md](COMMANDS.md) for full command reference
-2. See [README.md](README.md) for feature overview
-3. Try example workflows in [QUICKSTART.md](QUICKSTART.md)
-4. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues
+1. Read [README.md](README.md) for features overview
+2. Check [QUICKSTART.md](QUICKSTART.md) for usage examples
+3. Configure AI if desired (see above)
 
 ---
 
-## 📞 Support
+**Installation complete! Happy hacking! 🎉**
 
-- 🐛 Report issues: GitHub Issues
-- 💬 Discussions: GitHub Discussions
-- 📖 Docs: Full documentation in repo
-
----
-
-**Installation complete! Ready for penetration testing. ✅**
-
-Remember: **Only use on authorized targets.**
+⚠️ **Remember: Only use on authorized targets.**

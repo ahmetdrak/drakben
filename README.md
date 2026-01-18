@@ -1,206 +1,178 @@
-# 🩸 DRAKBEN v5.0 - Enterprise Penetration Testing AI (2026)
+# 🩸 DRAKBEN v5.0 - AI Penetration Testing Assistant
 
 > **Düşünen, Reaktif, Akıllı, Karanlık Bilgi Engeli**
 >
-> Production-grade AI-driven penetration testing automation with 2024-2025 modern evasion techniques, zero-day detection, and ML-powered OPSEC.
+> Modern AI-powered penetration testing automation for Kali Linux
 
-![Version](https://img.shields.io/badge/Version-5.0-blue) ![Python](https://img.shields.io/badge/Python-3.13+-green) ![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-orange) ![Tests](https://img.shields.io/badge/Tests-28%2F28%20Passing-success) ![Score](https://img.shields.io/badge/Score-100%2F100-brightgreen)
+![Version](https://img.shields.io/badge/Version-5.0-blue)
+![Python](https://img.shields.io/badge/Python-3.10+-green)
+![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-orange)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-**If this repo helps you, please ⭐ star it!**
+⭐ **Star this repo if it helps you!**
 
 ---
 
-## 🚀 5-Minute Quick Start
+## 🚀 Installation (2 Minutes)
 
+### Option 1: Kali Linux / Ubuntu / Debian
 ```bash
-# Clone
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
-
-# Install (automatic for Kali Linux)
 python3 -m venv .venv
-source .venv/bin/activate  # Linux/Kali
-# or: .venv\Scripts\activate  # Windows
-
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# Optional: Configure LLM (see .env.example for all options)
-cp .env.example config/api.env
-nano config/api.env
-
-# Run
 python3 drakben.py
-
-# First commands
-🩸 Drakben > target 192.168.1.100
-🩸 Drakben > scan
 ```
 
-### 🤖 LLM Provider Options
+### Option 2: Windows
+```powershell
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python drakben.py
+```
 
-| Provider | Setup | Free? |
+### Option 3: Docker
+```bash
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+docker-compose up -d
+docker exec -it drakben bash
+python3 drakben.py
+```
+
+---
+
+## 🤖 AI/LLM Setup (Optional)
+
+DRAKBEN works **100% offline** without any API key. For AI-powered features, choose one:
+
+### Free Options
+
+| Provider | Setup | Notes |
 |----------|-------|-------|
-| **OpenRouter** | `OPENROUTER_API_KEY=sk-or-xxx` | ✅ Free models available |
-| **Ollama** (Local) | `LOCAL_LLM_URL=http://localhost:11434/api/generate` | ✅ 100% Free |
-| **OpenAI** | `OPENAI_API_KEY=sk-xxx` | ❌ Paid |
-| **Custom API** | `CUSTOM_API_URL=http://your-server/v1/chat/completions` | Depends |
+| **Ollama** (Local) | Install from [ollama.ai](https://ollama.ai), then `ollama pull llama3.2` | 100% Free, runs on your machine |
+| **OpenRouter** | Get free key at [openrouter.ai](https://openrouter.ai) | Free models: `deepseek/deepseek-chat`, `mistral-7b` |
 
-**Free Models (OpenRouter):** `deepseek/deepseek-chat`, `meta-llama/llama-3.1-8b-instruct:free`, `mistralai/mistral-7b-instruct:free`
+### Paid Options
+
+| Provider | Setup | Notes |
+|----------|-------|-------|
+| **OpenAI** | Get key at [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
+| **Custom API** | Any OpenAI-compatible endpoint | Self-hosted models |
+
+### Configuration
+
+```bash
+# Copy example config
+cp .env.example config/api.env
+
+# Edit with your choice
+nano config/api.env
+```
+
+**Example configs:**
+
+```bash
+# For Ollama (FREE - Local)
+LOCAL_LLM_URL=http://localhost:11434/api/generate
+LOCAL_LLM_MODEL=llama3.2
+
+# For OpenRouter (FREE models available)
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+OPENROUTER_MODEL=deepseek/deepseek-chat
+
+# For OpenAI (Paid)
+OPENAI_API_KEY=sk-xxxxx
+OPENAI_MODEL=gpt-4o-mini
+```
 
 ---
 
-## 📸 Quick Preview
+## 🎯 Quick Start
 
-*(Add a short GIF/screenshot here showing: target → scan_parallel → exploit → ml_summary → results)*
+```bash
+python3 drakben.py
 
----
+# Set target
+🩸 Drakben > target 192.168.1.100
 
-## ✨ Key Features (2024-2025)
+# Choose strategy
+🩸 Drakben > strategy balanced    # or: stealthy, aggressive
 
-### 🔥 **Modern Evasion Techniques (NEW)**
-- **AMSI Bypass** - 3 memory patching methods
-- **ETW Bypass** - Event logging disable
-- **LOLBins** - Living Off The Land (certutil, bitsadmin, mshta, regsvr32)
-- **Fileless Execution** - In-memory payloads
-- **Container Escape** - Docker/Kubernetes breakout
-- **Cloud Metadata Exploitation** - AWS/Azure/GCP
+# Scan
+🩸 Drakben > scan
 
-### 🛡️ **2024-2025 CVE Database (NEW)**
-- Node.js, Redis, Docker, Kubernetes
-- Jenkins, GitLab, Grafana, Elasticsearch
-- Spring4Shell, Log4Shell
-- MongoDB, Tomcat, OpenSSL 3.x
+# Exploit found vulnerabilities
+🩸 Drakben > exploit
 
-### 🧠 **Enhanced OPSEC Intelligence (NEW)**
-- Stealth Score (0-100 risk assessment)
-- Real-time evasion suggestions
-- PowerShell/EDR/Cloud detection patterns
-- Automatic stealth alternatives
-
-### ⚡ **4x Parallel Execution**
-100 targets in **25 minutes** (vs 100+ hours sequential)
-
-### 🔗 **Automatic Lateral Movement**
-SSH key chaining + recursive exploitation
-
-### 🐚 **3 Automated Shell Types**
-Web RCE (Drupal/WordPress) + SSH + Reverse shells
-
-### 🔍 **Zero-Day Detection**
-CVE matching + exploitation with confidence scoring
-
-### 🛡️ **Safety Verified**
-Multi-layer exploit validation + IDS detection
-
-### 💾 **SQLite Backend**
-Unlimited session storage + audit logs
-
-### 🧠 **Hybrid AI**
-Cloud (OpenRouter) + Offline standalone modes
+# View results
+🩸 Drakben > results
+```
 
 ---
 
 ## 📋 Commands
 
-```
-SETUP:        setup, target <ip>, strategy <mode>
-SCAN:         scan, scan_parallel
-EXPLOIT:      exploit, payload, enum
-LATERAL:      lateral (SSH chain)
-SHELLS:       web_shell, ssh_shell, reverse_shell
-POST-EXP:     post_exp
-ML OPSEC:     ml_analyze, ml_evasion, ml_summary
-ANALYSIS:     results, chain, help, exit
-```
+| Category | Commands |
+|----------|----------|
+| **Setup** | `target <ip>`, `strategy <mode>`, `setup` |
+| **Scanning** | `scan`, `scan_parallel` |
+| **Exploitation** | `exploit`, `payload`, `enum` |
+| **Post-Exploit** | `post_exp`, `lateral`, `web_shell`, `ssh_shell` |
+| **Analysis** | `results`, `chain`, `ml_analyze`, `ml_summary` |
+| **Utility** | `help`, `clear`, `exit` |
 
 ---
 
-## 🏗️ Architecture
+## ✨ Key Features
+
+- 🔥 **Modern Evasion** - AMSI/ETW bypass, LOLBins, fileless execution
+- 🛡️ **CVE Database** - 2024-2025 vulnerabilities (Log4Shell, Spring4Shell, etc.)
+- 🧠 **ML OPSEC** - AI-powered detection avoidance
+- ⚡ **Parallel Scanning** - 100 targets in ~25 minutes
+- 🔗 **Lateral Movement** - Automated SSH key chaining
+- 🐚 **Multi-Shell** - Web shells, SSH, reverse shells
+- 💾 **Session Management** - SQLite-backed persistence
+
+---
+
+## 🔧 Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError` | Run `pip install -r requirements.txt` |
+| `paramiko` import error | `pip install paramiko` (optional for SSH) |
+| No API response | Works offline! Or check `config/api.env` |
+| Permission denied | Run with `sudo` on Linux |
+
+---
+
+## 📁 Project Structure
 
 ```
-34 Core Modules    | 17 Pentest Modules | LLM Integration
-├─ Parallelization | ├─ Recon/Exploit  | ├─ OpenRouter API
-├─ ML OPSEC        | ├─ Web/Network    | └─ Standalone
-├─ Lateral Move    | └─ Cloud/Auth     |
-├─ Shells (3 type) |                   |
-└─ + 24 more       |                   |
-```
-
----
-
-## 💻 Requirements
-
-| Requirement | Minimum | Recommended |
-|-------------|---------|-----------|
-| OS | Linux 5.x+ | **Kali Linux 2025+** |
-| Python | **3.13+** | **3.13.9** |
-| RAM | 2 GB | 4 GB+ |
-| Disk | 200 MB | 500 MB |
-
----
-
-## 📊 Performance
-
-| Metric | Value |
-|--------|-------|
-| Single target | 2-5 min |
-| 100 targets parallel | ~25 min |
-| DB capacity | Unlimited |
-| Detection risk ↓ | ~65% (ML) |
-| Success rate | 98%+ |
-
----
-
-## 🎯 Real-World Example
-
-```bash
-# Enterprise internal network test
-🩸 Drakben > target 10.0.0.0/24
-🩸 Drakben > strategy balanced
-🩸 Drakben > scan_parallel          # All 254 targets in parallel
-🩸 Drakben > exploit                # Auto-detect & exploit CVEs
-🩸 Drakben > lateral                # SSH chain - 8 new hosts found
-🩸 Drakben > post_exp               # Persistence + lateral movement
-🩸 Drakben > ml_summary             # Evasion effectiveness: 68%
-🩸 Drakben > results                # 42 vulnerabilities found
-
-✅ Entire network compromised in 2 hours
-```
-
----
-
-## 📚 Documentation
-
-See full guides:
-- **[INSTALLATION.md](INSTALLATION.md)** - Detailed setup for all platforms
-- **[QUICKSTART.md](QUICKSTART.md)** - Fast start guide
-- **[MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md)** - Türkçe/English support
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
-- **[DOCKER.md](DOCKER.md)** - Docker deployment
-
----
-
-## 🏆 Project Score
-
-```
-Completeness:     100/100 ⭐
-Performance:      100/100 ⭐
-Enterprise Ready: 100/100 ⭐
-───────────────────────────
-OVERALL:          100/100 🏆
+drakben/
+├── drakben.py          # Main program
+├── core/               # 34 core modules
+├── modules/            # 17 pentest modules  
+├── llm/                # AI/LLM integration
+├── config/             # Configuration files
+├── tests/              # Unit tests
+└── logs/               # Execution logs
 ```
 
 ---
 
 ## ⚖️ Legal Disclaimer
 
-**DRAKBEN is for authorized penetration testing only.**
+**For authorized penetration testing only.**
 
-- Only test systems you own or have explicit written permission for
-- Unauthorized access is illegal (Ceza Kanunu, CFAA, etc.)
-- User assumes all responsibility and liability
-- Authors not liable for misuse or damages
+- Only test systems you own or have written permission for
+- Unauthorized access is illegal
+- User assumes all responsibility
 
 ---
 
@@ -210,4 +182,13 @@ MIT License - See [LICENSE](LICENSE)
 
 ---
 
-**Made with ❤️ for the security community. Star ⭐ if DRAKBEN helps your work!**
+## 📚 Documentation
+
+- [INSTALLATION.md](INSTALLATION.md) - Detailed installation guide
+- [QUICKSTART.md](QUICKSTART.md) - Usage examples
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+
+---
+
+**Made with ❤️ for the security community**
