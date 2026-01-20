@@ -1,0 +1,84 @@
+{
+  "plugins": [
+    {
+      "plugin_id": "recon.nmap",
+      "kind": "recon",
+      "name": "Nmap Scanner",
+      "version": "1.0.0",
+      "description": "Port scanning and service detection with Nmap",
+      "capabilities": ["port_scan", "service_detection", "os_detection", "vuln_scan"],
+      "module": "core.plugins.adapters.nmap_plugin",
+      "class_name": "NmapReconPlugin",
+      "requires_approval": false,
+      "timeout": 600
+    },
+    {
+      "plugin_id": "exploit.sqlmap",
+      "kind": "exploit",
+      "name": "SQLMap",
+      "version": "1.0.0",
+      "description": "SQL injection testing and exploitation",
+      "capabilities": ["sqli_detect", "sqli_exploit", "db_dump"],
+      "module": "core.plugins.adapters.sqlmap_plugin",
+      "class_name": "SqlmapExploitPlugin",
+      "requires_approval": true,
+      "timeout": 600
+    },
+    {
+      "plugin_id": "payload.msfvenom",
+      "kind": "payload",
+      "name": "Payload Generator",
+      "version": "1.0.0",
+      "description": "Generate reverse shells and payloads",
+      "capabilities": ["reverse_shell", "bind_shell", "web_shell"],
+      "module": "core.plugins.adapters.payload_plugin",
+      "class_name": "MsfPayloadPlugin",
+      "requires_approval": true,
+      "timeout": 120
+    },
+    {
+      "plugin_id": "recon.noop",
+      "kind": "recon",
+      "name": "Recon (NoOp)",
+      "version": "0.1.0",
+      "description": "Placeholder recon plugin",
+      "capabilities": ["recon"],
+      "module": "core.plugins.adapters.noop",
+      "class_name": "NoOpRecon",
+      "requires_approval": false
+    },
+    {
+      "plugin_id": "analysis.noop",
+      "kind": "analysis",
+      "name": "Analysis (NoOp)",
+      "version": "0.1.0",
+      "description": "Placeholder analysis plugin",
+      "capabilities": ["analysis"],
+      "module": "core.plugins.adapters.noop",
+      "class_name": "NoOpAnalysis",
+      "requires_approval": false
+    },
+    {
+      "plugin_id": "bypass.noop",
+      "kind": "bypass",
+      "name": "Bypass (NoOp)",
+      "version": "0.1.0",
+      "description": "Placeholder bypass plugin",
+      "capabilities": ["bypass"],
+      "module": "core.plugins.adapters.noop",
+      "class_name": "NoOpBypass",
+      "requires_approval": true
+    },
+    {
+      "plugin_id": "post.noop",
+      "kind": "post",
+      "name": "Post (NoOp)",
+      "version": "0.1.0",
+      "description": "Placeholder post-exploitation plugin",
+      "capabilities": ["post"],
+      "module": "core.plugins.adapters.noop",
+      "class_name": "NoOpPost",
+      "requires_approval": true
+    }
+  ]
+}

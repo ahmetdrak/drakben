@@ -1,11 +1,8 @@
-# 🩸 DRAKBEN v5.0 - AI Penetration Testing Assistant
+# 🩸 Autonomous Pentest AI Framework
 
-> **Düşünen, Reaktif, Akıllı, Karanlık Bilgi Engeli**
->
-> Modern AI-powered penetration testing automation for Kali Linux
+Kali Linux Autonomous Pentest AI Framework with 25 Intelligent Modules
 
-![Version](https://img.shields.io/badge/Version-5.0-blue)
-![Python](https://img.shields.io/badge/Python-3.10+-green)
+![Python](https://img.shields.io/badge/Python-3.8+-green)
 ![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -13,12 +10,12 @@
 
 ---
 
-## 🚀 Installation (2 Minutes)
+## 🚀 Installation
 
 ### Option 1: Kali Linux / Ubuntu / Debian
 ```bash
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -27,20 +24,20 @@ python3 drakben.py
 
 ### Option 2: Windows
 ```powershell
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python drakben.py
+python .\drakben.py
 ```
 
 ### Option 3: Docker
 ```bash
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 docker-compose up -d
-docker exec -it drakben bash
+docker exec -it drakben_main bash
 python3 drakben.py
 ```
 
@@ -48,7 +45,7 @@ python3 drakben.py
 
 ## 🤖 AI/LLM Setup (Optional)
 
-DRAKBEN works **100% offline** without any API key. For AI-powered features, choose one:
+This framework works **100% offline** without any API key. For AI-powered features, choose one:
 
 ### Free Options
 
@@ -97,46 +94,44 @@ OPENAI_MODEL=gpt-4o-mini
 ```bash
 python3 drakben.py
 
-# Set target
-🩸 Drakben > target 192.168.1.100
+# Natural language or slash commands:
+💬 "10.0.0.1 portlarını tara"
+💬 "example.com sql injection test et"
 
-# Choose strategy
-🩸 Drakben > strategy balanced    # or: stealthy, aggressive
-
-# Scan
-🩸 Drakben > scan
-
-# Exploit found vulnerabilities
-🩸 Drakben > exploit
-
-# View results
-🩸 Drakben > results
+# Slash commands:
+/target 192.168.1.100
+/scan
+/status
+/help
+/exit
 ```
 
 ---
 
 ## 📋 Commands
 
-| Category | Commands |
+| Command | Description |
 |----------|----------|
-| **Setup** | `target <ip>`, `strategy <mode>`, `setup` |
-| **Scanning** | `scan`, `scan_parallel` |
-| **Exploitation** | `exploit`, `payload`, `enum` |
-| **Post-Exploit** | `post_exp`, `lateral`, `web_shell`, `ssh_shell` |
-| **Analysis** | `results`, `chain`, `ml_analyze`, `ml_summary` |
-| **Utility** | `help`, `clear`, `exit` |
+| `/target <IP>` | Set target |
+| `/scan` | Scan current target |
+| `/status` | Show system status |
+| `/clear` | Clear screen |
+| `/help` | Show detailed help |
+| `/exit` | Exit |
+| Natural language | Talk to AI for any pentest task |
 
 ---
 
 ## ✨ Key Features
 
-- 🔥 **Modern Evasion** - AMSI/ETW bypass, LOLBins, fileless execution
-- 🛡️ **CVE Database** - 2024-2025 vulnerabilities (Log4Shell, Spring4Shell, etc.)
-- 🧠 **ML OPSEC** - AI-powered detection avoidance
-- ⚡ **Parallel Scanning** - 100 targets in ~25 minutes
-- 🔗 **Lateral Movement** - Automated SSH key chaining
-- 🐚 **Multi-Shell** - Web shells, SSH, reverse shells
-- 💾 **Session Management** - SQLite-backed persistence
+- 🧠 **25+ Intelligent Modules** - Distributed across core and modules packages
+- 🎨 **Dracula Theme UI** - Beautiful minimal terminal interface
+- 🤖 **GPT-5 Level Reasoning** - Continuous reasoning and self-correction
+- ✅ **One-Time Approval** - First command approval, then autonomous
+- 🔧 **Auto-Healing** - Automatically fixes errors and installs missing tools
+- 🛡️ **Security Toolkit** - Built-in safety checks and risk analysis
+- 🧩 **Single Brain Layer** - core.brain contains the primary brain class
+- ⚡ **Single Execution Layer** - TerminalExecutor is the unified command runner
 
 ---
 
@@ -154,25 +149,43 @@ python3 drakben.py
 ## 📁 Project Structure
 
 ```
-drakben/
-├── drakben.py          # Main program
-├── core/               # 34 core modules
-├── modules/            # 17 pentest modules  
-├── llm/                # AI/LLM integration
-├── config/             # Configuration files
-├── tests/              # Unit tests
-└── logs/               # Execution logs
+project-root/
+├── drakben.py                    # Main entry point
+├── core/
+│   ├── agent.py                  # Main agent orchestrator
+│   ├── brain.py                  # Core reasoning and planning
+│   ├── system_intelligence.py    # System context & environment scan
+│   ├── execution_engine.py       # Command execution & analysis
+│   ├── autonomous_solver.py      # Error analysis & auto-healing
+│   ├── security_toolkit.py       # Safety checks & payload helpers
+│   ├── terminal.py               # Safe terminal executor
+│   ├── tools.py                  # Tool wrappers (nmap/sqlmap/etc.)
+│   ├── events.py                 # Event bus
+│   ├── web_scanner.py            # Web application scanner
+│   ├── ad_bloodhound.py          # AD/BloodHound integration
+│   ├── c2_beacon.py              # C2 beacon infrastructure
+│   ├── cloud_scanner.py          # Cloud security scanner
+│   ├── zero_day_scanner.py       # Zero-day pattern scanner
+│   ├── lateral_movement_engine.py
+│   ├── post_exploitation_automation.py
+│   ├── opsec_implementation.py
+│   └── payload_intelligence.py
+├── core/plugins/
+│   ├── base.py
+│   ├── registry.py
+│   └── adapters/noop.py
+├── llm/                          # LLM integration
+│   ├── brain.py                  # Thin re-export (core.brain)
+│   └── openrouter_client.py      # Multi-provider client
+├── modules/                      # Pentest modules
+│   ├── recon.py, exploit.py
+│   ├── payload.py, report.py
+│   └── ai_bridge.py, memory.py
+└── config/
+    ├── api.env                   # API keys
+    ├── plugins.json              # Plugin registry
+    └── settings.json             # Configuration
 ```
-
----
-
-## ⚖️ Legal Disclaimer
-
-**For authorized penetration testing only.**
-
-- Only test systems you own or have written permission for
-- Unauthorized access is illegal
-- User assumes all responsibility
 
 ---
 
@@ -187,7 +200,7 @@ MIT License - See [LICENSE](LICENSE)
 - [INSTALLATION.md](INSTALLATION.md) - Detailed installation guide
 - [QUICKSTART.md](QUICKSTART.md) - Usage examples
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [CHANGELOG.md](CHANGELOG.md) - Release history
 
 ---
 

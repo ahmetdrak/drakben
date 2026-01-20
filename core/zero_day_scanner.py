@@ -1,479 +1,929 @@
 # core/zero_day_scanner.py
-# Zero-Day & CVE Scanner with Real-Time NVD API Integration
+# DRAKBEN Zero Day Scanner - Enterprise Grade CVE/Exploit Detection
+# Author: @drak_ben
 
-import requests
+import asyncio
+import aiohttp
 import json
-import sqlite3
-import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 import re
+import hashlib
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+import sqlite3
+from pathlib import Path
 
-class ZeroDayScanner:
-    """
-    NVD API + Local Cache Integration
-    Real-time CVE matching with CVSS v3.1 scoring
-    """
+
+class Severity(Enum):
+    """CVE severity levels"""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFO = "info"
+
+
+class ExploitAvailability(Enum):
+    """Exploit availability status"""
+    PUBLIC = "public"
+    PRIVATE = "private"
+    POC = "poc"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class CVEEntry:
+    """CVE vulnerability entry"""
+    cve_id: str
+    description: str
+    severity: Severity
+    cvss_score: float
+    cvss_vector: str = ""
+    published_date: str = ""
+    modified_date: str = ""
+    affected_products: List[str] = field(default_factory=list)
+    references: List[str] = field(default_factory=list)
+    exploit_available: ExploitAvailability = ExploitAvailability.UNKNOWN
+    exploit_urls: List[str] = field(default_factory=list)
+    cwe_ids: List[str] = field(default_factory=list)
     
-    NVD_API_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-    NVD_TIMEOUT = 30
-    CACHE_EXPIRY = 86400  # 24 hours
+    def to_dict(self) -> Dict:
+        return {
+            "cve_id": self.cve_id,
+            "description": self.description,
+            "severity": self.severity.value,
+            "cvss_score": self.cvss_score,
+            "cvss_vector": self.cvss_vector,
+            "published_date": self.published_date,
+            "modified_date": self.modified_date,
+            "affected_products": self.affected_products,
+            "references": self.references,
+            "exploit_available": self.exploit_available.value,
+            "exploit_urls": self.exploit_urls,
+            "cwe_ids": self.cwe_ids
+        }
+
+
+@dataclass
+class ScanTarget:
+    """Scan target information"""
+    host: str
+    port: int = 0
+    service: str = ""
+    version: str = ""
+    os: str = ""
+    banner: str = ""
+    cpe: str = ""  # Common Platform Enumeration
+
+
+@dataclass
+class ScanResult:
+    """Zero day scan result"""
+    target: ScanTarget
+    vulnerabilities: List[CVEEntry] = field(default_factory=list)
+    scan_time: str = ""
+    scanner_version: str = "2.0.0"
+    total_cves: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    exploitable_count: int = 0
     
-    def __init__(self, use_api=True, cache_db="nvd_cache.db"):
-        self.use_api = use_api
-        self.cache_db = cache_db
-        self._init_cache()
-        self.cve_cache = {}
-        self.last_api_call = 0
-        self.api_rate_limit = 1  # Min 1 second between API calls
+    def to_dict(self) -> Dict:
+        return {
+            "target": asdict(self.target),
+            "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
+            "scan_time": self.scan_time,
+            "scanner_version": self.scanner_version,
+            "total_cves": self.total_cves,
+            "critical_count": self.critical_count,
+            "high_count": self.high_count,
+            "exploitable_count": self.exploitable_count
+        }
+
+
+class CVEDatabase:
+    """Local CVE database for offline scanning"""
     
-    def _init_cache(self):
-        """Initialize local SQLite cache for NVD data"""
-        try:
-            conn = sqlite3.connect(self.cache_db)
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS nvd_cache (
-                    cve_id TEXT PRIMARY KEY,
-                    data TEXT,
-                    timestamp REAL
-                )
-            ''')
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"Cache init error: {e}")
+    def __init__(self, db_path: str = "data/cve_database.db"):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn: Optional[sqlite3.Connection] = None
+        self._connect()
+        self._create_tables()
     
-    def _query_nvd_api(self, cve_id: str) -> Optional[Dict]:
-        """Query NVD API with rate limiting"""
-        try:
-            # Rate limiting
-            time_since_last = time.time() - self.last_api_call
-            if time_since_last < self.api_rate_limit:
-                time.sleep(self.api_rate_limit - time_since_last)
-            
-            url = f"{self.NVD_API_BASE}?cveId={cve_id}"
-            response = requests.get(url, timeout=self.NVD_TIMEOUT)
-            self.last_api_call = time.time()
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('vulnerabilities'):
-                    return data['vulnerabilities'][0]['cve']
-                if data.get('cve_id') or data.get('severity'):
-                    return data
-            return None
-        except Exception as e:
-            return None
+    def _connect(self):
+        """Connect to database"""
+        self.conn = sqlite3.connect(str(self.db_path))
+        self.conn.row_factory = sqlite3.Row
     
-    def _get_cve_from_cache(self, cve_id: str) -> Optional[Dict]:
-        """Get CVE data from local cache"""
-        try:
-            conn = sqlite3.connect(self.cache_db)
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT data, timestamp FROM nvd_cache WHERE cve_id = ?',
-                (cve_id,)
+    def _create_tables(self):
+        """Create database tables"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cves (
+                cve_id TEXT PRIMARY KEY,
+                description TEXT,
+                severity TEXT,
+                cvss_score REAL,
+                cvss_vector TEXT,
+                published_date TEXT,
+                modified_date TEXT,
+                affected_products TEXT,
+                reference_urls TEXT,
+                exploit_available TEXT,
+                exploit_urls TEXT,
+                cwe_ids TEXT,
+                last_updated TEXT
             )
-            result = cursor.fetchone()
-            conn.close()
-            
-            if result:
-                data, timestamp = result
-                if time.time() - timestamp < self.CACHE_EXPIRY:
-                    return json.loads(data)
-            return None
-        except Exception as e:
-            return None
-    
-    def _cache_cve_data(self, cve_id: str, data: Dict):
-        """Store CVE data in local cache"""
-        try:
-            conn = sqlite3.connect(self.cache_db)
-            cursor = conn.cursor()
-            cursor.execute(
-                'INSERT OR REPLACE INTO nvd_cache VALUES (?, ?, ?)',
-                (cve_id, json.dumps(data), time.time())
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exploits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cve_id TEXT,
+                exploit_db_id TEXT,
+                title TEXT,
+                type TEXT,
+                platform TEXT,
+                author TEXT,
+                url TEXT,
+                verified INTEGER DEFAULT 0,
+                FOREIGN KEY (cve_id) REFERENCES cves(cve_id)
             )
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            pass
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_cve_severity ON cves(severity)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_cve_cvss ON cves(cvss_score)
+        """)
+        
+        self.conn.commit()
     
-    def _fetch_cve_data(self, cve_id: str) -> Optional[Dict]:
-        """Fetch CVE data from cache first, then API"""
-        cached = self._get_cve_from_cache(cve_id)
+    def add_cve(self, cve: CVEEntry):
+        """Add or update CVE in database"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO cves 
+            (cve_id, description, severity, cvss_score, cvss_vector, 
+             published_date, modified_date, affected_products, reference_urls,
+             exploit_available, exploit_urls, cwe_ids, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            cve.cve_id,
+            cve.description,
+            cve.severity.value,
+            cve.cvss_score,
+            cve.cvss_vector,
+            cve.published_date,
+            cve.modified_date,
+            json.dumps(cve.affected_products),
+            json.dumps(cve.references),
+            cve.exploit_available.value,
+            json.dumps(cve.exploit_urls),
+            json.dumps(cve.cwe_ids),
+            datetime.now().isoformat()
+        ))
+        
+        self.conn.commit()
+    
+    def search_by_product(self, product: str, version: str = "") -> List[CVEEntry]:
+        """Search CVEs by product name and version"""
+        cursor = self.conn.cursor()
+        
+        search_term = f"%{product}%"
+        if version:
+            search_term = f"%{product}%{version}%"
+        
+        cursor.execute("""
+            SELECT * FROM cves 
+            WHERE affected_products LIKE ? 
+            ORDER BY cvss_score DESC
+        """, (search_term,))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append(self._row_to_cve(row))
+        
+        return results
+    
+    def search_by_cpe(self, cpe: str) -> List[CVEEntry]:
+        """Search CVEs by CPE string"""
+        cursor = self.conn.cursor()
+        
+        # Parse CPE and create search pattern
+        cpe_pattern = f"%{cpe.replace(':', '%')}%"
+        
+        cursor.execute("""
+            SELECT * FROM cves 
+            WHERE affected_products LIKE ? 
+            ORDER BY cvss_score DESC
+        """, (cpe_pattern,))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append(self._row_to_cve(row))
+        
+        return results
+    
+    def get_critical_cves(self, limit: int = 100) -> List[CVEEntry]:
+        """Get critical CVEs"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM cves 
+            WHERE severity = 'critical' OR cvss_score >= 9.0
+            ORDER BY cvss_score DESC
+            LIMIT ?
+        """, (limit,))
+        
+        return [self._row_to_cve(row) for row in cursor.fetchall()]
+    
+    def get_exploitable_cves(self) -> List[CVEEntry]:
+        """Get CVEs with known exploits"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM cves 
+            WHERE exploit_available IN ('public', 'poc')
+            ORDER BY cvss_score DESC
+        """)
+        
+        return [self._row_to_cve(row) for row in cursor.fetchall()]
+    
+    def _row_to_cve(self, row) -> CVEEntry:
+        """Convert database row to CVEEntry"""
+        return CVEEntry(
+            cve_id=row["cve_id"],
+            description=row["description"],
+            severity=Severity(row["severity"]),
+            cvss_score=row["cvss_score"],
+            cvss_vector=row["cvss_vector"] or "",
+            published_date=row["published_date"] or "",
+            modified_date=row["modified_date"] or "",
+            affected_products=json.loads(row["affected_products"] or "[]"),
+            references=json.loads(row["reference_urls"] or "[]"),
+            exploit_available=ExploitAvailability(row["exploit_available"]),
+            exploit_urls=json.loads(row["exploit_urls"] or "[]"),
+            cwe_ids=json.loads(row["cwe_ids"] or "[]")
+        )
+    
+    def close(self):
+        """Close database connection"""
+        if self.conn:
+            self.conn.close()
 
-        # Try API if enabled
-        if self.use_api:
-            api_data = self._query_nvd_api(cve_id)
-            if api_data:
-                self._cache_cve_data(cve_id, api_data)
-                return api_data
 
-        # Fallback to cache
-        if cached:
-            return cached
-
-        return None
+class NVDClient:
+    """NIST National Vulnerability Database API Client"""
     
-    def _extract_cvss_v31(self, cve_data: Dict) -> Dict:
-        """Extract CVSS v3.1 metrics from CVE data"""
-        try:
-            metrics = cve_data.get('metrics', {})
-            cvss_v31 = metrics.get('cvssMetricV31', [{}])[0]
-            
-            return {
-                'score': cvss_v31.get('cvssData', {}).get('baseScore', 0.0),
-                'severity': cvss_v31.get('cvssData', {}).get('baseSeverity', 'UNKNOWN'),
-                'vector': cvss_v31.get('cvssData', {}).get('vectorString', ''),
-                'attack_vector': cvss_v31.get('cvssData', {}).get('attackVector', 'UNKNOWN'),
-                'attack_complexity': cvss_v31.get('cvssData', {}).get('attackComplexity', 'UNKNOWN'),
-                'privileges_required': cvss_v31.get('cvssData', {}).get('privilegesRequired', 'UNKNOWN'),
-                'user_interaction': cvss_v31.get('cvssData', {}).get('userInteraction', 'UNKNOWN'),
-                'scope': cvss_v31.get('cvssData', {}).get('scope', 'UNKNOWN'),
-                'availability_impact': cvss_v31.get('cvssData', {}).get('availabilityImpact', 'UNKNOWN'),
-            }
-        except:
-            return {
-                'score': 0.0,
-                'severity': 'UNKNOWN',
-                'vector': '',
-                'attack_vector': 'UNKNOWN',
-                'attack_complexity': 'UNKNOWN',
-                'privileges_required': 'UNKNOWN',
-                'user_interaction': 'UNKNOWN',
-                'scope': 'UNKNOWN',
-                'availability_impact': 'UNKNOWN',
-            }
+    BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     
-    def _extract_cpe_matches(self, cve_data: Dict) -> List[str]:
-        """Extract affected CPE ranges"""
-        cpes = []
-        try:
-            configs = cve_data.get('configurations', [])
-            for config in configs:
-                nodes = config.get('nodes', [])
-                for node in nodes:
-                    matches = node.get('cpeMatch', [])
-                    for match in matches:
-                        cpes.append(match.get('criteria', ''))
-        except:
-            pass
-        return cpes
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
+        self.rate_limit_delay = 6.0 if not api_key else 0.6  # seconds between requests
+        self.last_request_time = 0
     
-    def _matches_cpe(self, service: str, version: str, cpe_patterns: List[str]) -> bool:
-        """Check if service/version matches any CPE patterns"""
-        service_lower = service.lower()
-        for cpe in cpe_patterns:
-            if service_lower in cpe.lower() and version in cpe:
-                return True
-        return False
-    
-    def scan_results(self, scan_output: str, target_info: Dict) -> Dict:
-        """
-        Analyze scan output and match against real-time CVE data
-        """
-        findings = {
-            "target": target_info.get("target") if target_info else None,
-            "services": [],
-            "vulnerabilities": [],
-            "zero_days": [],
-            "exploitable": [],
-            "risk_score": 0,
-            "cvss_scores": []
+    async def search_cves(self, keyword: str = None, cpe: str = None, 
+                          cvss_min: float = None, days_back: int = 30,
+                          results_per_page: int = 50) -> List[CVEEntry]:
+        """Search CVEs from NVD API"""
+        await self._rate_limit()
+        
+        params = {
+            "resultsPerPage": results_per_page
         }
         
-        # Service detection patterns
-        service_patterns = {
-            r'Apache[/\s]+(\d+\.\d+\.\d+)': 'Apache',
-            r'nginx[/\s]+(\d+\.\d+\.\d+)': 'Nginx',
-            r'WordPress[/\s]+(\d+\.\d+\.\d+)': 'WordPress',
-            r'PHP[/\s]+(\d+\.\d+\.\d+)': 'PHP',
-            r'MySQL[/\s]+(\d+\.\d+\.\d+)': 'MySQL',
-            r'PostgreSQL[/\s]+(\d+\.\d+\.\d+)': 'PostgreSQL',
-            r'OpenSSL[/\s]+(\d+\.\d+[a-z]?)': 'OpenSSL',
-            r'IIS[/\s]+(\d+\.\d+)': 'IIS',
-            r'Tomcat[/\s]+(\d+\.\d+\.\d+)': 'Apache Tomcat',
-            r'Django[/\s]+(\d+\.\d+\.\d+)': 'Django',
-            r'Flask[/\s]+(\d+\.\d+\.\d+)': 'Flask',
-            r'Spring[/\s]+(\d+\.\d+\.\d+)': 'Spring Framework',
-        }
+        if keyword:
+            params["keywordSearch"] = keyword
         
-        detected_services = {}
-
-        # Basic Nmap line parsing for services
-        line_pattern = re.compile(r'^\s*(\d+)/tcp\s+open\s+(\S+)\s+(.*)$', re.IGNORECASE)
-        for line in scan_output.splitlines():
-            match = line_pattern.match(line.strip())
-            if not match:
-                continue
-            port = int(match.group(1))
-            service_name = match.group(2)
-            version_info = match.group(3).strip()
-            findings["services"].append({
-                "port": port,
-                "service": service_name,
-                "version": version_info
-            })
-
-            # Try to extract known software/version from version info
-            sw_match = re.search(
-                r'(Apache|nginx|WordPress|PHP|MySQL|PostgreSQL|OpenSSL|IIS|Tomcat|Django|Flask|Spring)\D+([0-9]+(?:\.[0-9]+){1,2}[a-z]?)',
-                version_info,
-                re.IGNORECASE
-            )
-            if sw_match:
-                sw_name = sw_match.group(1).title() if sw_match.group(1).lower() != "nginx" else "Nginx"
-                sw_version = sw_match.group(2)
-                detected_services[sw_name] = sw_version
+        if cpe:
+            params["cpeName"] = cpe
         
-        # Extract services and versions
-        for pattern, service in service_patterns.items():
-            matches = re.finditer(pattern, scan_output, re.IGNORECASE)
-            for match in matches:
-                version = match.group(1) if match.groups() else "unknown"
-                detected_services[service] = version
-
-        # Fallback demo data for empty scans (offline mode)
-        if not detected_services and not scan_output.strip():
-            detected_services["Apache"] = "2.4.38"
+        if cvss_min:
+            params["cvssV3Severity"] = self._cvss_to_severity(cvss_min)
         
-        # For each detected service, query for CVEs
-        for service, version in detected_services.items():
-            # Try common CVE formats
-            cve_queries = [
-                f"{service} {version}",
-                service,
-            ]
-            
-            for query in cve_queries:
-                # In real scenario, search NVD for matching CVEs
-                # For now, use local fallback database
-                local_cves = self._search_local_db(service, version)
-                
-                for cve_id in local_cves:
-                    cve_data = self._fetch_cve_data(cve_id)
-
-                    if cve_data:
-                        cvss = self._extract_cvss_v31(cve_data)
-                        cpe_matches = self._extract_cpe_matches(cve_data)
+        if days_back:
+            pub_start = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00.000")
+            params["pubStartDate"] = pub_start
+        
+        headers = {}
+        if self.api_key:
+            headers["apiKey"] = self.api_key
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.BASE_URL, params=params, headers=headers, timeout=30) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return self._parse_nvd_response(data)
                     else:
-                        severity = self._get_severity(cve_id)
-                        score_map = {
-                            "CRITICAL": 9.8,
-                            "HIGH": 7.5,
-                            "MEDIUM": 5.0,
-                            "LOW": 2.5
-                        }
-                        cvss = {
-                            "score": score_map.get(severity, 5.0),
-                            "severity": severity,
-                            "vector": "",
-                            "attack_vector": "NETWORK",
-                            "attack_complexity": "UNKNOWN",
-                            "privileges_required": "UNKNOWN",
-                            "user_interaction": "UNKNOWN",
-                        }
-                        cpe_matches = []
-
-                    vuln = {
-                        "cve": cve_id,
-                        "service": service,
-                        "version": version,
-                        "severity": cvss['severity'],
-                        "cvss_score": cvss['score'],
-                        "cvss_vector": cvss.get('vector', ''),
-                        "attack_vector": cvss.get('attack_vector', 'UNKNOWN'),
-                        "attack_complexity": cvss.get('attack_complexity', 'UNKNOWN'),
-                        "privileges_required": cvss.get('privileges_required', 'UNKNOWN'),
-                        "user_interaction": cvss.get('user_interaction', 'UNKNOWN'),
-                        "exploitable": True if cvss['score'] >= 7.0 else False,
-                        "cpe_matches": cpe_matches,
-                        "tags": ["remote", "network"] if cvss.get('attack_vector') == "NETWORK" else ["local"]
-                    }
-
-                    findings["vulnerabilities"].append(vuln)
-                    findings["risk_score"] += int(cvss['score'] * 10)
-                    findings["cvss_scores"].append(cvss['score'])
-        
-        findings["exploitable"] = [v for v in findings["vulnerabilities"] if v.get("exploitable")]
-        
-        return findings
+                        return []
+        except Exception as e:
+            print(f"[NVD API Error] {e}")
+            return []
     
-    def _search_local_db(self, service: str, version: str) -> List[str]:
-        """Local CVE database fallback"""
-        local_db = {
-            "Apache": {
-                "2.4.38": ["CVE-2021-41773"],
-                "2.4.49": ["CVE-2021-41773", "CVE-2021-42013"],
-                "2.4.50": ["CVE-2021-42013", "CVE-2021-41775"],
-                "2.4.51": ["CVE-2021-41773", "CVE-2021-42013"],
-                "2.4.52": ["CVE-2021-34798"],
-                "2.4.53": ["CVE-2022-22720", "CVE-2022-23943"],
-                "2.4.54": ["CVE-2023-44487"],
-            },
-            "Nginx": {
-                "1.16.0": ["CVE-2019-9511"],
-                "1.17.0": ["CVE-2019-11587"],
-                "1.18.0": ["CVE-2020-11724"],
-                "1.19.0": ["CVE-2020-28241"],
-                "1.20.0": ["CVE-2021-23017"],
-            },
-            "WordPress": {
-                "5.7": ["CVE-2021-29447"],
-                "5.8": ["CVE-2021-39200"],
-                "6.0": ["CVE-2022-25146"],
-                "6.1": ["CVE-2022-41465"],
-                "6.2": ["CVE-2023-28121"],
-            },
-            "PHP": {
-                "7.4.0": ["CVE-2020-7070"],
-                "7.4.10": ["CVE-2020-7065"],
-                "8.0.0": ["CVE-2021-21702"],
-                "8.1.0": ["CVE-2021-21705"],
-                "8.2.0": ["CVE-2023-38545"],
-            },
-            "MySQL": {
-                "5.7.0": ["CVE-2020-14556"],
-                "5.7.30": ["CVE-2020-14651"],
-                "8.0.0": ["CVE-2020-14641"],
-                "8.0.20": ["CVE-2020-14585"],
-            },
-            "PostgreSQL": {
-                "9.6": ["CVE-2020-21224"],
-                "10.0": ["CVE-2020-25694"],
-                "12.0": ["CVE-2021-23214"],
-                "13.0": ["CVE-2021-41617"],
-                "14.0": ["CVE-2022-41862"],
-            },
-            "OpenSSL": {
-                "1.1.1": ["CVE-2021-3711", "CVE-2021-3712"],
-                "1.1.1k": ["CVE-2021-3449"],
-                "3.0.0": ["CVE-2022-0778"],
-                "3.0.1": ["CVE-2022-1343"],
-                "3.0.7": ["CVE-2023-0286"],
-                "3.1.0": ["CVE-2023-2975"],
-                "3.1.4": ["CVE-2024-0727"],
-            },
-            # === 2024-2025 NEW CVE DATABASE ===
-            "Node.js": {
-                "16.0.0": ["CVE-2021-44531", "CVE-2021-44532"],
-                "18.0.0": ["CVE-2022-32212"],
-                "20.0.0": ["CVE-2023-30581"],
-                "21.0.0": ["CVE-2024-21890"],
-            },
-            "Redis": {
-                "6.0.0": ["CVE-2022-24735"],
-                "7.0.0": ["CVE-2023-28856"],
-                "7.2.0": ["CVE-2024-31228"],
-            },
-            "Docker": {
-                "20.10.0": ["CVE-2022-29162"],
-                "23.0.0": ["CVE-2023-28840"],
-                "24.0.0": ["CVE-2024-21626"],
-            },
-            "Kubernetes": {
-                "1.24.0": ["CVE-2023-2727", "CVE-2023-2728"],
-                "1.25.0": ["CVE-2023-3676"],
-                "1.26.0": ["CVE-2023-3955"],
-                "1.27.0": ["CVE-2024-3177"],
-            },
-            "Jenkins": {
-                "2.387": ["CVE-2023-27898"],
-                "2.400": ["CVE-2023-35141"],
-                "2.426": ["CVE-2024-23897"],
-            },
-            "GitLab": {
-                "15.0.0": ["CVE-2022-2884"],
-                "16.0.0": ["CVE-2023-2825"],
-                "16.5.0": ["CVE-2023-5356"],
-                "16.7.0": ["CVE-2024-0402"],
-            },
-            "Grafana": {
-                "9.0.0": ["CVE-2022-31107"],
-                "10.0.0": ["CVE-2023-3128"],
-                "10.2.0": ["CVE-2023-4822"],
-            },
-            "Elasticsearch": {
-                "7.17.0": ["CVE-2023-31418"],
-                "8.0.0": ["CVE-2023-31419"],
-                "8.10.0": ["CVE-2023-46673"],
-            },
-            "MongoDB": {
-                "5.0.0": ["CVE-2021-20329"],
-                "6.0.0": ["CVE-2023-1409"],
-                "7.0.0": ["CVE-2024-1351"],
-            },
-            "Tomcat": {
-                "9.0.0": ["CVE-2023-28709"],
-                "10.0.0": ["CVE-2023-41080"],
-                "10.1.0": ["CVE-2023-46589"],
-            },
-            "Spring": {
-                "5.3.0": ["CVE-2022-22965"],  # Spring4Shell
-                "6.0.0": ["CVE-2023-20861"],
-                "6.1.0": ["CVE-2024-22243"],
-            },
-            "Log4j": {
-                "2.14.0": ["CVE-2021-44228"],  # Log4Shell
-                "2.16.0": ["CVE-2021-45046"],
-                "2.17.0": ["CVE-2021-45105"],
+    async def get_cve_details(self, cve_id: str) -> Optional[CVEEntry]:
+        """Get specific CVE details"""
+        await self._rate_limit()
+        
+        params = {"cveId": cve_id}
+        headers = {}
+        if self.api_key:
+            headers["apiKey"] = self.api_key
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.BASE_URL, params=params, headers=headers, timeout=30) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        cves = self._parse_nvd_response(data)
+                        return cves[0] if cves else None
+        except Exception as e:
+            print(f"[NVD API Error] {e}")
+            return None
+    
+    async def _rate_limit(self):
+        """Apply rate limiting"""
+        import time
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.rate_limit_delay:
+            await asyncio.sleep(self.rate_limit_delay - elapsed)
+        self.last_request_time = time.time()
+    
+    def _cvss_to_severity(self, cvss: float) -> str:
+        """Convert CVSS score to severity string"""
+        if cvss >= 9.0:
+            return "CRITICAL"
+        elif cvss >= 7.0:
+            return "HIGH"
+        elif cvss >= 4.0:
+            return "MEDIUM"
+        else:
+            return "LOW"
+    
+    def _parse_nvd_response(self, data: Dict) -> List[CVEEntry]:
+        """Parse NVD API response"""
+        cves = []
+        
+        for vuln in data.get("vulnerabilities", []):
+            cve_data = vuln.get("cve", {})
+            
+            # Get CVSS score
+            cvss_score = 0.0
+            cvss_vector = ""
+            
+            metrics = cve_data.get("metrics", {})
+            if "cvssMetricV31" in metrics:
+                cvss_data = metrics["cvssMetricV31"][0]["cvssData"]
+                cvss_score = cvss_data.get("baseScore", 0.0)
+                cvss_vector = cvss_data.get("vectorString", "")
+            elif "cvssMetricV30" in metrics:
+                cvss_data = metrics["cvssMetricV30"][0]["cvssData"]
+                cvss_score = cvss_data.get("baseScore", 0.0)
+                cvss_vector = cvss_data.get("vectorString", "")
+            elif "cvssMetricV2" in metrics:
+                cvss_data = metrics["cvssMetricV2"][0]["cvssData"]
+                cvss_score = cvss_data.get("baseScore", 0.0)
+                cvss_vector = cvss_data.get("vectorString", "")
+            
+            # Get description
+            descriptions = cve_data.get("descriptions", [])
+            description = ""
+            for desc in descriptions:
+                if desc.get("lang") == "en":
+                    description = desc.get("value", "")
+                    break
+            
+            # Get affected products (CPE)
+            affected_products = []
+            configurations = cve_data.get("configurations", [])
+            for config in configurations:
+                for node in config.get("nodes", []):
+                    for cpe_match in node.get("cpeMatch", []):
+                        affected_products.append(cpe_match.get("criteria", ""))
+            
+            # Get references
+            references = []
+            for ref in cve_data.get("references", []):
+                references.append(ref.get("url", ""))
+            
+            # Get CWE IDs
+            cwe_ids = []
+            weaknesses = cve_data.get("weaknesses", [])
+            for weakness in weaknesses:
+                for desc in weakness.get("description", []):
+                    cwe_ids.append(desc.get("value", ""))
+            
+            # Determine severity
+            severity = self._score_to_severity(cvss_score)
+            
+            cve = CVEEntry(
+                cve_id=cve_data.get("id", ""),
+                description=description,
+                severity=severity,
+                cvss_score=cvss_score,
+                cvss_vector=cvss_vector,
+                published_date=cve_data.get("published", ""),
+                modified_date=cve_data.get("lastModified", ""),
+                affected_products=affected_products,
+                references=references,
+                cwe_ids=cwe_ids
+            )
+            
+            cves.append(cve)
+        
+        return cves
+    
+    def _score_to_severity(self, score: float) -> Severity:
+        """Convert CVSS score to Severity enum"""
+        if score >= 9.0:
+            return Severity.CRITICAL
+        elif score >= 7.0:
+            return Severity.HIGH
+        elif score >= 4.0:
+            return Severity.MEDIUM
+        elif score > 0:
+            return Severity.LOW
+        return Severity.INFO
+
+
+class ExploitDBClient:
+    """Exploit-DB search client"""
+    
+    SEARCH_URL = "https://www.exploit-db.com/search"
+    
+    async def search_exploits(self, cve_id: str = None, keyword: str = None) -> List[Dict]:
+        """Search exploits from Exploit-DB"""
+        exploits = []
+        
+        # Build search query
+        query = cve_id or keyword
+        if not query:
+            return exploits
+        
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+                "X-Requested-With": "XMLHttpRequest"
             }
-        }
+            
+            params = {
+                "draw": "1",
+                "columns[0][data]": "date_published",
+                "columns[1][data]": "download",
+                "columns[2][data]": "application_md5",
+                "columns[3][data]": "verified",
+                "columns[4][data]": "description",
+                "order[0][column]": "0",
+                "order[0][dir]": "desc",
+                "search[value]": query,
+                "search[regex]": "false",
+                "start": "0",
+                "length": "50"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.SEARCH_URL, params=params, headers=headers, timeout=30) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        for item in data.get("data", []):
+                            exploit = {
+                                "id": item.get("id"),
+                                "title": item.get("description", {}).get("title", "") if isinstance(item.get("description"), dict) else "",
+                                "date": item.get("date_published", ""),
+                                "type": item.get("type", {}).get("name", "") if isinstance(item.get("type"), dict) else "",
+                                "platform": item.get("platform", {}).get("platform", "") if isinstance(item.get("platform"), dict) else "",
+                                "author": item.get("author", {}).get("name", "") if isinstance(item.get("author"), dict) else "",
+                                "verified": item.get("verified", 0) == 1,
+                                "url": f"https://www.exploit-db.com/exploits/{item.get('id', '')}"
+                            }
+                            exploits.append(exploit)
+        except Exception as e:
+            print(f"[Exploit-DB Error] {e}")
         
-        if service in local_db and version in local_db[service]:
-            return local_db[service][version]
+        return exploits
+
+
+class VulnersClient:
+    """Vulners.com API client"""
+    
+    BASE_URL = "https://vulners.com/api/v3"
+    
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
+    
+    async def search_by_cpe(self, cpe: str) -> List[Dict]:
+        """Search vulnerabilities by CPE"""
+        if not self.api_key:
+            return []
         
-        # Check for partial version match
-        if service in local_db:
-            for db_ver, cves in local_db[service].items():
-                if version.startswith(db_ver.rsplit('.', 1)[0]):  # Match major.minor
-                    return cves
+        try:
+            url = f"{self.BASE_URL}/burp/software/"
+            
+            payload = {
+                "software": cpe,
+                "version": "",
+                "type": "cpe",
+                "apiKey": self.api_key
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=30) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("data", {}).get("search", [])
+        except Exception as e:
+            print(f"[Vulners Error] {e}")
         
         return []
     
-    def _get_severity(self, cve: str) -> str:
-        """Get severity from CVE (fallback)"""
-        severity_map = {
-            "2024": "CRITICAL",
-            "2023": "CRITICAL",
-            "2022": "HIGH",
-            "2021": "HIGH",
-            "2020": "MEDIUM"
-        }
+    async def get_exploit_info(self, exploit_id: str) -> Optional[Dict]:
+        """Get exploit information"""
+        if not self.api_key:
+            return None
+        
         try:
-            year = cve.split("-")[1][:4]
-            return severity_map.get(year, "MEDIUM")
-        except:
-            return "MEDIUM"
+            url = f"{self.BASE_URL}/document/id/"
+            
+            payload = {
+                "id": exploit_id,
+                "apiKey": self.api_key
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=30) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("data", {})
+        except Exception as e:
+            print(f"[Vulners Error] {e}")
+        
+        return None
+
+
+class ZeroDayScanner:
+    """
+    Enterprise-grade Zero Day Scanner
+    Integrates multiple vulnerability databases and exploit sources
+    """
     
-    def _get_risk_points(self, cve: str) -> int:
-        """Calculate risk points from CVE"""
-        points = {
-            "CRITICAL": 10,
-            "HIGH": 7,
-            "MEDIUM": 4,
-            "LOW": 1
-        }
-        return points.get(self._get_severity(cve), 1)
+    VERSION = "2.0.0"
     
-    def get_exploit(self, cve: str) -> dict:
-        """CVE için exploit öner"""
-        exploits = {
-            "CVE-2021-41773": {
-                "tool": "curl",
-                "command": "curl -v 'http://target/cgi-bin/echo%20ok'",
-                "type": "RCE"
-            },
-            "CVE-2021-3711": {
-                "tool": "openssl",
-                "command": "openssl s_client -connect target:443",
-                "type": "Buffer Overflow"
-            },
+    def __init__(self, nvd_api_key: str = None, vulners_api_key: str = None):
+        self.nvd_client = NVDClient(api_key=nvd_api_key)
+        self.exploitdb_client = ExploitDBClient()
+        self.vulners_client = VulnersClient(api_key=vulners_api_key)
+        self.local_db = CVEDatabase()
+        
+        # Known vulnerable versions database
+        self.known_vulnerable = self._load_known_vulnerable()
+    
+    def _load_known_vulnerable(self) -> Dict[str, List[Dict]]:
+        """Load known vulnerable software versions"""
+        return {
+            # Apache
+            "apache": [
+                {"version_regex": r"2\.4\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49)",
+                 "cves": ["CVE-2021-44790", "CVE-2021-44224", "CVE-2021-41773", "CVE-2021-42013"]},
+            ],
+            # Nginx
+            "nginx": [
+                {"version_regex": r"1\.(18|19|20)\.\d+",
+                 "cves": ["CVE-2021-23017"]},
+            ],
+            # OpenSSH
+            "openssh": [
+                {"version_regex": r"[78]\.\d+",
+                 "cves": ["CVE-2023-38408", "CVE-2021-41617", "CVE-2020-15778"]},
+            ],
+            # MySQL
+            "mysql": [
+                {"version_regex": r"5\.7\.\d+|8\.0\.\d+",
+                 "cves": ["CVE-2021-22926", "CVE-2021-22895"]},
+            ],
+            # WordPress
+            "wordpress": [
+                {"version_regex": r"[456]\.\d+(\.\d+)?",
+                 "cves": ["CVE-2022-21661", "CVE-2022-21662", "CVE-2022-21663"]},
+            ],
+            # PHP
+            "php": [
+                {"version_regex": r"7\.[34]\.\d+|8\.[012]\.\d+",
+                 "cves": ["CVE-2022-31625", "CVE-2022-31626", "CVE-2021-21708"]},
+            ],
+            # Log4j
+            "log4j": [
+                {"version_regex": r"2\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16)(\.\d+)?",
+                 "cves": ["CVE-2021-44228", "CVE-2021-45046", "CVE-2021-45105"]},
+            ],
+            # Spring Framework
+            "spring": [
+                {"version_regex": r"5\.[23]\.\d+",
+                 "cves": ["CVE-2022-22965", "CVE-2022-22963"]},
+            ],
+            # Tomcat
+            "tomcat": [
+                {"version_regex": r"[89]\.\d+\.\d+|10\.\d+\.\d+",
+                 "cves": ["CVE-2022-42252", "CVE-2022-34305"]},
+            ],
+            # Redis
+            "redis": [
+                {"version_regex": r"[567]\.\d+\.\d+",
+                 "cves": ["CVE-2022-24736", "CVE-2022-24735"]},
+            ],
+            # Elasticsearch
+            "elasticsearch": [
+                {"version_regex": r"[78]\.\d+\.\d+",
+                 "cves": ["CVE-2021-22144", "CVE-2021-22145"]},
+            ],
+            # Jenkins
+            "jenkins": [
+                {"version_regex": r"2\.\d+\.\d+",
+                 "cves": ["CVE-2022-27198", "CVE-2022-27199"]},
+            ],
         }
-        return exploits.get(cve, {
-            "tool": "searchsploit",
-            "command": f"searchsploit {cve}",
-            "type": "Unknown"
-        })
+    
+    async def scan_target(self, target: ScanTarget, deep_scan: bool = True) -> ScanResult:
+        """
+        Scan a target for known vulnerabilities
+        
+        Args:
+            target: Target information (host, service, version)
+            deep_scan: Whether to query online databases
+        
+        Returns:
+            ScanResult with found vulnerabilities
+        """
+        result = ScanResult(
+            target=target,
+            scan_time=datetime.now().isoformat()
+        )
+        
+        vulnerabilities = []
+        
+        # 1. Check local known vulnerable database
+        local_vulns = self._check_known_vulnerable(target)
+        vulnerabilities.extend(local_vulns)
+        
+        # 2. Check local CVE database
+        if target.service or target.version:
+            db_vulns = self.local_db.search_by_product(
+                target.service or target.banner,
+                target.version
+            )
+            vulnerabilities.extend(db_vulns)
+        
+        # 3. Check by CPE if available
+        if target.cpe:
+            cpe_vulns = self.local_db.search_by_cpe(target.cpe)
+            vulnerabilities.extend(cpe_vulns)
+        
+        # 4. Deep scan - query online databases
+        if deep_scan:
+            online_vulns = await self._deep_scan(target)
+            vulnerabilities.extend(online_vulns)
+        
+        # 5. Check for exploits
+        vulnerabilities = await self._enrich_with_exploits(vulnerabilities)
+        
+        # Remove duplicates
+        seen_cves = set()
+        unique_vulns = []
+        for v in vulnerabilities:
+            if v.cve_id not in seen_cves:
+                seen_cves.add(v.cve_id)
+                unique_vulns.append(v)
+        
+        # Sort by CVSS score
+        unique_vulns.sort(key=lambda x: x.cvss_score, reverse=True)
+        
+        # Update result
+        result.vulnerabilities = unique_vulns
+        result.total_cves = len(unique_vulns)
+        result.critical_count = sum(1 for v in unique_vulns if v.severity == Severity.CRITICAL)
+        result.high_count = sum(1 for v in unique_vulns if v.severity == Severity.HIGH)
+        result.exploitable_count = sum(1 for v in unique_vulns if v.exploit_available in [ExploitAvailability.PUBLIC, ExploitAvailability.POC])
+        
+        return result
+    
+    def _check_known_vulnerable(self, target: ScanTarget) -> List[CVEEntry]:
+        """Check against known vulnerable versions"""
+        vulnerabilities = []
+        
+        service_lower = (target.service or target.banner or "").lower()
+        version = target.version or ""
+        
+        for software, vulns in self.known_vulnerable.items():
+            if software in service_lower:
+                for vuln in vulns:
+                    pattern = vuln.get("version_regex", "")
+                    if pattern and re.search(pattern, version):
+                        for cve_id in vuln.get("cves", []):
+                            cve = CVEEntry(
+                                cve_id=cve_id,
+                                description=f"Known vulnerable version of {software}: {version}",
+                                severity=Severity.HIGH,
+                                cvss_score=8.0,
+                                affected_products=[f"{software} {version}"]
+                            )
+                            vulnerabilities.append(cve)
+        
+        return vulnerabilities
+    
+    async def _deep_scan(self, target: ScanTarget) -> List[CVEEntry]:
+        """Query online databases for vulnerabilities"""
+        vulnerabilities = []
+        
+        # Build search keyword
+        keyword = target.service or target.banner
+        if target.version:
+            keyword = f"{keyword} {target.version}"
+        
+        if not keyword:
+            return vulnerabilities
+        
+        # Query NVD
+        try:
+            nvd_vulns = await self.nvd_client.search_cves(
+                keyword=keyword,
+                cvss_min=4.0,
+                days_back=365
+            )
+            vulnerabilities.extend(nvd_vulns)
+            
+            # Store in local database
+            for cve in nvd_vulns:
+                self.local_db.add_cve(cve)
+        except Exception as e:
+            print(f"[Deep Scan] NVD query failed: {e}")
+        
+        # Query by CPE if available
+        if target.cpe:
+            try:
+                cpe_vulns = await self.nvd_client.search_cves(cpe=target.cpe)
+                vulnerabilities.extend(cpe_vulns)
+            except Exception as e:
+                print(f"[Deep Scan] CPE query failed: {e}")
+        
+        return vulnerabilities
+    
+    async def _enrich_with_exploits(self, vulnerabilities: List[CVEEntry]) -> List[CVEEntry]:
+        """Enrich CVEs with exploit information"""
+        for cve in vulnerabilities:
+            if cve.exploit_available == ExploitAvailability.UNKNOWN:
+                try:
+                    exploits = await self.exploitdb_client.search_exploits(cve_id=cve.cve_id)
+                    if exploits:
+                        cve.exploit_available = ExploitAvailability.PUBLIC
+                        cve.exploit_urls = [e.get("url", "") for e in exploits[:5]]
+                except Exception:
+                    pass
+        
+        return vulnerabilities
+    
+    async def scan_nmap_output(self, nmap_output: str) -> List[ScanResult]:
+        """
+        Parse nmap output and scan all discovered services
+        
+        Args:
+            nmap_output: Raw nmap scan output
+        
+        Returns:
+            List of ScanResults for each service
+        """
+        results = []
+        
+        # Parse nmap output
+        targets = self._parse_nmap_output(nmap_output)
+        
+        # Scan each target
+        for target in targets:
+            result = await self.scan_target(target)
+            results.append(result)
+        
+        return results
+    
+    def _parse_nmap_output(self, output: str) -> List[ScanTarget]:
+        """Parse nmap output to extract targets"""
+        targets = []
+        
+        current_host = ""
+        
+        for line in output.split("\n"):
+            line = line.strip()
+            
+            # Get host
+            host_match = re.search(r"Nmap scan report for (\S+)", line)
+            if host_match:
+                current_host = host_match.group(1)
+                continue
+            
+            # Get port/service info
+            port_match = re.match(r"(\d+)/(\w+)\s+(\w+)\s+(\S+)(?:\s+(.+))?", line)
+            if port_match and current_host:
+                port = int(port_match.group(1))
+                protocol = port_match.group(2)
+                state = port_match.group(3)
+                service = port_match.group(4)
+                version = port_match.group(5) or ""
+                
+                if state == "open":
+                    target = ScanTarget(
+                        host=current_host,
+                        port=port,
+                        service=service,
+                        version=version,
+                        banner=f"{service} {version}".strip()
+                    )
+                    targets.append(target)
+        
+        return targets
+    
+    async def quick_scan(self, service: str, version: str = "") -> List[CVEEntry]:
+        """
+        Quick scan for a specific service/version combination
+        
+        Args:
+            service: Service name (e.g., "apache", "nginx")
+            version: Version string
+        
+        Returns:
+            List of CVEEntry vulnerabilities
+        """
+        target = ScanTarget(
+            host="",
+            service=service,
+            version=version,
+            banner=f"{service} {version}".strip()
+        )
+        
+        result = await self.scan_target(target, deep_scan=True)
+        return result.vulnerabilities
+    
+    def get_critical_summary(self, results: List[ScanResult]) -> Dict:
+        """Get summary of critical findings"""
+        summary = {
+            "total_hosts": len(results),
+            "total_vulnerabilities": 0,
+            "critical_vulnerabilities": 0,
+            "high_vulnerabilities": 0,
+            "exploitable_vulnerabilities": 0,
+            "top_cves": [],
+            "affected_services": {}
+        }
+        
+        all_vulns = []
+        
+        for result in results:
+            summary["total_vulnerabilities"] += result.total_cves
+            summary["critical_vulnerabilities"] += result.critical_count
+            summary["high_vulnerabilities"] += result.high_count
+            summary["exploitable_vulnerabilities"] += result.exploitable_count
+            
+            service = result.target.service or "unknown"
+            if service not in summary["affected_services"]:
+                summary["affected_services"][service] = 0
+            summary["affected_services"][service] += result.total_cves
+            
+            all_vulns.extend(result.vulnerabilities)
+        
+        # Get top CVEs
+        all_vulns.sort(key=lambda x: x.cvss_score, reverse=True)
+        summary["top_cves"] = [v.to_dict() for v in all_vulns[:10]]
+        
+        return summary
+    
+    def close(self):
+        """Close scanner and release resources"""
+        self.local_db.close()
+
+
+# Global scanner instance
+_scanner: Optional[ZeroDayScanner] = None
+
+
+def get_scanner(nvd_api_key: str = None, vulners_api_key: str = None) -> ZeroDayScanner:
+    """Get or create global scanner instance"""
+    global _scanner
+    if _scanner is None:
+        _scanner = ZeroDayScanner(nvd_api_key=nvd_api_key, vulners_api_key=vulners_api_key)
+    return _scanner
+
+
+# Convenience functions
+async def scan_service(service: str, version: str = "") -> List[CVEEntry]:
+    """Quick scan a service"""
+    scanner = get_scanner()
+    return await scanner.quick_scan(service, version)
+
+
+async def scan_nmap_results(nmap_output: str) -> List[ScanResult]:
+    """Scan from nmap output"""
+    scanner = get_scanner()
+    return await scanner.scan_nmap_output(nmap_output)

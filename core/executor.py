@@ -1,19 +1,16 @@
-import subprocess
-import datetime
-import os
+from core.terminal import TerminalExecutor
 
 class Executor:
+    """Compatibility wrapper over TerminalExecutor."""
+
+    def __init__(self, log_dir: str = "logs", auto_approve: bool = False):
+        self.terminal = TerminalExecutor(log_dir=log_dir, auto_approve=auto_approve)
+
     def run(self, command: str) -> str:
         """Tek komut çalıştırır ve çıktıyı döndürür."""
         try:
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True
-            )
-            output = (result.stdout + result.stderr).strip()
-            self.log_output(command, output)
+            result = self.terminal.run_command(command)
+            output = "\n".join([part for part in [result.output, result.error] if part]).strip()
             return output
         except Exception as e:
             return f"[Executor Error] {e}"
@@ -36,15 +33,9 @@ class Executor:
                         "output": "Adımda 'suggestion' veya 'command' anahtarı yok"
                     })
                     continue
-                    
-                result = subprocess.run(
-                    command_text,
-                    shell=True,
-                    capture_output=True,
-                    text=True
-                )
-                output = (result.stdout + result.stderr).strip()
-                self.log_output(command_text, output)
+
+                result = self.terminal.run_command(command_text)
+                output = "\n".join([part for part in [result.output, result.error] if part]).strip()
                 outputs.append({
                     "step": step.get("step"),
                     "command": command_text,
@@ -57,15 +48,3 @@ class Executor:
                     "output": f"[Executor Error] {e}"
                 })
         return outputs
-
-    def log_output(self, command: str, output: str):
-        """Komut çıktısını logs/ klasörüne kaydeder."""
-        try:
-            if not os.path.exists("logs"):
-                os.makedirs("logs")
-            ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            filename = f"logs/{ts}.log"
-            with open(filename, "w") as f:
-                f.write(f"Command: {command}\n\n{output}")
-        except Exception as e:
-            print(f"[Log Error] {e}")

@@ -49,3 +49,6 @@ class DrakbenMemory:
 
 # Global memory instance
 memory_instance = DrakbenMemory()
+
+# Alias for compatibility
+WorkingMemory = DrakbenMemory

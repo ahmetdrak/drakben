@@ -1,6 +1,6 @@
-# 📦 DRAKBEN v5.0 - Installation Guide
+# 📦 Installation Guide
 
-Complete setup instructions for all platforms.
+Kali Linux Autonomous Pentest AI - Complete Setup for All Platforms
 
 ---
 
@@ -10,8 +10,8 @@ Complete setup instructions for all platforms.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 
 # 2. Create virtual environment
 python3 -m venv .venv
@@ -20,23 +20,9 @@ source .venv/bin/activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run DRAKBEN
+# 4. Run the app
 python3 drakben.py
 ```
-
-### Optional: Install Pentest Tools
-
-DRAKBEN works without external tools, but for full functionality:
-
-```bash
-# Kali Linux (most tools pre-installed)
-sudo apt update
-
-# Ubuntu/Debian
-sudo apt install -y nmap sqlmap nikto hydra john hashcat
-```
-
----
 
 ## 🪟 Windows
 
@@ -44,8 +30,8 @@ sudo apt install -y nmap sqlmap nikto hydra john hashcat
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 
 # 2. Create virtual environment
 python -m venv .venv
@@ -54,11 +40,11 @@ python -m venv .venv
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run DRAKBEN
-python drakben.py
+# 4. Run the app
+python .\drakben.py
 ```
 
-> **Note:** Some features (SSH shells, lateral movement) work best on Linux.
+ 
 
 ---
 
@@ -68,8 +54,8 @@ python drakben.py
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 
 # 2. Create virtual environment
 python3 -m venv .venv
@@ -78,7 +64,7 @@ source .venv/bin/activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run DRAKBEN
+# 4. Run the app
 python3 drakben.py
 ```
 
@@ -96,16 +82,16 @@ brew install nmap sqlmap nikto hydra john hashcat
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 
 # 2. Build and run with Docker Compose
 docker-compose up -d
 
 # 3. Enter the container
-docker exec -it drakben bash
+docker exec -it drakben_main bash
 
-# 4. Run DRAKBEN inside container
+# 4. Run the app inside container
 python3 drakben.py
 ```
 
@@ -120,7 +106,7 @@ docker run -it drakben:latest
 
 ## 🤖 AI/LLM Configuration (Optional)
 
-DRAKBEN works **100% offline**. For AI features, configure one of these:
+This framework works **100% offline**. For AI features, configure one of these:
 
 ### Option A: Ollama (Free, Local)
 
@@ -129,7 +115,7 @@ DRAKBEN works **100% offline**. For AI features, configure one of these:
 # 2. Pull a model
 ollama pull llama3.2
 
-# 3. Configure DRAKBEN
+# 3. Configure the app
 cp .env.example config/api.env
 nano config/api.env
 ```
@@ -144,7 +130,7 @@ LOCAL_LLM_MODEL=llama3.2
 
 ```bash
 # 1. Get free API key: https://openrouter.ai
-# 2. Configure DRAKBEN
+# 2. Configure the app
 cp .env.example config/api.env
 nano config/api.env
 ```
@@ -159,7 +145,7 @@ OPENROUTER_MODEL=deepseek/deepseek-chat
 
 ```bash
 # 1. Get API key: https://platform.openai.com
-# 2. Configure DRAKBEN
+# 2. Configure the app
 cp .env.example config/api.env
 nano config/api.env
 ```
@@ -180,14 +166,19 @@ source .venv/bin/activate  # Linux/Mac
 # or
 .\.venv\Scripts\Activate.ps1  # Windows
 
-# Run DRAKBEN
+# Run the app
 python3 drakben.py
 
-# Test commands
-🩸 Drakben > help
-🩸 Drakben > target 127.0.0.1
-🩸 Drakben > results
-🩸 Drakben > exit
+# Test slash commands
+/help
+/target 127.0.0.1
+/scan
+/status
+/exit
+
+# Or use natural language
+💬 "127.0.0.1'i tara"
+💬 "portları listele"
 ```
 
 ---
@@ -221,7 +212,7 @@ chmod +x drakben.py
 ```
 
 ### API key not working
-- DRAKBEN works fine without API (offline mode)
+- The app works fine without API (offline mode)
 - Check `config/api.env` format
 - Verify key is valid at provider's website
 

@@ -1,7 +1,15 @@
-# Core modülü
-from .executor import Executor
-from .chain_planner import ChainPlanner
-from . import web_shell_handler
-from .web_shell_handler import WebShellHandler
+# Core module - DRAKBEN v1.0 Simplified
+from .agent import DrakbenAgent
+from .brain import DrakbenBrain
+from .terminal import TerminalExecutor
+from .config import ConfigManager, SessionManager
+from .i18n import t
 
-__all__ = ["Executor", "ChainPlanner", "web_shell_handler", "WebShellHandler"]
+__all__ = [
+    "DrakbenAgent",
+    "DrakbenBrain",
+    "TerminalExecutor",
+    "ConfigManager",
+    "SessionManager",
+    "t"
+]

@@ -1,6 +1,6 @@
-# Contributing to DRAKBEN
+# Contributing
 
-Thank you for your interest in contributing to DRAKBEN! 🩸
+Thank you for your interest in contributing to this project! 🩸
 
 ## How to Contribute
 
@@ -8,8 +8,8 @@ Thank you for your interest in contributing to DRAKBEN! 🩸
 
 ```bash
 # Fork the repo on GitHub, then:
-git clone https://github.com/YOUR-USERNAME/drakben.git
-cd drakben
+git clone <your-repo-url>
+cd <your-repo>
 ```
 
 ### 2. Create a Branch
@@ -81,7 +81,7 @@ Types:
 
 ## Report Issues
 
-Use [GitHub Issues](https://github.com/ahmetdrak/drakben/issues) for:
+Use your repository issue tracker for:
 
 - 🐛 Bug reports
 - 💡 Feature requests
@@ -104,7 +104,7 @@ What you expected to happen.
 **Environment**
 - OS: [e.g., Kali Linux 2025]
 - Python: [e.g., 3.11]
-- DRAKBEN version: [e.g., v5.0]
+- Release info: [if known]
 ```
 
 ---

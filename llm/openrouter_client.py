@@ -1,15 +1,19 @@
 # llm/openrouter_client.py
 # Multi-Provider LLM Client - OpenRouter, Ollama, OpenAI, Custom
 import os
-import sys
-import json
-import requests
 from pathlib import Path
 
-# Load environment variables
+import requests
+
+# Load environment variables - proje kokunden
 try:
     from dotenv import load_dotenv
-    load_dotenv("config/api.env")
+    # Proje kokunu bul
+    _this_file = Path(__file__).resolve()
+    _project_root = _this_file.parent.parent
+    _env_file = _project_root / "config" / "api.env"
+    if _env_file.exists():
+        load_dotenv(_env_file)
 except ImportError:
     pass  # dotenv not installed, use OS env
 
@@ -54,60 +58,14 @@ class OpenRouterClient:
             self.api_key = os.getenv("CUSTOM_API_KEY")
         else:  # openrouter (default)
             self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-            self.model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
+            self.model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
             self.api_key = os.getenv("OPENROUTER_API_KEY")
-            
-            # Interactive API key prompt if not set
-            if not self.api_key and sys.stdin.isatty():
-                self._prompt_for_api_key()
     
-    def _prompt_for_api_key(self):
-        """Prompt user for API key interactively"""
-        try:
-            print("[Optional] OpenRouter API key gir (bos birakirsan offline devam):", end=" ")
-            user_key = input().strip()
-            if user_key:
-                self.api_key = user_key
-                self._save_api_key(user_key)
-        except Exception:
-            pass  # Fail silently for offline mode
-    
-    def _save_api_key(self, key: str):
-        """Save API key to config file"""
-        config_dir = Path("config")
-        config_dir.mkdir(exist_ok=True)
-        api_env = config_dir / "api.env"
-        
-        lines = []
-        if api_env.exists():
-            with api_env.open("r", encoding="utf-8", errors="ignore") as f:
-                lines = [ln.rstrip("\n") for ln in f.readlines()]
-        
-        # Update or add key
-        found = False
-        new_lines = []
-        for ln in lines:
-            if ln.startswith("OPENROUTER_API_KEY="):
-                new_lines.append(f"OPENROUTER_API_KEY={key}")
-                found = True
-            else:
-                new_lines.append(ln)
-        if not found:
-            new_lines.append(f"OPENROUTER_API_KEY={key}")
-        
-        with api_env.open("w", encoding="utf-8") as f:
-            f.write("\n".join([ln for ln in new_lines if ln.strip()]))
-            f.write("\n")
-
     def query(self, prompt: str, system_prompt: str = None) -> str:
         """Query the LLM with automatic provider routing"""
         
         if system_prompt is None:
-            system_prompt = (
-                "Ben Drakben'im. 2026 yilina yonelik gelismis bir pentest yapay zeka asistaniyim. "
-                "DRAKBEN = Dusunen, Reaktif, Akilli, Karanlik Bilgi Engeli. "
-                "Turkce konusurum, pentest odakliyim: Recon -> Exploit -> Payload zincirlerini planlarim."
-            )
+            system_prompt = "You are a penetration testing assistant. Provide clear, actionable security advice."
         
         if self.provider == "ollama":
             return self._query_ollama(prompt, system_prompt)
@@ -135,7 +93,7 @@ class OpenRouterClient:
     def _query_openai_compatible(self, prompt: str, system_prompt: str) -> str:
         """Query OpenAI-compatible API (OpenRouter, OpenAI, Custom)"""
         if not self.api_key:
-            return "[Offline Mode] API key yok. Fallback modunda calisiyorum."
+            return "[Offline Mode] No API key configured."
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -161,15 +119,15 @@ class OpenRouterClient:
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
             elif response.status_code == 401:
-                return "[Auth Error] API key gecersiz. .env dosyasini kontrol edin."
+                return "[Auth Error] Invalid API key. Check config/api.env"
             elif response.status_code == 429:
-                return "[Rate Limit] Cok fazla istek. Biraz bekleyin."
+                return "[Rate Limit] Too many requests. Wait and retry."
             else:
                 return f"[API Error] {response.status_code}: {response.text[:100]}"
         except requests.exceptions.Timeout:
-            return "[Timeout] API yanit vermedi. Tekrar deneyin."
+            return "[Timeout] API did not respond. Retry."
         except requests.exceptions.ConnectionError:
-            return "[Offline] Internet baglantisi yok."
+            return "[Offline] No internet connection."
         except Exception as e:
             return f"[Error] {str(e)}"
     
@@ -185,7 +143,7 @@ class OpenRouterClient:
     def test_connection(self) -> bool:
         """Test if the LLM connection is working"""
         try:
-            result = self.query("Merhaba, calisiyor musun?")
+            result = self.query("Hello")
             return "[Error]" not in result and "[Offline]" not in result
         except Exception:
             return False
