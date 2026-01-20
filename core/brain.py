@@ -694,3 +694,55 @@ class DrakbenBrain:
             }
         except Exception as e:
             return {"connected": False, "error": str(e)}
+    
+    def select_next_tool(self, context: Dict) -> Optional[Dict]:
+        """
+        REFACTORED: LLM'den TEK tool seçimi al
+        
+        Args:
+            context: {
+                "state_snapshot": Dict,  # 5 satır özet
+                "allowed_tools": List[str],
+                "remaining_surfaces": List[str],
+                "last_observation": str,
+                "phase": str
+            }
+        
+        Returns:
+            {"tool": "tool_name", "args": {...}} or None
+        """
+        if not self.llm_client:
+            # Fallback - return first allowed tool with simple args
+            allowed = context.get("allowed_tools", [])
+            if allowed:
+                return {"tool": allowed[0], "args": {"target": context.get("state_snapshot", {}).get("target")}}
+            return None
+        
+        # Build minimal prompt for LLM
+        prompt = f"""You are DRAKBEN penetration testing agent.
+Current state:
+- Phase: {context.get('phase')}
+- Iteration: {context.get('state_snapshot', {}).get('iteration')}
+- Open services: {context.get('state_snapshot', {}).get('open_services_count')}
+- Remaining to test: {context.get('state_snapshot', {}).get('remaining_count')}
+- Last observation: {context.get('last_observation', 'None')[:100]}
+
+Allowed tools: {', '.join(context.get('allowed_tools', [])[:5])}
+Remaining surfaces: {', '.join(context.get('remaining_surfaces', [])[:3])}
+
+Select ONE tool to execute next. Respond ONLY in JSON format:
+{{"tool": "tool_name", "args": {{"param": "value"}}}}"""
+        
+        try:
+            response = self.llm_client.query(prompt, system_prompt="You are a penetration testing AI. Respond only in JSON.")
+            
+            # Parse JSON
+            parsed = self._parse_llm_response(response)
+            if parsed and "tool" in parsed:
+                return parsed
+            
+            # Fallback to rule-based
+            return None
+            
+        except Exception as e:
+            return None

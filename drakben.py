@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich import print as rprint
 
-from core.agent import DrakbenAgent
+from core.refactored_agent import RefactoredDrakbenAgent
 from core.config import ConfigManager
 
 
@@ -110,9 +110,41 @@ def main():
         # Show startup info
         show_startup_info()
         
-        # Initialize and run agent
-        agent = DrakbenAgent(config_manager)
-        agent.run()
+        # Initialize and run agent (refactored single-loop)
+        agent = RefactoredDrakbenAgent(config_manager)
+        agent.initialize(target=config_manager.config.target or "")
+
+        # BOOT proof log
+        console = Console()
+        console.print("BOOT: RefactoredDrakbenAgent live", style="bold green")
+
+        # Runtime check: ensure no other top-level while loops or async-for agent loops exist outside refactored agent
+        def _detect_other_agent_loops(root_dir=PROJECT_ROOT):
+            import re
+            bad = []
+            pattern_while = re.compile(r'^\s*while\b')
+            pattern_async_for = re.compile(r'async\s+for\b')
+            for p in root_dir.rglob('*.py'):
+                # allow core/refactored_agent.py
+                if p.match(str(root_dir / 'core' / 'refactored_agent.py')):
+                    continue
+                try:
+                    text = p.read_text(encoding='utf-8')
+                except Exception:
+                    continue
+                for i, line in enumerate(text.splitlines(), start=1):
+                    if pattern_while.match(line) or pattern_async_for.search(line):
+                        bad.append(f"{p.relative_to(root_dir)}:{i}: {line.strip()}")
+            return bad
+
+        loop_issues = _detect_other_agent_loops()
+        if loop_issues:
+            console.print("❌ Execution-path guard failed: unexpected agent-like loops found:", style="bold red")
+            for item in loop_issues:
+                console.print(item, style="red")
+            raise SystemExit(2)
+
+        agent.run_autonomous_loop()
         
     except KeyboardInterrupt:
         console = Console()

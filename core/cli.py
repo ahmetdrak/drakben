@@ -104,206 +104,14 @@ class DrakbenCLI:
         
         # Setup event handlers
         self._setup_events()
-    
-    def _setup_events(self):
-        """Setup event handlers"""
-        self.events.on(EventType.STEP_START, self._on_step_start)
-        self.events.on(EventType.STEP_COMPLETE, self._on_step_complete)
-        self.events.on(EventType.STEP_ERROR, self._on_step_error)
-        self.events.on(EventType.NOTIFY_USER, self._on_notify)
-    
-    def _on_step_start(self, event: Event):
-        """Handle step start event"""
-        self._print(f"⏳ {event.data.get('description', 'İşlem başlatılıyor...')}", "yellow")
-    
-    def _on_step_complete(self, event: Event):
-        """Handle step complete event"""
-        self._print(f"✅ {event.data.get('description', 'Tamamlandı')}", "green")
-    
-    def _on_step_error(self, event: Event):
-        """Handle step error event"""
-        self._print(f"❌ Hata: {event.data.get('error', 'Bilinmeyen hata')}", "red")
-    
-    def _on_notify(self, event: Event):
-        """Handle notification event"""
-        self._print(f"ℹ️  {event.data.get('message', '')}", "cyan")
-    
-    def _print(self, message: str, color: str = None):
-        """Print with optional color"""
-        if self.console and color and color in self.COLORS:
-            self.console.print(message, style=self.COLORS[color])
-        elif self.console:
-            self.console.print(message)
-        else:
-            print(message)
-    
-    def _show_banner(self):
-        """Show DRAKBEN banner"""
-        banner = """
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║     ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗║
-║     ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║║
-║     ██║  ██║██████╔╝███████║█████╔╝ ██████╔╝█████╗  ██╔██╗ ██║║
-║     ██║  ██║██╔══██╗██╔══██║██╔═██╗ ██╔══██╗██╔══╝  ██║╚██╗██║║
-║     ██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝███████╗██║ ╚████║║
-║     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝║
-║                                                              ║
-║           🔥 AI-Powered Penetration Testing Assistant 🔥      ║
-║                        v2.0 - 2026                           ║
-╚══════════════════════════════════════════════════════════════╝
-        """
-        if self.console:
-            self.console.print(banner, style=self.COLORS["purple"])
-        else:
-            print(banner)
-    
-    async def _cmd_help(self, args: List[str] = None):
-        """Show help"""
-        if self.console:
-            table = Table(title="🆘 DRAKBEN Komutları", border_style=self.COLORS["purple"])
-            table.add_column("Komut", style=self.COLORS["cyan"])
-            table.add_column("Açıklama", style=self.COLORS["fg"])
-            
-            table.add_row("target <IP>", "Hedef belirle")
-            table.add_row("scan [quick|full]", "Port taraması başlat")
-            table.add_row("status", "Mevcut durumu göster")
-            table.add_row("plugins", "Yüklü plugin'leri listele")
-            table.add_row("lang <tr|en>", "Dil değiştir")
-            table.add_row("test", "LLM bağlantısını test et")
-            table.add_row("clear", "Ekranı temizle")
-            table.add_row("exit", "Çıkış")
-            table.add_row("", "")
-            table.add_row("Doğal dil", "Herhangi bir soru veya komut yaz")
-            
-            self.console.print(table)
-        else:
-            print("""
-DRAKBEN Komutları:
-  target <IP>     - Hedef belirle
-  scan [quick]    - Port taraması
-  status          - Durum göster
-  plugins         - Plugin listesi
-  lang <tr|en>    - Dil değiştir
-  test            - LLM test
-  clear           - Temizle
-  exit            - Çıkış
-  
-Veya doğal dil ile komut yazın.
-            """)
-    
-    async def _cmd_target(self, args: List[str]):
-        """Set target"""
-        if not args:
-            self._print("❌ Hedef belirtilmedi. Kullanım: target <IP>", "red")
-            return
-        
-        self.context.target = args[0]
-        self._print(f"✅ Hedef ayarlandı: {self.context.target}", "green")
-    
-    async def _cmd_lang(self, args: List[str]):
-        """Set language"""
-        if not args or args[0] not in ["tr", "en"]:
-            self._print("❌ Kullanım: lang <tr|en>", "red")
-            return
-        
-        self.context.language = args[0]
-        self._print(f"✅ Dil ayarlandı: {args[0]}", "green")
-    
-    async def _cmd_status(self, args: List[str] = None):
-        """Show status"""
-        if self.console:
-            table = Table(title="📊 DRAKBEN Durumu", border_style=self.COLORS["cyan"])
-            table.add_column("Özellik", style=self.COLORS["purple"])
-            table.add_column("Değer", style=self.COLORS["fg"])
-            
-            table.add_row("Hedef", self.context.target or "Belirlenmedi")
-            table.add_row("Dil", self.context.language)
-            table.add_row("Durum", self.context.state.value)
-            
-            # Brain stats
-            stats = self.brain.get_stats()
-            table.add_row("LLM Bağlantısı", "✅ Aktif" if stats.get("llm_available") else "❌ Offline")
-            table.add_row("Karar Sayısı", str(stats.get("decisions_made", 0)))
-            
-            self.console.print(table)
-        else:
-            print(f"Hedef: {self.context.target or 'Belirlenmedi'}")
-            print(f"Dil: {self.context.language}")
-    
-    async def _cmd_plugins(self, args: List[str] = None):
-        """List plugins"""
-        plugins = self.registry.list_plugins()
-        
-        if self.console:
-            table = Table(title="🔌 Yüklü Plugin'ler", border_style=self.COLORS["orange"])
-            table.add_column("ID", style=self.COLORS["cyan"])
-            table.add_column("Ad", style=self.COLORS["fg"])
-            table.add_column("Tür", style=self.COLORS["purple"])
-            table.add_column("Durum", style=self.COLORS["green"])
-            
-            for p in plugins:
-                status = "✅" if p.get("available") else "❌"
-                table.add_row(p["id"], p["name"], p["kind"], status)
-            
-            self.console.print(table)
-        else:
-            for p in plugins:
-                print(f"  {p['id']} - {p['name']} ({p['kind']})")
-    
-    async def _cmd_clear(self, args: List[str] = None):
-        """Clear screen"""
-        if self.console:
-            self.console.clear()
-        else:
-            print("\033c", end="")
-    
-    async def _cmd_exit(self, args: List[str] = None):
-        """Exit CLI"""
-        self._print("👋 Görüşürüz!", "purple")
-        self.running = False
-    
-    async def _cmd_scan(self, args: List[str] = None):
-        """Quick scan"""
-        if not self.context.target:
-            self._print("❌ Önce hedef belirleyin: target <IP>", "red")
-            return
-        
-        scan_type = args[0] if args else "quick"
-        self._print(f"🔍 Tarama başlatılıyor: {self.context.target} ({scan_type})", "yellow")
-        
-        # Use plugin
-        result = await self.registry.execute_plugin(
-            "recon.nmap",
-            target=self.context.target,
-            scan_type=scan_type
-        )
-        
-        if result.success:
-            self._print(f"✅ Tarama tamamlandı!", "green")
-            if result.data.get("open_ports"):
-                self._print(f"📡 Açık portlar: {result.data['open_ports']}", "cyan")
-            if result.next_steps:
-                self._print("💡 Önerilen adımlar:", "yellow")
-                for step in result.next_steps:
-                    self._print(f"   → {step}", "fg")
-        else:
-            self._print(f"❌ Hata: {result.errors}", "red")
-    
-    async def _cmd_test_llm(self, args: List[str] = None):
-        """Test LLM connection"""
-        self._print("🔄 LLM bağlantısı test ediliyor...", "yellow")
-        
-        result = self.brain.test_llm()
-        
-        if result.get("connected"):
-            self._print("✅ LLM bağlantısı aktif!", "green")
-            self._print(f"   Provider: {result['provider'].get('provider')}", "cyan")
-            self._print(f"   Model: {result['provider'].get('model')}", "cyan")
-        else:
-            self._print(f"❌ LLM bağlantısı yok: {result.get('error')}", "red")
-    
-    async def _process_natural_language(self, user_input: str):
+    """
+    Legacy `core.cli` removed.
+
+    This module was replaced with a fail-fast stub to eliminate alternate execution
+    paths and loops. Use the `drakben.py` entrypoint with `RefactoredDrakbenAgent`.
+    """
+
+    raise RuntimeError("LEGACY CLI REMOVED: Use drakben.py with RefactoredDrakbenAgent.")
         """Process natural language input through brain"""
         self.context.state = CLIState.THINKING
         
@@ -341,6 +149,9 @@ Veya doğal dil ile komut yazın.
     
     async def run(self):
         """Main run loop"""
+        raise RuntimeError(
+            "Legacy DrakbenCLI is disabled. Use RefactoredDrakbenAgent via drakben.py."
+        )
         self._show_banner()
         self._print(f"\n{t('welcome', self.context.language)}", "green")
         self._print("Yardım için 'help' yazın.\n", "blue")
@@ -393,13 +204,41 @@ Veya doğal dil ile komut yazın.
 
 # Entry point
 async def main():
-    """CLI entry point"""
-    cli = DrakbenCLI()
-    await cli.run()
+    """CLI entry point (shim redirect)
+
+    Legacy interactive CLI is disabled by default. This shim safely redirects
+    execution to the RefactoredDrakbenAgent used by the main entrypoint
+    (`drakben.py`). It avoids accidental activation of legacy loops.
+    """
+    # Lightweight notice for users invoking the legacy CLI
+    try:
+        from rich.console import Console
+        console = Console()
+        console.print("⚠️  Legacy CLI disabled — redirecting to RefactoredDrakbenAgent...", style="yellow")
+    except Exception:
+        print("Legacy CLI disabled — redirecting to RefactoredDrakbenAgent...")
+
+    # Instantiate and run the refactored agent (same behavior as drakben.py)
+    from core.refactored_agent import RefactoredDrakbenAgent
+    from core.config import ConfigManager
+
+    config_manager = ConfigManager()
+    # Ensure any necessary prompts are handled consistently
+    try:
+        config_manager.prompt_llm_setup_if_needed()
+    except Exception:
+        # Non-fatal — continue with defaults
+        pass
+
+    agent = RefactoredDrakbenAgent(config_manager)
+    agent.initialize(target=getattr(config_manager.config, 'target', '') or "")
+    # Run the deterministic single-loop (sync blocking call)
+    agent.run_autonomous_loop()
 
 
 def run():
     """Sync entry point"""
+    # Run the async shim which immediately redirects to the refactored agent.
     asyncio.run(main())
 
 

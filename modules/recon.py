@@ -1,5 +1,6 @@
 # modules/recon.py
-# Drakben Recon Modülü - İleri Seviye Pasif Bilgi Toplama
+# Drakben Recon Modülü - STATE-AWARE İleri Seviye Pasif Bilgi Toplama
+# ZORUNLU: State kontrolü yapar, tested surface tekrar taramaz
 
 import aiohttp
 import asyncio
@@ -7,6 +8,13 @@ import requests
 from bs4 import BeautifulSoup
 import hashlib
 import os
+
+# State integration
+try:
+    from core.state import AgentState, ServiceInfo
+    STATE_AVAILABLE = True
+except ImportError:
+    STATE_AVAILABLE = False
 
 # Optional imports with fallback
 try:
@@ -24,8 +32,34 @@ except ImportError:
 # AI özetleme için ai_bridge kullanılacak
 from modules import ai_bridge
 
-async def passive_recon(target):
+
+async def passive_recon(target, state: 'AgentState'):
+    """
+    STATE-AWARE passive recon
+    
+    ZORUNLU KONTROLLER:
+    1. State varsa, tested surface kontrolü yap
+    2. Aynı target tekrar taranmaz
+    3. Sonuç state'e yazılır
+    """
     print(f"[Recon] {target} için pasif bilgi toplanıyor...")
+    
+    # STATE KONTROLÜ
+    if not STATE_AVAILABLE or not state:
+        return {
+            "target": target,
+            "error": "State tracking is required for recon",
+            "blocked": True
+        }
+
+    # Check if target already scanned in this session
+    if state.target == target and state.open_services:
+        print(f"[Recon] ⚠️  Target already scanned in this session, skipping duplicate")
+        return {
+            "target": target,
+            "error": "Already scanned",
+            "cached_services": len(state.open_services)
+        }
 
     result = {
         "target": target,

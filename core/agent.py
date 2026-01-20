@@ -1,23 +1,11 @@
-# core/agent.py
-# DRAKBEN - GPT-5 Level Autonomous Pentesting Agent
-# 25 modules integrated for maximum intelligence
+"""
+Legacy `core.agent` removed.
 
-import time
-from typing import Dict, List, Optional
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich.progress import Progress, SpinnerColumn, TextColumn
+This file has been intentionally replaced with a fail-fast stub to prevent
+accidental execution of deprecated legacy agent code. Use `core.refactored_agent.RefactoredDrakbenAgent`.
+"""
 
-# Import all 25 modules
-from core.brain import DrakbenBrain
-from core.system_intelligence import SystemIntelligence
-from core.execution_engine import ExecutionEngine
-from core.autonomous_solver import AutonomousSolver
-from core.security_toolkit import SecurityToolkit
-from core.config import ConfigManager, SessionManager
-from core.memory_manager import MemoryManager, get_memory
-from core.i18n import t
+raise RuntimeError("LEGACY AGENT REMOVED: Use core.refactored_agent.RefactoredDrakbenAgent instead.")
 
 
 class DrakbenAgent:
@@ -34,93 +22,36 @@ class DrakbenAgent:
     
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
-        self.config = config_manager.config
-        self.console = Console()
-        
-        # State
-        self.running = True
-        self.command_count = 0
-        self.approved_commands = set()  # Track approved commands
-        self.workflow_active = False
-        
-        # Initialize memory system
-        self.memory = get_memory()
-        
-        # Load approved commands from memory
-        self.approved_commands = set(self.memory.get_all_approved_commands())
-        
-        # Initialize all modules silently
-        self.system_intel = SystemIntelligence()
-        self.system_context = self.system_intel.get_full_system_context()
-        self.brain = DrakbenBrain()
-        self.executor = ExecutionEngine()
-        self.solver = AutonomousSolver(self.system_context["system"])
-        self.security = SecurityToolkit()
-        self.session_manager = SessionManager(session_dir=self.config.session_dir)
-        
-    def initialize(self):
-        """Initialize agent and show welcome"""
-        lang = self.config.language
-        
-        # Combined compact panel
-        welcome_text = Text()
-        welcome_text.append("🩸 ", style="bold #FF5555")
-        welcome_text.append("DRAKBEN", style="bold #BD93F9")
-        welcome_text.append(" | ", style="#6272A4")
-        welcome_text.append("Ready", style="#50FA7B")
-        welcome_text.append("\n\n", style="")
-        welcome_text.append("💬 ", style="bold #FF79C6")
-        welcome_text.append("/help  /target  /scan  /status  /clear  /exit", style="#F8F8F2")
-        
-        # Show target if set
-        if self.config.target:
-            welcome_text.append(f"\n\n🎯 Target: ", style="bold #F8F8F2")
-            welcome_text.append(self.config.target, style="bold #FF79C6")
-        
-        self.console.print(Panel(welcome_text, border_style="#FF5555", title="🧛 DRAKBEN", title_align="left"))
-        
-        # Show compact help
-        self._show_compact_menu()
-    
-    def _show_compact_menu(self):
-        """Show compact persistent menu"""
-        # Menu removed - ultra minimal interface
-    
-    def _show_quick_help(self):
-        """Show quick help"""
-        lang = self.config.language
-        
-        if lang == "tr":
-            help_text = """
-💡 Nasıl Kullanılır:
-  📌 Doğal dille konuş:
-    • "10.0.0.1'i tara"
-    • "192.168.1.1'de açık portları bul"
-    • "example.com'da SQL injection test et"
-    • "10.0.0.1'e shell at"
-    • "payload üret 10.0.0.1:4444"
-    
-  🎮 Komutlar:
-    • target <IP>    - Hedef belirle
-    • status         - Sistem durumu
-    • help           - Detaylı yardım
-    • exit           - Çıkış
-    
-  ⚡ Özellikler:
-    • İlk kez onay alır, sonra otomatik çalışır
-    • Hataları otomatik düzeltir
-    • Eksik araçları otomatik yükler
-    • Her adımı raporlar
-"""
-        else:
-            help_text = """
-💡 How to Use:
-  📌 Talk naturally:
-    • "scan 10.0.0.1"
-    • "find open ports on 192.168.1.1"
-    • "test example.com for SQL injection"
-    • "get shell on 10.0.0.1"
-    • "generate payload for 10.0.0.1:4444"
+        """
+        ARCHIVED LEGACY MODULE (stub)
+
+        The original legacy implementation of `core.agent` has been moved to
+        `core/legacy/agent.py` to reduce the risk of accidental activation of
+        deprecated agent loops. This file provides a safe stub to prevent
+        accidental execution while remaining importable for static analysis.
+
+        If you need to restore the original logic for debugging or audit,
+        use the archived copy under `core/legacy/`.
+        """
+
+        __all__ = ["LegacyAgentError", "run_legacy_agent"]
+
+
+        class LegacyAgentError(RuntimeError):
+            pass
+
+
+        def run_legacy_agent(*args, **kwargs):
+            """Attempting to run the archived legacy agent raises an explicit error.
+
+            This prevents accidental execution while allowing imports for tools that
+            only read module metadata.
+            """
+            raise LegacyAgentError(
+                "Legacy agent archived. Use RefactoredDrakbenAgent via drakben.py. "
+                "See core/legacy/agent.py for the original implementation."
+            )
+
     
   🎮 Commands:
     • target <IP>    - Set target
@@ -613,6 +544,9 @@ class DrakbenAgent:
     
     def run(self):
         """Main agent loop"""
+        raise RuntimeError(
+            "Legacy DrakbenAgent is disabled. Use RefactoredDrakbenAgent via drakben.py."
+        )
         lang = self.config.language
         
         # AUTO-SAVE: Sistem bilgisini hafızaya kaydet
