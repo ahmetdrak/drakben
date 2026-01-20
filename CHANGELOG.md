@@ -9,7 +9,6 @@ All notable changes to the project will be documented in this file.
 - Dracula theme UI (beautiful purple/pink/red terminal)
 - Slash command system (/help, /target, /scan, /status, /clear, /exit)
 - Natural language processing (talk to AI for any pentest task)
-- GPT-5 level reasoning engine with continuous self-correction
 - Auto-healing: automatically fixes errors and installs missing tools
 - One-time approval system (approve once, then autonomous)
 - Multi-provider LLM support (OpenRouter, Ollama, OpenAI, Custom)

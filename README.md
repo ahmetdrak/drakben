@@ -14,8 +14,8 @@ Kali Linux Autonomous Pentest AI Framework with 25 Intelligent Modules
 
 ### Option 1: Kali Linux / Ubuntu / Debian
 ```bash
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -24,24 +24,13 @@ python3 drakben.py
 
 ### Option 2: Windows
 ```powershell
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python .\drakben.py
 ```
-
-### Option 3: Docker
-```bash
-git clone <your-repo-url>
-cd <your-repo>
-docker-compose up -d
-docker exec -it drakben_main bash
-python3 drakben.py
-```
-
----
 
 ## 🤖 AI/LLM Setup (Optional)
 
@@ -126,7 +115,6 @@ python3 drakben.py
 
 - 🧠 **25+ Intelligent Modules** - Distributed across core and modules packages
 - 🎨 **Dracula Theme UI** - Beautiful minimal terminal interface
-- 🤖 **GPT-5 Level Reasoning** - Continuous reasoning and self-correction
 - ✅ **One-Time Approval** - First command approval, then autonomous
 - 🔧 **Auto-Healing** - Automatically fixes errors and installs missing tools
 - 🛡️ **Security Toolkit** - Built-in safety checks and risk analysis

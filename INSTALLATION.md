@@ -10,8 +10,8 @@ Kali Linux Autonomous Pentest AI - Complete Setup for All Platforms
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 
 # 2. Create virtual environment
 python3 -m venv .venv
@@ -30,8 +30,8 @@ python3 drakben.py
 
 ```powershell
 # 1. Clone the repository
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 
 # 2. Create virtual environment
 python -m venv .venv
@@ -54,8 +54,8 @@ python .\drakben.py
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 
 # 2. Create virtual environment
 python3 -m venv .venv
@@ -72,34 +72,6 @@ python3 drakben.py
 
 ```bash
 brew install nmap sqlmap nikto hydra john hashcat
-```
-
----
-
-## 🐳 Docker
-
-**Time: ~5 minutes**
-
-```bash
-# 1. Clone the repository
-git clone <your-repo-url>
-cd <your-repo>
-
-# 2. Build and run with Docker Compose
-docker-compose up -d
-
-# 3. Enter the container
-docker exec -it drakben_main bash
-
-# 4. Run the app inside container
-python3 drakben.py
-```
-
-Or manually:
-
-```bash
-docker build -t drakben:latest .
-docker run -it drakben:latest
 ```
 
 ---

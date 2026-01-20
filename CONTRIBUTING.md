@@ -8,8 +8,8 @@ Thank you for your interest in contributing to this project! 🩸
 
 ```bash
 # Fork the repo on GitHub, then:
-git clone <your-repo-url>
-cd <your-repo>
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
 ```
 
 ### 2. Create a Branch
