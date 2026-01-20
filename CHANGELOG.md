@@ -1,47 +1,60 @@
 # Changelog
 
-All notable changes to the project will be documented in this file.
+Tüm önemli değişiklikler bu dosyada belgelenir.
+
+## 2026-01-20
+
+### Eklendi
+- 🧠 **Kalıcı Hafıza Sistemi** (`core/memory_manager.py`)
+  - SQLite tabanlı kalıcı veritabanı
+  - Otomatik komut ve çıktı kaydı
+  - Pattern öğrenme (intent → command mapping)
+  - Oturum yönetimi ve geçmişi
+  - Hedef hafızası
+  - Terminal çıktı logları
+  
+- 💻 **Sistem Tanıma**
+  - OS, versiyon, hostname otomatik algılama
+  - Root/sudo yetki tespiti
+  - İnternet bağlantısı kontrolü
+  - Mevcut araç listesi
+  - Sistem profili kalıcı kayıt
+
+- 📊 **İstatistikler** (`/stats`)
+  - Oturum ve global hafıza istatistikleri
+  - Öğrenilen pattern sayısı
+  - Komut başarı oranları
+
+### İyileştirildi
+- Brain'e tam context verme (geçmiş, sistem, komutlar)
+- Otomatik hafıza güncelleme (komut gerekmez)
+- Oturum kapanışında temiz hafıza kapatma
 
 ## 2026-01-19
 
-### Added
-- 25+ intelligent modules across core and modules packages
-- Dracula theme UI (beautiful purple/pink/red terminal)
-- Slash command system (/help, /target, /scan, /status, /clear, /exit)
-- Natural language processing (talk to AI for any pentest task)
-- Auto-healing: automatically fixes errors and installs missing tools
-- One-time approval system (approve once, then autonomous)
-- Multi-provider LLM support (OpenRouter, Ollama, OpenAI, Custom)
-- System intelligence: OS detection, resource monitoring, tool scanning
-- Execution engine: smart terminal with retry and fallback
-- Autonomous solver: error analysis and recovery
-- Security toolkit: safety checks, payload generation, reporting
+### Eklendi
+- 25+ akıllı modül (core ve modules paketleri)
+- Dracula tema UI (mor/pembe/kırmızı terminal)
+- Slash komut sistemi (/help, /target, /scan, /status, /clear, /exit)
+- Doğal dil işleme (AI ile konuş)
+- Auto-healing: hataları otomatik düzelt, eksik araçları yükle
+- Tek seferlik onay sistemi (bir kez onayla, sonra otonom)
+- Çoklu LLM desteği (OpenRouter, Ollama, OpenAI)
+- Sistem zekası: OS algılama, kaynak izleme, araç tarama
+- Execution engine: akıllı terminal, retry ve fallback
+- Autonomous solver: hata analizi ve kurtarma
+- Security toolkit: güvenlik kontrolleri, payload üretimi, raporlama
+- İnteraktif LLM setup (ilk çalıştırmada)
 
-### Improved
-- Ultra-minimal UI (single combined panel)
-- Professional command handling (slash commands vs natural language)
-- Turkish/English full support
-- Enhanced documentation
-- Better error messages
-- Cleaner codebase
+### İyileştirildi
+- Ultra-minimal UI (tek birleşik panel)
+- Profesyonel komut yönetimi (slash vs doğal dil)
+- Türkçe/İngilizce tam destek
+- Gelişmiş dokümantasyon
 
 ## 2026-01-15
 
-### Initial Release
-- Basic pentest features
-- Kali Linux integration
-- Simple exploit automation
-
-## 2025-10-01
-
-### Added
-- Multi-language support (Turkish/English)
-- Chain planning
-- OPSEC strategies
-
-## 2025-08-01
-
-### Initial Release
-- Core penetration testing features
-- Kali Linux integration
-- Basic exploit automation
+### İlk Sürüm
+- Temel pentest özellikleri
+- Kali Linux entegrasyonu
+- Basit exploit otomasyonu

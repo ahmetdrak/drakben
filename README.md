@@ -1,18 +1,18 @@
-# 🩸 Autonomous Pentest AI Framework
+# 🩸 DRAKBEN - Autonomous Pentest AI
 
-Kali Linux Autonomous Pentest AI Framework with 25 Intelligent Modules
+Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
 
-![Python](https://img.shields.io/badge/Python-3.8+-green)
-![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-orange)
+![Python](https://img.shields.io/badge/Python-3.10+-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ⭐ **Star this repo if it helps you!**
 
 ---
 
-## 🚀 Installation
+## 🚀 Kurulum
 
-### Option 1: Kali Linux / Ubuntu / Debian
+### Linux (Kali / Ubuntu / Debian)
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
@@ -22,174 +22,154 @@ pip install -r requirements.txt
 python3 drakben.py
 ```
 
-### Option 2: Windows
+### Windows
 ```powershell
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python .\drakben.py
-```
-
-## 🤖 AI/LLM Setup (Optional)
-
-This framework works **100% offline** without any API key. For AI-powered features, choose one:
-
-### Free Options
-
-| Provider | Setup | Notes |
-|----------|-------|-------|
-| **Ollama** (Local) | Install from [ollama.ai](https://ollama.ai), then `ollama pull llama3.2` | 100% Free, runs on your machine |
-| **OpenRouter** | Get free key at [openrouter.ai](https://openrouter.ai) | Free models: `deepseek/deepseek-chat`, `mistral-7b` |
-
-### Paid Options
-
-| Provider | Setup | Notes |
-|----------|-------|-------|
-| **OpenAI** | Get key at [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
-| **Custom API** | Any OpenAI-compatible endpoint | Self-hosted models |
-
-### Configuration
-
-```bash
-# Copy example config
-cp .env.example config/api.env
-
-# Edit with your choice
-nano config/api.env
-```
-
-**Example configs:**
-
-```bash
-# For Ollama (FREE - Local)
-LOCAL_LLM_URL=http://localhost:11434/api/generate
-LOCAL_LLM_MODEL=llama3.2
-
-# For OpenRouter (FREE models available)
-OPENROUTER_API_KEY=sk-or-v1-xxxxx
-OPENROUTER_MODEL=deepseek/deepseek-chat
-
-# For OpenAI (Paid)
-OPENAI_API_KEY=sk-xxxxx
-OPENAI_MODEL=gpt-4o-mini
+python drakben.py
 ```
 
 ---
 
-## 🎯 Quick Start
+## 🤖 AI/LLM Kurulumu (Opsiyonel)
+
+Framework **%100 offline** çalışır. AI özellikleri için:
+
+| Provider | Kurulum | Not |
+|----------|---------|-----|
+| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
+| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
+| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
 
 ```bash
-python3 drakben.py
+# İlk çalıştırmada interaktif setup yapılır
+python drakben.py
+# veya manuel: cp .env.example config/api.env && nano config/api.env
+```
 
-# Natural language or slash commands:
+---
+
+## 🎯 Kullanım
+
+```bash
+python drakben.py
+
+# Doğal dil ile konuş:
 💬 "10.0.0.1 portlarını tara"
 💬 "example.com sql injection test et"
+💬 "192.168.1.1'e shell at"
 
-# Slash commands:
-/target 192.168.1.100
-/scan
-/status
-/help
-/exit
+# Slash komutları:
+/target 192.168.1.100   # Hedef belirle
+/scan                    # Hedefi tara
+/status                  # Sistem durumu
+/stats                   # Hafıza istatistikleri
+/help                    # Yardım
+/exit                    # Çıkış
 ```
 
 ---
 
-## 📋 Commands
+## ✨ Özellikler
 
-| Command | Description |
-|----------|----------|
-| `/target <IP>` | Set target |
-| `/scan` | Scan current target |
-| `/status` | Show system status |
-| `/clear` | Clear screen |
-| `/help` | Show detailed help |
-| `/exit` | Exit |
-| Natural language | Talk to AI for any pentest task |
+### 🧠 Kalıcı Hafıza Sistemi
+- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
+- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
+- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
+- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
 
----
+### 🤖 Otonom Çalışma
+- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
+- **Auto-healing**: Hatalar otomatik düzeltilir
+- **Araç yükleme**: Eksik araçlar otomatik yüklenir
+- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
 
-## ✨ Key Features
+### 🛡️ Güvenlik
+- **Safety checks**: Tehlikeli komutlar engellenir
+- **Risk analizi**: Her komut için risk değerlendirmesi
+- **Approval sistemi**: Kritik işlemler için onay
 
-- 🧠 **25+ Intelligent Modules** - Distributed across core and modules packages
-- 🎨 **Dracula Theme UI** - Beautiful minimal terminal interface
-- ✅ **One-Time Approval** - First command approval, then autonomous
-- 🔧 **Auto-Healing** - Automatically fixes errors and installs missing tools
-- 🛡️ **Security Toolkit** - Built-in safety checks and risk analysis
-- 🧩 **Single Brain Layer** - core.brain contains the primary brain class
-- ⚡ **Single Execution Layer** - TerminalExecutor is the unified command runner
-
----
-
-## 🔧 Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `ModuleNotFoundError` | Run `pip install -r requirements.txt` |
-| `paramiko` import error | `pip install paramiko` (optional for SSH) |
-| No API response | Works offline! Or check `config/api.env` |
-| Permission denied | Run with `sudo` on Linux |
+### 🎨 Arayüz
+- **Dracula teması**: Mor/pembe/kırmızı terminal UI
+- **Türkçe/İngilizce**: Tam çoklu dil desteği
+- **Minimal**: Temiz, odaklanmış arayüz
 
 ---
 
-## 📁 Project Structure
+## 📋 Komutlar
+
+| Komut | Açıklama |
+|-------|----------|
+| `/target <IP>` | Hedef belirle |
+| `/scan` | Mevcut hedefi tara |
+| `/status` | Sistem durumunu göster |
+| `/stats` | Hafıza ve AI istatistikleri |
+| `/help` | Detaylı yardım |
+| `/clear` | Ekranı temizle |
+| `/exit` | Çıkış |
+| Doğal dil | AI'a herhangi bir pentest görevi söyle |
+
+---
+
+## 📁 Proje Yapısı
 
 ```
-project-root/
-├── drakben.py                    # Main entry point
+drakben/
+├── drakben.py              # Ana giriş noktası
 ├── core/
-│   ├── agent.py                  # Main agent orchestrator
-│   ├── brain.py                  # Core reasoning and planning
-│   ├── system_intelligence.py    # System context & environment scan
-│   ├── execution_engine.py       # Command execution & analysis
-│   ├── autonomous_solver.py      # Error analysis & auto-healing
-│   ├── security_toolkit.py       # Safety checks & payload helpers
-│   ├── terminal.py               # Safe terminal executor
-│   ├── tools.py                  # Tool wrappers (nmap/sqlmap/etc.)
-│   ├── events.py                 # Event bus
-│   ├── web_scanner.py            # Web application scanner
-│   ├── ad_bloodhound.py          # AD/BloodHound integration
-│   ├── c2_beacon.py              # C2 beacon infrastructure
-│   ├── cloud_scanner.py          # Cloud security scanner
-│   ├── zero_day_scanner.py       # Zero-day pattern scanner
-│   ├── lateral_movement_engine.py
-│   ├── post_exploitation_automation.py
-│   ├── opsec_implementation.py
-│   └── payload_intelligence.py
-├── core/plugins/
-│   ├── base.py
-│   ├── registry.py
-│   └── adapters/noop.py
-├── llm/                          # LLM integration
-│   ├── brain.py                  # Thin re-export (core.brain)
-│   └── openrouter_client.py      # Multi-provider client
-├── modules/                      # Pentest modules
-│   ├── recon.py, exploit.py
-│   ├── payload.py, report.py
-│   └── ai_bridge.py, memory.py
-└── config/
-    ├── api.env                   # API keys
-    ├── plugins.json              # Plugin registry
-    └── settings.json             # Configuration
+│   ├── agent.py            # Ana agent orchestrator
+│   ├── brain.py            # AI reasoning ve planlama
+│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
+│   ├── system_intelligence.py  # Sistem tanıma
+│   ├── execution_engine.py # Komut çalıştırma
+│   ├── autonomous_solver.py    # Auto-healing
+│   ├── security_toolkit.py # Güvenlik kontrolleri
+│   ├── config.py           # Konfigürasyon yönetimi
+│   └── i18n.py             # Çoklu dil desteği
+├── llm/
+│   ├── brain.py            # LLM entegrasyonu
+│   └── openrouter_client.py    # Multi-provider client
+├── modules/
+│   ├── recon.py            # Keşif modülü
+│   ├── exploit.py          # Exploit modülü
+│   ├── payload.py          # Payload üretimi
+│   └── report.py           # Raporlama
+├── config/
+│   ├── api.env             # API anahtarları
+│   └── plugins.json        # Plugin registry
+└── drakben_memory.db       # Kalıcı hafıza veritabanı
 ```
 
 ---
 
-## 📄 License
+## 🔧 Sorun Giderme
 
-MIT License - See [LICENSE](LICENSE)
+| Problem | Çözüm |
+|---------|-------|
+| `ModuleNotFoundError` | `pip install -r requirements.txt` |
+| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
+| Permission denied | Linux'ta `sudo` ile çalıştır |
 
 ---
 
-## 📚 Documentation
+## 📚 Dokümantasyon
 
-- [INSTALLATION.md](INSTALLATION.md) - Detailed installation guide
-- [QUICKSTART.md](QUICKSTART.md) - Usage examples
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [CHANGELOG.md](CHANGELOG.md) - Release history
+- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
+- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
+- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+
+---
+
+## 📄 Lisans
+
+MIT License - [LICENSE](LICENSE)
 
 ---
 
 **Made with ❤️ for the security community**
+
+⚠️ **Sadece yetkili hedeflerde kullanın.**

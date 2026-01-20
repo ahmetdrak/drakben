@@ -1,126 +1,181 @@
-# Contributing
+# Katkıda Bulunma
 
-Thank you for your interest in contributing to this project! 🩸
+DRAKBEN projesine katkıda bulunmak istediğiniz için teşekkürler! 🩸
 
-## How to Contribute
+## Nasıl Katkıda Bulunulur
 
 ### 1. Fork & Clone
 
 ```bash
-# Fork the repo on GitHub, then:
-git clone https://github.com/ahmetdrak/drakben.git
+# GitHub'da fork yap, sonra:
+git clone https://github.com/YOUR_USERNAME/drakben.git
 cd drakben
 ```
 
-### 2. Create a Branch
+### 2. Branch Oluştur
 
 ```bash
-git checkout -b feature/your-feature-name
+git checkout -b feature/ozellik-adi
 ```
 
-### 3. Make Changes
+### 3. Değişiklik Yap
 
-- Follow existing code style
-- Add docstrings to functions
-- Test your changes
+- Mevcut kod stilini takip et
+- Fonksiyonlara docstring ekle
+- Değişikliklerini test et
 
 ### 4. Commit & Push
 
 ```bash
 git add .
-git commit -m "feat: add your feature description"
-git push origin feature/your-feature-name
+git commit -m "feat: özellik açıklaması"
+git push origin feature/ozellik-adi
 ```
 
-### 5. Open a Pull Request
+### 5. Pull Request Aç
 
-Go to the original repo and click "New Pull Request"
+GitHub'da "New Pull Request" tıkla
 
 ---
 
-## Code Standards
+## Kod Standartları
 
 - **Python**: 3.10+
-- **Style**: Follow PEP 8
-- **Docstrings**: Required for all functions
-- **Type hints**: Encouraged
+- **Stil**: PEP 8 takip et
+- **Docstring**: Tüm fonksiyonlar için gerekli
+- **Type hints**: Önerilir
 
-### Commit Message Format
-
-```
-type: short description
-
-Types:
-- feat: new feature
-- fix: bug fix
-- docs: documentation
-- refactor: code refactoring
-- test: adding tests
-```
-
----
-
-## What to Contribute
-
-### ✅ Welcome
-
-- Bug fixes
-- New pentest modules
-- Documentation improvements
-- Performance optimizations
-- New CVE detections
-- Translation (i18n)
-
-### ❌ Not Accepted
-
-- Malicious code
-- Code without tests
-- Breaking changes without discussion
-
----
-
-## Report Issues
-
-Use your repository issue tracker for:
-
-- 🐛 Bug reports
-- 💡 Feature requests
-- 📖 Documentation issues
-
-### Bug Report Template
+### Commit Mesaj Formatı
 
 ```
-**Describe the bug**
-A clear description of what the bug is.
+type: kısa açıklama
 
-**To Reproduce**
-1. Run `python drakben.py`
-2. Enter command `...`
-3. See error
-
-**Expected behavior**
-What you expected to happen.
-
-**Environment**
-- OS: [e.g., Kali Linux 2025]
-- Python: [e.g., 3.11]
-- Release info: [if known]
+Tipler:
+- feat: yeni özellik
+- fix: hata düzeltme
+- docs: dokümantasyon
+- refactor: kod yeniden düzenleme
+- test: test ekleme
 ```
 
 ---
 
-## Security Issues
+## Proje Yapısı
 
-⚠️ **Do NOT report security vulnerabilities publicly!**
+```
+drakben/
+├── drakben.py              # Ana giriş noktası
+├── core/
+│   ├── agent.py            # Ana agent - DEĞİŞİKLİKLER DİKKATLİ
+│   ├── brain.py            # AI reasoning
+│   ├── memory_manager.py   # Hafıza sistemi
+│   ├── execution_engine.py # Komut çalıştırma
+│   └── ...
+├── llm/                    # LLM entegrasyonu
+├── modules/                # Pentest modülleri
+└── config/                 # Konfigürasyon
+```
 
-For security issues, please create a private security advisory on GitHub or contact the maintainer directly.
+### Önemli Dosyalar
+
+| Dosya | Açıklama | Dikkat |
+|-------|----------|--------|
+| `core/agent.py` | Ana orchestrator | Dikkatli değiştir |
+| `core/memory_manager.py` | Hafıza sistemi | Veritabanı şemasına dikkat |
+| `core/brain.py` | AI reasoning | LLM entegrasyonu |
 
 ---
 
-## License
+## Nereye Katkıda Bulunulur
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+### ✅ Kabul Edilenler
+
+- Hata düzeltmeleri
+- Yeni pentest modülleri (`modules/` altına)
+- Dokümantasyon iyileştirmeleri
+- Performans optimizasyonları
+- Yeni CVE algılamaları
+- Çeviri (i18n) desteği
+- Yeni LLM provider desteği
+
+### ❌ Kabul Edilmeyenler
+
+- Zararlı kod
+- Testsiz kod
+- Tartışmasız breaking changes
+- Lisans ihlalleri
 
 ---
 
-**Thank you for contributing! 🎉**
+## Test
+
+```bash
+# Tüm testleri çalıştır
+pytest -v
+
+# Belirli test
+pytest tests/test_brain.py -v
+
+# Coverage ile
+pytest --cov=core tests/
+```
+
+---
+
+## Yeni Modül Ekleme
+
+`modules/` altına yeni modül eklemek için:
+
+```python
+# modules/my_module.py
+
+class MyModule:
+    """Modül açıklaması"""
+    
+    def __init__(self):
+        pass
+    
+    def scan(self, target: str) -> dict:
+        """
+        Tarama yap.
+        
+        Args:
+            target: Hedef IP/domain
+            
+        Returns:
+            Tarama sonuçları
+        """
+        # Implementasyon
+        return {"status": "success", "findings": []}
+```
+
+---
+
+## Hafıza Sistemi
+
+`core/memory_manager.py` değiştirirken:
+
+1. Veritabanı şema değişikliklerini belgele
+2. Migration gerekliyse ekle
+3. Mevcut verileri korumaya dikkat et
+
+---
+
+## Pull Request Checklist
+
+- [ ] Kod PEP 8 uyumlu
+- [ ] Docstringler eklendi
+- [ ] Testler yazıldı/güncellendi
+- [ ] CHANGELOG güncellendi
+- [ ] Dokümantasyon güncellendi
+
+---
+
+## İletişim
+
+- GitHub Issues: Hata raporları ve öneriler
+- Pull Requests: Kod katkıları
+
+---
+
+**Teşekkürler! 🩸**

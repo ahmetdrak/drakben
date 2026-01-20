@@ -1,128 +1,133 @@
-# 📦 Installation Guide
+# 📦 Kurulum Rehberi
 
-Kali Linux Autonomous Pentest AI - Complete Setup for All Platforms
+DRAKBEN - Otonom Pentest AI Framework Kurulumu
 
 ---
 
 ## 🐧 Linux (Kali / Ubuntu / Debian)
 
-**Time: ~2 minutes**
+**Süre: ~2 dakika**
 
 ```bash
-# 1. Clone the repository
+# 1. Repository'yi klonla
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 
-# 2. Create virtual environment
+# 2. Virtual environment oluştur
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install dependencies
+# 3. Bağımlılıkları yükle
 pip install -r requirements.txt
 
-# 4. Run the app
+# 4. Çalıştır
 python3 drakben.py
 ```
 
+### Opsiyonel: Pentest Araçları
+```bash
+sudo apt install nmap sqlmap nikto hydra john hashcat
+```
+
+---
+
 ## 🪟 Windows
 
-**Time: ~3 minutes**
+**Süre: ~3 dakika**
 
 ```powershell
-# 1. Clone the repository
+# 1. Repository'yi klonla
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 
-# 2. Create virtual environment
+# 2. Virtual environment oluştur
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# 3. Install dependencies
+# 3. Bağımlılıkları yükle
 pip install -r requirements.txt
 
-# 4. Run the app
-python .\drakben.py
+# 4. Çalıştır
+python drakben.py
 ```
-
- 
 
 ---
 
 ## 🍎 macOS
 
-**Time: ~3 minutes**
+**Süre: ~3 dakika**
 
 ```bash
-# 1. Clone the repository
+# 1. Repository'yi klonla
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 
-# 2. Create virtual environment
+# 2. Virtual environment oluştur
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install dependencies
+# 3. Bağımlılıkları yükle
 pip install -r requirements.txt
 
-# 4. Run the app
+# 4. Çalıştır
 python3 drakben.py
 ```
 
-### Optional: Install Tools via Homebrew
-
+### Opsiyonel: Homebrew ile Araçlar
 ```bash
 brew install nmap sqlmap nikto hydra john hashcat
 ```
 
 ---
 
-## 🤖 AI/LLM Configuration (Optional)
+## 🤖 AI/LLM Kurulumu (Opsiyonel)
 
-This framework works **100% offline**. For AI features, configure one of these:
+Framework **%100 offline** çalışır. AI özellikleri için aşağıdakilerden birini yapılandır:
 
-### Option A: Ollama (Free, Local)
+### Seçenek A: Ollama (Ücretsiz, Yerel)
 
 ```bash
-# 1. Install Ollama: https://ollama.ai
-# 2. Pull a model
+# 1. Ollama yükle: https://ollama.ai
+# 2. Model indir
 ollama pull llama3.2
 
-# 3. Configure the app
+# 3. Yapılandır (ilk çalıştırmada otomatik sorulur)
+# veya manuel:
 cp .env.example config/api.env
 nano config/api.env
 ```
 
-Add to `config/api.env`:
+`config/api.env` içeriği:
 ```
 LOCAL_LLM_URL=http://localhost:11434/api/generate
 LOCAL_LLM_MODEL=llama3.2
 ```
 
-### Option B: OpenRouter (Free models available)
+### Seçenek B: OpenRouter (Ücretsiz modeller mevcut)
 
 ```bash
-# 1. Get free API key: https://openrouter.ai
-# 2. Configure the app
+# 1. Ücretsiz API key al: https://openrouter.ai
+# 2. Yapılandır
 cp .env.example config/api.env
 nano config/api.env
 ```
 
-Add to `config/api.env`:
+`config/api.env` içeriği:
 ```
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
 OPENROUTER_MODEL=deepseek/deepseek-chat
 ```
 
-### Option C: OpenAI (Paid)
+### Seçenek C: OpenAI (Ücretli)
 
 ```bash
-# 1. Get API key: https://platform.openai.com
-# 2. Configure the app
+# 1. API key al: https://platform.openai.com
+# 2. Yapılandır
 cp .env.example config/api.env
 nano config/api.env
 ```
 
-Add to `config/api.env`:
+`config/api.env` içeriği:
 ```
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_MODEL=gpt-4o-mini
@@ -130,70 +135,65 @@ OPENAI_MODEL=gpt-4o-mini
 
 ---
 
-## ✅ Verify Installation
+## ✅ Kurulumu Doğrula
 
 ```bash
-# Activate virtual environment (if not active)
+# Virtual environment aktif değilse
 source .venv/bin/activate  # Linux/Mac
-# or
+# veya
 .\.venv\Scripts\Activate.ps1  # Windows
 
-# Run the app
-python3 drakben.py
+# Çalıştır
+python drakben.py
 
-# Test slash commands
+# Komutları test et
 /help
 /target 127.0.0.1
-/scan
 /status
+/stats
 /exit
-
-# Or use natural language
-💬 "127.0.0.1'i tara"
-💬 "portları listele"
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## 🔧 Sorun Giderme
 
 ### `python3: command not found`
 ```bash
-# Install Python 3.10+
+# Python 3.10+ yükle
 sudo apt install python3.11
 ```
 
-### `ModuleNotFoundError: No module named 'xxx'`
+### `ModuleNotFoundError`
 ```bash
-# Reinstall dependencies
+# Bağımlılıkları yeniden yükle
 pip install -r requirements.txt
 ```
 
-### `paramiko` or `pycryptodome` error
+### `paramiko` veya `pycryptodome` hatası
 ```bash
-# These are optional, install if needed
+# Opsiyonel, gerekirse yükle
 pip install paramiko pycryptodome
 ```
 
-### Permission denied on Linux
+### Permission denied (Linux)
 ```bash
-# Run with sudo or fix permissions
 sudo python3 drakben.py
-# or
+# veya
 chmod +x drakben.py
 ```
 
-### API key not working
-- The app works fine without API (offline mode)
-- Check `config/api.env` format
-- Verify key is valid at provider's website
+### API key çalışmıyor
+- Uygulama API olmadan da çalışır (offline mod)
+- `config/api.env` formatını kontrol et
+- Key'in geçerli olduğunu doğrula
 
 ---
 
-## 📋 Requirements
+## 📋 Gereksinimler
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
+| Bileşen | Minimum | Önerilen |
+|---------|---------|----------|
 | Python | 3.10+ | 3.11+ |
 | RAM | 2 GB | 4 GB |
 | Disk | 200 MB | 500 MB |
@@ -201,14 +201,24 @@ chmod +x drakben.py
 
 ---
 
-## 🚀 Next Steps
+## 🧠 Hafıza Sistemi
 
-1. Read [README.md](README.md) for features overview
-2. Check [QUICKSTART.md](QUICKSTART.md) for usage examples
-3. Configure AI if desired (see above)
+DRAKBEN kalıcı hafıza kullanır:
+
+- **`drakben_memory.db`**: SQLite veritabanı
+- Otomatik oluşturulur, silmeyin
+- Tüm komut geçmişi, öğrenilen patternler burada
 
 ---
 
-**Installation complete! Happy hacking! 🎉**
+## 🚀 Sonraki Adımlar
 
-⚠️ **Remember: Only use on authorized targets.**
+1. [README.md](README.md) - Özellikler
+2. [QUICKSTART.md](QUICKSTART.md) - Kullanım örnekleri
+3. AI yapılandır (yukarıya bak)
+
+---
+
+**Kurulum tamamlandı! İyi hacklemeler! 🎉**
+
+⚠️ **Sadece yetkili hedeflerde kullanın.**
