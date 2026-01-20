@@ -216,6 +216,8 @@ class Beacon:
         self.state = BeaconState.CONNECTED
         
         while self.state not in [BeaconState.DEAD, BeaconState.DISCONNECTED]:
+            if hasattr(self, 'agent') and hasattr(self.agent, 'state') and self.agent.state.should_halt()[0]:
+                break
             # Check kill date
             if self._check_kill_date():
                 self.state = BeaconState.DEAD

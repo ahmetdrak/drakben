@@ -29,7 +29,7 @@ def test_payload_without_foothold_blocked():
     state.phase = AttackPhase.EXPLOIT
 
     # reverse_shell is async
-    res = asyncio.run(payload_module.reverse_shell("127.0.0.1", 4444, state=state))
+    res = asyncio.run(payload_module.reverse_shell(state, "127.0.0.1", 4444))
     assert isinstance(res, dict)
     assert res.get("blocked") is True
 
@@ -57,4 +57,4 @@ def test_tool_bypass_raises():
     # Force ToolSelector to block by setting phase to a mismatched value in selector validation
     # We expect ToolSelector.validate_tool_selection to raise RuntimeError inside run_sqlmap
     with pytest.raises(RuntimeError):
-        exploit_module.run_sqlmap("http://127.0.0.1:80", state=state)
+        exploit_module.run_sqlmap(state, "http://127.0.0.1:80")

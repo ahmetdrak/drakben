@@ -26,7 +26,7 @@ def test_exploit_precondition_blocks_without_services():
     """Exploit should be blocked when preconditions fail (no services, wrong phase)."""
     state = reset_state(target="http://example.com")
     # Default phase is INIT, no services discovered
-    result = exploit.run_sqlmap("http://example.com", param="id", level="1", state=state)
+    result = exploit.run_sqlmap(state, "http://example.com", param="id", level="1")
     assert isinstance(result, dict)
     assert result.get("blocked") is True
     assert "Precondition failed" in result.get("error", "")
@@ -40,7 +40,7 @@ def test_payload_blocked_without_foothold():
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
-        res = loop.run_until_complete(payload.reverse_shell("127.0.0.1", 4444, state=state))
+        res = loop.run_until_complete(payload.reverse_shell(state, "127.0.0.1", 4444))
     finally:
         try:
             loop.close()

