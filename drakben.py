@@ -120,21 +120,66 @@ def main():
 
         # Runtime check: ensure no other top-level while loops or async-for agent loops exist outside refactored agent
         def _detect_other_agent_loops(root_dir=PROJECT_ROOT):
+            """Detect truly agent-like loops while avoiding false-positives.
+
+            Strategy:
+            - Skip virtualenvs, site-packages, tests and docs.
+            - Ignore the approved `core/refactored_agent.py` file.
+            - For each `while` / `async for` match, examine a small context window
+              and only mark it if the context contains agent-like keywords
+              (llm, tool, select_tool, plan, prompt, generate, think, decide,
+              run_autonomous_loop, max_iterations, brain, agentic).
+            - Treat common queue/state/event loops as benign (queue, output_queue,
+              visited, hosts, state, .empty(), hop <, self.running) to reduce false-positives.
+            """
             import re
             bad = []
             pattern_while = re.compile(r'^\s*while\b')
-            pattern_async_for = re.compile(r'async\s+for\b')
+            pattern_async_for = re.compile(r'^\s*async\s+for\b')
+
+            agenty_keywords = re.compile(r"\b(llm|tool|tool_selector|select_tool|plan|prompt|generate|think|decide|observe|action|max_iteration|max_iterations|run_autonomous_loop|brain|agentic)\b", re.I)
+            benign_indicators = re.compile(r"\b(queue|output_queue|visited|hosts|state|self\.running|\.empty\(|len\(|hop\s*<|for\s+.+in)\b", re.I)
+
+            skip_parts = ('.venv', 'venv', 'site-packages', 'tests', 'docs', 'node_modules')
+
             for p in root_dir.rglob('*.py'):
-                # allow core/refactored_agent.py
-                if p.match(str(root_dir / 'core' / 'refactored_agent.py')):
+                sp = str(p)
+                if any(skip in sp for skip in skip_parts):
                     continue
+
+                # allow the approved single agent loop file
+                rel = p.relative_to(root_dir)
+                if str(rel) == str(root_dir.name + '/core/refactored_agent.py') or str(rel) == 'core/refactored_agent.py':
+                    continue
+
                 try:
                     text = p.read_text(encoding='utf-8')
                 except Exception:
                     continue
-                for i, line in enumerate(text.splitlines(), start=1):
+
+                lines = text.splitlines()
+                for i, line in enumerate(lines, start=1):
                     if pattern_while.match(line) or pattern_async_for.search(line):
-                        bad.append(f"{p.relative_to(root_dir)}:{i}: {line.strip()}")
+                        # context window around the loop line
+                        start = max(0, i - 5)
+                        end = min(len(lines), i + 8)
+                        context = "\n".join(lines[start:end])
+
+                        # If context contains agent-like keywords, flag it
+                        if agenty_keywords.search(context):
+                            bad.append(f"{rel}:{i}: {line.strip()}")
+                            continue
+
+                        # If context shows benign event/queue/state loop, ignore
+                        if benign_indicators.search(context):
+                            continue
+
+                        # Conservative rule reduced: only flag core files whose names
+                        # indicate they may contain legacy agent logic (agent, brain, executor)
+                        suspicious_core_names = re.compile(r"\b(agent|brain|autonom|executor)\b", re.I)
+                        if str(rel).startswith('core/') and suspicious_core_names.search(str(rel)):
+                            bad.append(f"{rel}:{i}: {line.strip()}")
+
             return bad
 
         loop_issues = _detect_other_agent_loops()

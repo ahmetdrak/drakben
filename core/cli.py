@@ -158,7 +158,7 @@ class DrakbenCLI:
         
         self.running = True
         
-        while self.running:
+        while self.running and not (self.agent and hasattr(self.agent, 'state') and self.agent.state.should_halt()[0]):
             try:
                 # Get input
                 if self.console:
