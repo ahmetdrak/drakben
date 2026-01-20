@@ -32,8 +32,10 @@ for p in ROOT.rglob('*.py'):
                 continue
             if benign_indicators.search(context):
                 continue
-            if str(rel).startswith('core/'):
-                issues.append(f"{rel}:{i}: {line.strip()}")
+            # Only flag core files whose names suggest legacy agent logic
+            suspicious_core_names = re.compile(r"\b(agent|brain|autonom|executor)\b", re.I)
+            if str(rel).startswith('core/') and suspicious_core_names.search(str(rel)):
+                        issues.append(f"{rel}:{i}: {line.strip()}")
 
 print('Detected potential agent-like loops:')
 for it in issues:

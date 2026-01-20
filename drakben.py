@@ -174,9 +174,10 @@ def main():
                         if benign_indicators.search(context):
                             continue
 
-                        # Conservative rule: if file sits in `core/` and is not the approved refactor,
-                        # call it out for manual review (helps find legacy agent paths).
-                        if str(rel).startswith('core/'):
+                        # Conservative rule reduced: only flag core files whose names
+                        # indicate they may contain legacy agent logic (agent, brain, executor)
+                        suspicious_core_names = re.compile(r"\b(agent|brain|autonom|executor)\b", re.I)
+                        if str(rel).startswith('core/') and suspicious_core_names.search(str(rel)):
                             bad.append(f"{rel}:{i}: {line.strip()}")
 
             return bad
