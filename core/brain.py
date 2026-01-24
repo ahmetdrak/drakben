@@ -72,8 +72,27 @@ class MasterOrchestrator:
         # Continuous reasoning
         analysis = self.reasoning_engine.analyze(user_input, self.context)
 
+        # Check for errors from LLM (API key issues, connection errors, etc.)
+        if not analysis.get("success", True):
+            # Return error directly without going through decision engine
+            return {
+                "action": "error",
+                "error": analysis.get("error", "Unknown error"),
+                "response": analysis.get("error", ""),
+                "llm_response": analysis.get("error", ""),
+                "needs_approval": False,
+                "steps": [],
+                "risks": [],
+            }
+
         # Decision making
         decision = self.decision_engine.decide(analysis, self.context)
+
+        # Preserve response from analysis
+        if analysis.get("response"):
+            decision["response"] = analysis["response"]
+        if analysis.get("llm_response"):
+            decision["llm_response"] = analysis["llm_response"]
 
         # Self-correction check
         if decision.get("has_risks"):
@@ -770,6 +789,20 @@ class DrakbenBrain:
 
         # Process through orchestrator
         result = self.process(user_input, system_context)
+
+        # Check for errors
+        if result.get("error"):
+            return {
+                "intent": "error",
+                "reply": "",
+                "error": result.get("error"),
+                "command": None,
+                "steps": [],
+                "needs_approval": False,
+                "confidence": 0,
+                "risks": [],
+                "llm_response": None,
+            }
 
         # Get the actual response to show user
         # Priority: response > llm_response > reasoning
