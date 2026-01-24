@@ -227,16 +227,22 @@ class TestEvolutionMemory(unittest.TestCase):
     
     def test_record_action(self):
         """Test action recording"""
-        from core.evolution_memory import EvolutionMemory
+        from core.evolution_memory import EvolutionMemory, ActionRecord
         memory = EvolutionMemory(db_path=self.temp_db.name)
         
-        memory.record_action(
-            action_type="scan",
+        record = ActionRecord(
+            goal="test_goal",
+            plan_id="plan_1",
+            step_id="step_1",
+            action_name="scan",
             tool="nmap",
-            target="192.168.1.1",
-            success=True,
-            output="Scan complete"
+            parameters="{}",
+            outcome="success",
+            timestamp=time.time(),
+            penalty_score=0.0
         )
+        
+        memory.record_action(record)
         
         # Verify recorded
         stats = memory.get_tool_stats("nmap")
@@ -244,18 +250,23 @@ class TestEvolutionMemory(unittest.TestCase):
     
     def test_tool_penalty(self):
         """Test tool penalty system"""
-        from core.evolution_memory import EvolutionMemory
+        from core.evolution_memory import EvolutionMemory, ActionRecord
         memory = EvolutionMemory(db_path=self.temp_db.name)
         
         # Record failures
         for _ in range(3):
-            memory.record_action(
-                action_type="exploit",
+            record = ActionRecord(
+                goal="test_goal",
+                plan_id="plan_1",
+                step_id="step_1",
+                action_name="exploit",
                 tool="test_tool",
-                target="target",
-                success=False,
-                output="Failed"
+                parameters="{}",
+                outcome="failure",
+                timestamp=time.time(),
+                penalty_score=0.0
             )
+            memory.record_action(record)
         
         penalty = memory.get_penalty("test_tool")
         self.assertGreater(penalty, 0)

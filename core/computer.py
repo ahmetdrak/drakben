@@ -109,7 +109,6 @@ class Computer:
         
         # If x is a string, treat it as a visual target (advanced)
         if isinstance(x, str):
-            # TODO: Implement "click on text" via OCR or "click on image" via template matching
             # For now, just log and fail safe
             raise NotImplementedError("Visual clicking (click('Submit')) not yet implemented. Use coordinates.")
             
