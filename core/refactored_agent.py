@@ -279,11 +279,12 @@ class RefactoredDrakbenAgent:
                 if self.current_profile:
                     self.refining_engine.update_profile_outcome(self.current_profile.profile_id, True)
             else:
-                should_replan = self.planner.mark_step_failed(step.step_id, execution_result.get("stderr", "")[:200])
-                self.console.print(f"❌ Step failed", style="red")
+                stderr_msg = execution_result.get("stderr", "Unknown error")
+                should_replan = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
+                self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
                 
                 # === RECORD FAILURE + POLICY LEARNING ===
-                error_msg = execution_result.get("stderr", "")[:100]
+                error_msg = stderr_msg[:100]
                 error_type = "unknown"
                 if "timeout" in error_msg.lower():
                     error_type = "timeout"
@@ -291,6 +292,13 @@ class RefactoredDrakbenAgent:
                     error_type = "connection_refused"
                 elif "permission" in error_msg.lower():
                     error_type = "permission_denied"
+                elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
+                    error_type = "missing_tool"
+                    self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' not found! Please install it.", style="bold red")
+                    # Stop loop to avoid infinite failure on missing binary
+                    self.running = False
+                    break
+
                 
                 # Record failure to database
                 if self.current_profile:
