@@ -8,6 +8,14 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.text import Text
 
+# prompt_toolkit for protected prompt
+try:
+    from prompt_toolkit import prompt as pt_prompt
+    from prompt_toolkit.formatted_text import HTML
+    PROMPT_TOOLKIT_AVAILABLE = True
+except ImportError:
+    PROMPT_TOOLKIT_AVAILABLE = False
+
 from core.config import ConfigManager
 from core.kali_detector import KaliDetector
 
@@ -172,9 +180,8 @@ class DrakbenMenu:
         # MAIN LOOP
         while self.running:
             try:
-                # Prompt - print separately so it can't be deleted
-                self._print_prompt()
-                user_input = input().strip()
+                # Get user input with protected prompt
+                user_input = self._get_input().strip()
 
                 if not user_input:
                     continue
@@ -197,15 +204,34 @@ class DrakbenMenu:
         msg = "Görüşürüz!" if lang == "tr" else "Goodbye!"
         self.console.print(f"👋 {msg}", style=self.COLORS["purple"])
 
-    def _print_prompt(self):
-        """Print prompt on same line - can't be deleted by user"""
-        prompt = Text()
-        prompt.append("drakben", style=f"bold {self.COLORS['purple']}")
-        if self.config.target:
-            prompt.append(f"@{self.config.target}", style=f"bold {self.COLORS['cyan']}")
-        prompt.append("> ", style=self.COLORS["fg"])
-        # end="" keeps cursor on same line
-        self.console.print(prompt, end="")
+    def _get_input(self) -> str:
+        """Get user input with protected prompt that can't be deleted"""
+        if PROMPT_TOOLKIT_AVAILABLE:
+            # prompt_toolkit protects the prompt from being deleted
+            if self.config.target:
+                prompt_text = HTML(
+                    f'<style fg="#8BE9FD" bg="" bold="true">drakben</style>'
+                    f'<style fg="#8BE9FD">@{self.config.target}</style>'
+                    f'<style fg="#F8F8F2">&gt; </style>'
+                )
+            else:
+                prompt_text = HTML(
+                    f'<style fg="#8BE9FD" bg="" bold="true">drakben</style>'
+                    f'<style fg="#F8F8F2">&gt; </style>'
+                )
+            try:
+                return pt_prompt(prompt_text)
+            except (EOFError, KeyboardInterrupt):
+                return "/exit"
+        else:
+            # Fallback: print prompt then input
+            prompt = Text()
+            prompt.append("drakben", style=f"bold {self.COLORS['purple']}")
+            if self.config.target:
+                prompt.append(f"@{self.config.target}", style=f"bold {self.COLORS['cyan']}")
+            prompt.append("> ", style=self.COLORS["fg"])
+            self.console.print(prompt, end="")
+            return input()
 
     def _handle_command(self, user_input: str):
         """Handle slash commands"""
