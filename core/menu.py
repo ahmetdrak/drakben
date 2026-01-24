@@ -172,9 +172,9 @@ class DrakbenMenu:
         # MAIN LOOP
         while self.running:
             try:
-                # Prompt
-                prompt = self._build_prompt()
-                user_input = Prompt.ask(prompt).strip()
+                # Prompt - print separately so it can't be deleted
+                self._print_prompt()
+                user_input = input().strip()
 
                 if not user_input:
                     continue
@@ -197,14 +197,15 @@ class DrakbenMenu:
         msg = "Görüşürüz!" if lang == "tr" else "Goodbye!"
         self.console.print(f"👋 {msg}", style=self.COLORS["purple"])
 
-    def _build_prompt(self) -> Text:
-        """Dynamic prompt"""
+    def _print_prompt(self):
+        """Print prompt on same line - can't be deleted by user"""
         prompt = Text()
-        prompt.append("drakben", style=self.COLORS["purple"])
+        prompt.append("drakben", style=f"bold {self.COLORS['purple']}")
         if self.config.target:
-            prompt.append(f"@{self.config.target}", style=self.COLORS["cyan"])
+            prompt.append(f"@{self.config.target}", style=f"bold {self.COLORS['cyan']}")
         prompt.append("> ", style=self.COLORS["fg"])
-        return prompt
+        # end="" keeps cursor on same line
+        self.console.print(prompt, end="")
 
     def _handle_command(self, user_input: str):
         """Handle slash commands"""
