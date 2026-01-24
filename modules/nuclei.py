@@ -273,7 +273,7 @@ class NucleiScanner:
             # Cleanup temp file
             try:
                 os.unlink(targets_file)
-            except:
+            except (OSError, FileNotFoundError):
                 pass
         
         return results

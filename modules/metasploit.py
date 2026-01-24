@@ -221,7 +221,7 @@ class MetasploitRPC:
         if self.connected and self.token:
             try:
                 await self._call("auth.logout", [self.token])
-            except:
+            except (ConnectionError, TimeoutError, Exception):
                 pass
         
         self.connected = False
@@ -601,7 +601,7 @@ class MetasploitRPC:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
+        except (OSError, ConnectionError, Exception):
             return "127.0.0.1"
 
 

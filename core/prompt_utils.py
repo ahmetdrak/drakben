@@ -26,6 +26,10 @@ from rich.panel import Panel
 
 logger = logging.getLogger(__name__)
 
+# Constants
+EXIT_COMMAND = "/exit"
+PROCESSING_TEXT = "Processing..."
+
 # Try to import prompt_toolkit for advanced features
 try:
     from prompt_toolkit import PromptSession
@@ -57,7 +61,7 @@ class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
             "/clear": "Clear screen",
             "/tr": "Switch to Turkish",
             "/en": "Switch to English",
-            "/exit": "Exit DRAKBEN",
+            EXIT_COMMAND: "Exit DRAKBEN",
             "/report": "Generate report",
             "/nuclei": "Run Nuclei scan",
             "/subdomain": "Enumerate subdomains",
@@ -186,13 +190,13 @@ class EnhancedPrompt:
                     default=default
                 )
             except (EOFError, KeyboardInterrupt):
-                return "/exit"
+                return EXIT_COMMAND
         else:
             # Fallback to basic input
             try:
                 return input(message) or default
             except (EOFError, KeyboardInterrupt):
-                return "/exit"
+                return EXIT_COMMAND
     
     def add_target_to_history(self, target: str):
         """Add target for completion suggestions"""
@@ -220,7 +224,7 @@ class DrakbenProgress:
     
     def spinner(
         self,
-        description: str = "Processing...",
+        description: str = PROCESSING_TEXT,
         style: str = "bold cyan"
     ):
         """
@@ -265,7 +269,7 @@ class DrakbenProgress:
     async def async_spinner(
         self,
         coro,
-        description: str = "Processing..."
+        description: str = PROCESSING_TEXT
     ):
         """
         Run async coroutine with spinner.
@@ -496,13 +500,13 @@ def create_progress(console: Optional[Console] = None) -> DrakbenProgress:
     return DrakbenProgress(console)
 
 
-def show_spinner(description: str = "Processing..."):
+def show_spinner(description: str = PROCESSING_TEXT):
     """Show simple spinner"""
     progress = DrakbenProgress()
     return progress.spinner(description)
 
 
-async def run_with_spinner(coro, description: str = "Processing..."):
+async def run_with_spinner(coro, description: str = PROCESSING_TEXT):
     """Run coroutine with spinner"""
     progress = DrakbenProgress()
     return await progress.async_spinner(coro, description)

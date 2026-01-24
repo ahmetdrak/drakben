@@ -15,6 +15,9 @@ from dotenv import load_dotenv
 # Setup logger
 logger = logging.getLogger(__name__)
 
+# Constants
+API_ENV_PATH = "config/api.env"
+
 
 @dataclass
 class DrakbenConfig:
@@ -69,7 +72,7 @@ class ConfigManager:
 
     def _load_env(self):
         """Load API keys from .env"""
-        env_file = Path("config/api.env")
+        env_file = Path(API_ENV_PATH)
         if env_file.exists():
             load_dotenv(env_file)
 
@@ -96,7 +99,7 @@ class ConfigManager:
 
     def _read_env_file(self) -> Dict[str, str]:
         """Read api.env into a dict"""
-        env_path = Path("config/api.env")
+        env_path = Path(API_ENV_PATH)
         values: Dict[str, str] = {}
 
         if not env_path.exists():
@@ -113,7 +116,7 @@ class ConfigManager:
 
     def _write_env_file(self, values: Dict[str, str]):
         """Write api.env from a dict"""
-        env_path = Path("config/api.env")
+        env_path = Path(API_ENV_PATH)
         env_path.parent.mkdir(parents=True, exist_ok=True)
 
         lines = [
@@ -138,7 +141,7 @@ class ConfigManager:
         if self.config.llm_setup_complete:
             return
 
-        env_path = Path("config/api.env")
+        env_path = Path(API_ENV_PATH)
         existing = self._read_env_file()
 
         if env_path.exists() and any(

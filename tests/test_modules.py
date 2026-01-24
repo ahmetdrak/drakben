@@ -194,7 +194,7 @@ class TestCVEDatabase(unittest.TestCase):
         """Cleanup temp database"""
         try:
             os.unlink(self.temp_db.name)
-        except:
+        except Exception:
             pass
     
     def test_database_initialization(self):

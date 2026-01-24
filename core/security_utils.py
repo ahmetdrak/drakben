@@ -50,7 +50,7 @@ class CredentialStore:
             # Test keyring access
             keyring.get_keyring()
             return True
-        except:
+        except (keyring.errors.KeyringError, Exception):
             return False
     
     def _derive_key(self, password: str, salt: bytes) -> bytes:
@@ -190,7 +190,7 @@ class CredentialStore:
             key = self._derive_key(password, salt)
             decrypted = self._decrypt(encrypted, key)
             return json.loads(decrypted)
-        except:
+        except (ValueError, json.JSONDecodeError, Exception):
             return {}
     
     def _save_file(self, credentials: Dict[str, str], password: str):
@@ -533,7 +533,7 @@ class ProxyManager:
             test_socket.connect(("check.torproject.org", 80))
             test_socket.close()
             return True
-        except:
+        except (OSError, ConnectionError, Exception):
             return False
     
     def add_proxy(self, proxy: ProxyConfig):

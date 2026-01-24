@@ -28,7 +28,7 @@ def safe_remove(path: str):
     try:
         if os.path.exists(path):
             os.remove(path)
-    except:
+    except (OSError, PermissionError):
         pass
 
 
@@ -471,7 +471,7 @@ def find_function_calls(file_path: str, func_name: str) -> list:
     
     try:
         tree = ast.parse(content)
-    except:
+    except (SyntaxError, ValueError):
         return []
     
     calls = []

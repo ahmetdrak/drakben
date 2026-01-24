@@ -475,8 +475,8 @@ def run(target, args=None):
 
         try:
             if not self.brain or not self.brain.llm_client:
-                logger.warning("No LLM client available")
-                return {"success": False, "error": "No LLM client available"}
+                logger.warning(self.ERR_NO_LLM)
+                return {"success": False, "error": self.ERR_NO_LLM}
             
             prompt = format_llm_prompt(system_msg, user_msg)
             response = self.brain.llm_client.query(prompt)

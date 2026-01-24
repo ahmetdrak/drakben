@@ -51,7 +51,7 @@ def safe_remove(path: str):
     try:
         if os.path.exists(path):
             os.remove(path)
-    except:
+    except (OSError, PermissionError):
         pass
 
 
