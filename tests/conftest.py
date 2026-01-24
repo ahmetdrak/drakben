@@ -55,15 +55,16 @@ def reset_state():
 @pytest.fixture
 def sample_state(reset_state):
     """Create sample AgentState with basic data"""
-    from core.state import AgentState, ServiceInfo, VulnerabilityInfo
+    from core.state import reset_state, ServiceInfo, VulnerabilityInfo
     
-    state = AgentState()
-    state.set_target("192.168.1.1")
+    state = reset_state("192.168.1.1")
     
     # Add some services
-    state.add_open_service(ServiceInfo(port=80, name="http", version="Apache/2.4"))
-    state.add_open_service(ServiceInfo(port=443, name="https", version="nginx/1.18"))
-    state.add_open_service(ServiceInfo(port=22, name="ssh", version="OpenSSH 8.0"))
+    state.add_open_services([
+        ServiceInfo(port=80, protocol="tcp", service="http", version="Apache/2.4"),
+        ServiceInfo(port=443, protocol="tcp", service="https", version="nginx/1.18"),
+        ServiceInfo(port=22, protocol="tcp", service="ssh", version="OpenSSH 8.0")
+    ])
     
     return state
 

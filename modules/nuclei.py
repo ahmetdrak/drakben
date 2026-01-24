@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -523,11 +524,16 @@ async def nuclei_scan_state_target(
     
     for result in results:
         if result.severity in [NucleiSeverity.CRITICAL, NucleiSeverity.HIGH, NucleiSeverity.MEDIUM]:
+            # Extract port and service from result URL
+            parsed_url = urlparse(result.url) if hasattr(result, 'url') and result.url else urlparse(state.target)
+            port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+            service = parsed_url.scheme or "http"
             vuln = VulnerabilityInfo(
                 vuln_id=result.template_id,
-                description=result.description or result.template_name,
+                service=service,
+                port=port,
                 severity=result.severity.value,
-                confirmed=True
+                exploitable=True
             )
             state.add_vulnerability(vuln)
     
