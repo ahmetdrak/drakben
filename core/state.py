@@ -92,11 +92,7 @@ class AgentState:
 
     def __new__(cls, *args, **kwargs):
         """Ensure singleton instance"""
-<<<<<<< Current (Your changes)
-        global _state_instance
-=======
         global _state_instance, _state_lock
->>>>>>> Incoming (Background Agent changes)
         if _state_instance is None:
             with _state_lock:
                 if _state_instance is None:
