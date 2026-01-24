@@ -100,19 +100,24 @@ try:
 except Exception as e:
     errors.append(f'Exploit suggestions: {e}')
 
-print('='*50)
-print('INTEGRATION TEST RESULTS')
-print('='*50)
-print(f'Passed: {len(passed)}')
-for p in passed:
-    print(f'  [OK] {p}')
+if __name__ == "__main__":
+    print('='*50)
+    print('INTEGRATION TEST RESULTS')
+    print('='*50)
+    print(f'Passed: {len(passed)}')
+    for p in passed:
+        print(f'  [OK] {p}')
 
-if errors:
-    print(f'Failed: {len(errors)}')
-    for e in errors:
-        print(f'  [FAIL] {e}')
-    sys.exit(1)
+    if errors:
+        print(f'Failed: {len(errors)}')
+        for e in errors:
+            print(f'  [FAIL] {e}')
+        sys.exit(1)
+    else:
+        print('All tests passed!')
+    print('='*50)
+    sys.exit(0)
 else:
-    print('All tests passed!')
-print('='*50)
-sys.exit(0)
+    # If imported by pytest, raise error if any tests failed so pytest sees it
+    if errors:
+        raise RuntimeError(f"Integration tests failed: {errors}")

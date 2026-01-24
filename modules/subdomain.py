@@ -265,7 +265,7 @@ class SubdomainEnumerator:
                                         subdomain=host,
                                         source="web_archive"
                                     ))
-                            except:
+                            except Exception:
                                 pass
             
             logger.info(f"Web Archive found {len(results)} subdomains")
@@ -375,7 +375,7 @@ class SubdomainEnumerator:
                     source="bruteforce",
                     resolved=True
                 )
-            except:
+            except Exception:
                 return None
         
         # Run checks concurrently in batches
@@ -423,7 +423,7 @@ class SubdomainEnumerator:
                 )
                 result.resolved = True
                 result.ip_addresses = [str(r) for r in answers]
-            except:
+            except Exception:
                 result.resolved = False
             
             # Try CNAME
@@ -436,7 +436,7 @@ class SubdomainEnumerator:
                     'CNAME'
                 )
                 result.cname = str(answers[0])
-            except:
+            except Exception:
                 pass
             
             return result

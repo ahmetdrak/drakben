@@ -20,6 +20,13 @@ pycryptodome>=3.20.0      # Cryptography
 prompt_toolkit>=3.0.0     # Advanced prompts with auto-complete
 keyring>=24.0.0           # Secure credential storage
 
+# ========== COMPUTER & VISION (Open Interpreter Features) ==========
+pyautogui>=0.9.54         # Mouse/Keyboard control
+Pillow>=10.0.0            # Image processing
+mss>=9.0.0                # Fast screen capture
+opencv-python>=4.9.0      # Computer vision
+pyperclip>=1.8.0          # Clipboard access
+
 # ========== OPTIONAL ==========
 # weasyprint>=60.0        # PDF report generation
 # msgpack>=1.0.0          # Metasploit RPC protocol

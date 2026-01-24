@@ -181,10 +181,17 @@ class NucleiScanner:
         config = config or NucleiScanConfig()
         results = []
         
-        # Create temp file for targets
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write('\n'.join(targets))
-            targets_file = f.name
+        # Create temp file for targets asynchronously
+        def _write_temp_file():
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                f.write('\n'.join(targets))
+                return f.name
+
+        try:
+            targets_file = await asyncio.get_event_loop().run_in_executor(None, _write_temp_file)
+        except Exception as e:
+            logger.error(f"Failed to create temp targets file: {e}")
+            return []
         
         try:
             # Build command

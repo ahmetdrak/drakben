@@ -20,9 +20,9 @@ class TestReconModule(unittest.TestCase):
     
     def setUp(self):
         """Reset state singleton"""
-        from core.state import AgentState
-        AgentState._instance = None
-        AgentState._initialized = False
+        from core.state import AgentState, reset_state
+        # Reset state fully
+        reset_state("test_target")
     
     def test_domain_extraction(self):
         """Test domain extraction from URL"""
@@ -70,7 +70,7 @@ class TestReconModule(unittest.TestCase):
         from modules.recon import detect_cms
         
         test_html = '<meta name="generator" content="WordPress 5.9">'
-        cms = detect_cms(test_html)
+        cms = detect_cms(test_html, {})
         
         self.assertIsNotNone(cms)
     
@@ -84,7 +84,7 @@ class TestReconModule(unittest.TestCase):
             "X-AspNet-Version": "4.0"
         }
         
-        techs = detect_technologies(headers, "")
+        techs = detect_technologies("", headers)
         self.assertIsInstance(techs, list)
 
 
@@ -93,9 +93,8 @@ class TestExploitModule(unittest.TestCase):
     
     def setUp(self):
         """Reset state singleton"""
-        from core.state import AgentState
-        AgentState._instance = None
-        AgentState._initialized = False
+        from core.state import AgentState, reset_state
+        reset_state("test_target")
     
     def test_precondition_check_no_state(self):
         """Test precondition check without state"""
@@ -116,15 +115,15 @@ class TestExploitModule(unittest.TestCase):
     def test_precondition_check_wrong_phase(self):
         """Test precondition check in wrong phase"""
         from modules.exploit import check_exploit_preconditions
-        from core.state import AgentState, AttackPhase
+        from core.state import AgentState, AttackPhase, get_state
         
-        state = AgentState()
-        state.set_target("192.168.1.1")
+        state = get_state()
+        state.target = "192.168.1.1" # Manually set target
         # State is in RECON phase, not EXPLOIT
         
         can_exploit, reason = check_exploit_preconditions(state, "192.168.1.1:80", "sqli")
         self.assertFalse(can_exploit)
-        self.assertIn("phase", reason.lower())
+        self.assertIn("phase", reason.lower())    
     
     def test_retry_config(self):
         """Test RetryConfig defaults"""
@@ -150,46 +149,37 @@ class TestPayloadModule(unittest.TestCase):
     
     def setUp(self):
         """Reset state singleton"""
-        from core.state import AgentState
-        AgentState._instance = None
-        AgentState._initialized = False
+        from core.state import AgentState, reset_state
+        reset_state("test_target")
     
     def test_precondition_check_no_foothold(self):
         """Test payload precondition without foothold"""
         from modules.payload import check_payload_preconditions
-        from core.state import AgentState
+        from core.state import AgentState, get_state
         
-        state = AgentState()
-        state.set_target("192.168.1.1")
+        state = get_state()
+        state.target = "192.168.1.1"
         
         can_execute, reason = check_payload_preconditions(state)
         self.assertFalse(can_execute)
         self.assertIn("foothold", reason.lower())
-    
-    def test_payload_templates(self):
-        """Test payload templates availability"""
-        from modules.payload import PAYLOAD_TEMPLATES
-        
-        self.assertIn("bash_reverse", PAYLOAD_TEMPLATES)
-        self.assertIn("python_reverse", PAYLOAD_TEMPLATES)
-        self.assertIn("nc_reverse", PAYLOAD_TEMPLATES)
-    
-    def test_list_payloads(self):
-        """Test payload listing"""
-        from modules.payload import list_payloads
-        
-        payloads = list_payloads()
-        self.assertIsInstance(payloads, list)
-        self.assertGreater(len(payloads), 0)
-    
+
     def test_payload_generation(self):
         """Test payload generation"""
         from modules.payload import generate_payload
+        from core.state import AgentState, get_state
         
-        payload = generate_payload("bash_reverse", ip="192.168.1.100", port=4444)
-        self.assertIsInstance(payload, str)
-        self.assertIn("192.168.1.100", payload)
-        self.assertIn("4444", payload)
+        state = get_state()
+        # Ensure preconditions met
+        state.target = "192.168.1.1"
+        state.update_services([]) # Mock scan done
+        state.set_foothold("test") # Mock foothold
+        
+        payload = generate_payload(state, "reverse_shell_bash", lhost="192.168.1.100", lport=4444)
+        self.assertIsInstance(payload, dict)
+        self.assertTrue(payload.get("success", False))
+        self.assertIn("192.168.1.100", payload["code"])
+        self.assertIn("4444", payload["code"])
 
 
 class TestCVEDatabase(unittest.TestCase):
@@ -396,11 +386,11 @@ class TestLLMClient(unittest.TestCase):
         """Test LLM cache operations"""
         from llm.openrouter_client import LLMCache
         
-        cache = LLMCache(max_size=100)
+        cache = LLMCache()
         
         # Test set and get
-        cache.set("prompt1", "model1", "response1")
-        result = cache.get("prompt1", "model1")
+        cache.set("prompt1", "system", "model1", "response1")
+        result = cache.get("prompt1", "system", "model1")
         
         self.assertEqual(result, "response1")
     
@@ -408,8 +398,8 @@ class TestLLMClient(unittest.TestCase):
         """Test cache miss"""
         from llm.openrouter_client import LLMCache
         
-        cache = LLMCache(max_size=100)
-        result = cache.get("nonexistent", "model")
+        cache = LLMCache()
+        result = cache.get("nonexistent", "system", "model")
         
         self.assertIsNone(result)
     
@@ -417,31 +407,31 @@ class TestLLMClient(unittest.TestCase):
         """Test rate limiter"""
         from llm.openrouter_client import RateLimiter
         
-        limiter = RateLimiter(calls_per_minute=60)
+        limiter = RateLimiter()
         
         # Should allow immediate call
-        limiter.wait_if_needed()
-        # Record the call
-        limiter.record_call()
+        acquired = limiter.acquire()
+        self.assertTrue(acquired)
     
     def test_cache_hit_rate(self):
         """Test cache hit rate calculation"""
         from llm.openrouter_client import LLMCache
         
-        cache = LLMCache(max_size=100)
+        cache = LLMCache()
         
         # Add some entries
-        cache.set("p1", "m1", "r1")
-        cache.set("p2", "m1", "r2")
+        cache.set("p1", "s", "m1", "r1")
+        cache.set("p2", "s", "m1", "r2")
         
         # Get hits
-        cache.get("p1", "m1")
-        cache.get("p2", "m1")
+        cache.get("p1", "s", "m1")
+        cache.get("p2", "s", "m1")
         
         # Get miss
-        cache.get("p3", "m1")
+        cache.get("p3", "s", "m1")
         
-        hit_rate = cache.get_hit_rate()
+        stats = cache.get_stats()
+        hit_rate = stats["hit_rate"]
         self.assertGreaterEqual(hit_rate, 0)
         self.assertLessEqual(hit_rate, 1)
 

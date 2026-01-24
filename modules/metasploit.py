@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
+import aiohttp
+
 logger = logging.getLogger(__name__)
 
 # Optional msgpack for MSFRPC
@@ -150,24 +152,24 @@ class MetasploitRPC:
             protocol = "https" if self.use_ssl else "http"
             url = f"{protocol}://{host}:{port}/api/"
             
-            if REQUESTS_AVAILABLE:
-                response = requests.post(
+            # Using aiohttp for async support
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
                     url,
                     json={
                         "method": "auth.login",
                         "params": [username, password]
                     },
-                    timeout=10,
-                    verify=False
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "result" in data and "token" in data["result"]:
-                        self.token = data["result"]["token"]
-                        self.connected = True
-                        logger.info("Connected to Metasploit RPC")
-                        return True
+                    timeout=10
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if "result" in data and "token" in data["result"]:
+                            self.token = data["result"]["token"]
+                            self.connected = True
+                            logger.info("Connected to Metasploit RPC")
+                            return True
             
             # Fallback: try msgpack RPC
             if MSGPACK_AVAILABLE:
@@ -179,7 +181,7 @@ class MetasploitRPC:
         except Exception as e:
             logger.error(f"Connection error: {e}")
             return False
-    
+
     async def _connect_msgpack(
         self, 
         host: str, 
@@ -225,7 +227,7 @@ class MetasploitRPC:
         self.connected = False
         self.token = ""
         logger.info("Disconnected from Metasploit RPC")
-    
+
     async def _call(self, method: str, params: List[Any] = None) -> Dict[str, Any]:
         """
         Call RPC method.
@@ -246,18 +248,18 @@ class MetasploitRPC:
             protocol = "https" if self.use_ssl else "http"
             url = f"{protocol}://{self.host}:{self.port}/api/"
             
-            response = requests.post(
-                url,
-                json={
-                    "method": method,
-                    "token": self.token,
-                    "params": params
-                },
-                timeout=60,
-                verify=False
-            )
-            
-            return response.json()
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.post(
+                    url,
+                    json={
+                        "method": method,
+                        "token": self.token,
+                        "params": params
+                    },
+                    timeout=60
+                ) as response:
+                    return await response.json()
             
         except Exception as e:
             logger.error(f"RPC call error: {e}")

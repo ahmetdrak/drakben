@@ -236,7 +236,13 @@ class DrakbenMenu:
 
     def _handle_command(self, user_input: str):
         """Handle slash commands"""
+        if not user_input or not user_input.strip():
+            return
+
         parts = user_input.split(maxsplit=1)
+        if not parts:
+            return
+
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 

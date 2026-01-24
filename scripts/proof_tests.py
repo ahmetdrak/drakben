@@ -50,6 +50,40 @@ def print_separator(title: str):
 # PROOF 1: PROFILE MUTATION
 # =============================================================================
 
+
+def _check_measurable_differences(original_data: list, mutated_profile: StrategyProfile) -> list:
+    """
+    Helper to identify measurable differences between parent and mutated profile.
+    Returns list of differences strings. Returns None if parent not found.
+    """
+    parent = None
+    for orig in original_data:
+        if orig["profile_id"] == mutated_profile.parent_profile_id:
+            parent = orig
+            break
+    
+    if parent is None:
+        return None
+    
+    differences = []
+    
+    # Check parameter differences
+    for key in parent["parameters"]:
+        if key in mutated_profile.parameters:
+            if parent["parameters"][key] != mutated_profile.parameters[key]:
+                differences.append(f"Parameter '{key}': {parent['parameters'][key]} → {mutated_profile.parameters[key]}")
+    
+    # Check step order difference
+    if parent["step_order"] != mutated_profile.step_order:
+        differences.append(f"Step order: {parent['step_order']} → {mutated_profile.step_order}")
+    
+    # Check aggressiveness difference
+    if abs(parent["aggressiveness"] - mutated_profile.aggressiveness) > 0.001:
+        differences.append(f"Aggressiveness: {parent['aggressiveness']:.4f} → {mutated_profile.aggressiveness:.4f}")
+        
+    return differences
+
+
 def proof_profile_mutation():
     """
     PROOF: When all profiles for a strategy are retired,
@@ -106,32 +140,12 @@ def proof_profile_mutation():
     # PROVE: Mutation is MEASURABLY DIFFERENT
     print("\n[VERIFICATION] Checking measurable differences...")
     
-    parent = None
-    for orig in original_data:
-        if orig["profile_id"] == mutated_profile.parent_profile_id:
-            parent = orig
-            break
+    differences = _check_measurable_differences(original_data, mutated_profile)
     
-    if parent is None:
+    if differences is None:
         print("❌ FAIL: Parent profile not found")
         safe_remove(db_path)
         return False
-    
-    differences = []
-    
-    # Check parameter differences
-    for key in parent["parameters"]:
-        if key in mutated_profile.parameters:
-            if parent["parameters"][key] != mutated_profile.parameters[key]:
-                differences.append(f"Parameter '{key}': {parent['parameters'][key]} → {mutated_profile.parameters[key]}")
-    
-    # Check step order difference
-    if parent["step_order"] != mutated_profile.step_order:
-        differences.append(f"Step order: {parent['step_order']} → {mutated_profile.step_order}")
-    
-    # Check aggressiveness difference
-    if abs(parent["aggressiveness"] - mutated_profile.aggressiveness) > 0.001:
-        differences.append(f"Aggressiveness: {parent['aggressiveness']:.4f} → {mutated_profile.aggressiveness:.4f}")
     
     print(f"\nMEASURABLE DIFFERENCES FROM PARENT:")
     for diff in differences:

@@ -731,6 +731,8 @@ def task4_persistence_restart() -> Dict[str, Any]:
     
     db_path = "persistence_test.db"
     safe_remove(db_path)
+
+    PERSIST_TEST_URL = "https://persist-test.com"
     
     results = {}
     
@@ -741,13 +743,13 @@ def task4_persistence_restart() -> Dict[str, Any]:
     engine1 = SelfRefiningEngine(db_path)
     
     # Select strategy and profile
-    strategy1, profile1 = engine1.select_strategy_and_profile("https://persist-test.com")
+    strategy1, profile1 = engine1.select_strategy_and_profile(PERSIST_TEST_URL)
     print(f"  Strategy: {strategy1.name}")
     print(f"  Profile: {profile1.profile_id[:12]}...")
     print(f"  Aggressiveness: {profile1.aggressiveness}")
     
     # Force failure
-    target_sig = engine1.get_target_signature("https://persist-test.com")
+    target_sig = engine1.get_target_signature(PERSIST_TEST_URL)
     engine1.record_failure(
         target_signature=target_sig,
         strategy_name=strategy1.name,
@@ -804,7 +806,7 @@ def task4_persistence_restart() -> Dict[str, Any]:
         results["policies_persisted"] = {"status": "FAIL"}
     
     # Now select for same target - should get DIFFERENT behavior
-    strategy2, profile2 = engine2.select_strategy_and_profile("https://persist-test.com")
+    strategy2, profile2 = engine2.select_strategy_and_profile(PERSIST_TEST_URL)
     print(f"\n  New selection:")
     print(f"  Strategy: {strategy2.name}")
     print(f"  Profile: {profile2.profile_id[:12]}...")

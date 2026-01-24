@@ -38,7 +38,7 @@ def temp_db():
     # Cleanup
     try:
         os.unlink(temp.name)
-    except:
+    except OSError:
         pass
 
 

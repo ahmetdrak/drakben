@@ -207,7 +207,7 @@ class TestEvolutionMemory(unittest.TestCase):
         """Cleanup temp database"""
         try:
             os.unlink(self.temp_db.name)
-        except:
+        except OSError:
             pass
     
     def test_initialization(self):

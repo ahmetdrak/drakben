@@ -65,6 +65,14 @@ class RefactoredDrakbenAgent:
         self.current_profile: Optional[StrategyProfile] = None  # NEW: Track profile
         self.target_signature: str = ""
 
+    # Style constants
+    STYLE_GREEN = "bold green"
+    STYLE_RED = "bold red"
+    STYLE_CYAN = "bold cyan"
+    STYLE_YELLOW = "bold yellow"
+    STYLE_MAGENTA = "bold magenta"
+    STYLE_BLUE = "bold blue"
+
     def initialize(self, target: str):
         """
         Initialize agent with PROFILE-BASED SELECTION
@@ -76,7 +84,7 @@ class RefactoredDrakbenAgent:
         4. Generate plan FROM THAT PROFILE
         """
         self.console.print(
-            f"🔄 Initializing agent for target: {target}", style="bold blue"
+            f"🔄 Initializing agent for target: {target}", style=self.STYLE_BLUE
         )
 
         # 1. Reset State
@@ -108,14 +116,14 @@ class RefactoredDrakbenAgent:
         
         self.console.print(
             f"🧠 Selected Strategy: {self.current_strategy.name}",
-            style="bold magenta"
+            style=self.STYLE_MAGENTA
         )
         self.console.print(
             f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
             f"(gen: {self.current_profile.mutation_generation}, "
             f"success_rate: {self.current_profile.success_rate:.1%}, "
             f"aggression: {self.current_profile.aggressiveness:.2f})",
-            style="bold cyan"
+            style=self.STYLE_CYAN
         )
         
         # Show profile details
@@ -132,7 +140,7 @@ class RefactoredDrakbenAgent:
         existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
         if existing_plan:
             self.console.print(
-                f"🔁 Resuming plan: {existing_plan.plan_id}", style="bold green"
+                f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN
             )
             self.planner.load_plan(existing_plan.plan_id)
         else:
@@ -143,7 +151,7 @@ class RefactoredDrakbenAgent:
                 f"pentest_{target}"
             )
             self.console.print(
-                f"📋 Created plan from profile: {plan_id}", style="bold green"
+                f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN
             )
 
         # 5. SHOW EVOLUTION STATUS
@@ -174,19 +182,13 @@ class RefactoredDrakbenAgent:
         """
         EVOLVED AGENTIC LOOP
         
-        Uses:
-        1. Planner for step sequencing
-        2. Evolution memory for penalty-based tool filtering
-        3. Replanning on failure
-        4. Stagnation detection
+        Refactored to reduce Cognitive Complexity.
         """
         lang = self.config.language
-
         self.console.print(
-            f"\n🚀 Starting evolved autonomous loop...\n", style="bold green"
+            f"\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
         )
 
-        # MAIN LOOP - PLANNER DRIVEN
         while self.running:
             iteration = self.state.iteration_count + 1
             self.console.print(f"\n{'='*60}", style="dim")
@@ -195,27 +197,14 @@ class RefactoredDrakbenAgent:
                 style="bold cyan",
             )
 
-            # ============ 1. STAGNATION CHECK ============
-            if self.evolution.detect_stagnation():
-                self.console.print("⚠️  STAGNATION DETECTED - forcing replan", style="bold yellow")
-                current_step = self.planner.get_next_step()
-                if current_step:
-                    self.planner.replan(current_step.step_id)
-                self.stagnation_counter += 1
-                
-                if self.stagnation_counter >= 3:
-                    self.console.print("🛑 HALT: Too many stagnations", style="bold red")
-                    break
+            # 1. Stagnation Check
+            if self._check_stagnation():
+                break
 
-            # ============ 2. GET NEXT STEP FROM PLANNER ============
+            # 2. Get Next Step
             step = self.planner.get_next_step()
-            
-            if step is None:
-                if self.planner.is_plan_complete():
-                    self.console.print("✅ Plan complete!", style="bold green")
-                    self.state.phase = AttackPhase.COMPLETE
-                else:
-                    self.console.print("❓ No executable step found", style="yellow")
+            if not step:
+                self._handle_plan_completion()
                 break
 
             self.console.print(
@@ -223,177 +212,35 @@ class RefactoredDrakbenAgent:
                 style="cyan"
             )
 
-            # ============ 3. CHECK TOOL PENALTY ============
-            penalty = self.evolution.get_tool_penalty(step.tool)
-            if self.evolution.is_tool_blocked(step.tool):
-                self.console.print(
-                    f"🚫 Tool {step.tool} is BLOCKED (penalty={penalty:.1f})",
-                    style="bold red"
-                )
-                # Trigger replan
-                self.planner.replan(step.step_id)
+            # 3. Check Penalty
+            if self._check_tool_blocked(step):
                 continue
 
-            self.console.print(
-                f"📊 Tool penalty: {penalty:.1f} / {self.evolution.BLOCK_THRESHOLD}",
-                style="dim"
-            )
-
-            # ============ 4. EXECUTE TOOL ============
+            # 4. Execute
             self.planner.mark_step_executing(step.step_id)
             self.console.print(f"🔧 Executing: {step.tool}...", style="yellow")
 
             execution_result = self._execute_tool(step.tool, step.params)
             success = execution_result.get("success", False)
 
-            # ============ 5. RECORD ACTION IN EVOLUTION MEMORY ============
-            record = ActionRecord(
-                goal=f"pentest_{self.state.target}",
-                plan_id=self.planner.current_plan_id or "unknown",
-                step_id=step.step_id,
-                action_name=step.action,
-                tool=step.tool,
-                parameters=json.dumps(step.params),
-                outcome="success" if success else "failure",
-                timestamp=time.time(),
-                penalty_score=penalty,
-                error_message=execution_result.get("stderr", "")[:200]
-            )
-            self.evolution.record_action(record)
-
-            # ============ 6. UPDATE PENALTY ============
+            # 5. Record & Update
+            penalty = self.evolution.get_tool_penalty(step.tool)
+            self._record_action(step, success, penalty, execution_result)
             self.evolution.update_penalty(step.tool, success=success)
-            new_penalty = self.evolution.get_tool_penalty(step.tool)
-            self.console.print(
-                f"📈 Penalty updated: {penalty:.1f} → {new_penalty:.1f}",
-                style="dim"
-            )
 
-            # ============ 7. UPDATE PLAN STATUS + POLICY LEARNING ============
+            # 6. Handle Result
             if success:
-                self.planner.mark_step_success(step.step_id, execution_result.get("stdout", "")[:200])
-                self.console.print(f"✅ Step succeeded", style="green")
-                self.stagnation_counter = 0
-                
-                # Update profile outcome on success
-                if self.current_profile:
-                    self.refining_engine.update_profile_outcome(self.current_profile.profile_id, True)
+                self._handle_step_success(step, execution_result)
             else:
-                stderr_msg = execution_result.get("stderr", "Unknown error")
-                should_replan = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
-                self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
-                
-                # === RECORD FAILURE + POLICY LEARNING ===
-                error_msg = stderr_msg[:100]
-                error_type = "unknown"
-                if "timeout" in error_msg.lower():
-                    error_type = "timeout"
-                elif "connection refused" in error_msg.lower():
-                    error_type = "connection_refused"
-                elif "permission" in error_msg.lower():
-                    error_type = "permission_denied"
-                elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
-                    error_type = "missing_tool"
-                    self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' not found! Please install it.", style="bold red")
-                    # Stop loop to avoid infinite failure on missing binary
-                    self.running = False
+                if not self._handle_step_failure(step, execution_result):
                     break
 
-                
-                # Record failure to database
-                if self.current_profile:
-                    failure_id = self.refining_engine.record_failure(
-                        target_signature=self.target_signature,
-                        strategy_name=self.current_strategy.name if self.current_strategy else "unknown",
-                        profile_id=self.current_profile.profile_id,
-                        error_type=error_type,
-                        error_message=error_msg,
-                        tool_name=step.tool,
-                        context_data={"action": step.action, "params": step.params}
-                    )
-                    
-                    # Try to learn policy from this failure
-                    policy_id = self.refining_engine.learn_policy_from_failure(failure_id)
-                    if policy_id:
-                        self.console.print(
-                            f"📚 Learned new policy: {policy_id[:12]}...",
-                            style="dim"
-                        )
-                    
-                    # Update profile outcome (may trigger retirement)
-                    retired_profile = self.refining_engine.update_profile_outcome(
-                        self.current_profile.profile_id, False
-                    )
-                    if retired_profile:
-                        self.console.print(
-                            f"⚠️  Profile {retired_profile.profile_id[:12]}... RETIRED due to low success rate",
-                            style="yellow"
-                        )
-                
-                if should_replan:
-                    self.console.print("🔄 Triggering replan...", style="yellow")
-                    replan_success = self.planner.replan(step.step_id)
-                    
-                    if not replan_success:
-                        self.console.print(
-                            f"📝 Replan failed - will select different profile next time",
-                            style="yellow"
-                        )
-                    
-                    # === SELF-CODING: If replan failed, try to create new tool ===
-                    if not replan_success and self.tools_created_this_session < 3:
-                        self.console.print(
-                            "🧠 No alternative tool found. Attempting to CREATE one...",
-                            style="bold magenta"
-                        )
-                        
-                        create_result = self.coder.create_alternative_tool(
-                            failed_tool=step.tool,
-                            action=step.action,
-                            target=self.state.target,
-                            error_message=error_msg
-                        )
-                        
-                        if create_result.get("success"):
-                            new_tool_name = create_result["tool_name"]
-                            self.console.print(
-                                f"✨ Created new tool: {new_tool_name}",
-                                style="bold green"
-                            )
-                            self.tools_created_this_session += 1
-                            
-                            # Register in tool_selector
-                            self.tool_selector.register_dynamic_tool(
-                                name=new_tool_name,
-                                phase=self.state.phase,
-                                command_template=f"DYNAMIC:{new_tool_name}"
-                            )
-                            
-                            # Update step
-                            step.tool = new_tool_name
-                            step.status = StepStatus.PENDING
-                            step.retry_count = 0
-                        else:
-                            self.console.print(
-                                f"⚠️  Could not create tool: {create_result.get('error')}",
-                                style="yellow"
-                            )
-
-            # ============ 8. UPDATE STATE ============
+            # 7. Update State
             observation = f"{step.tool}: {'success' if success else 'failed'}"
             self._update_state_from_result(step.tool, execution_result, observation)
 
-            # ============ 9. STATE VALIDATION ============
-            if not self.state.validate():
-                self.console.print("❌ STATE INVARIANT VIOLATION!", style="bold red")
-                for violation in self.state.invariant_violations:
-                    self.console.print(f"   - {violation}", style="red")
-                break
-
-            # ============ 10. HALT CHECK ============
-            should_halt, halt_reason = self.state.should_halt()
-            if should_halt:
-                self.console.print(f"\n🛑 HALT: {halt_reason}", style="bold yellow")
+            # 8. Validation & Halt Limit
+            if not self._validate_loop_state():
                 break
 
             self.state.increment_iteration()
@@ -401,6 +248,197 @@ class RefactoredDrakbenAgent:
 
         # ============ FINAL REPORT ============
         self._show_final_report()
+
+    def _check_stagnation(self) -> bool:
+        """Check for stagnation and triggering replan if needed. Returns True if halt required."""
+        if self.evolution.detect_stagnation():
+            self.console.print("⚠️  STAGNATION DETECTED - forcing replan", style="bold yellow")
+            current_step = self.planner.get_next_step()
+            if current_step:
+                self.planner.replan(current_step.step_id)
+            self.stagnation_counter += 1
+            
+            if self.stagnation_counter >= 3:
+                self.console.print("🛑 HALT: Too many stagnations", style=self.STYLE_RED)
+                return True
+        return False
+
+    def _handle_plan_completion(self):
+        """Handle case where no steps are left."""
+        if self.planner.is_plan_complete():
+            self.console.print("✅ Plan complete!", style="bold green")
+            self.state.phase = AttackPhase.COMPLETE
+        else:
+            self.console.print("❓ No executable step found", style="yellow")
+
+    def _check_tool_blocked(self, step) -> bool:
+        """Check if tool is blocked by evolution penalty."""
+        penalty = self.evolution.get_tool_penalty(step.tool)
+        if self.evolution.is_tool_blocked(step.tool):
+            self.console.print(
+                f"🚫 Tool {step.tool} is BLOCKED (penalty={penalty:.1f})",
+                style=self.STYLE_RED
+            )
+            # Trigger replan
+            self.planner.replan(step.step_id)
+            return True
+            
+        self.console.print(
+            f"📊 Tool penalty: {penalty:.1f} / {self.evolution.BLOCK_THRESHOLD}",
+            style="dim"
+        )
+        return False
+
+    def _record_action(self, step, success, penalty, execution_result):
+        """Record action to evolution memory."""
+        record = ActionRecord(
+            goal=f"pentest_{self.state.target}",
+            plan_id=self.planner.current_plan_id or "unknown",
+            step_id=step.step_id,
+            action_name=step.action,
+            tool=step.tool,
+            parameters=json.dumps(step.params),
+            outcome="success" if success else "failure",
+            timestamp=time.time(),
+            penalty_score=penalty,
+            error_message=execution_result.get("stderr", "")[:200]
+        )
+        self.evolution.record_action(record)
+
+    def _handle_step_success(self, step, execution_result):
+        """Handle successful step execution."""
+        self.planner.mark_step_success(step.step_id, execution_result.get("stdout", "")[:200])
+        self.console.print(f"✅ Step succeeded", style="green")
+        self.stagnation_counter = 0
+        
+        # Update profile outcome on success
+        if self.current_profile:
+            self.refining_engine.update_profile_outcome(self.current_profile.profile_id, True)
+
+    def _handle_step_failure(self, step, execution_result) -> bool:
+        """Handle failed step execution. Returns False if critical failure loop break needed."""
+        stderr_msg = execution_result.get("stderr", "Unknown error")
+        should_replan = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
+        self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
+        
+        # === RECORD FAILURE + POLICY LEARNING ===
+        error_msg = stderr_msg[:100]
+        error_type = "unknown"
+        if "timeout" in error_msg.lower():
+            error_type = "timeout"
+        elif "connection refused" in error_msg.lower():
+            error_type = "connection_refused"
+        elif "permission" in error_msg.lower():
+            error_type = "permission_denied"
+        elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
+            error_type = "missing_tool"
+            self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' not found! Please install it.", style=self.STYLE_RED)
+            self.running = False
+            return False
+
+        # Record failure to database
+        if self.current_profile:
+            self._record_failure_learning(step, error_type, error_msg)
+        
+        if should_replan:
+            self._handle_replan(step, error_msg)
+            
+        return True
+
+    def _record_failure_learning(self, step, error_type, error_msg):
+        """Record failure detail to refining engine."""
+        failure_id = self.refining_engine.record_failure(
+            target_signature=self.target_signature,
+            strategy_name=self.current_strategy.name if self.current_strategy else "unknown",
+            profile_id=self.current_profile.profile_id,
+            error_type=error_type,
+            error_message=error_msg,
+            tool_name=step.tool,
+            context_data={"action": step.action, "params": step.params}
+        )
+        
+        # Try to learn policy from this failure
+        policy_id = self.refining_engine.learn_policy_from_failure(failure_id)
+        if policy_id:
+            self.console.print(
+                f"📚 Learned new policy: {policy_id[:12]}...",
+                style="dim"
+            )
+        
+        # Update profile outcome (may trigger retirement)
+        retired_profile = self.refining_engine.update_profile_outcome(
+            self.current_profile.profile_id, False
+        )
+        if retired_profile:
+            self.console.print(
+                f"⚠️  Profile {retired_profile.profile_id[:12]}... RETIRED due to low success rate",
+                style="yellow"
+            )
+
+    def _handle_replan(self, step, error_msg):
+        """Handle replanning logic and AI tool creation backup."""
+        self.console.print("🔄 Triggering replan...", style="yellow")
+        replan_success = self.planner.replan(step.step_id)
+        
+        if not replan_success:
+            self.console.print(
+                f"📝 Replan failed - will select different profile next time",
+                style="yellow"
+            )
+        
+        # === SELF-CODING: If replan failed, try to create new tool ===
+        if not replan_success and self.tools_created_this_session < 3:
+            self.console.print(
+                "🧠 No alternative tool found. Attempting to CREATE one...",
+                style=self.STYLE_MAGENTA
+            )
+            
+            create_result = self.coder.create_alternative_tool(
+                failed_tool=step.tool,
+                action=step.action,
+                target=self.state.target,
+                error_message=error_msg
+            )
+            
+            if create_result.get("success"):
+                new_tool_name = create_result["tool_name"]
+                self.console.print(
+                    f"✨ Created new tool: {new_tool_name}",
+                    style=self.STYLE_GREEN
+                )
+                self.tools_created_this_session += 1
+                
+                # Register in tool_selector
+                self.tool_selector.register_dynamic_tool(
+                    name=new_tool_name,
+                    phase=self.state.phase,
+                    command_template=f"DYNAMIC:{new_tool_name}"
+                )
+                
+                # Update step
+                step.tool = new_tool_name
+                step.status = StepStatus.PENDING
+                step.retry_count = 0
+            else:
+                self.console.print(
+                    f"⚠️  Could not create tool: {create_result.get('error')}",
+                    style="yellow"
+                )
+
+    def _validate_loop_state(self) -> bool:
+        """Validate state invariants and halt conditions."""
+        if not self.state.validate():
+            self.console.print("❌ STATE INVARIANT VIOLATION!", style=self.STYLE_RED)
+            for violation in self.state.invariant_violations:
+                self.console.print(f"   - {violation}", style="red")
+            return False
+
+        should_halt, halt_reason = self.state.should_halt()
+        if should_halt:
+            self.console.print(f"\n🛑 HALT: {halt_reason}", style="bold yellow")
+            return False
+            
+        return True
 
     def _get_llm_decision(self, context: Dict) -> Optional[Dict]:
         """
@@ -437,6 +475,56 @@ class RefactoredDrakbenAgent:
 
         return None
 
+    def _install_tool(self, tool_name: str) -> bool:
+        """
+        Attempt to automatically install a missing tool.
+        Supports: Linux (apt), MacOS (brew), Windows (choco/winget)
+        """
+        import platform
+        
+        # Map internal tool names to package names
+        tool_pkg_map = {
+            "nmap_port_scan": "nmap",
+            "nmap_service_scan": "nmap", 
+            "nmap_vuln_scan": "nmap",
+            "sqlmap_scan": "sqlmap",
+            "sqlmap_exploit": "sqlmap",
+            "nikto_web_scan": "nikto",
+            # Add others as needed
+        }
+        
+        pkg = tool_pkg_map.get(tool_name)
+        if not pkg:
+            return False
+            
+        system = platform.system().lower()
+        self.console.print(f"🛠️ Attempting to auto-install '{pkg}'...", style="yellow")
+        
+        install_cmd = ""
+        if system == "linux":
+            install_cmd = f"sudo apt-get update && sudo apt-get install -y {pkg}"
+        elif system == "darwin": # MacOS
+            install_cmd = f"brew install {pkg}"
+        elif system == "windows":
+            # Try winget first (standard on modern Windows)
+            install_cmd = f"winget install {pkg} --accept-source-agreements --accept-package-agreements"
+        
+        if not install_cmd:
+            return False
+            
+        # Execute install
+        try:
+             res = self.executor.terminal.execute(install_cmd, timeout=300)
+             if res.exit_code == 0:
+                 self.console.print(f"✅ Successfully installed {pkg}", style="green")
+                 return True
+             else:
+                 self.console.print(f"❌ Auto-install failed: {res.stderr}", style="red")
+                 return False
+        except Exception as e:
+            self.console.print(f"❌ Auto-install error: {e}", style="red")
+            return False
+
     def _execute_tool(self, tool_name: str, args: Dict) -> Dict:
         """
         Execute a single tool.
@@ -450,7 +538,7 @@ class RefactoredDrakbenAgent:
         if tool_name.startswith("auto_") or tool_name in self.coder.created_tools:
             self.console.print(
                 f"🧬 Executing AI-generated tool: {tool_name}",
-                style="bold magenta"
+                style=self.STYLE_MAGENTA
             )
             result = self.coder.execute_dynamic_tool(
                 tool_name=tool_name,
@@ -472,7 +560,7 @@ class RefactoredDrakbenAgent:
         tool_spec = self.tool_selector.tools.get(tool_name)
         if tool_spec and tool_spec.risk_level == "critical":
             self.console.print(
-                f"\n⚠️  CRITICAL ACTION DETECTED: {tool_name}", style="bold red"
+                f"\n⚠️  CRITICAL ACTION DETECTED: {tool_name}", style=self.STYLE_RED
             )
             self.console.print(f"Args: {args}", style="red")
 
@@ -485,7 +573,7 @@ class RefactoredDrakbenAgent:
                     self.console.print("✅ Action authorized by user.", style="green")
                     break
                 elif response == "NO":
-                    self.console.print("🚫 Action blocked by user.", style="bold red")
+                    self.console.print("🚫 Action blocked by user.", style=self.STYLE_RED)
                     return {
                         "success": False,
                         "error": "User denied authorization",
@@ -704,11 +792,27 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
 
         # Track tool failures globally
         if result.exit_code != 0:
-            self.tool_selector.record_tool_failure(tool_name)
+            stdout_str = result.stdout or ""
+            stderr_str = result.stderr or ""
+            
+            # Check for missing tool
+            if "not found" in stderr_str.lower() or "not recognized" in stderr_str.lower() or "bulunamadı" in stderr_str.lower():
+                 # Attempt auto-install
+                 if self._install_tool(tool_name):
+                     self.console.print(f"🔄 Retrying {tool_name} after installation...", style="cyan")
+                     # Retry execution
+                     result = self.executor.terminal.execute(command, timeout=300)
+                     # Update output vars
+                     stdout_str = result.stdout or ""
+                     stderr_str = result.stderr or ""
+            
+            if result.exit_code != 0:
+                 self.tool_selector.record_tool_failure(tool_name)
 
-        # Smart error extraction
-        stdout_str = result.stdout or ""
-        stderr_str = result.stderr or ""
+        # Smart error extraction (ensure vars exist if not retried)
+        if 'stdout_str' not in locals():
+            stdout_str = result.stdout or ""
+            stderr_str = result.stderr or ""
         
         # Some tools output errors to stdout (like nmap sometimes)
         if result.exit_code != 0 and not stderr_str.strip():

@@ -55,13 +55,8 @@ class CredentialStore:
     
     def _derive_key(self, password: str, salt: bytes) -> bytes:
         """Derive encryption key from password"""
-        try:
-            from Crypto.Protocol.KDF import PBKDF2
-            from Crypto.Hash import SHA256
-            return PBKDF2(password, salt, dkLen=32, count=100000, hmac_hash_module=SHA256)
-        except ImportError:
-            # Fallback to hashlib
-            return hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dkLen=32)
+        # Use standard library implementation which acts as a fallback and is secure enough
+        return hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
     
     def _encrypt(self, data: str, key: bytes) -> bytes:
         """Encrypt data using AES-GCM"""
