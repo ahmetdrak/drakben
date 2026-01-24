@@ -150,11 +150,19 @@ class ContinuousReasoning:
         # LANGUAGE LOGIC: Think in English, speak in user's language
         user_lang = getattr(context, "language", "tr")
 
+        # Detect if this is a chat/conversation request (not pentest)
+        is_chat = self._is_chat_request(user_input)
+
+        if is_chat:
+            # Direct chat mode - no JSON, just conversation
+            return self._chat_with_llm(user_input, user_lang, context)
+
+        # Pentest mode - structured JSON response
         if user_lang == "tr":
             language_instruction = """
 IMPORTANT: You MUST think and reason in English internally for better accuracy.
 However, you MUST respond to the user in TURKISH (Türkçe).
-All your explanations, reasoning text, and suggestions should be in Turkish.
+All your explanations, response text, and suggestions should be in Turkish.
 Only technical terms (tool names, commands) can remain in English.
 """
         else:
@@ -165,15 +173,18 @@ Respond to the user in English.
         system_prompt = f"""You are DRAKBEN, an AI penetration testing assistant.
 {language_instruction}
 
-Analyze the user's request and respond in JSON format:
+Analyze the user's PENTEST request and respond in JSON format:
 {{
-    "intent": "scan|find_vulnerability|exploit|get_shell|generate_payload|chat",
+    "intent": "scan|find_vulnerability|exploit|get_shell|generate_payload",
     "confidence": 0.0-1.0,
+    "response": "Your direct answer to the user in {'Turkish' if user_lang == 'tr' else 'English'}",
     "steps": [{{"action": "step_name", "tool": "tool_name", "description": "what to do"}}],
-    "reasoning": "explanation in {'Turkish' if user_lang == 'tr' else 'English'}",
+    "reasoning": "brief technical explanation",
     "risks": ["risk1", "risk2"],
     "command": "suggested shell command if applicable"
 }}
+
+CRITICAL: The "response" field is what the user will see. Make it helpful and direct!
 
 Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
 Target: """ + (context.target or "Not set")
@@ -191,7 +202,10 @@ Target: """ + (context.target or "Not set")
             parsed = self._parse_llm_response(response)
             if parsed:
                 parsed["success"] = True
-                parsed["llm_response"] = response
+                # Use "response" field if available, otherwise use raw response
+                if "response" not in parsed:
+                    parsed["response"] = parsed.get("reasoning", response)
+                parsed["llm_response"] = parsed.get("response", response)
                 self._add_to_history(parsed)
                 return parsed
 
@@ -202,6 +216,97 @@ Target: """ + (context.target or "Not set")
                 "confidence": 0.9,
                 "steps": [{"action": "respond", "type": "chat"}],
                 "reasoning": response,
+                "response": response,
+                "risks": [],
+                "llm_response": response,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _is_chat_request(self, user_input: str) -> bool:
+        """Detect if user input is a chat/conversation request (not pentest)"""
+        user_lower = user_input.lower()
+        
+        # Chat indicators - questions about the AI, greetings, general questions
+        chat_patterns = [
+            # Greetings
+            "merhaba", "selam", "hello", "hi", "hey", "nasılsın", "how are you",
+            # Questions about the AI
+            "sen kimsin", "who are you", "hangi model", "what model", "ne yapabilirsin",
+            "what can you do", "adın ne", "your name", "hakkında", "about you",
+            # General chat
+            "teşekkür", "thank", "iyi", "good", "tamam", "okay", "ok",
+            "neden", "why", "nasıl", "how do", "ne zaman", "when",
+            # System questions (not pentest)
+            "hangi sistem", "what system", "çalışıyor", "working",
+            "cevap ver", "answer", "konuş", "talk", "söyle", "tell"
+        ]
+        
+        # If contains any chat pattern and NO pentest keywords
+        pentest_keywords = [
+            "tara", "scan", "port", "nmap", "exploit", "zafiyet", "vuln",
+            "injection", "shell", "payload", "hedef", "target", "saldır",
+            "attack", "hack", "pentest", "test et", "sqlmap", "nikto"
+        ]
+        
+        has_chat_pattern = any(p in user_lower for p in chat_patterns)
+        has_pentest_keyword = any(k in user_lower for k in pentest_keywords)
+        
+        # It's chat if it has chat patterns and no pentest keywords
+        # OR if it's a short message (likely greeting/question)
+        if has_chat_pattern and not has_pentest_keyword:
+            return True
+        if len(user_input.split()) <= 5 and not has_pentest_keyword:
+            return True
+            
+        return False
+
+    def _chat_with_llm(self, user_input: str, user_lang: str, context: ExecutionContext) -> Dict:
+        """Direct chat mode - conversational response without JSON structure"""
+        
+        if user_lang == "tr":
+            system_prompt = """Sen DRAKBEN, yapay zeka destekli bir penetrasyon testi asistanısın.
+
+Kullanıcı seninle sohbet etmek istiyor. Samimi, yardımsever ve doğrudan cevap ver.
+Türkçe konuş. Kısa ve öz ol.
+
+Hakkında:
+- Adın: DRAKBEN
+- Görevin: Penetrasyon testi ve güvenlik analizi
+- Kullandığın araçlar: nmap, sqlmap, nikto, metasploit, vb.
+- Özellikler: Otonom tarama, zafiyet tespiti, exploit önerisi
+
+Kullanıcının sorusuna doğrudan cevap ver. JSON formatı KULLANMA."""
+        else:
+            system_prompt = """You are DRAKBEN, an AI-powered penetration testing assistant.
+
+The user wants to chat with you. Be friendly, helpful, and respond directly.
+Speak in English. Be concise.
+
+About you:
+- Name: DRAKBEN
+- Mission: Penetration testing and security analysis
+- Tools: nmap, sqlmap, nikto, metasploit, etc.
+- Features: Autonomous scanning, vulnerability detection, exploit suggestions
+
+Answer the user's question directly. Do NOT use JSON format."""
+
+        try:
+            response = self.llm_client.query(user_input, system_prompt)
+
+            # Check for error responses
+            if response.startswith("[") and any(
+                x in response for x in ["Error", "Offline", "Timeout"]
+            ):
+                return {"success": False, "error": response}
+
+            return {
+                "success": True,
+                "intent": "chat",
+                "confidence": 0.95,
+                "steps": [{"action": "respond", "type": "chat"}],
+                "reasoning": "",
+                "response": response,
                 "risks": [],
                 "llm_response": response,
             }
@@ -653,7 +758,8 @@ class DrakbenBrain:
                 "reply": str,
                 "command": str (optional),
                 "steps": list,
-                "needs_approval": bool
+                "needs_approval": bool,
+                "llm_response": str (the actual response to show user)
             }
         """
         # Build context
@@ -665,16 +771,24 @@ class DrakbenBrain:
         # Process through orchestrator
         result = self.process(user_input, system_context)
 
+        # Get the actual response to show user
+        # Priority: response > llm_response > reasoning
+        actual_response = (
+            result.get("response") or 
+            result.get("llm_response") or 
+            result.get("reasoning", "")
+        )
+
         # Format response
         return {
             "intent": result.get("action", "chat"),
-            "reply": result.get("reasoning", ""),
+            "reply": actual_response,
             "command": result.get("command"),
             "steps": result.get("steps", []),
             "needs_approval": result.get("needs_approval", False),
             "confidence": result.get("confidence", 0.5),
             "risks": result.get("risks", []),
-            "llm_response": result.get("llm_response"),
+            "llm_response": actual_response,
         }
 
     def chat(self, message: str) -> str:
