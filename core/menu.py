@@ -265,13 +265,31 @@ class DrakbenMenu:
         with self.console.status(f"[bold {self.COLORS['purple']}]🧠 {thinking}"):
             result = self.brain.think(user_input, self.config.target)
 
-        # Show response
-        if result.get("llm_response"):
+        # Show response - check multiple fields
+        response_text = (
+            result.get("llm_response") or 
+            result.get("reply") or 
+            result.get("response") or
+            result.get("reasoning")
+        )
+        
+        if response_text:
             self.console.print(
-                f"\n🤖 {result['llm_response']}\n", style=self.COLORS["cyan"]
+                f"\n🤖 {response_text}\n", style=self.COLORS["cyan"]
             )
-        elif result.get("reply"):
-            self.console.print(f"\n💭 {result['reply']}\n", style=self.COLORS["cyan"])
+        else:
+            # No response - show error or offline message
+            if result.get("error"):
+                self.console.print(
+                    f"\n❌ Hata: {result['error']}\n", style="red"
+                )
+            else:
+                offline_msg = (
+                    "LLM bağlantısı yok. Lütfen API ayarlarını kontrol edin."
+                    if lang == "tr" else
+                    "No LLM connection. Please check API settings."
+                )
+                self.console.print(f"\n⚠️ {offline_msg}\n", style="yellow")
 
         # Command suggestion
         if result.get("command"):
