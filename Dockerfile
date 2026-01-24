@@ -2,8 +2,7 @@
 # Multi-stage build for optimized image size
 
 # ==================== BUILD STAGE ====================
-# ==================== BUILD STAGE ====================
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim as builder
 
 WORKDIR /app
 
@@ -18,7 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ==================== RUNTIME STAGE ====================
-FROM kalilinux/kali-rolling:latest
+FROM kalilinux/kali-rolling:2024.4
 
 LABEL maintainer="DRAKBEN Team"
 LABEL description="DRAKBEN - Autonomous Pentest AI Framework"
@@ -70,15 +69,8 @@ COPY . .
 
 # Setup User & Directories
 RUN mkdir -p /app/logs /app/sessions /app/reports /app/config \
-    # Create non-root user
     && useradd -m -s /bin/bash drakben \
     && chown -R drakben:drakben /app
-
-# Switch to non-root user (optional, comment out for full Kali access)
-# USER drakben
-
-# Switch to non-root user (optional, comment out for full Kali access)
-# USER drakben
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

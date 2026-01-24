@@ -287,6 +287,44 @@ class CodeReview:
         
         return change
     
+    def _handle_approve(self, change: CodeChange) -> bool:
+        """Handle approval action"""
+        change.status = ReviewStatus.APPROVED
+        change.reviewed_at = time.time()
+        self.console.print("[green]Change approved.[/green]")
+        if self.on_approval:
+            self.on_approval(change)
+        return True
+    
+    def _handle_reject(self, change: CodeChange) -> bool:
+        """Handle rejection action"""
+        change.status = ReviewStatus.REJECTED
+        change.reviewed_at = time.time()
+        notes = input("Rejection reason (optional): ").strip()
+        change.review_notes = notes
+        self.console.print("[red]Change rejected.[/red]")
+        if self.on_rejection:
+            self.on_rejection(change)
+        return False
+    
+    def _handle_user_response(self, change: CodeChange, response: str) -> Optional[bool]:
+        """Handle user response to review prompt"""
+        if response == 'a':
+            return self._handle_approve(change)
+        elif response == 'r':
+            return self._handle_reject(change)
+        elif response == 'd':
+            self._display_diff(change)
+            return None
+        elif response == 'e':
+            self.console.print("[yellow]Edit not implemented yet.[/yellow]")
+            return None
+        elif response == 'q':
+            return False
+        else:
+            self.console.print("[yellow]Invalid option.[/yellow]")
+            return None
+    
     def review_change(self, change: CodeChange, interactive: bool = True) -> bool:
         """
         Review a single code change.
@@ -314,37 +352,9 @@ class CodeReview:
         # Get approval
         while True:
             response = input("\n[A]pprove / [R]eject / [D]iff / [E]dit / [Q]uit? ").strip().lower()
-            
-            if response == 'a':
-                change.status = ReviewStatus.APPROVED
-                change.reviewed_at = time.time()
-                self.console.print("[green]Change approved.[/green]")
-                if self.on_approval:
-                    self.on_approval(change)
-                return True
-            
-            elif response == 'r':
-                change.status = ReviewStatus.REJECTED
-                change.reviewed_at = time.time()
-                notes = input("Rejection reason (optional): ").strip()
-                change.review_notes = notes
-                self.console.print("[red]Change rejected.[/red]")
-                if self.on_rejection:
-                    self.on_rejection(change)
-                return False
-            
-            elif response == 'd':
-                self._display_diff(change)
-            
-            elif response == 'e':
-                # Allow editing the change
-                self.console.print("[yellow]Edit not implemented yet.[/yellow]")
-            
-            elif response == 'q':
-                return False
-            
-            else:
-                self.console.print("[yellow]Invalid option.[/yellow]")
+            result = self._handle_user_response(change, response)
+            if result is not None:
+                return result
     
     def review_all_pending(self, interactive: bool = True) -> Tuple[int, int]:
         """
