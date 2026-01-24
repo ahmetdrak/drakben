@@ -216,6 +216,11 @@ CRITICAL: The "response" field is what the user will see. Make it helpful and di
 If there is previous tool output, ANALYZE IT in your reasoning and explain it to the user.
 
 Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
+Special Commands (Use these in 'command' field for automation):
+- /scan : Starts the FULL AUTONOMOUS AGENT loop (Best for 'scan this site', 'find vulns', 'hack this')
+- /target <IP> : Sets the target
+- /target clear : Clears the target
+
 Target: """ + (context.target or "Not set")
 
         try:

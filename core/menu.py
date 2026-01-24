@@ -306,6 +306,12 @@ class DrakbenMenu:
         """Execute command"""
         lang = self.config.language
 
+        # FIX: Check if this is an internal slash command recommended by AI
+        if command.strip().startswith("/"):
+            self.console.print(f"🔄 Dahili komut çalıştırılıyor: {command}", style="dim")
+            self._handle_command(command)
+            return
+
         # Agent lazy load
         if not self.agent:
             from core.refactored_agent import RefactoredDrakbenAgent
