@@ -1,16 +1,14 @@
-# 🩸 DRAKBEN - Autonomous Pentest AI
+# DRAKBEN - Autonomous Pentest AI Framework
 
-Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
+Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza, Self-Refining ve Evrim Özellikleri
 
 ![Python](https://img.shields.io/badge/Python-3.10+-green)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-⭐ **Star this repo if it helps you!**
-
 ---
 
-## 🚀 Kurulum
+## Kurulum
 
 ### Linux (Kali / Ubuntu / Debian)
 ```bash
@@ -34,7 +32,7 @@ python drakben.py
 
 ---
 
-## 🤖 AI/LLM Kurulumu (Opsiyonel)
+## AI/LLM Kurulumu (Opsiyonel)
 
 Framework **%100 offline** çalışır. AI özellikleri için:
 
@@ -52,124 +50,186 @@ python drakben.py
 
 ---
 
-## 🎯 Kullanım
+## Kullanım
 
 ```bash
 python drakben.py
 
 # Doğal dil ile konuş:
-💬 "10.0.0.1 portlarını tara"
-💬 "example.com sql injection test et"
-💬 "192.168.1.1'e shell at"
+"10.0.0.1 portlarını tara"
+"example.com sql injection test et"
+"192.168.1.1'e shell at"
 
 # Slash komutları:
 /target 192.168.1.100   # Hedef belirle
 /scan                    # Hedefi tara
+/shell                   # İnteraktif kabuk
 /status                  # Sistem durumu
-/stats                   # Hafıza istatistikleri
+/clear                   # Ekranı temizle
+/tr                      # Türkçe mod
+/en                      # English mode
 /help                    # Yardım
 /exit                    # Çıkış
 ```
 
 ---
 
-## ✨ Özellikler
+## Özellikler
 
-### 🧠 Kalıcı Hafıza Sistemi
-- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
-- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
-- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
-- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
+### Kalıcı Hafıza & Evrim Sistemi
+- **SQLite Persistance**: Tüm aksiyonlar, planlar ve heuristikler kalıcı olarak saklanır
+- **Tool Penalty System**: Başarısız araçlar cezalandırılır, 3+ başarısızlıkta bloklanır
+- **Strategy Profiles**: Farklı hedef tiplerine göre strateji profilleri seçilir
+- **Profile Mutation**: Başarısız profiller mutasyona uğrar ve yeni varyantlar oluşturulur
+- **Policy System**: Tier-based policy sistemi ile deterministik karar verme
 
-### 🤖 Otonom Çalışma
-- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
-- **Auto-healing**: Hatalar otomatik düzeltilir
-- **Araç yükleme**: Eksik araçlar otomatik yüklenir
-- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
+### Self-Refining Agent
+- **Otomatik Replanning**: Başarısız adımlar için alternatif plan oluşturur
+- **Stagnation Detection**: Döngüsel davranışları tespit eder ve kırar
+- **Heuristic Self-Modification**: Parametreler deneyime göre otomatik ayarlanır
+- **Self-Coding**: LLM ile eksik araçlar için kod üretir (API gerektirir)
 
-### 🛡️ Güvenlik
-- **Safety checks**: Tehlikeli komutlar engellenir
-- **Risk analizi**: Her komut için risk değerlendirmesi
-- **Approval sistemi**: Kritik işlemler için onay
+### Güvenlik
+- **AST-Based Security Check**: Üretilen kodlar AST analizi ile kontrol edilir
+- **Command Sanitization**: Tehlikeli komutlar engellenir
+- **Thread-Safe State**: Çoklu iş parçacığı güvenliği
+- **Structured Logging**: Detaylı log sistemi
+- **Audit Logging**: Forensic-ready denetim kaydı
+- **Secure Credential Storage**: Keyring/encrypted file desteği
+- **Proxy Support**: HTTP/SOCKS5/Tor proxy desteği
 
-### 🎨 Arayüz
-- **Dracula teması**: Mor/pembe/kırmızı terminal UI
-- **Türkçe/İngilizce**: Tam çoklu dil desteği
-- **Minimal**: Temiz, odaklanmış arayüz
+### Modüler Tasarım
+- **Recon Module**: Pasif bilgi toplama (DNS, WHOIS, CMS detection, subdomain enum)
+- **Exploit Module**: SQL injection, XSS, LFI, XXE, SSRF, SSTI, IDOR testleri
+- **Payload Module**: 15+ payload şablonu, obfuscation, AV bypass
+- **CVE Database**: NVD entegrasyonu, zafiyet eşleştirme
+- **Report Generator**: PDF/HTML/Markdown/JSON rapor çıktısı
+- **Nuclei Scanner**: Template-based zafiyet tarama
+- **Metasploit RPC**: Otomatik exploitation desteği
 
 ---
 
-## 📋 Komutlar
+## Proje Yapısı
+
+```
+drakben/
+├── drakben.py                  # Ana giriş noktası
+├── core/
+│   ├── refactored_agent.py     # Self-refining evolving agent
+│   ├── brain.py                # AI reasoning ve planlama
+│   ├── evolution_memory.py     # Kalıcı evrim hafızası (SQLite)
+│   ├── self_refining_engine.py # Strateji profilleri ve policy motoru
+│   ├── planner.py              # Plan yönetimi ve replanning
+│   ├── execution_engine.py     # Komut çalıştırma (sanitized)
+│   ├── tool_selector.py        # Deterministik araç seçimi
+│   ├── coder.py                # AI ile dinamik tool oluşturma
+│   ├── state.py                # Thread-safe agent state
+│   ├── config.py               # Thread-safe konfigürasyon
+│   ├── logging_config.py       # Structured logging
+│   ├── menu.py                 # İnteraktif CLI menü
+│   ├── i18n.py                 # Çoklu dil desteği
+│   ├── prompt_utils.py         # Auto-complete, history, progress
+│   └── security_utils.py       # Credential storage, audit, proxy
+├── llm/
+│   └── openrouter_client.py    # Multi-provider LLM client (cache, rate limit)
+├── modules/
+│   ├── recon.py                # Keşif modülü (async, logging)
+│   ├── exploit.py              # Exploit modülü (XXE, SSRF, SSTI, IDOR)
+│   ├── payload.py              # Payload templates + obfuscation
+│   ├── cve_database.py         # CVE/NVD entegrasyonu
+│   ├── report_generator.py     # PDF/HTML/Markdown rapor
+│   ├── nuclei.py               # Nuclei scanner entegrasyonu
+│   ├── subdomain.py            # Subdomain enumeration
+│   └── metasploit.py           # Metasploit RPC client
+├── config/
+│   ├── api.env                 # API anahtarları
+│   └── settings.json           # Uygulama ayarları
+├── tests/
+│   ├── test_core.py            # Core module testleri
+│   ├── test_modules.py         # Module testleri
+│   └── conftest.py             # Pytest fixtures
+├── .github/workflows/
+│   ├── test.yml                # CI/CD test pipeline
+│   └── release.yml             # Release pipeline
+├── Dockerfile                  # Docker image (Kali base)
+├── docker-compose.yml          # Full stack deployment
+└── drakben_evolution.db        # Kalıcı evrim veritabanı
+```
+
+---
+
+## Komutlar
 
 | Komut | Açıklama |
 |-------|----------|
+| `/help` | Yardım menüsü |
 | `/target <IP>` | Hedef belirle |
-| `/scan` | Mevcut hedefi tara |
+| `/scan` | Otonom tarama başlat |
+| `/shell` | İnteraktif kabuk |
 | `/status` | Sistem durumunu göster |
-| `/stats` | Hafıza ve AI istatistikleri |
-| `/help` | Detaylı yardım |
 | `/clear` | Ekranı temizle |
+| `/tr` | Türkçe mod |
+| `/en` | English mode |
 | `/exit` | Çıkış |
 | Doğal dil | AI'a herhangi bir pentest görevi söyle |
 
 ---
 
-## 📁 Proje Yapısı
+## Gereksinimler
 
+| Bileşen | Minimum | Önerilen |
+|---------|---------|----------|
+| Python | 3.10+ | 3.11+ |
+| RAM | 2 GB | 4 GB |
+| Disk | 200 MB | 500 MB |
+| OS | Linux/Windows/macOS | Kali Linux |
+
+### Python Bağımlılıkları
 ```
-drakben/
-├── drakben.py              # Ana giriş noktası
-├── core/
-│   ├── agent.py            # Ana agent orchestrator
-│   ├── brain.py            # AI reasoning ve planlama
-│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
-│   ├── system_intelligence.py  # Sistem tanıma
-│   ├── execution_engine.py # Komut çalıştırma
-│   ├── autonomous_solver.py    # Auto-healing
-│   ├── security_toolkit.py # Güvenlik kontrolleri
-│   ├── config.py           # Konfigürasyon yönetimi
-│   └── i18n.py             # Çoklu dil desteği
-├── llm/
-│   ├── brain.py            # LLM entegrasyonu
-│   └── openrouter_client.py    # Multi-provider client
-├── modules/
-│   ├── recon.py            # Keşif modülü
-│   ├── exploit.py          # Exploit modülü
-│   ├── payload.py          # Payload üretimi
-│   └── report.py           # Raporlama
-├── config/
-│   ├── api.env             # API anahtarları
-│   └── plugins.json        # Plugin registry
-└── drakben_memory.db       # Kalıcı hafıza veritabanı
+rich>=13.0.0         # Terminal UI
+requests>=2.28.0     # HTTP client
+python-dotenv>=1.0.0 # Environment variables
+psutil>=5.9.0        # System monitoring
+aiohttp>=3.9.0       # Async HTTP
+beautifulsoup4>=4.12.0
+dnspython>=2.4.0
+pycryptodome>=3.20.0
 ```
 
 ---
 
-## 🔧 Sorun Giderme
+## Sorun Giderme
 
 | Problem | Çözüm |
 |---------|-------|
 | `ModuleNotFoundError` | `pip install -r requirements.txt` |
 | API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
 | Permission denied | Linux'ta `sudo` ile çalıştır |
+| Veritabanı hatası | `drakben_evolution.db` dosyasını sil, yeniden başlat |
 
 ---
 
-## 📚 Dokümantasyon
+## Test
 
-- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
-- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
-- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+```bash
+# Improvement testlerini çalıştır
+python tests/test_improvements.py
+
+# Formal verification audit
+python scripts/formal_audit.py
+
+# Proof tests
+python scripts/proof_tests.py
+```
 
 ---
 
-## 📄 Lisans
+## Lisans
 
 MIT License - [LICENSE](LICENSE)
 
 ---
 
-**Made with ❤️ for the security community**
+**Made with Python for the security community**
 
-⚠️ **Sadece yetkili hedeflerde kullanın.**
+**Sadece yetkili hedeflerde kullanın.**

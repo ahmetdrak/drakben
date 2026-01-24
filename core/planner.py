@@ -1,0 +1,472 @@
+# core/planner.py
+# REAL PERSISTENT PLANNER WITH REPLANNING
+# Plans are DATA STRUCTURES, not LLM-only
+
+import json
+import time
+import uuid
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Dict, List, Optional
+
+from core.evolution_memory import get_evolution_memory
+
+
+class StepStatus(Enum):
+    PENDING = "pending"
+    EXECUTING = "executing"
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass
+class PlanStep:
+    """Single step in a plan"""
+    step_id: str
+    action: str  # Action type: scan, exploit, etc.
+    tool: str  # Tool to use
+    target: str  # Target for this step
+    params: Dict  # Additional parameters
+    depends_on: List[str]  # Step IDs this depends on
+    status: StepStatus
+    max_retries: int
+    retry_count: int
+    expected_outcome: str  # What we expect to happen
+    actual_outcome: str  # What actually happened
+    error: str
+
+
+class Planner:
+    """
+    STRATEGY-DRIVEN PLANNER
+    
+    Plans are created FROM STRATEGIES, not hardcoded.
+    """
+    
+    # Action to tool mapping
+    ACTION_TO_TOOL = {
+        "port_scan": "nmap_port_scan",
+        "service_scan": "nmap_service_scan",
+        "vuln_scan": "nmap_vuln_scan",
+        "web_vuln_scan": "nikto_web_scan",
+        "sqlmap_exploit": "sqlmap_scan",
+        "xss_test": "xss_scanner",
+        "passive_recon": "passive_recon",
+        "manual_review": "manual_review",
+        "exploit_search": "searchsploit",
+        "api_discovery": "api_discovery",
+        "param_fuzzing": "param_fuzzer",
+        "auth_bypass_test": "auth_bypass",
+        "db_enum": "db_enum",
+        "credential_test": "credential_test",
+        "data_exfil": "data_exfil",
+    }
+    
+    def __init__(self):
+        self.memory = get_evolution_memory()
+        self.current_plan_id: Optional[str] = None
+        self.steps: List[PlanStep] = []
+        self.current_step_index: int = 0
+        self.current_strategy_name: Optional[str] = None
+    
+    def create_plan_from_strategy(self, target: str, strategy, goal: str = "pentest") -> str:
+        """
+        Create a plan FROM A STRATEGY.
+        Strategy determines the steps, not hardcoded logic.
+        """
+        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        self.current_strategy_name = strategy.name
+        
+        steps = []
+        for i, action in enumerate(strategy.steps):
+            tool = self.ACTION_TO_TOOL.get(action, action)
+            
+            step = {
+                "step_id": f"{plan_id}_step_{i+1}",
+                "action": action,
+                "tool": tool,
+                "target": target,
+                "params": {},
+                "depends_on": [f"{plan_id}_step_{i}"] if i > 0 else [],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 2,
+                "retry_count": 0,
+                "expected_outcome": f"complete_{action}",
+                "actual_outcome": "",
+                "error": ""
+            }
+            steps.append(step)
+        
+        # Store in persistent memory
+        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        
+        # Load into local state
+        self.current_plan_id = plan_id
+        self.steps = [self._dict_to_step(s) for s in steps]
+        self.current_step_index = 0
+        
+        return plan_id
+    
+    def create_plan_from_profile(self, target: str, profile, goal: str = "pentest") -> str:
+        """
+        Create a plan FROM A STRATEGY PROFILE.
+        
+        Profile determines:
+        - step_order: Order of actions
+        - parameters: Tool parameters (timeout, threads, etc.)
+        - aggressiveness: Affects tool selection
+        
+        This is the CORRECT way to generate plans in Self-Refining Agent.
+        """
+        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        self.current_strategy_name = profile.strategy_name
+        
+        # Get step order from profile
+        step_order = profile.step_order
+        profile_params = profile.parameters
+        aggressiveness = profile.aggressiveness
+        
+        # Map abstract phases to concrete actions based on aggressiveness
+        phase_to_actions = {
+            "recon": ["passive_recon"] if aggressiveness < 0.5 else ["port_scan", "service_scan"],
+            "scan": ["web_vuln_scan"] if aggressiveness < 0.3 else ["vuln_scan", "web_vuln_scan"],
+            "analyze": ["manual_review", "exploit_search"],
+            "exploit": ["sqlmap_exploit"] if aggressiveness > 0.6 else ["xss_test"],
+        }
+        
+        steps = []
+        step_num = 0
+        
+        for phase in step_order:
+            actions = phase_to_actions.get(phase, [phase])
+            
+            for action in actions:
+                tool = self.ACTION_TO_TOOL.get(action, action)
+                step_num += 1
+                
+                # Apply profile parameters to step
+                step_params = {}
+                if "timeout" in profile_params:
+                    step_params["timeout"] = profile_params["timeout"]
+                if "threads" in profile_params:
+                    step_params["threads"] = profile_params["threads"]
+                if "parallel_scans" in profile_params:
+                    step_params["parallel"] = profile_params["parallel_scans"]
+                
+                step = {
+                    "step_id": f"{plan_id}_step_{step_num}",
+                    "action": action,
+                    "tool": tool,
+                    "target": target,
+                    "params": step_params,
+                    "depends_on": [f"{plan_id}_step_{step_num-1}"] if step_num > 1 else [],
+                    "status": StepStatus.PENDING.value,
+                    "max_retries": 3 if aggressiveness > 0.7 else 2,
+                    "retry_count": 0,
+                    "expected_outcome": f"complete_{action}",
+                    "actual_outcome": "",
+                    "error": "",
+                    "profile_id": profile.profile_id  # Track which profile created this
+                }
+                steps.append(step)
+        
+        # Store in persistent memory
+        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        
+        # Load into local state
+        self.current_plan_id = plan_id
+        self.steps = [self._dict_to_step(s) for s in steps]
+        self.current_step_index = 0
+        
+        return plan_id
+    
+    def create_plan_for_target(self, target: str, goal: str = "pentest") -> str:
+        """
+        Create a plan for pentesting a target.
+        Returns plan_id.
+        
+        This is a DETERMINISTIC plan based on attack phases.
+        """
+        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        
+        # FIXED PLAN STRUCTURE - Not LLM generated
+        steps = [
+            {
+                "step_id": f"{plan_id}_step_1",
+                "action": "port_scan",
+                "tool": "nmap_port_scan",
+                "target": target,
+                "params": {},
+                "depends_on": [],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 2,
+                "retry_count": 0,
+                "expected_outcome": "discover_open_ports",
+                "actual_outcome": "",
+                "error": ""
+            },
+            {
+                "step_id": f"{plan_id}_step_2",
+                "action": "service_scan",
+                "tool": "nmap_service_scan",
+                "target": target,
+                "params": {},
+                "depends_on": [f"{plan_id}_step_1"],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 2,
+                "retry_count": 0,
+                "expected_outcome": "identify_services",
+                "actual_outcome": "",
+                "error": ""
+            },
+            {
+                "step_id": f"{plan_id}_step_3",
+                "action": "vuln_scan",
+                "tool": "nmap_vuln_scan",
+                "target": target,
+                "params": {},
+                "depends_on": [f"{plan_id}_step_2"],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 2,
+                "retry_count": 0,
+                "expected_outcome": "find_vulnerabilities",
+                "actual_outcome": "",
+                "error": ""
+            },
+            {
+                "step_id": f"{plan_id}_step_4",
+                "action": "exploit",
+                "tool": "sqlmap_scan",
+                "target": target,
+                "params": {},
+                "depends_on": [f"{plan_id}_step_3"],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 1,
+                "retry_count": 0,
+                "expected_outcome": "exploit_vulnerability",
+                "actual_outcome": "",
+                "error": ""
+            },
+        ]
+        
+        # Store in persistent memory
+        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        
+        # Load into local state
+        self.current_plan_id = plan_id
+        self.steps = [self._dict_to_step(s) for s in steps]
+        self.current_step_index = 0
+        
+        return plan_id
+    
+    def load_plan(self, plan_id: str) -> bool:
+        """Load existing plan from memory"""
+        plan_record = self.memory.get_plan(plan_id)
+        if plan_record is None:
+            return False
+        
+        self.current_plan_id = plan_id
+        steps_data = json.loads(plan_record.steps)
+        self.steps = [self._dict_to_step(s) for s in steps_data]
+        
+        # Find first non-completed step
+        for i, step in enumerate(self.steps):
+            if step.status in [StepStatus.PENDING, StepStatus.FAILED]:
+                self.current_step_index = i
+                break
+        
+        return True
+    
+    def get_next_step(self) -> Optional[PlanStep]:
+        """
+        Get next step to execute.
+        Checks dependencies and skips blocked tools.
+        """
+        for i in range(self.current_step_index, len(self.steps)):
+            step = self.steps[i]
+            
+            # Skip completed/skipped
+            if step.status in [StepStatus.SUCCESS, StepStatus.SKIPPED]:
+                continue
+            
+            # Check if tool is blocked by penalty system
+            if self.memory.is_tool_blocked(step.tool):
+                step.status = StepStatus.SKIPPED
+                step.error = "Tool blocked due to high penalty"
+                self._persist_steps()
+                continue
+            
+            # Check dependencies
+            deps_satisfied = True
+            for dep_id in step.depends_on:
+                dep_step = self._find_step(dep_id)
+                if dep_step and dep_step.status not in [StepStatus.SUCCESS, StepStatus.SKIPPED]:
+                    deps_satisfied = False
+                    break
+            
+            if deps_satisfied:
+                self.current_step_index = i
+                return step
+        
+        return None  # Plan complete
+    
+    def mark_step_executing(self, step_id: str):
+        """Mark step as executing"""
+        step = self._find_step(step_id)
+        if step:
+            step.status = StepStatus.EXECUTING
+            self._persist_steps()
+    
+    def mark_step_success(self, step_id: str, outcome: str):
+        """Mark step as successful"""
+        step = self._find_step(step_id)
+        if step:
+            step.status = StepStatus.SUCCESS
+            step.actual_outcome = outcome
+            self._persist_steps()
+            
+            # Penalty updates handled by execution layer
+    
+    def mark_step_failed(self, step_id: str, error: str) -> bool:
+        """
+        Mark step as failed.
+        Returns True if should replan, False if should retry.
+        """
+        step = self._find_step(step_id)
+        if step is None:
+            return False
+        
+        step.retry_count += 1
+        step.error = error
+        
+        # Penalty updates handled by execution layer
+        
+        # Check if we should retry or replan
+        if step.retry_count >= step.max_retries:
+            step.status = StepStatus.FAILED
+            self._persist_steps()
+            return True  # Trigger replan
+        else:
+            step.status = StepStatus.PENDING  # Will retry
+            self._persist_steps()
+            return False
+    
+    def replan(self, failed_step_id: str) -> bool:
+        """
+        Replan after failure.
+        - Find alternative tool for failed step
+        - Skip step if no alternative
+        - Adjust heuristics
+        """
+        step = self._find_step(failed_step_id)
+        if step is None:
+            return False
+        
+        # Find alternative tool for same action
+        alternative = self._find_alternative_tool(step.action, step.tool)
+        
+        if alternative:
+            previous_tool = step.tool
+            # Replace tool in step
+            step.tool = alternative
+            step.status = StepStatus.PENDING
+            step.retry_count = 0
+            step.error = f"Replanned: switched from {previous_tool} to {alternative}"
+            self._persist_steps()
+            
+            # Adjust heuristic - increase penalty increment for failed tools
+            current_increment = self.memory.get_heuristic("penalty_increment")
+            self.memory.set_heuristic("penalty_increment", min(20.0, current_increment + 1.0))
+            
+            return True
+        else:
+            # No alternative - skip step
+            step.status = StepStatus.SKIPPED
+            step.error = "No alternative tool available"
+            self._persist_steps()
+            return True
+    
+    def is_plan_complete(self) -> bool:
+        """Check if plan is complete"""
+        for step in self.steps:
+            if step.status in [StepStatus.PENDING, StepStatus.EXECUTING]:
+                return False
+        return True
+    
+    def get_plan_status(self) -> Dict:
+        """Get current plan status"""
+        return {
+            "plan_id": self.current_plan_id,
+            "total_steps": len(self.steps),
+            "completed": sum(1 for s in self.steps if s.status == StepStatus.SUCCESS),
+            "failed": sum(1 for s in self.steps if s.status == StepStatus.FAILED),
+            "skipped": sum(1 for s in self.steps if s.status == StepStatus.SKIPPED),
+            "pending": sum(1 for s in self.steps if s.status == StepStatus.PENDING),
+            "current_step": self.current_step_index,
+        }
+    
+    def _find_step(self, step_id: str) -> Optional[PlanStep]:
+        """Find step by ID"""
+        for step in self.steps:
+            if step.step_id == step_id:
+                return step
+        return None
+    
+    def _find_alternative_tool(self, action: str, failed_tool: str) -> Optional[str]:
+        """Find alternative tool for action"""
+        # Mapping of actions to alternative tools
+        alternatives = {
+            "port_scan": ["nmap_port_scan"],
+            "service_scan": ["nmap_service_scan"],
+            "vuln_scan": ["nmap_vuln_scan", "nikto_web_scan"],
+            "exploit": ["sqlmap_scan", "sqlmap_exploit"],
+        }
+        
+        candidates = alternatives.get(action, [])
+        
+        for tool in candidates:
+            if tool != failed_tool and not self.memory.is_tool_blocked(tool):
+                return tool
+        
+        return None
+    
+    def _persist_steps(self):
+        """Save current steps to memory"""
+        if self.current_plan_id:
+            steps_data = [self._step_to_dict(s) for s in self.steps]
+            self.memory.update_plan_steps(self.current_plan_id, steps_data)
+    
+    def _dict_to_step(self, d: Dict) -> PlanStep:
+        """Convert dict to PlanStep"""
+        return PlanStep(
+            step_id=d["step_id"],
+            action=d["action"],
+            tool=d["tool"],
+            target=d["target"],
+            params=d.get("params", {}),
+            depends_on=d.get("depends_on", []),
+            status=StepStatus(d.get("status", "pending")),
+            max_retries=d.get("max_retries", 2),
+            retry_count=d.get("retry_count", 0),
+            expected_outcome=d.get("expected_outcome", ""),
+            actual_outcome=d.get("actual_outcome", ""),
+            error=d.get("error", "")
+        )
+    
+    def _step_to_dict(self, step: PlanStep) -> Dict:
+        """Convert PlanStep to dict"""
+        return {
+            "step_id": step.step_id,
+            "action": step.action,
+            "tool": step.tool,
+            "target": step.target,
+            "params": step.params,
+            "depends_on": step.depends_on,
+            "status": step.status.value,
+            "max_retries": step.max_retries,
+            "retry_count": step.retry_count,
+            "expected_outcome": step.expected_outcome,
+            "actual_outcome": step.actual_outcome,
+            "error": step.error
+        }

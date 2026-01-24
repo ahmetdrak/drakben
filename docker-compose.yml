@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Main DRAKBEN application
+  drakben:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: drakben:latest
+    container_name: drakben
+    stdin_open: true
+    tty: true
+    volumes:
+      # Persist configuration
+      - ./config:/app/config
+      # Persist logs
+      - ./logs:/app/logs
+      # Persist sessions
+      - ./sessions:/app/sessions
+      # Persist reports
+      - ./reports:/app/reports
+      # Persist evolution database
+      - drakben_data:/app/data
+    environment:
+      - TERM=xterm-256color
+      - PYTHONUNBUFFERED=1
+      # LLM Configuration (override in .env)
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+    networks:
+      - drakben_network
+    # Network mode for scanning (use host for full access)
+    # network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - seccomp:unconfined
+
+  # Optional: Local Ollama for AI
+  ollama:
+    image: ollama/ollama:latest
+    container_name: drakben_ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - drakben_network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles:
+      - ai
+
+  # Optional: Metasploit Framework
+  metasploit:
+    image: metasploitframework/metasploit-framework:latest
+    container_name: drakben_msf
+    stdin_open: true
+    tty: true
+    volumes:
+      - msf_data:/root/.msf4
+    networks:
+      - drakben_network
+    ports:
+      - "55553:55553"  # MSFRPC
+    profiles:
+      - msf
+
+networks:
+  drakben_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  drakben_data:
+  ollama_models:
+  msf_data:

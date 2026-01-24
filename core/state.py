@@ -1,16 +1,35 @@
 # core/state.py
-# DRAKBEN State Abstraction - TEK GERÇEKLIK KAYNAĞ (SINGLE SOURCE OF TRUTH)
-# ZORUNLU: Tüm modüller SADECE bu API üzerinden state'e erişir/günceller
+# DRAKBEN State Abstraction - SINGLE SOURCE OF TRUTH
+# REQUIRED: All modules access/update state ONLY through this API
+# Thread-safe implementation
 
-from typing import Dict, List, Optional, Set
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-import json
+import hashlib
+import logging
+import threading
 import time
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Dict, List, Optional, Set, Tuple
+
+# Setup logger
+logger = logging.getLogger(__name__)
+
+# Constants
+MAX_ITERATIONS = 15
+MAX_INVARIANT_VIOLATIONS = 10
+MAX_CONSECUTIVE_SAME_TOOL = 3
+MAX_HALLUCINATION_FLAGS = 10
+MAX_OBSERVATION_LENGTH = 500
+MAX_TOOL_CALL_HISTORY = 10
+MAX_STATE_CHANGES_HISTORY = 5
+PHASE_TOLERANCE = 1
+STAGNATION_CHECK_WINDOW = 3
+MAX_HALLUCINATIONS_THRESHOLD = 3
 
 
 class AttackPhase(Enum):
-    """Saldırı fazları - deterministik akış"""
+    """Attack phases - deterministic flow"""
+
     INIT = "init"
     RECON = "recon"
     VULN_SCAN = "vulnerability_scan"
@@ -23,7 +42,8 @@ class AttackPhase(Enum):
 
 @dataclass
 class ServiceInfo:
-    """Servis bilgisi özeti"""
+    """Service information summary"""
+
     port: int
     protocol: str
     service: str
@@ -35,7 +55,8 @@ class ServiceInfo:
 
 @dataclass
 class CredentialInfo:
-    """Credential bilgisi"""
+    """Credential information"""
+
     username: str
     service: str = ""
     password: Optional[str] = None
@@ -45,7 +66,8 @@ class CredentialInfo:
 
 @dataclass
 class VulnerabilityInfo:
-    """Zafiyet bilgisi"""
+    """Vulnerability information"""
+
     vuln_id: str
     service: str
     port: int
@@ -57,188 +79,459 @@ class VulnerabilityInfo:
 
 class AgentState:
     """
-    DRAKBEN Agent State - TEK GERÇEKLIK KAYNAĞ
-    
-    KURALLAR:
-    1. Tüm state güncellemeleri bu class üzerinden
-    2. YASAK: Raw log, tool output, tool isimleri
-    3. SADECE: Anlamlı özet, deterministik state
-    4. Her güncelleme sonrası validate() çağrılmalı
-    5. State kirliliği = SYSTEM HALT
+    DRAKBEN Agent State - SINGLE SOURCE OF TRUTH
+    Thread-safe implementation with locking.
+
+    Rules:
+    1. All state updates through this class
+    2. FORBIDDEN: Raw log, tool output, tool names
+    3. ONLY: Meaningful summary, deterministic state
+    4. validate() must be called after each update
+    5. State pollution = SYSTEM HALT
     """
-    
+
     def __init__(self, target: Optional[str] = None):
+        """
+        Initialize agent state.
+        
+        Args:
+            target: Target IP or domain (optional)
+        """
+        # Thread safety lock
+        self._lock = threading.RLock()
+        
         # Core state
         self.target: Optional[str] = target
         self.phase: AttackPhase = AttackPhase.INIT
         self.iteration_count: int = 0
-        self.max_iterations: int = 15
-        
+        self.max_iterations: int = MAX_ITERATIONS
+
         # Attack surface tracking
         self.open_services: Dict[int, ServiceInfo] = {}  # port -> ServiceInfo
         self.tested_attack_surface: Set[str] = set()  # "port:service" tuples
         self.remaining_attack_surface: Set[str] = set()  # "port:service" tuples
-        
+
         # Vulnerability tracking
         self.vulnerabilities: List[VulnerabilityInfo] = []
-        
+
         # Credentials
         self.credentials: List[CredentialInfo] = []
-        
+
         # Foothold state
         self.has_foothold: bool = False
         self.foothold_method: Optional[str] = None
         self.foothold_timestamp: Optional[float] = None
-        
+
         # Post-exploit state
-        self.post_exploit_completed: Set[str] = set()  # completed post-exploit actions
-        
+        self.post_exploit_completed: Set[str] = set()
+
         # Execution tracking
-        self.last_observation: str = ""  # Son tool observation (özet, raw değil)
-        self.state_changes_history: List[Dict] = []  # Son 3 state değişikliği
-        
+        self.last_observation: str = ""  # Last tool observation (summary, not raw)
+        self.state_changes_history: List[Dict] = []  # Last state changes
+
         # Invariant violation tracking
         self.invariant_violations: List[str] = []
-        
+        self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
+
+        # Agentic loop protection
+        self.tool_call_history: List[str] = []  # Last tool calls
+        self.last_state_hash: str = ""  # Last state hash
+        self.consecutive_same_tool: int = 0  # Consecutive same tool count
+        self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
+        self.hallucination_flags: List[str] = []  # Hallucination warnings
+        self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
+
     def snapshot(self) -> Dict:
-        """State snapshot al - LLM'ye gönderilecek özet"""
-        return {
-            "target": self.target,
-            "phase": self.phase.value,
-            "iteration": f"{self.iteration_count}/{self.max_iterations}",
-            "open_services_count": len(self.open_services),
-            "tested_count": len(self.tested_attack_surface),
-            "remaining_count": len(self.remaining_attack_surface),
-            "vulnerabilities_count": len(self.vulnerabilities),
-            "has_foothold": self.has_foothold,
-            "last_observation": self.last_observation[:200]  # Max 200 char
-        }
+        """
+        Get state snapshot for LLM context.
+        
+        Returns:
+            Dict with summarized state information
+        """
+        with self._lock:
+            return {
+                "target": self.target,
+                "phase": self.phase.value,
+                "iteration": f"{self.iteration_count}/{self.max_iterations}",
+                "open_services_count": len(self.open_services),
+                "tested_count": len(self.tested_attack_surface),
+                "remaining_count": len(self.remaining_attack_surface),
+                "vulnerabilities_count": len(self.vulnerabilities),
+                "has_foothold": self.has_foothold,
+                "last_observation": self.last_observation[:200],
+            }
+
+    def update_services(self, services: List[ServiceInfo]) -> None:
+        """
+        Update state after service discovery - SMART MERGE.
+        Updates with more specific/detailed info, preserves existing.
+        
+        Args:
+            services: List of discovered services
+        """
+        with self._lock:
+            self._update_services_internal(services)
     
-    def update_services(self, services: List[ServiceInfo]):
-        """Servis keşfi sonrası state güncelle"""
+    def _update_services_internal(self, services: List[ServiceInfo]) -> None:
+        """
+        Internal method for update_services (not thread-safe, call with lock).
+        
+        Args:
+            services: List of discovered services
+        """
         for svc in services:
-            self.open_services[svc.port] = svc
-            surface_key = f"{svc.port}:{svc.service}"
+            if svc.port in self.open_services:
+                existing = self.open_services[svc.port]
+
+                # Rule 1: Don't overwrite known service with 'unknown'
+                if svc.service in ["unknown", "tcpwrapped"] and \
+                   existing.service not in ["unknown", "tcpwrapped"]:
+                    continue
+
+                # Rule 2: Prefer versioned info
+                if svc.version and not existing.version:
+                    self.open_services[svc.port] = svc
+                elif not svc.version and existing.version:
+                    if svc.service != "unknown" and svc.service != existing.service:
+                        self.open_services[svc.port] = svc
+                else:
+                    self.open_services[svc.port] = svc
+            else:
+                self.open_services[svc.port] = svc
+
+            # Add to attack surface if not tested
+            surface_key = f"{svc.port}:{self.open_services[svc.port].service}"
             if surface_key not in self.tested_attack_surface:
                 self.remaining_attack_surface.add(surface_key)
-        
+
         self._record_change("services_discovered", len(services))
-    
-    def mark_surface_tested(self, port: int, service: str):
-        """Bir attack surface test edildi olarak işaretle"""
-        surface_key = f"{port}:{service}"
-        self.tested_attack_surface.add(surface_key)
-        self.remaining_attack_surface.discard(surface_key)
+
+    def mark_surface_tested(self, port: int, service: str) -> None:
+        """
+        Mark an attack surface as tested.
         
-        if port in self.open_services:
-            self.open_services[port].tested = True
+        Args:
+            port: Port number
+            service: Service name
+        """
+        with self._lock:
+            surface_key = f"{port}:{service}"
+            self.tested_attack_surface.add(surface_key)
+            self.remaining_attack_surface.discard(surface_key)
+
+            if port in self.open_services:
+                self.open_services[port].tested = True
+
+            self._record_change("surface_tested", surface_key)
+
+    def add_vulnerability(self, vuln: VulnerabilityInfo) -> None:
+        """
+        Record discovered vulnerability.
         
-        self._record_change("surface_tested", surface_key)
-    
-    def add_vulnerability(self, vuln: VulnerabilityInfo):
-        """Zafiyet keşfedildi"""
-        self.vulnerabilities.append(vuln)
+        Args:
+            vuln: Vulnerability information
+        """
+        with self._lock:
+            self.vulnerabilities.append(vuln)
+
+            if vuln.port in self.open_services:
+                self.open_services[vuln.port].vulnerable = True
+
+            self._record_change("vulnerability_found", vuln.vuln_id)
+
+    def mark_exploit_attempted(self, port: int, success: bool) -> None:
+        """
+        Record exploit attempt.
         
-        # Mark service as vulnerable
-        if vuln.port in self.open_services:
-            self.open_services[vuln.port].vulnerable = True
+        Args:
+            port: Target port
+            success: Whether exploit succeeded
+        """
+        with self._lock:
+            if port in self.open_services:
+                self.open_services[port].exploit_attempted = True
+
+            for vuln in self.vulnerabilities:
+                if vuln.port == port and not vuln.exploit_attempted:
+                    vuln.exploit_attempted = True
+                    vuln.exploit_success = success
+                    break
+
+            self._record_change("exploit_attempted", {"port": port, "success": success})
+
+    def set_foothold(self, method: str) -> None:
+        """
+        Record foothold achievement.
         
-        self._record_change("vulnerability_found", vuln.vuln_id)
-    
-    def mark_exploit_attempted(self, port: int, success: bool):
-        """Exploit denemesi kaydet"""
-        if port in self.open_services:
-            self.open_services[port].exploit_attempted = True
+        Args:
+            method: Method used to achieve foothold
+        """
+        with self._lock:
+            self.has_foothold = True
+            self.foothold_method = method
+            self.foothold_timestamp = time.time()
+            self.phase = AttackPhase.FOOTHOLD
+
+            self._record_change("foothold_achieved", method)
+
+    def add_credential(self, cred: CredentialInfo) -> None:
+        """
+        Record obtained credential.
         
-        # Update vulnerability state
-        for vuln in self.vulnerabilities:
-            if vuln.port == port and not vuln.exploit_attempted:
-                vuln.exploit_attempted = True
-                vuln.exploit_success = success
-                break
+        Args:
+            cred: Credential information
+        """
+        with self._lock:
+            self.credentials.append(cred)
+            self._record_change("credential_found", cred.username)
+
+    def mark_post_exploit_done(self, action: str) -> None:
+        """
+        Record completed post-exploit action.
         
-        self._record_change("exploit_attempted", {"port": port, "success": success})
-    
-    def set_foothold(self, method: str):
-        """Foothold elde edildi"""
-        self.has_foothold = True
-        self.foothold_method = method
-        self.foothold_timestamp = time.time()
-        self.phase = AttackPhase.FOOTHOLD
+        Args:
+            action: Completed action name
+        """
+        with self._lock:
+            self.post_exploit_completed.add(action)
+            self._record_change("post_exploit_completed", action)
+
+    def set_observation(self, observation: str) -> None:
+        """
+        Record last observation (max 500 chars).
         
-        self._record_change("foothold_achieved", method)
-    
-    def add_credential(self, cred: CredentialInfo):
-        """Credential elde edildi"""
-        self.credentials.append(cred)
-        self._record_change("credential_found", cred.username)
-    
-    def mark_post_exploit_done(self, action: str):
-        """Post-exploit aksiyonu tamamlandı"""
-        self.post_exploit_completed.add(action)
-        self._record_change("post_exploit_completed", action)
-    
-    def set_observation(self, observation: str):
-        """Son observation'ı kaydet - MAX 500 karakter"""
-        self.last_observation = observation[:500]
-    
-    def increment_iteration(self):
-        """Iteration sayısını artır"""
-        self._record_change("iteration", self.iteration_count + 1)
-        self.iteration_count += 1
-    
+        Args:
+            observation: Observation text
+        """
+        with self._lock:
+            self.last_observation = observation[:MAX_OBSERVATION_LENGTH]
+
+    def increment_iteration(self) -> None:
+        """Increment iteration count."""
+        with self._lock:
+            self._record_change("iteration", self.iteration_count + 1)
+            self.iteration_count += 1
+
+    # ============ AGENTIC LOOP PROTECTION ============
+
+    def record_tool_call(self, tool_name: str) -> None:
+        """
+        Record tool call and check for repetition.
+        
+        Args:
+            tool_name: Name of called tool
+        """
+        self.tool_call_history.append(tool_name)
+        if len(self.tool_call_history) > MAX_TOOL_CALL_HISTORY:
+            self.tool_call_history = self.tool_call_history[-MAX_TOOL_CALL_HISTORY:]
+
+        if len(self.tool_call_history) >= 2:
+            if self.tool_call_history[-1] == self.tool_call_history[-2]:
+                self.consecutive_same_tool += 1
+            else:
+                self.consecutive_same_tool = 0
+
+    def compute_state_hash(self) -> str:
+        """
+        Compute hash for state summary.
+        
+        Returns:
+            8-character hash string
+        """
+        with self._lock:
+            state_str = (
+                f"{self.phase.value}|{len(self.open_services)}|"
+                f"{len(self.tested_attack_surface)}|{len(self.remaining_attack_surface)}|"
+                f"{len(self.vulnerabilities)}|{self.has_foothold}"
+            )
+            return hashlib.md5(state_str.encode()).hexdigest()[:8]
+
+    def check_state_changed(self) -> bool:
+        """
+        Check if state has changed.
+        
+        Returns:
+            True if state changed, False otherwise
+        """
+        current_hash = self.compute_state_hash()
+        if current_hash == self.last_state_hash:
+            return False
+        self.last_state_hash = current_hash
+        return True
+
+    def check_hallucination(
+        self, 
+        tool_name: str, 
+        exit_code: int, 
+        stdout: str, 
+        claimed_success: bool
+    ) -> bool:
+        """
+        Hallucination check - LLM claims 'success' but is it really?
+        
+        Args:
+            tool_name: Name of the tool
+            exit_code: Exit code from execution
+            stdout: Standard output
+            claimed_success: Whether LLM claimed success
+            
+        Returns:
+            True if hallucination detected, False if OK
+        """
+        # Rule 1: Exit code != 0 but success claimed
+        if exit_code != 0 and claimed_success:
+            self.hallucination_flags.append(
+                f"{tool_name}: claimed success but exit_code={exit_code}"
+            )
+            return True
+
+        # Rule 2: Exploit claimed successful but no shell
+        if "exploit" in tool_name.lower() and claimed_success:
+            if "shell" not in stdout.lower() and "session" not in stdout.lower():
+                self.hallucination_flags.append(
+                    f"{tool_name}: claimed exploit success but no shell/session in output"
+                )
+                return True
+
+        # Rule 3: SQLi claimed but no confirmation in output
+        if "sql" in tool_name.lower() and claimed_success:
+            if "vulnerable" not in stdout.lower() and "injection" not in stdout.lower():
+                self.hallucination_flags.append(
+                    f"{tool_name}: claimed SQLi but no confirmation in output"
+                )
+                return True
+
+        return False
+
+    def is_tool_allowed_for_phase(self, tool_name: str, tool_phase: str) -> bool:
+        """
+        Check if tool is allowed in current phase.
+        
+        Args:
+            tool_name: Name of the tool
+            tool_phase: Phase the tool belongs to
+            
+        Returns:
+            True if allowed, False otherwise
+        """
+        phase_order = {
+            "init": 0,
+            "recon": 1,
+            "vulnerability_scan": 2,
+            "exploit": 3,
+            "foothold": 4,
+            "post_exploit": 5,
+            "complete": 6,
+            "failed": 6,
+        }
+
+        current_order = phase_order.get(self.phase.value, 0)
+        tool_order = phase_order.get(tool_phase, 0)
+
+        # Tool can run in its phase or one phase after
+        return tool_order <= current_order + PHASE_TOLERANCE
+
+    def require_precondition(self, precondition: str) -> bool:
+        """
+        Check precondition.
+        
+        Args:
+            precondition: Precondition string
+            
+        Returns:
+            True if precondition met, False otherwise
+            
+        Examples:
+            - 'port_22_open' -> Is port 22 open?
+            - 'has_vulnerability' -> At least 1 vuln?
+            - 'has_foothold' -> Foothold achieved?
+        """
+        if precondition == "has_foothold":
+            return self.has_foothold
+        elif precondition == "has_vulnerability":
+            return len(self.vulnerabilities) > 0
+        elif precondition == "has_services":
+            return len(self.open_services) > 0
+        elif precondition.startswith("port_") and precondition.endswith("_open"):
+            try:
+                port = int(precondition.split("_")[1])
+                return port in self.open_services
+            except (ValueError, IndexError):
+                return False
+        return True  # Unknown precondition = allow
+
     def get_available_attack_surface(self) -> List[str]:
-        """Henüz test edilmemiş attack surface'leri al"""
+        """
+        Get untested attack surfaces.
+        
+        Returns:
+            List of "port:service" strings
+        """
         return list(self.remaining_attack_surface)
-    
-    def should_halt(self) -> tuple[bool, str]:
-        """Sistem halt etmeli mi?"""
+
+    def should_halt(self) -> Tuple[bool, str]:
+        """
+        Check if system should halt.
+        
+        Returns:
+            Tuple of (should_halt, reason)
+        """
         # Max iteration
         if self.iteration_count >= self.max_iterations:
             return True, "Max iteration reached"
-        
+
         # Invariant violation
         if self.invariant_violations:
             return True, f"Invariant violation: {self.invariant_violations[0]}"
-        
-        # State stagnation check - son 3 iteration'da değişim var mı?
-        if len(self.state_changes_history) >= 3:
-            last_3 = self.state_changes_history[-3:]
-            # Eğer son 3 change aynı ve sadece iteration artışıysa -> stagnant
-            if all(c.get("type") == "iteration" for c in last_3):
+
+        # State stagnation check
+        if len(self.state_changes_history) >= STAGNATION_CHECK_WINDOW:
+            last_changes = self.state_changes_history[-STAGNATION_CHECK_WINDOW:]
+            if all(c.get("type") == "iteration" for c in last_changes):
                 return True, "State stagnation detected"
-        
+
+        # Agentic loop: Same tool called consecutively
+        if self.consecutive_same_tool >= self.max_consecutive_same_tool:
+            return True, f"Same tool called {self.consecutive_same_tool} times consecutively"
+
+        # Agentic loop: No targets left but still scanning
+        if (self.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN] and
+            len(self.remaining_attack_surface) == 0 and
+            len(self.open_services) > 0 and
+            self.iteration_count > 5):
+            return True, "No remaining attack surface but still scanning"
+
         # Success check
         if self.phase == AttackPhase.COMPLETE:
             return True, "Attack complete"
-        
+
         if self.phase == AttackPhase.FAILED:
             return True, "Attack failed"
-        
+
         return False, ""
-    
+
     def validate(self) -> bool:
         """
-        State invariant kontrolü - HER LOOP SONUNDA ÇAĞRILMALI
-        
+        State invariant check - MUST BE CALLED AT END OF EVERY LOOP.
+
         Returns:
             True if valid, False if invariant violated
         """
         violations = []
-        
-        # Invariant 1: Foothold olmadan post-exploit yasak
+
+        # Invariant 1: Post-exploit without foothold is forbidden
         if not self.has_foothold and self.post_exploit_completed:
             violations.append("Post-exploit attempted without foothold")
-        
-        # Invariant 2: Exploit phase'e geçmeden önce en az 1 servis bulunmalı
+
+        # Invariant 2: At least 1 service before exploit phase
         if self.phase == AttackPhase.EXPLOIT and len(self.open_services) == 0:
             violations.append("Exploit phase without discovered services")
-        
-        # Invariant 3: Max iteration aşılamaz
+
+        # Invariant 3: Cannot exceed max iterations
         if self.iteration_count > self.max_iterations:
             violations.append("Max iteration exceeded")
-        
-        # Invariant 4: Tested surface, open services'in subset'i olmalı
+
+        # Invariant 4: Tested surface must be subset of open services
         for tested in self.tested_attack_surface:
             port_str = tested.split(":")[0]
             try:
@@ -247,8 +540,8 @@ class AgentState:
                     violations.append(f"Tested surface {tested} not in open services")
             except ValueError:
                 violations.append(f"Invalid tested surface format: {tested}")
-        
-        # Invariant 5: Remaining surface da open services'in subset'i
+
+        # Invariant 5: Remaining surface must be subset of open services
         for remaining in self.remaining_attack_surface:
             port_str = remaining.split(":")[0]
             try:
@@ -257,29 +550,61 @@ class AgentState:
                     violations.append(f"Remaining surface {remaining} not in open services")
             except ValueError:
                 violations.append(f"Invalid remaining surface format: {remaining}")
-        
+
+        # Invariant 6: Exploit without vulnerability is forbidden
+        if self.phase == AttackPhase.EXPLOIT and len(self.vulnerabilities) == 0:
+            has_exploitable = any(
+                svc.vulnerable for svc in self.open_services.values()
+            )
+            if not has_exploitable:
+                violations.append(
+                    "Exploit phase without any vulnerabilities or exploitable services"
+                )
+
+        # Invariant 7: Hallucination limit
+        if len(self.hallucination_flags) >= MAX_HALLUCINATIONS_THRESHOLD:
+            violations.append(
+                f"Too many hallucinations detected ({len(self.hallucination_flags)})"
+            )
+
+        # Invariant 8: Tool repetition limit
+        if self.consecutive_same_tool >= self.max_consecutive_same_tool:
+            violations.append(
+                f"Same tool called {self.consecutive_same_tool} times consecutively"
+            )
+
         if violations:
             self.invariant_violations.extend(violations)
             return False
-        
+
         return True
-    
-    def _record_change(self, change_type: str, data):
-        """State değişikliğini kaydet (son 5 değişiklik)"""
+
+    def _record_change(self, change_type: str, data) -> None:
+        """
+        Record state change (last N changes).
+        
+        Args:
+            change_type: Type of change
+            data: Change data
+        """
         change = {
             "type": change_type,
             "data": data,
             "iteration": self.iteration_count,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
         self.state_changes_history.append(change)
-        
-        # Keep only last 5
-        if len(self.state_changes_history) > 5:
-            self.state_changes_history = self.state_changes_history[-5:]
-    
+
+        if len(self.state_changes_history) > MAX_STATE_CHANGES_HISTORY:
+            self.state_changes_history = self.state_changes_history[-MAX_STATE_CHANGES_HISTORY:]
+
     def to_dict(self) -> Dict:
-        """Full state'i dict'e çevir (debug/logging için)"""
+        """
+        Convert full state to dict (for debug/logging).
+        
+        Returns:
+            Dict representation of state
+        """
         return {
             "target": self.target,
             "phase": self.phase.value,
@@ -292,28 +617,54 @@ class AgentState:
             "has_foothold": self.has_foothold,
             "foothold_method": self.foothold_method,
             "post_exploit_completed": list(self.post_exploit_completed),
-            "state_changes_history": self.state_changes_history[-5:],
-            "invariant_violations": self.invariant_violations
+            "state_changes_history": self.state_changes_history[-MAX_STATE_CHANGES_HISTORY:],
+            "invariant_violations": self.invariant_violations,
         }
-    
-    def from_dict(self, data: Dict):
-        """Dict'ten state yükle (session recovery için)"""
+
+    def from_dict(self, data: Dict) -> None:
+        """
+        Load state from dict (for session recovery).
+        
+        Args:
+            data: Dict representation of state
+        """
         self.target = data.get("target")
         self.phase = AttackPhase(data.get("phase", "init"))
         self.iteration_count = data.get("iteration_count", 0)
-        # ... other fields as needed
-        # Not implemented fully - for future session recovery feature
-        pass
+        # Other fields as needed for future session recovery
+
+
+# Thread-safe singleton implementation
+_state_lock = threading.Lock()
+_state_instance: Optional[AgentState] = None
 
 
 def get_state() -> AgentState:
-    """Global state instance getter (singleton pattern)"""
-    if not hasattr(get_state, "_instance"):
-        get_state._instance = AgentState()
-    return get_state._instance
+    """
+    Get global state instance (thread-safe singleton pattern).
+    
+    Returns:
+        AgentState singleton instance
+    """
+    global _state_instance
+    if _state_instance is None:
+        with _state_lock:
+            if _state_instance is None:
+                _state_instance = AgentState()
+    return _state_instance
 
 
-def reset_state(target: Optional[str] = None):
-    """State'i reset et - yeni run için"""
-    get_state._instance = AgentState(target)
-    return get_state._instance
+def reset_state(target: Optional[str] = None) -> AgentState:
+    """
+    Reset state for new run (thread-safe).
+    
+    Args:
+        target: New target (optional)
+        
+    Returns:
+        New AgentState instance
+    """
+    global _state_instance
+    with _state_lock:
+        _state_instance = AgentState(target)
+        return _state_instance

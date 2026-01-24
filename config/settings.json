@@ -6,6 +6,7 @@
   "ollama_model": "llama3.1",
   "openai_api_key": null,
   "openai_model": "gpt-4o-mini",
+  "llm_setup_complete": false,
   "language": "tr",
   "use_colors": true,
   "verbose": false,

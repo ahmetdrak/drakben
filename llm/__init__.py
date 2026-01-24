@@ -1,5 +1,10 @@
-# LLM modülü
-from .brain import DrakbenBrain
-from .openrouter_client import OpenRouterClient
+# LLM module
+from .openrouter_client import OpenRouterClient, LLMCache, RateLimiter
 
-__all__ = ["DrakbenBrain", "OpenRouterClient"]
+# DrakbenBrain is in core.brain, not llm.brain
+try:
+    from core.brain import DrakbenBrain
+except ImportError:
+    DrakbenBrain = None
+
+__all__ = ["DrakbenBrain", "OpenRouterClient", "LLMCache", "RateLimiter"]

@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Docs
+docs/
+*.md
+!README.md
+!INSTALLATION.md
+
+# Secrets
+.env
+.env.*
+config/api.env
+*.key
+*.pem
+
+# Database (will be created at runtime)
+*.db
+
+# Logs (will be created at runtime)
+logs/
+*.log
+
+# Sessions
+sessions/
+
+# Reports
+reports/
+
+# Agent transcripts
+agent-transcripts/
+
+# Development
+scripts/
+tests/
+*.test.py

@@ -1,17 +1,32 @@
-# DRAKBEN v1.0 Requirements (Simplified)
+# DRAKBEN Requirements
+# Kali Linux Optimized
 
-# Core (Required)
-rich>=13.0.0
-requests>=2.28.0
-python-dotenv>=1.0.0
-psutil>=5.9.0
-aiohttp>=3.9.0
-dnspython>=2.4.0
-python-whois>=0.8.0
-pycryptodome>=3.20.0
+# ========== CORE (Required) ==========
+rich>=13.0.0              # Terminal UI - Dracula theme
+requests>=2.28.0          # HTTP client
+python-dotenv>=1.0.0      # Environment variables
+psutil>=5.9.0             # System monitoring
+aiohttp>=3.9.0            # Async HTTP
 
-# Optional (for better functionality)
-beautifulsoup4>=4.12.0  # For web parsing
+# ========== WEB/NETWORK ==========
+beautifulsoup4>=4.12.0    # HTML parsing
+dnspython>=2.4.0          # DNS queries
+python-whois>=0.8.0       # WHOIS lookups
 
-# Development (optional)
-# pytest>=8.0.0
+# ========== SECURITY ==========
+pycryptodome>=3.20.0      # Cryptography
+
+# ========== ENHANCED FEATURES ==========
+prompt_toolkit>=3.0.0     # Advanced prompts with auto-complete
+keyring>=24.0.0           # Secure credential storage
+
+# ========== OPTIONAL ==========
+# weasyprint>=60.0        # PDF report generation
+# msgpack>=1.0.0          # Metasploit RPC protocol
+
+# ========== DEVELOPMENT ==========
+# pytest>=8.0.0           # Testing
+# pytest-cov>=4.0.0       # Coverage
+# pytest-asyncio>=0.23.0  # Async tests
+# ruff>=0.1.0             # Linting
+# mypy>=1.8.0             # Type checking

@@ -32,6 +32,7 @@ env/
 *.swp
 *.swo
 *~
+.cursor/
 
 # OS
 .DS_Store
@@ -43,11 +44,13 @@ Thumbs.db
 htmlcov/
 .tox/
 .nox/
+.mypy_cache/
 
 # Temporary files
 *.tmp
 *.temp
 *.bak
+audit_test_*.db
 
 # Secrets & Config (IMPORTANT!)
 .env
@@ -60,6 +63,8 @@ config/*.env
 # Database files (generated at runtime)
 *.db
 drakben.db
+drakben_evolution.db
+drakben_memory.db
 nvd_cache.db
 
 # Logs (generated at runtime)
@@ -80,3 +85,9 @@ session.json
 *.pyc
 *.pyo
 *.pyd
+
+# Agent transcripts
+agent-transcripts/
+
+# Verification results (generated)
+verification_results.json

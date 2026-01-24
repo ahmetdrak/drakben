@@ -1,17 +1,25 @@
 # core/config.py
 # Configuration & Session Management
+# Thread-safe implementation
 
-import os
 import json
+import logging
+import os
+import threading
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DrakbenConfig:
     """DRAKBEN configuration"""
+
     # LLM Settings
     llm_provider: str = "auto"  # auto, openrouter, ollama, openai
     openrouter_api_key: Optional[str] = None
@@ -23,43 +31,48 @@ class DrakbenConfig:
 
     # Setup
     llm_setup_complete: bool = False
-    
+
     # UI Settings
     language: str = "tr"  # tr, en
     use_colors: bool = True
     verbose: bool = False
-    
+
     # Security
     auto_approve: bool = False  # First command needs approval
     approved_once: bool = False
-    
+
     # Session
     target: Optional[str] = None
     session_dir: str = "sessions"
     log_dir: str = "logs"
-    
+
     # Tools
-    tools_available: Dict[str, bool] = None
-    
+    tools_available: Optional[Dict[str, bool]] = None
+
     def __post_init__(self):
         if self.tools_available is None:
             self.tools_available = {}
 
 
 class ConfigManager:
-    """Manage configuration and sessions"""
-    
+    """
+    Manage configuration and sessions.
+    Thread-safe implementation with locking.
+    """
+
     def __init__(self, config_file: str = "config/settings.json"):
+        self._lock = threading.RLock()  # Reentrant lock for nested calls
         self.config_file = Path(config_file)
         self.config = self.load_config()
         self._load_env()
-    
+        self._llm_client = None  # Lazy initialization
+
     def _load_env(self):
         """Load API keys from .env"""
         env_file = Path("config/api.env")
         if env_file.exists():
             load_dotenv(env_file)
-        
+
         # Override with environment variables
         if os.getenv("OPENROUTER_API_KEY"):
             self.config.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
@@ -71,12 +84,14 @@ class ConfigManager:
             self.config.ollama_model = os.getenv("LOCAL_LLM_MODEL")
 
         # Mark setup complete if any provider is configured
-        if any([
-            os.getenv("OPENROUTER_API_KEY"),
-            os.getenv("OPENAI_API_KEY"),
-            os.getenv("LOCAL_LLM_URL"),
-            os.getenv("LOCAL_LLM_MODEL")
-        ]):
+        if any(
+            [
+                os.getenv("OPENROUTER_API_KEY"),
+                os.getenv("OPENAI_API_KEY"),
+                os.getenv("LOCAL_LLM_URL"),
+                os.getenv("LOCAL_LLM_MODEL"),
+            ]
+        ):
             self.config.llm_setup_complete = True
 
     def _read_env_file(self) -> Dict[str, str]:
@@ -113,7 +128,7 @@ class ConfigManager:
             f"LOCAL_LLM_URL={values.get('LOCAL_LLM_URL', 'http://localhost:11434')}",
             f"LOCAL_LLM_MODEL={values.get('LOCAL_LLM_MODEL', 'llama3.1')}",
             "",
-            "# Leave keys empty to stay in offline mode"
+            "# Leave keys empty to stay in offline mode",
         ]
 
         env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -126,33 +141,41 @@ class ConfigManager:
         env_path = Path("config/api.env")
         existing = self._read_env_file()
 
-        if env_path.exists() and any([
-            existing.get("OPENROUTER_API_KEY"),
-            existing.get("OPENAI_API_KEY"),
-            existing.get("LOCAL_LLM_URL"),
-            existing.get("LOCAL_LLM_MODEL")
-        ]):
+        if env_path.exists() and any(
+            [
+                existing.get("OPENROUTER_API_KEY"),
+                existing.get("OPENAI_API_KEY"),
+                existing.get("LOCAL_LLM_URL"),
+                existing.get("LOCAL_LLM_MODEL"),
+            ]
+        ):
             self.config.llm_setup_complete = True
             self.save_config()
             return
 
-        if env_path.exists() and not any([
-            existing.get("OPENROUTER_API_KEY"),
-            existing.get("OPENAI_API_KEY"),
-            existing.get("LOCAL_LLM_URL"),
-            existing.get("LOCAL_LLM_MODEL")
-        ]):
+        if env_path.exists() and not any(
+            [
+                existing.get("OPENROUTER_API_KEY"),
+                existing.get("OPENAI_API_KEY"),
+                existing.get("LOCAL_LLM_URL"),
+                existing.get("LOCAL_LLM_MODEL"),
+            ]
+        ):
             # api.env exists but is empty; continue to prompt
             pass
 
-        print("\n🔧 LLM yapılandırmasını şimdi yapmak ister misiniz? (e/h)")
+        # Interactive LLM setup prompt
+        from rich.console import Console
+        console = Console()
+        
+        console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
         choice = input("> ").strip().lower()
         if choice not in ["e", "y", "evet", "yes"]:
             self.config.llm_setup_complete = True
             self.save_config()
             return
 
-        print("\nProvider seçin: 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Geç")
+        console.print("\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip")
         provider_choice = input("> ").strip()
 
         env_values = existing.copy()
@@ -160,7 +183,7 @@ class ConfigManager:
         if provider_choice == "1":
             self.config.llm_provider = "openrouter"
             api_key = input("OpenRouter API key: ").strip()
-            model = input("Model (boş bırak: default): ").strip()
+            model = input("Model (leave empty for default): ").strip()
             if api_key:
                 env_values["OPENROUTER_API_KEY"] = api_key
                 self.config.openrouter_api_key = api_key
@@ -171,7 +194,7 @@ class ConfigManager:
         elif provider_choice == "2":
             self.config.llm_provider = "openai"
             api_key = input("OpenAI API key: ").strip()
-            model = input("Model (boş bırak: default): ").strip()
+            model = input("Model (leave empty for default): ").strip()
             if api_key:
                 env_values["OPENAI_API_KEY"] = api_key
                 self.config.openai_api_key = api_key
@@ -181,10 +204,14 @@ class ConfigManager:
 
         elif provider_choice == "3":
             self.config.llm_provider = "ollama"
-            url = input("Ollama URL (boş bırak: http://localhost:11434): ").strip()
-            model = input("Ollama model (boş bırak: llama3.1): ").strip()
-            env_values["LOCAL_LLM_URL"] = url or env_values.get("LOCAL_LLM_URL", "http://localhost:11434")
-            env_values["LOCAL_LLM_MODEL"] = model or env_values.get("LOCAL_LLM_MODEL", "llama3.1")
+            url = input("Ollama URL (leave empty: http://localhost:11434): ").strip()
+            model = input("Ollama model (leave empty: llama3.1): ").strip()
+            env_values["LOCAL_LLM_URL"] = url or env_values.get(
+                "LOCAL_LLM_URL", "http://localhost:11434"
+            )
+            env_values["LOCAL_LLM_MODEL"] = model or env_values.get(
+                "LOCAL_LLM_MODEL", "llama3.1"
+            )
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
 
@@ -196,120 +223,163 @@ class ConfigManager:
         self._write_env_file(env_values)
         self.config.llm_setup_complete = True
         self.save_config()
-    
+
+    @property
+    def llm_client(self):
+        """Lazy initialization of LLM client"""
+        with self._lock:
+            if self._llm_client is None:
+                try:
+                    from llm.openrouter_client import OpenRouterClient
+                    self._llm_client = OpenRouterClient()
+                except Exception as e:
+                    logger.error(f"Failed to initialize LLM client: {e}")
+                    self._llm_client = None
+            return self._llm_client
+
+    @property
+    def language(self) -> str:
+        """Get current language setting"""
+        with self._lock:
+            return self.config.language
+
     def load_config(self) -> DrakbenConfig:
-        """Load configuration from file"""
-        if self.config_file.exists():
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return DrakbenConfig(**data)
-            except Exception as e:
-                print(f"⚠️  Config load error: {e}")
-        
-        return DrakbenConfig()
-    
+        """Load configuration from file (thread-safe)"""
+        with self._lock:
+            if self.config_file.exists():
+                try:
+                    with open(self.config_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        return DrakbenConfig(**data)
+                except Exception as e:
+                    logger.error(f"Config load error: {e}")
+
+            return DrakbenConfig()
+
     def save_config(self):
-        """Save configuration to file"""
-        try:
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(asdict(self.config), f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"⚠️  Config save error: {e}")
-    
+        """Save configuration to file (thread-safe)"""
+        with self._lock:
+            try:
+                self.config_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.config_file, "w", encoding="utf-8") as f:
+                    json.dump(asdict(self.config), f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logger.error(f"Config save error: {e}")
+
     def set_language(self, lang: str):
-        """Set interface language"""
-        if lang in ["tr", "en"]:
-            self.config.language = lang
-            self.save_config()
-    
+        """Set interface language (thread-safe)"""
+        with self._lock:
+            if lang in ["tr", "en"]:
+                self.config.language = lang
+                self.save_config()
+
     def set_target(self, target: str):
-        """Set target"""
-        self.config.target = target
-        self.save_config()
-    
+        """Set target (thread-safe)"""
+        with self._lock:
+            self.config.target = target
+            self.save_config()
+
     def get_llm_config(self) -> Dict[str, Any]:
-        """Get LLM configuration"""
-        return {
-            "provider": self.config.llm_provider,
-            "openrouter_api_key": self.config.openrouter_api_key,
-            "openrouter_model": self.config.openrouter_model,
-            "ollama_url": self.config.ollama_url,
-            "ollama_model": self.config.ollama_model,
-            "openai_api_key": self.config.openai_api_key,
-            "openai_model": self.config.openai_model,
-        }
-    
+        """Get LLM configuration (thread-safe)"""
+        with self._lock:
+            return {
+                "provider": self.config.llm_provider,
+                "openrouter_api_key": self.config.openrouter_api_key,
+                "openrouter_model": self.config.openrouter_model,
+                "ollama_url": self.config.ollama_url,
+                "ollama_model": self.config.ollama_model,
+                "openai_api_key": self.config.openai_api_key,
+                "openai_model": self.config.openai_model,
+            }
+
     def mark_approved(self):
-        """Mark that user has approved once"""
-        self.config.approved_once = True
-        self.save_config()
-    
+        """Mark that user has approved once (thread-safe)"""
+        with self._lock:
+            self.config.approved_once = True
+            self.save_config()
+
     def reset_approval(self):
-        """Reset approval state"""
-        self.config.approved_once = False
-        self.save_config()
+        """Reset approval state (thread-safe)"""
+        with self._lock:
+            self.config.approved_once = False
+            self.save_config()
 
 
 class SessionManager:
-    """Manage penetration testing sessions"""
-    
+    """
+    Manage penetration testing sessions.
+    Thread-safe implementation with locking.
+    """
+
     def __init__(self, session_dir: str = "sessions"):
+        self._lock = threading.RLock()
         self.session_dir = Path(session_dir)
         self.session_dir.mkdir(parents=True, exist_ok=True)
-        self.current_session = {
+        self.current_session: Dict[str, Any] = {
             "target": None,
             "commands": [],
             "findings": [],
-            "notes": []
+            "notes": [],
         }
-    
-    def save_session(self, target: str):
-        """Save current session"""
-        try:
-            import time
-            timestamp = int(time.time())
-            filename = f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
-            filepath = self.session_dir / filename
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(self.current_session, f, indent=2, ensure_ascii=False)
-            
-            return filepath
-        except Exception as e:
-            print(f"⚠️  Session save error: {e}")
-            return None
-    
+
+    def save_session(self, target: str) -> Optional[Path]:
+        """Save current session (thread-safe)"""
+        with self._lock:
+            try:
+                import time
+
+                timestamp = int(time.time())
+                filename = f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
+                filepath = self.session_dir / filename
+
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(self.current_session, f, indent=2, ensure_ascii=False)
+
+                return filepath
+            except Exception as e:
+                logger.error(f"Session save error: {e}")
+                return None
+
     def load_session(self, filename: str) -> Optional[Dict]:
-        """Load a session"""
-        try:
-            filepath = self.session_dir / filename
-            if filepath.exists():
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception as e:
-            print(f"⚠️  Session load error: {e}")
-        return None
-    
+        """Load a session (thread-safe)"""
+        with self._lock:
+            try:
+                filepath = self.session_dir / filename
+                if filepath.exists():
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        return json.load(f)
+            except Exception as e:
+                logger.error(f"Session load error: {e}")
+            return None
+
     def list_sessions(self) -> list:
-        """List all sessions"""
-        sessions = []
-        for file in self.session_dir.glob("*.json"):
-            sessions.append(file.name)
-        return sorted(sessions, reverse=True)
-    
+        """List all sessions (thread-safe)"""
+        with self._lock:
+            sessions = []
+            for file in self.session_dir.glob("*.json"):
+                sessions.append(file.name)
+            return sorted(sessions, reverse=True)
+
     def add_command(self, command: str, output: str):
-        """Add command to session"""
-        self.current_session["commands"].append({
-            "command": command,
-            "output": output[:500]  # Limit output size
-        })
-    
+        """Add command to session (thread-safe)"""
+        with self._lock:
+            commands = self.current_session.get("commands")
+            if commands is not None:
+                commands.append(
+                    {"command": command, "output": output[:500]}  # Limit output size
+                )
+
     def add_finding(self, finding: str):
-        """Add finding to session"""
-        self.current_session["findings"].append(finding)
-    
+        """Add finding to session (thread-safe)"""
+        with self._lock:
+            findings = self.current_session.get("findings")
+            if findings is not None:
+                findings.append(finding)
+
     def add_note(self, note: str):
-        """Add note to session"""
-        self.current_session["notes"].append(note)
+        """Add note to session (thread-safe)"""
+        with self._lock:
+            notes = self.current_session.get("notes")
+            if notes is not None:
+                notes.append(note)
+
