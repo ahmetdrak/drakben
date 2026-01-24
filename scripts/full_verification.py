@@ -204,7 +204,7 @@ def test_self_refining_engine():
     
     # Test 2: classify_target
     try:
-        t1 = engine.classify_target("https://example.com")
+        t1 = engine.classify_target(EXAMPLE_URL)
         t2 = engine.classify_target("192.168.1.1")
         t3 = engine.classify_target("https://api.example.com")
         results["SelfRefiningEngine.classify_target"] = {
@@ -216,7 +216,7 @@ def test_self_refining_engine():
     
     # Test 3: get_target_signature
     try:
-        sig = engine.get_target_signature("https://example.com")
+        sig = engine.get_target_signature(EXAMPLE_URL)
         assert sig.startswith("web_app:")
         results["SelfRefiningEngine.get_target_signature"] = {"status": "PASS", "proof": sig}
     except Exception as e:
@@ -648,10 +648,10 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
     # Step 5: Failures influence future decisions
     print("\nStep 5: Failures Influence Future Decisions")
     try:
-        target_sig = engine.get_target_signature("https://failtest.com")
+        target_sig = engine.get_target_signature(FAIL_TEST_URL)
         
         # Select initial
-        _, profile1 = engine.select_strategy_and_profile("https://failtest.com")
+        _, profile1 = engine.select_strategy_and_profile(FAIL_TEST_URL)
         
         # Record failure
         engine.record_failure(
@@ -662,7 +662,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
         )
         
         # Select again - should get different profile
-        _, profile2 = engine.select_strategy_and_profile("https://failtest.com")
+        _, profile2 = engine.select_strategy_and_profile(FAIL_TEST_URL)
         
         # They may be the same if there's only one profile for this strategy
         # The key test is that has_failed_before returns True

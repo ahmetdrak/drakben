@@ -21,6 +21,9 @@ from collections import defaultdict
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+# Test constants
+MEMORY_TEST_URL = "https://memory-test.com"
+
 
 def safe_remove(path: str):
     gc.collect()
@@ -358,8 +361,8 @@ print("-"*40)
 engine1 = SelfRefiningEngine(db_path)
 
 # Create state
-strategy1, profile1 = engine1.select_strategy_and_profile("https://memory-test.com")
-target_sig = engine1.get_target_signature("https://memory-test.com")
+strategy1, profile1 = engine1.select_strategy_and_profile(MEMORY_TEST_URL)
+target_sig = engine1.get_target_signature(MEMORY_TEST_URL)
 
 # Record failures
 for i in range(3):
@@ -415,7 +418,7 @@ print(f"  Policies: {SESSION1_DATA['policies']} → {status2['active_policies']}
 print()
 print("MEMORY AFFECTS DECISION TEST:")
 
-strategy2, profile2 = engine2.select_strategy_and_profile("https://memory-test.com")
+strategy2, profile2 = engine2.select_strategy_and_profile(MEMORY_TEST_URL)
 
 print(f"  Session 1 profile: {SESSION1_DATA['profile_id'][:12]}...")
 print(f"  Session 2 profile: {profile2.profile_id[:12]}...")

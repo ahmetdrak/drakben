@@ -45,13 +45,11 @@ def temp_db():
 @pytest.fixture
 def reset_state():
     """Reset AgentState singleton before each test"""
-    from core.state import AgentState
-    AgentState._instance = None
-    AgentState._initialized = False
+    from core.state import reset_state
+    reset_state()
     yield
     # Reset after test too
-    AgentState._instance = None
-    AgentState._initialized = False
+    reset_state()
 
 
 @pytest.fixture
@@ -76,7 +74,7 @@ def sample_config(temp_dir):
     from core.config import ConfigManager
     
     config_path = os.path.join(temp_dir, "settings.json")
-    config = ConfigManager(config_path=config_path)
+    config = ConfigManager(config_file=config_path)
     
     return config
 

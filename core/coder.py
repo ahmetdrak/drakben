@@ -203,8 +203,10 @@ class ASTSecurityChecker(ast.NodeVisitor):
         
         self.generic_visit(node)
     
-    def visit_Str(self, node: ast.Str):
+    def visit_Str(self, node: ast.Str):  # Deprecated in Python 3.8+, kept for compatibility
         """Check string literals for dangerous paths (Python 3.7 and below)"""
+        # Note: ast.Str is deprecated, but kept for Python 3.7 compatibility
+        # visit_Constant handles Python 3.8+
         self._check_dangerous_path(node.s)
         self.generic_visit(node)
     

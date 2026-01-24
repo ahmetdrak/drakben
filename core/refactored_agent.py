@@ -1008,11 +1008,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
                         vuln = VulnerabilityInfo(
                             vuln_id=f"sqli_{vuln_dict.get('parameter', 'unknown')}",
                             service="http",
-<<<<<<< Current (Your changes)
-                            port=int(result.get("args", {}).get("port", 80)),
-=======
                             port=args_port,
->>>>>>> Incoming (Background Agent changes)
                             severity="high",
                             exploitable=True,
                         )

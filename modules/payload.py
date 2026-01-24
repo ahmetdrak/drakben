@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional, Tuple
 # Setup logger
 logger = logging.getLogger(__name__)
 
+# Constants
+STATE_INVARIANT_VIOLATION = "State invariant violation"
+
 # State integration
 try:
     from core.state import AgentState, AttackPhase
@@ -88,11 +91,11 @@ async def reverse_shell(
     # STATE VALIDATION
     if STATE_AVAILABLE and state:
         if not state.validate():
-            logger.error("State invariant violation before reverse shell")
+            logger.error(f"{STATE_INVARIANT_VIOLATION} before reverse shell")
             return {
                 "type": "ReverseShell",
                 "success": False,
-                "error": "State invariant violation",
+                "error": STATE_INVARIANT_VIOLATION,
                 "blocked": True,
                 "invariant_violations": getattr(state, "invariant_violations", []),
             }
@@ -124,7 +127,7 @@ async def reverse_shell(
         if STATE_AVAILABLE and state:
             state.mark_post_exploit_done("reverse_shell_established")
             if not state.validate():
-                logger.error("State invariant violation after reverse shell")
+                logger.error(f"{STATE_INVARIANT_VIOLATION} after reverse shell")
                 return {
                     "type": "ReverseShell",
                     "success": False,
@@ -190,7 +193,7 @@ async def bind_shell(
             return {
                 "type": "BindShell",
                 "success": False,
-                "error": "State invariant violation",
+                "error": STATE_INVARIANT_VIOLATION,
                 "blocked": True,
                 "invariant_violations": getattr(state, "invariant_violations", []),
             }
@@ -287,10 +290,10 @@ async def ai_payload_advice(state: "AgentState", exploit_output: Dict) -> Dict[s
     # STATE VALIDATION
     if STATE_AVAILABLE and state:
         if not state.validate():
-            logger.error("State invariant violation in AI advice")
+            logger.error(f"{STATE_INVARIANT_VIOLATION} in AI advice")
             return {
                 "type": "AI",
-                "error": "State invariant violation",
+                "error": STATE_INVARIANT_VIOLATION,
                 "blocked": True,
                 "invariant_violations": getattr(state, "invariant_violations", []),
             }
@@ -446,9 +449,9 @@ def generate_payload(
     # STATE VALIDATION
     if STATE_AVAILABLE and state:
         if not state.validate():
-            logger.error("State invariant violation in payload generation")
+            logger.error(f"{STATE_INVARIANT_VIOLATION} in payload generation")
             return {
-                "error": "State invariant violation",
+                "error": STATE_INVARIANT_VIOLATION,
                 "blocked": True,
                 "invariant_violations": getattr(state, "invariant_violations", []),
             }
