@@ -286,11 +286,16 @@ Target: """ + (context.target or "Not set")
         has_chat_pattern = any(p in user_lower for p in chat_patterns)
         has_pentest_keyword = any(k in user_lower for k in pentest_keywords)
         
-        # It's chat if it has chat patterns and no pentest keywords
-        # OR if it's a short message (likely greeting/question)
-        if has_chat_pattern and not has_pentest_keyword:
+        # FIX: If pentest keyword exists, it is NEVER just a chat. It's an action.
+        if has_pentest_keyword:
+            return False
+
+        # It's chat if it has chat patterns
+        if has_chat_pattern:
             return True
-        if len(user_input.split()) <= 5 and not has_pentest_keyword:
+            
+        # Short message default to chat
+        if len(user_input.split()) <= 5:
             return True
             
         return False
