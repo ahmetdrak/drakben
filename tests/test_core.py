@@ -119,11 +119,13 @@ class TestAgentState(unittest.TestCase):
     def test_reset(self):
         """Test state reset"""
         from core.state import reset_state, AttackPhase
-        state = reset_state("192.168.1.1")
-        state = reset_state()  # Reset without target
+        state1 = reset_state("192.168.1.1")
+        self.assertEqual(state1.target, "192.168.1.1")
         
-        self.assertEqual(state.phase, AttackPhase.INIT)
-        self.assertIsNone(state.target)
+        # Reset without target
+        state2 = reset_state()
+        self.assertEqual(state2.phase, AttackPhase.INIT)
+        self.assertIsNone(state2.target)
 
 
 class TestConfigManager(unittest.TestCase):
@@ -249,7 +251,7 @@ class TestEvolutionMemory(unittest.TestCase):
         from core.evolution_memory import EvolutionMemory, ActionRecord
         memory = EvolutionMemory(db_path=self.temp_db.name)
         
-        # Record failures
+        # Record failures - update_penalty is called automatically
         for _ in range(3):
             record = ActionRecord(
                 goal="test_goal",
@@ -263,6 +265,8 @@ class TestEvolutionMemory(unittest.TestCase):
                 penalty_score=0.0
             )
             memory.record_action(record)
+            # Manually update penalty to simulate tool execution
+            memory.update_penalty("test_tool", success=False)
         
         penalty = memory.get_penalty("test_tool")
         self.assertGreater(penalty, 0)
@@ -300,12 +304,12 @@ class TestExecutionEngine(unittest.TestCase):
         sanitizer = CommandSanitizer()
         
         # Safe commands
-        safe_cmd = sanitizer.sanitize("nmap -sV 192.168.1.1")
+        safe_cmd = CommandSanitizer.sanitize("nmap -sV 192.168.1.1")
         self.assertEqual(safe_cmd, "nmap -sV 192.168.1.1")
         
         # Dangerous commands should raise SecurityError
         with self.assertRaises(SecurityError):
-            sanitizer.sanitize("rm -rf /")
+            CommandSanitizer.sanitize("rm -rf /")
     
     def test_command_validation(self):
         """Test command validation patterns"""
@@ -322,7 +326,7 @@ class TestExecutionEngine(unittest.TestCase):
         
         for cmd in dangerous_commands:
             with self.assertRaises(SecurityError, msg=f"Command should be blocked: {cmd}"):
-                sanitizer.sanitize(cmd)
+                CommandSanitizer.sanitize(cmd)
     
     @patch('subprocess.run')
     def test_execute_safe_command(self, mock_run):
