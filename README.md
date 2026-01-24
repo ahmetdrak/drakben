@@ -167,6 +167,7 @@ drakben/
 | `/scan` | Otonom tarama başlat |
 | `/shell` | İnteraktif kabuk |
 | `/status` | Sistem durumunu göster |
+| `/llm` | LLM/API ayarları |
 | `/clear` | Ekranı temizle |
 | `/tr` | Türkçe mod |
 | `/en` | English mode |

@@ -122,7 +122,21 @@ class Planner:
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
         self.current_strategy_name = profile.strategy_name
         
-        # Get step order from profile
+        # Generate steps
+        steps = self._generate_steps_from_profile(target, profile, plan_id)
+        
+        # Store in persistent memory
+        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        
+        # Load into local state
+        self.current_plan_id = plan_id
+        self.steps = [self._dict_to_step(s) for s in steps]
+        self.current_step_index = 0
+        
+        return plan_id
+
+    def _generate_steps_from_profile(self, target: str, profile, plan_id: str) -> List[Dict]:
+        """Helper to generate steps from profile config"""
         step_order = profile.step_order
         profile_params = profile.parameters
         aggressiveness = profile.aggressiveness
@@ -140,46 +154,41 @@ class Planner:
         
         for phase in step_order:
             actions = phase_to_actions.get(phase, [phase])
-            
             for action in actions:
-                tool = self.ACTION_TO_TOOL.get(action, action)
                 step_num += 1
-                
-                # Apply profile parameters to step
-                step_params = {}
-                if "timeout" in profile_params:
-                    step_params["timeout"] = profile_params["timeout"]
-                if "threads" in profile_params:
-                    step_params["threads"] = profile_params["threads"]
-                if "parallel_scans" in profile_params:
-                    step_params["parallel"] = profile_params["parallel_scans"]
-                
-                step = {
-                    "step_id": f"{plan_id}_step_{step_num}",
-                    "action": action,
-                    "tool": tool,
-                    "target": target,
-                    "params": step_params,
-                    "depends_on": [f"{plan_id}_step_{step_num-1}"] if step_num > 1 else [],
-                    "status": StepStatus.PENDING.value,
-                    "max_retries": 3 if aggressiveness > 0.7 else 2,
-                    "retry_count": 0,
-                    "expected_outcome": f"complete_{action}",
-                    "actual_outcome": "",
-                    "error": "",
-                    "profile_id": profile.profile_id  # Track which profile created this
-                }
-                steps.append(step)
+                steps.append(self._create_single_step_dict(
+                    plan_id, step_num, action, target, profile_params, aggressiveness, profile.profile_id
+                ))
+        return steps
+
+    def _create_single_step_dict(self, plan_id, step_num, action, target, profile_params, aggressiveness, profile_id):
+        """Helper to create a single step dictionary"""
+        tool = self.ACTION_TO_TOOL.get(action, action)
         
-        # Store in persistent memory
-        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        # Apply profile parameters to step
+        step_params = {}
+        if "timeout" in profile_params:
+            step_params["timeout"] = profile_params["timeout"]
+        if "threads" in profile_params:
+            step_params["threads"] = profile_params["threads"]
+        if "parallel_scans" in profile_params:
+            step_params["parallel"] = profile_params["parallel_scans"]
         
-        # Load into local state
-        self.current_plan_id = plan_id
-        self.steps = [self._dict_to_step(s) for s in steps]
-        self.current_step_index = 0
-        
-        return plan_id
+        return {
+            "step_id": f"{plan_id}_step_{step_num}",
+            "action": action,
+            "tool": tool,
+            "target": target,
+            "params": step_params,
+            "depends_on": [f"{plan_id}_step_{step_num-1}"] if step_num > 1 else [],
+            "status": StepStatus.PENDING.value,
+            "max_retries": 3 if aggressiveness > 0.7 else 2,
+            "retry_count": 0,
+            "expected_outcome": f"complete_{action}",
+            "actual_outcome": "",
+            "error": "",
+            "profile_id": profile_id
+        }
     
     def create_plan_for_target(self, target: str, goal: str = "pentest") -> str:
         """

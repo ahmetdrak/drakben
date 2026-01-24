@@ -987,11 +987,32 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
                 )
 
                 if parsed_vulns:
+                    # Extract port from args or use default
+                    args_port = result.get("args", {}).get("port")
+                    if not args_port:
+                        # Try to extract from URL if present
+                        args_url = result.get("args", {}).get("url", "")
+                        if args_url:
+                            from urllib.parse import urlparse
+                            parsed_url = urlparse(args_url)
+                            if parsed_url.port:
+                                args_port = parsed_url.port
+                            elif parsed_url.scheme == "https":
+                                args_port = 443
+                            else:
+                                args_port = 80
+                        else:
+                            args_port = 80  # Default HTTP port
+                    
                     for vuln_dict in parsed_vulns:
                         vuln = VulnerabilityInfo(
                             vuln_id=f"sqli_{vuln_dict.get('parameter', 'unknown')}",
                             service="http",
-                            port=80,  # TODO: extract from args
+<<<<<<< Current (Your changes)
+                            port=int(result.get("args", {}).get("port", 80)),
+=======
+                            port=args_port,
+>>>>>>> Incoming (Background Agent changes)
                             severity="high",
                             exploitable=True,
                         )

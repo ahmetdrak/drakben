@@ -124,7 +124,9 @@ def test_exploit_module():
         # Test RetryConfig
         config = RetryConfig(max_retries=5, base_delay=2.0)
         assert config.max_retries == 5
-        assert config.base_delay == 2.0
+        if 'math' not in globals():
+            import math
+        assert math.isclose(config.base_delay, 2.0), f"Expected 2.0, got {config.base_delay}"
         
         # Test suggest_exploit
         sqli_suggestion = suggest_exploit("sqli")

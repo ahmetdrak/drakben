@@ -153,7 +153,7 @@ python drakben.py
 /help
 /target 127.0.0.1
 /status
-/stats
+/llm
 /exit
 ```
 
