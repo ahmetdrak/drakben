@@ -11,6 +11,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Load environment variables from config/api.env
+from dotenv import load_dotenv
+env_file = PROJECT_ROOT / "config" / "api.env"
+if env_file.exists():
+    load_dotenv(env_file)
+
 from rich.console import Console  # noqa: E402
 
 # from core.refactored_agent import RefactoredDrakbenAgent
