@@ -706,10 +706,21 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
         if result.exit_code != 0:
             self.tool_selector.record_tool_failure(tool_name)
 
+        # Smart error extraction
+        stdout_str = result.stdout or ""
+        stderr_str = result.stderr or ""
+        
+        # Some tools output errors to stdout (like nmap sometimes)
+        if result.exit_code != 0 and not stderr_str.strip():
+            if stdout_str.strip():
+               stderr_str = f"Tool Error (in stdout): {stdout_str[-500:]}"
+            else:
+               stderr_str = f"Command failed with exit code {result.exit_code} (No output captured)"
+
         return {
             "success": result.status.value == "success",
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "stdout": stdout_str,
+            "stderr": stderr_str,
             "exit_code": result.exit_code,
             "args": args,
         }
