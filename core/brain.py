@@ -257,8 +257,16 @@ Target: """ + (context.target or "Not set")
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _is_chat_request(self, user_input: str) -> bool:
+    def _is_chat_request(self, user_input: Any) -> bool:
         """Detect if user input is a chat/conversation request (not pentest)"""
+        # Safety check: Ensure input is string
+        if isinstance(user_input, dict):
+             # Try to extract meaningful text from dict if passed by mistake
+             user_input = user_input.get("command") or user_input.get("input") or str(user_input)
+        
+        if not isinstance(user_input, str):
+            user_input = str(user_input)
+
         user_lower = user_input.lower()
         
         # Chat indicators - questions about the AI, greetings, general questions
@@ -377,8 +385,15 @@ IMPORTANT:
         self._add_to_history(analysis)
         return analysis
 
-    def _detect_intent(self, user_input: str) -> str:
+    def _detect_intent(self, user_input: Any) -> str:
         """Detect user intent from input"""
+        # Safety check: Ensure input is string
+        if isinstance(user_input, dict):
+             user_input = user_input.get("command") or user_input.get("input") or str(user_input)
+        
+        if not isinstance(user_input, str):
+            user_input = str(user_input)
+
         user_lower = user_input.lower()
 
         # Pentest intents
