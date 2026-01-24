@@ -90,6 +90,18 @@ class AgentState:
     5. State pollution = SYSTEM HALT
     """
 
+    def __new__(cls, *args, **kwargs):
+        """Ensure singleton instance"""
+        if _state_instance is None:
+            with _state_lock:
+                if _state_instance is None:
+                    # Create new instance and set global ref immediately
+                    instance = super(AgentState, cls).__new__(cls)
+                    global _state_instance
+                    _state_instance = instance
+                    return instance
+        return _state_instance
+
     def __init__(self, target: Optional[str] = None):
         """
         Initialize agent state.
@@ -97,6 +109,10 @@ class AgentState:
         Args:
             target: Target IP or domain (optional)
         """
+        # Prevent re-initialization
+        if getattr(self, "_initialized", False) and target is None:
+            return
+
         # Thread safety lock
         self._lock = threading.RLock()
         
@@ -105,6 +121,9 @@ class AgentState:
         self.phase: AttackPhase = AttackPhase.INIT
         self.iteration_count: int = 0
         self.max_iterations: int = MAX_ITERATIONS
+        
+        # Mark as initialized
+        self._initialized = True
 
         # Attack surface tracking
         self.open_services: Dict[int, ServiceInfo] = {}  # port -> ServiceInfo

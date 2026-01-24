@@ -147,7 +147,7 @@ class InteractiveShell:
             # Could add recent targets here
             pass
         
-        if state < len(options):
+        if 0 <= state < len(options):
             return options[state]
         return None
     
@@ -182,47 +182,59 @@ class InteractiveShell:
         self._show_banner()
         
         while self.running:
-            try:
-                # Get input
-                prompt = self.CONTINUATION_PROMPT if self.in_multiline else self.PROMPT
-                
-                try:
-                    line = input(prompt)
-                except EOFError:
-                    self.console.print("\nGoodbye!", style="bold green")
-                    break
-                except KeyboardInterrupt:
-                    self.console.print("\n^C", style="yellow")
-                    self.multiline_buffer = []
-                    self.in_multiline = False
-                    continue
-                
-                # Handle multi-line input
-                if self.in_multiline:
-                    if line.strip() == "":
-                        # Empty line ends multi-line input
-                        full_input = "\n".join(self.multiline_buffer)
-                        self.multiline_buffer = []
-                        self.in_multiline = False
-                        self._process_input(full_input)
-                    else:
-                        self.multiline_buffer.append(line)
-                    continue
-                
-                # Check for multi-line start
-                if line.strip().endswith(":") or line.strip().endswith("\\"):
-                    self.multiline_buffer = [line.rstrip("\\")]
-                    self.in_multiline = True
-                    continue
-                
-                # Process single-line input
-                self._process_input(line)
-                
-            except Exception as e:
-                logger.exception(f"Shell error: {e}")
-                self.console.print(f"[red]Error: {e}[/red]")
+            self._run_single_loop_iteration()
         
-        # Save history on exit
+        self._save_history()
+
+    def _run_single_loop_iteration(self):
+        """Handle a single input cycle"""
+        try:
+            # Get input
+            prompt = self.CONTINUATION_PROMPT if self.in_multiline else self.PROMPT
+            
+            try:
+                line = input(prompt)
+            except EOFError:
+                self.console.print("\nGoodbye!", style="bold green")
+                self.running = False
+                return
+            except KeyboardInterrupt:
+                self.console.print("\n^C", style="yellow")
+                self.multiline_buffer = []
+                self.in_multiline = False
+                return
+            
+            self._handle_input_line(line)
+            
+        except Exception as e:
+            logger.exception(f"Shell error: {e}")
+            self.console.print(f"[red]Error: {e}[/red]")
+
+    def _handle_input_line(self, line: str):
+        """Process the raw input line, handling multiline logic"""
+        # Handle multi-line input
+        if self.in_multiline:
+            if line.strip() == "":
+                # Empty line ends multi-line input
+                full_input = "\n".join(self.multiline_buffer)
+                self.multiline_buffer = []
+                self.in_multiline = False
+                self._process_input(full_input)
+            else:
+                self.multiline_buffer.append(line)
+            return
+
+        # Check for multi-line start
+        if line.strip().endswith(":") or line.strip().endswith("\\"):
+            self.multiline_buffer = [line.rstrip("\\")]
+            self.in_multiline = True
+            return
+
+        # Process single-line input
+        self._process_input(line)
+
+    def _save_history(self):
+        """Save command history on exit"""
         if self.enable_history and READLINE_AVAILABLE and readline is not None:
             try:
                 readline.write_history_file(self.history_file)

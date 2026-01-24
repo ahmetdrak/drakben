@@ -71,6 +71,7 @@ class RefactoredDrakbenAgent:
     STYLE_CYAN = "bold cyan"
     STYLE_YELLOW = "bold yellow"
     STYLE_MAGENTA = "bold magenta"
+    STYLE_MAGENTA_BLINK = "bold magenta blink"
     STYLE_BLUE = "bold blue"
 
     def initialize(self, target: str):
@@ -194,7 +195,7 @@ class RefactoredDrakbenAgent:
             self.console.print(f"\n{'='*60}", style="dim")
             self.console.print(
                 f"⚡ Iteration {iteration}/{self.state.max_iterations}",
-                style="bold cyan",
+                style=self.STYLE_CYAN,
             )
 
             # 1. Stagnation Check
@@ -252,7 +253,7 @@ class RefactoredDrakbenAgent:
     def _check_stagnation(self) -> bool:
         """Check for stagnation and triggering replan if needed. Returns True if halt required."""
         if self.evolution.detect_stagnation():
-            self.console.print("⚠️  STAGNATION DETECTED - forcing replan", style="bold yellow")
+            self.console.print("⚠️  STAGNATION DETECTED - forcing replan", style=self.STYLE_YELLOW)
             current_step = self.planner.get_next_step()
             if current_step:
                 self.planner.replan(current_step.step_id)
@@ -266,7 +267,7 @@ class RefactoredDrakbenAgent:
     def _handle_plan_completion(self):
         """Handle case where no steps are left."""
         if self.planner.is_plan_complete():
-            self.console.print("✅ Plan complete!", style="bold green")
+            self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
             self.state.phase = AttackPhase.COMPLETE
         else:
             self.console.print("❓ No executable step found", style="yellow")
@@ -435,7 +436,7 @@ class RefactoredDrakbenAgent:
 
         should_halt, halt_reason = self.state.should_halt()
         if should_halt:
-            self.console.print(f"\n🛑 HALT: {halt_reason}", style="bold yellow")
+            self.console.print(f"\n🛑 HALT: {halt_reason}", style=self.STYLE_YELLOW)
             return False
             
         return True
@@ -648,7 +649,7 @@ class RefactoredDrakbenAgent:
             ]
             if any(f in cmd for f in forbidden):
                 self.console.print(
-                    f"🛑 BLOCKED DESTRUCTIVE COMMAND: {cmd}", style="bold red"
+                    f"🛑 BLOCKED DESTRUCTIVE COMMAND: {cmd}", style=self.STYLE_RED
                 )
                 return {
                     "success": False,
@@ -658,7 +659,7 @@ class RefactoredDrakbenAgent:
 
             # Allow execution
             self.console.print(
-                f"⚠️  EXECUTING GENERIC COMMAND: {cmd}", style="bold yellow"
+                f"⚠️  EXECUTING GENERIC COMMAND: {cmd}", style=self.STYLE_YELLOW
             )
             result = self.executor.terminal.execute(cmd, timeout=60)
             return {
@@ -679,7 +680,7 @@ class RefactoredDrakbenAgent:
 
             self.console.print(
                 f"🧬 SYSTEM EVOLUTION TRIGGERED: {action} on {target}",
-                style="bold magenta blink",
+                style=self.STYLE_MAGENTA_BLINK,
             )
 
             if action == "create_tool":
@@ -1026,7 +1027,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
         # INIT -> RECON (target set)
         if self.state.phase == AttackPhase.INIT and self.state.target:
             self.state.phase = AttackPhase.RECON
-            self.console.print("📈 Phase transition: INIT -> RECON", style="bold blue")
+            self.console.print("📈 Phase transition: INIT -> RECON", style=self.STYLE_BLUE)
 
         # RECON -> VULN_SCAN (services discovered, no more remaining)
         elif (
@@ -1040,7 +1041,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
                 surface_key = f"{port}:{svc.service}"
                 self.state.remaining_attack_surface.add(surface_key)
             self.console.print(
-                "📈 Phase transition: RECON -> VULN_SCAN", style="bold blue"
+                "📈 Phase transition: RECON -> VULN_SCAN", style=self.STYLE_BLUE
             )
 
         # VULN_SCAN -> EXPLOIT (vulnerabilities found)
@@ -1051,7 +1052,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
         ):
             self.state.phase = AttackPhase.EXPLOIT
             self.console.print(
-                "📈 Phase transition: VULN_SCAN -> EXPLOIT", style="bold blue"
+                "📈 Phase transition: VULN_SCAN -> EXPLOIT", style=self.STYLE_BLUE
             )
 
         # VULN_SCAN -> COMPLETE (no vulnerabilities found, surfaces exhausted)
@@ -1063,20 +1064,20 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
             self.state.phase = AttackPhase.COMPLETE
             self.console.print(
                 "📈 Phase transition: VULN_SCAN -> COMPLETE (no vulns found)",
-                style="bold yellow",
+                style=self.STYLE_YELLOW,
             )
 
         # EXPLOIT -> POST_EXPLOIT (foothold achieved)
         elif self.state.phase == AttackPhase.EXPLOIT and self.state.has_foothold:
             self.state.phase = AttackPhase.POST_EXPLOIT
             self.console.print(
-                "📈 Phase transition: EXPLOIT -> POST_EXPLOIT", style="bold blue"
+                "📈 Phase transition: EXPLOIT -> POST_EXPLOIT", style=self.STYLE_BLUE
             )
 
     def _show_final_report(self):
         """Show final execution report"""
         self.console.print("\n" + "=" * 60, style="bold")
-        self.console.print("📊 FINAL REPORT", style="bold green")
+        self.console.print("📊 FINAL REPORT", style=self.STYLE_GREEN)
         self.console.print("=" * 60, style="bold")
 
         report = Text()
@@ -1093,7 +1094,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
             report.append(f"   Method: {self.state.foothold_method}\n", style="green")
 
         if self.state.invariant_violations:
-            report.append("\n❌ Invariant Violations:\n", style="bold red")
+            report.append("\n❌ Invariant Violations:\n", style=self.STYLE_RED)
             for violation in self.state.invariant_violations:
                 report.append(f"   - {violation}\n", style="red")
 
