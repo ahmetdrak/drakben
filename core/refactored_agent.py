@@ -700,8 +700,8 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
 
         return {
             "success": result.status.value == "success",
-            "stdout": result.stdout[:500],  # Max 500 char
-            "stderr": result.stderr[:200],  # Max 200 char
+            "stdout": result.stdout,
+            "stderr": result.stderr,
             "exit_code": result.exit_code,
             "args": args,
         }
@@ -788,7 +788,20 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
         # Tool failure tracking
         if not result.get("success"):
             self.tool_selector.record_tool_failure(tool_name)
+            # Observe failure too
+            self.brain.observe(
+                tool=tool_name, 
+                output=result.get("stdout", "") + "\n" + result.get("stderr", ""), 
+                success=False
+            )
             return
+
+        # Observe success
+        self.brain.observe(
+            tool=tool_name, 
+            output=result.get("stdout", "") + "\n" + result.get("stderr", ""), 
+            success=True
+        )
 
         # Success - update state based on tool
         if "nmap_port_scan" in tool_name:

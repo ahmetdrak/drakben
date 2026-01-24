@@ -323,10 +323,20 @@ class DrakbenMenu:
                 f"✅ OK ({result.duration:.1f}s)", style=self.COLORS["green"]
             )
             if result.stdout:
-                # First 500 chars
+                # First 500 chars for display
                 self.console.print(result.stdout[:500], style="dim")
         else:
             self.console.print(f"❌ Hata: {result.stderr[:150]}", style="red")
+
+        # FEEDBACK LOOP: Report back to brain so it remembers!
+        if self.brain:
+            output_content = result.stdout if result.stdout else result.stderr
+            tool_name = command.split()[0]
+            self.brain.observe(
+                tool=tool_name,
+                output=output_content,
+                success=(result.status.value == "success")
+            )
 
     # ========== COMMANDS ==========
 
@@ -397,13 +407,35 @@ class DrakbenMenu:
         self.console.print()
 
     def _cmd_target(self, args: str = ""):
-        """Set target - with visual feedback"""
+        """Set or clear target - with visual feedback"""
         from rich.panel import Panel
         
         lang = self.config.language
+        args = args.strip()
+
+        # Check for clear command
+        if args.lower() in ["clear", "off", "none", "delete", "sil", "iptal", "remove"]:
+            self.config_manager.set_target(None)
+            self.config = self.config_manager.config
+            
+            if lang == "tr":
+                msg = "[bold green]✅ Hedef temizlendi[/]"
+            else:
+                msg = "[bold green]✅ Target cleared[/]"
+            
+            self.console.print(Panel(
+                msg,
+                border_style="green",
+                padding=(0, 1)
+            ))
+            return
 
         if not args:
-            msg = "Kullanım: /target <IP>" if lang == "tr" else "Usage: /target <IP>"
+            if lang == "tr":
+                msg = "Kullanım: /target <IP>\nTemizlemek için: /target sil"
+            else:
+                msg = "Usage: /target <IP>\nTo clear: /target clear"
+                
             self.console.print(Panel(
                 f"[bold red]{msg}[/]",
                 title="[red]❌ Hata[/]" if lang == "tr" else "[red]❌ Error[/]",
@@ -412,7 +444,7 @@ class DrakbenMenu:
             ))
             return
 
-        self.config_manager.set_target(args.strip())
+        self.config_manager.set_target(args)
         self.config = self.config_manager.config
 
         if lang == "tr":

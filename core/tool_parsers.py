@@ -92,7 +92,7 @@ def parse_nmap_output(output: str, llm_client=None) -> List[Dict]:
         try:
             prompt = format_llm_prompt(
                 system_msg="You are a log parser. Extract open ports and services.",
-                user_msg=f"Parse this nmap output into JSON list [{{'port': int, 'proto': 'tcp', 'service': 'name'}}]:\n\n{output[:2000]}",
+                user_msg=f"Parse this nmap output into JSON list [{{'port': int, 'proto': 'tcp', 'service': 'name'}}]:\n\n{output[:25000]}",
                 json_response=True,
             )
             response = llm_client.query(prompt)
@@ -140,7 +140,7 @@ def parse_sqlmap_output(output: str, llm_client=None) -> List[Dict]:
         try:
             prompt = format_llm_prompt(
                 system_msg="You are a security log parser. Extract SQL injection details.",
-                user_msg=f"Parse this sqlmap output into JSON list [{{'parameter': 'name', 'technique': 'type', 'payload': 'string'}}]:\n\n{output[:2000]}",
+                user_msg=f"Parse this sqlmap output into JSON list [{{'parameter': 'name', 'technique': 'type', 'payload': 'string'}}]:\n\n{output[:25000]}",
                 json_response=True,
             )
             response = llm_client.query(prompt)

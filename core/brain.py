@@ -68,6 +68,8 @@ class MasterOrchestrator:
         """
         # Update context
         self.context_manager.update(system_context)
+        # SYNC: Make sure ExecutionContext has access to the latest context manager data
+        self.context.system_info.update(self.context_manager.current_context)
 
         # Continuous reasoning
         analysis = self.reasoning_engine.analyze(user_input, self.context)
@@ -189,8 +191,15 @@ Only technical terms (tool names, commands) can remain in English.
 Respond to the user in English.
 """
 
+
+        # Context Construction
+        context_str = ""
+        if context.system_info.get("last_tool"):
+            context_str += f"\n\n[PREVIOUS TOOL EXECUTION]\nTool: {context.system_info.get('last_tool')}\nStatus: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput:\n{context.system_info.get('last_output', '')[:5000]}\n[END PREVIOUS OUTPUT]\n"
+
         system_prompt = f"""You are DRAKBEN, an AI penetration testing assistant.
 {language_instruction}
+{context_str}
 
 Analyze the user's PENTEST request and respond in JSON format:
 {{
@@ -204,6 +213,7 @@ Analyze the user's PENTEST request and respond in JSON format:
 }}
 
 CRITICAL: The "response" field is what the user will see. Make it helpful and direct!
+If there is previous tool output, ANALYZE IT in your reasoning and explain it to the user.
 
 Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
 Target: """ + (context.target or "Not set")
@@ -852,6 +862,44 @@ class DrakbenBrain:
     def update_context(self, context_update: Dict):
         """Update brain context"""
         self.context_mgr.update(context_update)
+
+    def observe(self, tool: str, output: str, success: bool = True):
+        """
+        Observe tool output and update context.
+        This allows the Brain to 'see' what happened in the terminal.
+        """
+        logger.info(f"Brain observing tool {tool} (success={success})")
+        
+        # Create a history entry (for specialized history if needed)
+        entry = {
+            "type": "observation",
+            "tool": tool,
+            "output": output,  
+            "success": success,
+            "timestamp": "recent"
+        }
+        
+        # Update context manager
+        if self.context_mgr:
+            # We add it to context history
+            self.context_mgr.context_history.append(entry)
+            
+            # Update current context with latest tool info
+            current_update = {
+                "last_tool": tool,
+                # Store truncated output in current context to avoid bloating every prompt
+                # But keep it somewhat long for immediate next turn
+                "last_output": output[:10000], 
+                "last_success": success
+            }
+            
+            # Executed tools list
+            prev_tools = self.context_mgr.get("executed_tools", []) or []
+            if tool not in prev_tools:
+                prev_tools.append(tool)
+                current_update["executed_tools"] = prev_tools
+            
+            self.context_mgr.update(current_update)
 
     def get_stats(self) -> Dict:
         """Get brain statistics"""
