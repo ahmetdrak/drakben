@@ -292,15 +292,27 @@ class DrakbenMenu:
                 )
                 self.console.print(f"\n⚠️ {offline_msg}\n", style="yellow")
 
-        # Command suggestion
-        if result.get("command"):
-            self.console.print(f"📝 Komut: [bold yellow]{result['command']}[/]")
-
-            if result.get("needs_approval"):
-                q = "Çalıştır? (e/h)" if lang == "tr" else "Run? (y/n)"
-                resp = Prompt.ask(q, choices=["e", "h", "y", "n"], default="h")
-                if resp.lower() in ["e", "y"]:
-                    self._execute_command(result["command"])
+        # Command execution
+        command = result.get("command")
+        if command:
+            # FIX: Auto-approve internal slash commands (/scan, /target)
+            if command.strip().startswith("/"):
+                # Print it so user sees it happens
+                self.console.print(f"🤖 Otomatik işlem: {command}", style="dim")
+                self._execute_command(command)
+            else:
+                self.console.print(f"📝 Komut: [bold yellow]{command}[/]")
+                
+                # Check approval
+                if result.get("needs_approval", True):
+                    q = "Çalıştır? (e/h)" if lang == "tr" else "Run? (y/n)"
+                    # ... prompt code ...
+                    # For now just default to asking 
+                    resp = Prompt.ask(q, choices=["e", "h", "y", "n"], default="e")
+                    if resp.lower() in ["e", "y"]:
+                        self._execute_command(command)
+                else:
+                    self._execute_command(command)
 
     def _execute_command(self, command: str):
         """Execute command"""
