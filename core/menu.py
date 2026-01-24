@@ -73,6 +73,7 @@ class DrakbenMenu:
             "/scan": self._cmd_scan,
             "/shell": self._cmd_shell,
             "/status": self._cmd_status,
+            "/llm": self._cmd_llm_setup,
             "/clear": self._cmd_clear,
             "/tr": self._cmd_turkish,
             "/en": self._cmd_english,
@@ -152,7 +153,7 @@ class DrakbenMenu:
             style=f"bold {self.COLORS['cyan']}",
         )
         self.console.print(
-            "  /help /target /scan /shell /status /clear /tr /en /exit",
+            "  /help /target /scan /shell /status /llm /clear /tr /en /exit",
             style=f"bold {self.COLORS['cyan']}",
         )
         self.console.print()
@@ -348,6 +349,7 @@ class DrakbenMenu:
                 ("🔍 /scan", "Otonom tarama başlat"),
                 ("💻 /shell", "İnteraktif kabuk"),
                 ("📊 /status", "Durum bilgisi"),
+                ("🤖 /llm", "LLM/API ayarları"),
                 ("🧹 /clear", "Ekranı temizle"),
                 ("🇹🇷 /tr", "Türkçe mod"),
                 ("🇬🇧 /en", "English mode"),
@@ -363,6 +365,7 @@ class DrakbenMenu:
                 ("🔍 /scan", "Start autonomous scan"),
                 ("💻 /shell", "Interactive shell"),
                 ("📊 /status", "Status info"),
+                ("🤖 /llm", "LLM/API settings"),
                 ("🧹 /clear", "Clear screen"),
                 ("🇹🇷 /tr", "Turkish mode"),
                 ("🇬🇧 /en", "English mode"),
@@ -616,6 +619,177 @@ class DrakbenMenu:
             padding=(0, 1)
         ))
         self.console.print()
+
+    def _cmd_llm_setup(self, args: str = ""):
+        """Interactive LLM/API setup wizard"""
+        from rich.panel import Panel
+        from rich.table import Table
+        from pathlib import Path
+        
+        lang = self.config.language
+        
+        # Provider options
+        providers = {
+            "1": ("openrouter", "OpenRouter (Ücretsiz modeller var)" if lang == "tr" else "OpenRouter (Free models available)"),
+            "2": ("openai", "OpenAI (GPT-4, GPT-4o)"),
+            "3": ("ollama", "Ollama (Yerel, Ücretsiz)" if lang == "tr" else "Ollama (Local, Free)"),
+        }
+        
+        # Model options per provider
+        models = {
+            "openrouter": [
+                ("deepseek/deepseek-chat", "DeepSeek Chat (Ücretsiz)" if lang == "tr" else "DeepSeek Chat (Free)"),
+                ("meta-llama/llama-3.1-8b-instruct:free", "Llama 3.1 8B (Ücretsiz)" if lang == "tr" else "Llama 3.1 8B (Free)"),
+                ("google/gemma-2-9b-it:free", "Gemma 2 9B (Ücretsiz)" if lang == "tr" else "Gemma 2 9B (Free)"),
+                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet"),
+                ("openai/gpt-4o", "GPT-4o"),
+            ],
+            "openai": [
+                ("gpt-4o-mini", "GPT-4o Mini (Ucuz)" if lang == "tr" else "GPT-4o Mini (Cheap)"),
+                ("gpt-4o", "GPT-4o"),
+                ("gpt-4-turbo", "GPT-4 Turbo"),
+            ],
+            "ollama": [
+                ("llama3.2", "Llama 3.2"),
+                ("llama3.1", "Llama 3.1"),
+                ("mistral", "Mistral"),
+                ("codellama", "Code Llama"),
+            ],
+        }
+        
+        # Show current status
+        title = "🤖 LLM Kurulumu" if lang == "tr" else "🤖 LLM Setup"
+        self.console.print()
+        
+        # Show current config
+        current_info = "[dim]Mevcut ayar yok[/dim]" if lang == "tr" else "[dim]No current config[/dim]"
+        if self.brain and self.brain.llm_client:
+            info = self.brain.llm_client.get_provider_info()
+            current_info = f"[green]●[/green] {info.get('provider', 'N/A')} / {info.get('model', 'N/A')}"
+        
+        self.console.print(Panel(
+            f"{'Mevcut' if lang == 'tr' else 'Current'}: {current_info}",
+            title=f"[bold {self.COLORS['cyan']}]{title}[/]",
+            border_style=self.COLORS["purple"],
+            padding=(0, 1)
+        ))
+        
+        # Provider selection
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("No", style=f"bold {self.COLORS['yellow']}")
+        table.add_column("Provider", style=self.COLORS["fg"])
+        
+        for key, (_, desc) in providers.items():
+            table.add_row(f"[{key}]", desc)
+        
+        self.console.print()
+        self.console.print(table)
+        
+        # Get provider choice
+        prompt_text = "Provider seç (1-3) veya [q] çıkış" if lang == "tr" else "Select provider (1-3) or [q] to quit"
+        self.console.print(f"\n{prompt_text}: ", end="")
+        choice = input().strip().lower()
+        
+        if choice == "q" or choice not in providers:
+            return
+        
+        provider_key, _ = providers[choice]
+        
+        # Model selection
+        self.console.print()
+        model_table = Table(show_header=False, box=None, padding=(0, 2))
+        model_table.add_column("No", style=f"bold {self.COLORS['yellow']}")
+        model_table.add_column("Model", style=self.COLORS["fg"])
+        
+        provider_models = models[provider_key]
+        for i, (_, desc) in enumerate(provider_models, 1):
+            model_table.add_row(f"[{i}]", desc)
+        
+        self.console.print(model_table)
+        
+        prompt_text = f"Model seç (1-{len(provider_models)})" if lang == "tr" else f"Select model (1-{len(provider_models)})"
+        self.console.print(f"\n{prompt_text}: ", end="")
+        model_choice = input().strip()
+        
+        try:
+            model_idx = int(model_choice) - 1
+            if 0 <= model_idx < len(provider_models):
+                selected_model, _ = provider_models[model_idx]
+            else:
+                return
+        except ValueError:
+            return
+        
+        # API Key input (not needed for Ollama)
+        api_key = ""
+        if provider_key != "ollama":
+            prompt_text = "API Key gir" if lang == "tr" else "Enter API Key"
+            self.console.print(f"\n{prompt_text}: ", end="")
+            api_key = input().strip()
+            
+            if not api_key:
+                msg = "API key gerekli!" if lang == "tr" else "API key required!"
+                self.console.print(f"[red]❌ {msg}[/red]")
+                return
+        
+        # Save to config/api.env
+        env_file = Path("config/api.env")
+        
+        if provider_key == "openrouter":
+            env_content = f"""# DRAKBEN LLM Configuration
+# Auto-generated by /llm command
+
+OPENROUTER_API_KEY={api_key}
+OPENROUTER_MODEL={selected_model}
+"""
+        elif provider_key == "openai":
+            env_content = f"""# DRAKBEN LLM Configuration
+# Auto-generated by /llm command
+
+OPENAI_API_KEY={api_key}
+OPENAI_MODEL={selected_model}
+"""
+        else:  # ollama
+            env_content = f"""# DRAKBEN LLM Configuration
+# Auto-generated by /llm command
+
+LOCAL_LLM_URL=http://localhost:11434/api/generate
+LOCAL_LLM_MODEL={selected_model}
+"""
+        
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.write(env_content)
+        
+        # Reload environment
+        from dotenv import load_dotenv
+        load_dotenv(env_file, override=True)
+        
+        # Reset brain to pick up new config
+        self.brain = None
+        
+        # Success message
+        msg = f"✅ LLM ayarlandı: {provider_key} / {selected_model}" if lang == "tr" else f"✅ LLM configured: {provider_key} / {selected_model}"
+        self.console.print(Panel(
+            f"[bold green]{msg}[/bold green]",
+            border_style="green",
+            padding=(0, 1)
+        ))
+        
+        # Test connection
+        test_msg = "Bağlantı test ediliyor..." if lang == "tr" else "Testing connection..."
+        self.console.print(f"\n[dim]{test_msg}[/dim]")
+        
+        from core.brain import DrakbenBrain
+        self.brain = DrakbenBrain()
+        
+        if self.brain.llm_client:
+            test_result = self.brain.test_llm()
+            if test_result.get("connected"):
+                ok_msg = "✅ Bağlantı başarılı!" if lang == "tr" else "✅ Connection successful!"
+                self.console.print(f"[green]{ok_msg}[/green]\n")
+            else:
+                err_msg = "❌ Bağlantı hatası:" if lang == "tr" else "❌ Connection error:"
+                self.console.print(f"[red]{err_msg} {test_result.get('error', 'Unknown')}[/red]\n")
 
     def _cmd_exit(self, args: str = ""):
         """Çıkış"""
