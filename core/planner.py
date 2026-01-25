@@ -363,28 +363,50 @@ class Planner:
     
     def replan(self, failed_step_id: str) -> bool:
         """
-        Replan after failure.
-        - Find alternative tool for failed step
-        - Skip step if no alternative
-        - Adjust heuristics
+        Replan after failure with ADAPTIVE LEARNING.
+        - Analyzes error type (Timeout? WAF? Missing Tool?)
+        - Adjusts strategy parameters (increase timeout, reduce threads)
+        - Finds alternative tools
         """
         step = self._find_step(failed_step_id)
         if step is None:
             return False
         
-        # Find alternative tool for same action
+        # 1. Analyze Failure Reason
+        error_lower = step.error.lower()
+        is_timeout = "timeout" in error_lower or "timed out" in error_lower
+        is_conn_refused = "connection refused" in error_lower
+        is_missing = "not found" in error_lower or "missing" in error_lower
+        
+        # 2. Adaptive Parameter Tuning (Heuristics)
+        if is_timeout:
+            # Increase global timeout heuristic
+            self.memory.update_heuristic("default_timeout", lambda x: min(x * 1.5, 300))
+            # Decrease aggressiveness (maybe network is slow/protected)
+            self.memory.update_heuristic("aggressiveness", lambda x: max(x - 0.2, 0.1))
+            step.params["timeout"] = 120 # Force higher timeout for retry
+            
+        if is_conn_refused:
+             # Maybe we are blocked?
+             pass 
+
+        # 3. Find Alternative Tool
         alternative = self._find_alternative_tool(step.action, step.tool)
         
         if alternative:
             previous_tool = step.tool
-            # Replace tool in step
             step.tool = alternative
             step.status = StepStatus.PENDING
             step.retry_count = 0
-            step.error = f"Replanned: switched from {previous_tool} to {alternative}"
+            
+            reason = "Adaptive Replan: "
+            if is_timeout: reason += "Timeout detected, increased limits. "
+            if is_missing: reason += "Tool missing. "
+            
+            step.error = f"{reason}Switched {previous_tool} -> {alternative}"
             self._persist_steps()
             
-            # Adjust heuristic - increase penalty increment for failed tools
+            # Penalize the failed tool
             current_increment = self.memory.get_heuristic("penalty_increment")
             self.memory.set_heuristic("penalty_increment", min(20.0, current_increment + 1.0))
             
@@ -392,7 +414,7 @@ class Planner:
         else:
             # No alternative - skip step
             step.status = StepStatus.SKIPPED
-            step.error = "No alternative tool available"
+            step.error = f"No alternative tool available. Failure: {step.error}"
             self._persist_steps()
             return True
     

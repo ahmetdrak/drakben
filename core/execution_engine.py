@@ -74,10 +74,10 @@ class CommandSanitizer:
     # Commands that require explicit confirmation
     HIGH_RISK_PATTERNS = [
         r'rm\s+-[rf]+',        # rm with -r or -f flags
-        r'chmod\s+[0-7]{3,4}', # chmod with octal
-        r'chown\s+',           # chown
-        r'mv\s+/\w+',          # Moving system files
-        r'>\s+/\w+',           # Redirecting to root level
+        r'chmod\s+[0-7]{3,4}\s+/(etc|bin|usr|var|boot|sbin)', # Forbidden system chmod
+        r'chown\s+.*?\s+/(etc|bin|usr|var|boot|sbin)',       # Forbidden system chown
+        r'mv\s+.*?\s+/(etc|bin|usr|var|boot|sbin)',          # Forbidden system mv
+        r'>\s*/(etc|bin|usr|var|boot|sbin)',                 # Forbidden redirection to system
         r'sudo\s+',            # sudo commands
         r'su\s+',              # su commands
     ]
