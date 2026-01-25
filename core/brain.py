@@ -155,15 +155,49 @@ class ContinuousReasoning:
                 "risks": List[str],
                 "llm_response": str (optional)
             }
+            
+        ERROR RECOVERY:
+        - Retry LLM on transient errors (timeout, rate limit)
+        - Fall back to rule-based analysis on persistent failure
         """
-        # Try LLM-powered analysis first
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        MAX_RETRIES = 2
+        RETRYABLE_ERRORS = ["Timeout", "Rate Limit", "Server Error", "Connection"]
+        
+        # Try LLM-powered analysis first (with retry for transient errors)
         if self.use_llm and self.llm_client:
-            llm_analysis = self._analyze_with_llm(user_input, context)
-            if llm_analysis.get("success"):
-                return llm_analysis
+            last_error = None
+            
+            for attempt in range(MAX_RETRIES):
+                llm_analysis = self._analyze_with_llm(user_input, context)
+                
+                if llm_analysis.get("success"):
+                    return llm_analysis
+                
+                # Check if error is retryable
+                error_msg = llm_analysis.get("error", "")
+                is_retryable = any(err in error_msg for err in RETRYABLE_ERRORS)
+                
+                if is_retryable and attempt < MAX_RETRIES - 1:
+                    logger.warning(f"LLM transient error, retrying ({attempt + 1}/{MAX_RETRIES}): {error_msg}")
+                    time.sleep(1 + attempt)  # Exponential backoff
+                    continue
+                
+                last_error = error_msg
+                break
+            
+            # Log persistent LLM failure
+            if last_error:
+                logger.warning(f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}")
 
         # Fallback to rule-based analysis
-        return self._analyze_rule_based(user_input, context)
+        logger.info("Falling back to rule-based analysis")
+        rule_result = self._analyze_rule_based(user_input, context)
+        rule_result["fallback_mode"] = True  # Mark that we used fallback
+        return rule_result
 
     def _analyze_with_llm(self, user_input: str, context: ExecutionContext) -> Dict:
         """LLM-powered analysis with language-aware response"""
@@ -217,9 +251,16 @@ If there is previous tool output, ANALYZE IT in your reasoning and explain it to
 
 Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
 Special Commands (Use these in 'command' field for automation):
-- /scan : Starts the FULL AUTONOMOUS AGENT loop (Best for 'scan this site', 'find vulns', 'hack this')
+- /scan : Starts autonomous scan (auto mode - agent decides)
+- /scan stealth : Silent/stealth scan (slow, careful, less detectable)
+- /scan aggressive : Fast aggressive scan (noisy but thorough)
 - /target <IP> : Sets the target
 - /target clear : Clears the target
+
+IMPORTANT MODE DETECTION:
+- If user says "sessizce", "gizlice", "silently", "quietly", "stealth" → use "/scan stealth"
+- If user says "hızlı", "agresif", "quickly", "fast", "aggressive" → use "/scan aggressive"
+- Otherwise → use "/scan" (auto mode)
 
 Target: """ + (context.target or "Not set")
 

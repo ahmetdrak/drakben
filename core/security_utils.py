@@ -59,7 +59,7 @@ class CredentialStore:
         return hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000, dklen=32)
     
     def _encrypt(self, data: str, key: bytes) -> bytes:
-        """Encrypt data using AES-GCM"""
+        """Encrypt data using AES-GCM (REQUIRES pycryptodome)"""
         try:
             from Crypto.Cipher import AES
             from Crypto.Random import get_random_bytes
@@ -70,13 +70,15 @@ class CredentialStore:
             
             return nonce + tag + ciphertext
         except ImportError:
-            # Fallback: simple XOR (NOT SECURE - just for basic obfuscation)
-            logger.warning("pycryptodome not available, using basic obfuscation")
-            data_bytes = data.encode()
-            return bytes(b ^ key[i % len(key)] for i, b in enumerate(data_bytes))
+            # NO FALLBACK - XOR is not secure
+            logger.error("pycryptodome not available! Install with: pip install pycryptodome")
+            raise ImportError(
+                "pycryptodome is REQUIRED for secure credential storage. "
+                "Install with: pip install pycryptodome"
+            )
     
     def _decrypt(self, encrypted: bytes, key: bytes) -> str:
-        """Decrypt data"""
+        """Decrypt data (REQUIRES pycryptodome)"""
         try:
             from Crypto.Cipher import AES
             
@@ -89,8 +91,12 @@ class CredentialStore:
             
             return data.decode()
         except ImportError:
-            # Fallback
-            return bytes(b ^ key[i % len(key)] for i, b in enumerate(encrypted)).decode()
+            # NO FALLBACK - XOR is not secure
+            logger.error("pycryptodome not available for decryption!")
+            raise ImportError(
+                "pycryptodome is REQUIRED for credential decryption. "
+                "Install with: pip install pycryptodome"
+            )
     
     def store(self, key: str, value: str, master_password: Optional[str] = None) -> bool:
         """
@@ -111,9 +117,15 @@ class CredentialStore:
                 logger.info(f"Credential stored in keyring: {key}")
                 return True
             
-            # File-based storage
+            # File-based storage - REQUIRE explicit password (fail-safe)
             if not master_password:
-                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD", "drakben_default")
+                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
+                if not master_password:
+                    logger.error("Master password required for credential storage!")
+                    raise ValueError(
+                        "Master password is REQUIRED. Set DRAKBEN_MASTER_PASSWORD env var "
+                        "or provide master_password parameter."
+                    )
             
             # Load existing credentials
             credentials = self._load_file(master_password)
@@ -124,6 +136,8 @@ class CredentialStore:
             logger.info(f"Credential stored in file: {key}")
             return True
             
+        except ValueError:
+            raise  # Re-raise ValueError for missing password
         except Exception as e:
             logger.error(f"Failed to store credential: {e}")
             return False
@@ -146,9 +160,12 @@ class CredentialStore:
                 if value:
                     return value
             
-            # File-based storage
+            # File-based storage - REQUIRE explicit password
             if not master_password:
-                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD", "drakben_default")
+                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
+                if not master_password:
+                    logger.warning("Master password not provided for credential retrieval")
+                    return None  # Graceful fail for retrieval
             
             credentials = self._load_file(master_password)
             return credentials.get(key)
@@ -164,8 +181,12 @@ class CredentialStore:
                 import keyring
                 keyring.delete_password(self.SERVICE_NAME, key)
             
+            # File-based storage - REQUIRE explicit password
             if not master_password:
-                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD", "drakben_default")
+                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
+                if not master_password:
+                    logger.error("Master password required for credential deletion")
+                    return False  # Graceful fail for deletion
             
             credentials = self._load_file(master_password)
             if key in credentials:
@@ -260,15 +281,17 @@ class AuditLogger:
     - JSON export
     - Event filtering
     - Tamper detection (hash chain)
+    - Thread-safe operations
     """
     
     def __init__(self, db_path: str = "audit.db"):
         self._db_path_str = db_path
         self._conn = None
+        self._lock = threading.Lock()  # Thread safety for hash chain
         
         # For in-memory db, keep connection open
         if db_path == ":memory:":
-            self._conn = sqlite3.connect(db_path)
+            self._conn = sqlite3.connect(db_path, check_same_thread=False)
         
         self._init_db()
         self._last_hash = self._get_last_hash()
@@ -332,38 +355,40 @@ class AuditLogger:
     
     def log(self, event: AuditEvent):
         """
-        Log audit event.
+        Log audit event (thread-safe).
         
         Args:
             event: AuditEvent to log
         """
-        event_hash = self._compute_hash(event, self._last_hash)
+        with self._lock:  # Thread-safe hash chain updates
+            event_hash = self._compute_hash(event, self._last_hash)
+            
+            conn = self._get_connection()
+            try:
+                conn.execute("""
+                    INSERT INTO audit_log 
+                    (timestamp, event_type, user, source_ip, target, action, details, success, risk_level, hash, prev_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    event.timestamp,
+                    event.event_type.value,
+                    event.user,
+                    event.source_ip,
+                    event.target,
+                    event.action,
+                    json.dumps(event.details),
+                    1 if event.success else 0,
+                    event.risk_level,
+                    event_hash,
+                    self._last_hash
+                ))
+                conn.commit()
+            finally:
+                if not self._conn:
+                    conn.close()
+            
+            self._last_hash = event_hash
         
-        conn = self._get_connection()
-        try:
-            conn.execute("""
-                INSERT INTO audit_log 
-                (timestamp, event_type, user, source_ip, target, action, details, success, risk_level, hash, prev_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                event.timestamp,
-                event.event_type.value,
-                event.user,
-                event.source_ip,
-                event.target,
-                event.action,
-                json.dumps(event.details),
-                1 if event.success else 0,
-                event.risk_level,
-                event_hash,
-                self._last_hash
-            ))
-            conn.commit()
-        finally:
-            if not self._conn:
-                conn.close()
-        
-        self._last_hash = event_hash
         logger.debug(f"Audit logged: {event.action}")
     
     def log_command(
@@ -430,7 +455,7 @@ class AuditLogger:
         query += f" ORDER BY timestamp DESC LIMIT {limit}"
         
         results = []
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self._db_path_str) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(query, params)
             for row in cursor:
@@ -614,35 +639,51 @@ class ProxyManager:
 
 
 # =========================================
-# CONVENIENCE FUNCTIONS
+# CONVENIENCE FUNCTIONS (Thread-Safe Singletons)
 # =========================================
+
+import threading
 
 _credential_store: Optional[CredentialStore] = None
 _audit_logger: Optional[AuditLogger] = None
 _proxy_manager: Optional[ProxyManager] = None
 
+# Thread-safe locks for singleton instantiation
+_credential_store_lock = threading.Lock()
+_audit_logger_lock = threading.Lock()
+_proxy_manager_lock = threading.Lock()
+
 
 def get_credential_store() -> CredentialStore:
-    """Get global credential store instance"""
+    """Get global credential store instance (thread-safe)"""
     global _credential_store
     if _credential_store is None:
-        _credential_store = CredentialStore()
+        with _credential_store_lock:
+            # Double-check pattern
+            if _credential_store is None:
+                _credential_store = CredentialStore()
     return _credential_store
 
 
 def get_audit_logger() -> AuditLogger:
-    """Get global audit logger instance"""
+    """Get global audit logger instance (thread-safe)"""
     global _audit_logger
     if _audit_logger is None:
-        _audit_logger = AuditLogger()
+        with _audit_logger_lock:
+            # Double-check pattern
+            if _audit_logger is None:
+                _audit_logger = AuditLogger()
     return _audit_logger
 
 
 def get_proxy_manager() -> ProxyManager:
-    """Get global proxy manager instance"""
+    """Get global proxy manager instance (thread-safe)"""
     global _proxy_manager
     if _proxy_manager is None:
-        _proxy_manager = ProxyManager()
+        with _proxy_manager_lock:
+            # Double-check pattern
+            if _proxy_manager is None:
+                _proxy_manager = ProxyManager()
     return _proxy_manager
 
 

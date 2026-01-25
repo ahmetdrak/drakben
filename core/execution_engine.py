@@ -69,6 +69,17 @@ class CommandSanitizer:
         'curl | sh',
         'curl | bash',
         'wget -O- | bash',
+        # Sensitive file access
+        'cat /etc/shadow',
+        'cat /etc/passwd',
+        'cat /etc/sudoers',
+        'head /etc/shadow',
+        'tail /etc/shadow',
+        'less /etc/shadow',
+        'more /etc/shadow',
+        'vi /etc/shadow',
+        'vim /etc/shadow',
+        'nano /etc/shadow',
     ]
     
     # Commands that require explicit confirmation
@@ -110,6 +121,37 @@ class CommandSanitizer:
                     raise SecurityError(f"Potential shell injection detected: pattern '{pattern}'")
         
         return command
+    
+    @classmethod
+    def requires_confirmation(cls, command: str) -> Tuple[bool, str]:
+        """
+        Check if command requires user confirmation before execution.
+        
+        Returns:
+            Tuple of (requires_confirmation: bool, reason: str)
+        """
+        command_lower = command.lower().strip()
+        
+        # Check for high-risk patterns
+        for pattern in cls.HIGH_RISK_PATTERNS:
+            if re.search(pattern, command, re.IGNORECASE):
+                return True, f"High-risk pattern detected: {pattern}"
+        
+        # Check for sudo/su
+        if 'sudo ' in command_lower or command_lower.startswith('su '):
+            return True, "Elevated privilege command"
+        
+        # Check for network operations that could be dangerous
+        if any(x in command_lower for x in ['curl', 'wget', 'nc ', 'netcat']):
+            if any(y in command_lower for y in ['| sh', '| bash', '-O-', 'exec']):
+                return True, "Network command with execution"
+        
+        # Check for file modifications in sensitive areas
+        if any(x in command for x in ['/etc/', '/usr/', '/bin/', '/sbin/']):
+            if any(y in command_lower for y in ['rm ', 'mv ', 'cp ', '> ', '>>']):
+                return True, "File modification in system directory"
+        
+        return False, ""
     
     @classmethod
     def is_high_risk(cls, command: str) -> bool:
@@ -173,13 +215,72 @@ class ExecutionResult:
 # ====================
 # MODULE 1: SmartTerminal
 # ====================
-class SmartTerminal:
-    """Intelligent command executor with safety and monitoring"""
+# History size limit to prevent memory leaks
+MAX_EXECUTION_HISTORY = 1000
 
-    def __init__(self):
+class SmartTerminal:
+    """Intelligent command executor with safety, monitoring, and user confirmation"""
+
+    def __init__(self, confirmation_callback: Optional[Callable[[str, str], bool]] = None):
+        """
+        Initialize SmartTerminal.
+        
+        Args:
+            confirmation_callback: Optional callback for user confirmation.
+                                   Takes (command, reason) and returns True to allow, False to deny.
+                                   If None, high-risk commands are blocked by default.
+        """
         self.execution_history: List[ExecutionResult] = []
         self.current_process: Optional[subprocess.Popen] = None
         self.sanitizer = CommandSanitizer()
+        self._history_lock = threading.Lock()  # Thread safety for history
+        self._confirmation_callback = confirmation_callback
+        self._auto_approve = False  # Set True to skip confirmations (dangerous!)
+    
+    def set_confirmation_callback(self, callback: Optional[Callable[[str, str], bool]]):
+        """Set or update the confirmation callback"""
+        self._confirmation_callback = callback
+    
+    def set_auto_approve(self, auto: bool):
+        """
+        Enable/disable auto-approval for high-risk commands.
+        WARNING: Only use in controlled environments!
+        """
+        self._auto_approve = auto
+        if auto:
+            logger.warning("SECURITY: Auto-approve enabled for high-risk commands!")
+    
+    def _request_confirmation(self, command: str, reason: str) -> bool:
+        """
+        Request user confirmation for high-risk command.
+        
+        Returns:
+            True if approved, False if denied
+        """
+        if self._auto_approve:
+            logger.info(f"Auto-approved: {command[:50]}...")
+            return True
+        
+        if self._confirmation_callback:
+            return self._confirmation_callback(command, reason)
+        
+        # No callback and no auto-approve = deny by default
+        logger.warning(f"High-risk command blocked (no confirmation): {command[:50]}...")
+        return False
+    
+    def _add_to_history(self, result: ExecutionResult) -> None:
+        """Add result to history with rotation to prevent memory leak"""
+        with self._history_lock:
+            self.execution_history.append(result)
+            # Rotate history if too large
+            if len(self.execution_history) > MAX_EXECUTION_HISTORY:
+                # Keep last MAX_EXECUTION_HISTORY entries
+                self.execution_history = self.execution_history[-MAX_EXECUTION_HISTORY:]
+    
+    def clear_history(self) -> None:
+        """Clear execution history to free memory"""
+        with self._history_lock:
+            self.execution_history.clear()
 
     def execute(
         self,
@@ -189,9 +290,13 @@ class SmartTerminal:
         shell: bool = False,
         callback: Optional[Callable] = None,
         skip_sanitization: bool = False,
+        skip_confirmation: bool = False,
     ) -> ExecutionResult:
         """
-        Execute command with monitoring and security checks.
+        Execute command with monitoring, security checks, and user confirmation.
+        
+        Args:
+            skip_confirmation: If True, bypass user confirmation (use with caution!)
         """
         start_time = time.time()
 
@@ -211,7 +316,22 @@ class SmartTerminal:
                     timestamp=start_time,
                 )
             
-            # 2. Execute process
+            # 2. Check if user confirmation is required
+            if not skip_confirmation:
+                needs_confirm, reason = CommandSanitizer.requires_confirmation(sanitized_cmd)
+                if needs_confirm:
+                    if not self._request_confirmation(sanitized_cmd, reason):
+                        return ExecutionResult(
+                            command=sanitized_cmd,
+                            status=ExecutionStatus.FAILED,
+                            stdout="",
+                            stderr=f"CONFIRMATION DENIED: {reason}",
+                            exit_code=-2,
+                            duration=0.0,
+                            timestamp=start_time,
+                        )
+            
+            # 3. Execute process
             process = self._create_process(cmd_args, shell, capture_output)
             self.current_process = process
 
@@ -229,7 +349,7 @@ class SmartTerminal:
                 timestamp=start_time,
             )
 
-            self.execution_history.append(result)
+            self._add_to_history(result)  # Use thread-safe method with rotation
             if callback:
                 callback(result)
             return result
@@ -368,7 +488,7 @@ class SmartTerminal:
             duration=duration,
             timestamp=start_time,
         )
-        self.execution_history.append(result)
+        self._add_to_history(result)  # Use thread-safe method with rotation
         return result
 
     def execute_async(
@@ -456,6 +576,19 @@ class CommandGenerator:
 
         return cmd
 
+    def _sanitize_url(self, url: str) -> str:
+        """Sanitize URL to prevent command injection"""
+        import shlex
+        # Remove dangerous characters that could break shell commands
+        dangerous_chars = ["'", '"', ';', '|', '&', '$', '`', '\\', '\n', '\r']
+        sanitized = url
+        for char in dangerous_chars:
+            sanitized = sanitized.replace(char, '')
+        # Also validate URL format
+        if not sanitized.startswith(('http://', 'https://')):
+            logger.warning(f"URL doesn't start with http(s)://: {sanitized[:50]}")
+        return sanitized
+    
     def generate_sqlmap_command(
         self,
         url: str,
@@ -465,8 +598,14 @@ class CommandGenerator:
         tables: bool = False,
         dump: bool = False,
     ) -> str:
-        """Generate sqlmap command"""
-        cmd = f"sqlmap -u '{url}' --batch --level={level} --risk={risk}"
+        """Generate sqlmap command with URL sanitization"""
+        # SECURITY: Sanitize URL to prevent command injection
+        safe_url = self._sanitize_url(url)
+        # Validate level and risk are within bounds
+        level = max(1, min(5, int(level)))
+        risk = max(1, min(3, int(risk)))
+        
+        cmd = f"sqlmap -u '{safe_url}' --batch --level={level} --risk={risk}"
 
         if dbs:
             cmd += " --dbs"
@@ -483,11 +622,18 @@ class CommandGenerator:
         wordlist: str = "/usr/share/wordlists/dirb/common.txt",
         extensions: Optional[str] = None,
     ) -> str:
-        """Generate gobuster command"""
-        cmd = f"gobuster dir -u {url} -w {wordlist}"
+        """Generate gobuster command with URL sanitization"""
+        # SECURITY: Sanitize URL
+        safe_url = self._sanitize_url(url)
+        # Sanitize wordlist path
+        safe_wordlist = wordlist.replace("'", "").replace('"', '').replace(';', '')
+        
+        cmd = f"gobuster dir -u {safe_url} -w {safe_wordlist}"
 
         if extensions:
-            cmd += f" -x {extensions}"
+            # Sanitize extensions
+            safe_ext = extensions.replace("'", "").replace('"', '').replace(';', '')
+            cmd += f" -x {safe_ext}"
 
         cmd += " -o gobuster_results.txt"
 
@@ -653,35 +799,66 @@ class StreamingMonitor:
         self.monitoring = False
 
     def monitor_process(
-        self, process: subprocess.Popen, callback: Optional[Callable] = None
+        self, process: subprocess.Popen, callback: Optional[Callable] = None,
+        timeout: float = 300.0
     ) -> Tuple[str, str]:
-        """Monitor process output in real-time"""
+        """Monitor process output in real-time with timeout protection"""
         stdout_lines = []
         stderr_lines = []
+        stop_event = threading.Event()
 
         def read_stdout():
-            for line in process.stdout:
-                stdout_lines.append(line)
-                if callback:
-                    callback("stdout", line)
+            try:
+                for line in process.stdout:
+                    if stop_event.is_set():
+                        break
+                    stdout_lines.append(line)
+                    if callback:
+                        callback("stdout", line)
+            except Exception as e:
+                logger.debug(f"Stdout reader exception: {e}")
 
         def read_stderr():
-            for line in process.stderr:
-                stderr_lines.append(line)
-                if callback:
-                    callback("stderr", line)
+            try:
+                for line in process.stderr:
+                    if stop_event.is_set():
+                        break
+                    stderr_lines.append(line)
+                    if callback:
+                        callback("stderr", line)
+            except Exception as e:
+                logger.debug(f"Stderr reader exception: {e}")
 
-        # Start threads
-        stdout_thread = threading.Thread(target=read_stdout)
-        stderr_thread = threading.Thread(target=read_stderr)
+        # Start threads as daemon to prevent blocking
+        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
 
         stdout_thread.start()
         stderr_thread.start()
 
-        # Wait for completion
-        process.wait()
-        stdout_thread.join()
-        stderr_thread.join()
+        # Wait for process with timeout
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Process timed out after {timeout}s, terminating...")
+            stop_event.set()
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+        # Join threads with timeout to prevent deadlock
+        stop_event.set()  # Signal threads to stop
+        join_timeout = 5.0  # Max 5 seconds to wait for threads
+        
+        stdout_thread.join(timeout=join_timeout)
+        if stdout_thread.is_alive():
+            logger.warning("Stdout thread did not terminate in time")
+            
+        stderr_thread.join(timeout=join_timeout)
+        if stderr_thread.is_alive():
+            logger.warning("Stderr thread did not terminate in time")
 
         return "".join(stdout_lines), "".join(stderr_lines)
 

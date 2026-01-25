@@ -5,6 +5,7 @@
 import hashlib
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -131,6 +132,7 @@ class RateLimiter:
     """
     Token bucket rate limiter for API requests.
     Prevents hitting rate limits by spacing out requests.
+    Uses threading.Condition for efficient waiting instead of busy-polling.
     """
     
     def __init__(self, requests_per_minute: int = 60, burst_size: int = 10):
@@ -146,20 +148,21 @@ class RateLimiter:
         self.tokens = burst_size
         self.last_update = time.time()
         self._lock = Lock()
+        self._condition = threading.Condition(self._lock)
         self._retry_after: Optional[float] = None
     
     def acquire(self, timeout: float = 30.0) -> bool:
         """
         Acquire a token to make a request.
-        Blocks until token is available or timeout.
+        Uses Condition.wait() for efficient blocking instead of busy-polling.
         
         Returns:
             True if token acquired, False if timeout
         """
-        start_time = time.time()
+        deadline = time.time() + timeout
         
-        while True:
-            with self._lock:
+        with self._condition:
+            while True:
                 # Check if we're in a retry-after period
                 if self._retry_after and time.time() < self._retry_after:
                     wait_time = self._retry_after - time.time()
@@ -175,19 +178,31 @@ class RateLimiter:
                         return True
                     
                     wait_time = (1 - self.tokens) / self.rate
-            
-            # Check timeout
-            if time.time() - start_time + wait_time > timeout:
-                return False
-            
-            # Wait before retrying
-            time.sleep(min(wait_time, 0.1))
+                
+                # Check timeout
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    return False
+                
+                # Efficient wait using Condition (releases lock while waiting)
+                actual_wait = min(wait_time, remaining, 1.0)  # Max 1 second wait
+                self._condition.wait(timeout=actual_wait)
     
     def set_retry_after(self, seconds: float):
-        """Set retry-after period from API response"""
+        """
+        Set retry-after period from API response.
+        
+        Safety: Caps maximum wait time to 60 seconds to prevent 
+        indefinite blocking from malformed/malicious responses.
+        """
+        # Cap retry-after to maximum 60 seconds for safety
+        safe_seconds = min(seconds, 60.0)
         with self._lock:
-            self._retry_after = time.time() + seconds
-            logger.warning(f"Rate limit hit, waiting {seconds}s before next request")
+            self._retry_after = time.time() + safe_seconds
+            if seconds > 60.0:
+                logger.warning(f"Rate limit retry-after capped from {seconds}s to {safe_seconds}s")
+            else:
+                logger.warning(f"Rate limit hit, waiting {safe_seconds}s before next request")
 
 
 class OpenRouterClient:
@@ -403,11 +418,11 @@ class OpenRouterClient:
                 return
             
             import json
-            import signal
             
             # Set timeout for iter_lines to prevent infinite wait
+            # Cap at 5 minutes absolute maximum for safety
             start_time = time.time()
-            max_stream_time = timeout * 2  # Allow 2x timeout for streaming
+            max_stream_time = min(timeout * 2, 300)  # Allow 2x timeout but cap at 5 min
             
             for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
                 # Check overall timeout
@@ -524,7 +539,8 @@ class OpenRouterClient:
         """Process streaming response lines"""
         import json
         start_time = time.time()
-        max_stream_time = timeout * 2
+        # Cap maximum streaming time to 5 minutes for safety
+        max_stream_time = min(timeout * 2, 300)
         
         for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
             if time.time() - start_time > max_stream_time:

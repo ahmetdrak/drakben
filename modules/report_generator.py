@@ -207,6 +207,7 @@ class ReportGenerator:
         elif format == ReportFormat.PDF:
             content = self._generate_pdf()
             # PDF is binary, handle separately
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'wb') as f:
                 f.write(content)
             logger.info(f"Report saved: {output_path}")
@@ -214,12 +215,19 @@ class ReportGenerator:
         else:
             raise ValueError(f"Unsupported format: {format}")
         
+        # Text-based formats (HTML, Markdown, JSON)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        logger.info(f"Report saved: {output_path}")
-        return output_path
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            logger.info(f"Report saved: {output_path}")
+            return output_path
+        except PermissionError as e:
+            logger.error(f"Permission denied writing report to {output_path}: {e}")
+            raise
+        except OSError as e:
+            logger.error(f"OS error writing report to {output_path}: {e}")
+            raise
     
     def _generate_html(self) -> str:
         """Generate HTML report"""

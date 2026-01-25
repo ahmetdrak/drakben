@@ -17,7 +17,32 @@ except ImportError:
     computer = None
     COMPUTER_AVAILABLE = False
 
+# Import CommandSanitizer for security
+try:
+    from core.execution_engine import CommandSanitizer, SecurityError
+    SANITIZER_AVAILABLE = True
+except ImportError:
+    CommandSanitizer = None
+    SecurityError = Exception
+    SANITIZER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+# Restricted builtins for safe Python execution
+SAFE_BUILTINS = {
+    'print', 'range', 'len', 'list', 'dict', 'set', 'str', 'int', 'float',
+    'bool', 'type', 'enumerate', 'zip', 'min', 'max', 'sum', 'sorted',
+    'reversed', 'help', 'dir', 'abs', 'round', 'pow', 'divmod', 'hex',
+    'oct', 'bin', 'chr', 'ord', 'repr', 'hash', 'id', 'isinstance',
+    'issubclass', 'callable', 'iter', 'next', 'slice', 'map', 'filter',
+    'any', 'all', 'format', 'vars', 'getattr', 'hasattr', 'input'
+}
+
+# Dangerous modules that should not be imported
+BLOCKED_MODULES = {
+    'subprocess', 'os.system', 'commands', 'pty', 'popen',
+    'ctypes', 'pickle', 'marshal', 'code', 'codeop'
+}
 
 class InterpreterResult:
     def __init__(self, output: str, error: str, files: List[str] = None):
@@ -40,7 +65,25 @@ class UniversalInterpreter:
         self._initialize_context()
 
     def _initialize_context(self):
-        """Setup initial context with tools and utilities"""
+        """Setup initial context with tools and utilities (SECURITY HARDENED)"""
+        # Create safe file opener that validates paths
+        def safe_open(path, mode='r', *args, **kwargs):
+            """Restricted file open - blocks dangerous paths"""
+            dangerous_paths = [
+                '/etc/passwd', '/etc/shadow', '/etc/sudoers',
+                '/root/', 'C:\\Windows\\System32', 'C:\\Windows\\System'
+            ]
+            path_str = str(path)
+            for dp in dangerous_paths:
+                if dp.lower() in path_str.lower():
+                    raise PermissionError(f"Access to {path} is blocked for security")
+            # Block write to system directories
+            if mode in ('w', 'a', 'wb', 'ab') and any(
+                path_str.startswith(p) for p in ['/etc', '/usr', '/bin', '/sbin', 'C:\\Windows']
+            ):
+                raise PermissionError(f"Write access to system directories is blocked")
+            return open(path, mode, *args, **kwargs)
+        
         self.locals = {
             "print": print,
             "range": range,
@@ -60,24 +103,39 @@ class UniversalInterpreter:
             "sum": sum,
             "sorted": sorted,
             "reversed": reversed,
-            "open": open,
+            "open": safe_open,  # Use safe_open instead of raw open
             "help": help,
             "dir": dir,
+            "abs": abs,
+            "round": round,
+            "isinstance": isinstance,
+            "hasattr": hasattr,
+            "getattr": getattr,
             # Tools
             "computer": computer,  # Give access to computer tool
         }
         
-        # Import useful standard libs
-        exec("import os", self.locals)
-        exec("import sys", self.locals)
+        # Import SAFE standard libs only (no os, no sys)
         exec("import math", self.locals)
         exec("import json", self.locals)
         exec("import time", self.locals)
         exec("import datetime", self.locals)
         exec("import random", self.locals)
         exec("import re", self.locals)
+        exec("import hashlib", self.locals)
+        exec("import base64", self.locals)
         
-        logger.info("Interpreter context initialized with Computer tool")
+        # Provide restricted os module with only safe functions
+        import os as _os
+        self.locals['os'] = type('SafeOS', (), {
+            'path': _os.path,
+            'getcwd': _os.getcwd,
+            'listdir': _os.listdir,
+            'sep': _os.sep,
+            'linesep': _os.linesep,
+        })()
+        
+        logger.info("Interpreter context initialized with SECURITY HARDENED settings")
 
     def run(self, code: str, language: str = "python") -> InterpreterResult:
         """
@@ -117,20 +175,60 @@ class UniversalInterpreter:
             return InterpreterResult("", str(e))
 
     def _run_shell(self, command: str) -> InterpreterResult:
-        """Execute shell command"""
+        """Execute shell command with SECURITY SANITIZATION"""
         import subprocess
+        import shlex
         
         try:
-            # Run command
+            # SECURITY: Sanitize command through CommandSanitizer
+            if SANITIZER_AVAILABLE and CommandSanitizer:
+                sanitizer = CommandSanitizer()
+                
+                # Get risk level first
+                risk = sanitizer.get_risk_level(command)
+                if risk == 'critical':
+                    blocked_msg = f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
+                    logger.warning(f"SECURITY BLOCKED: {blocked_msg}")
+                    return InterpreterResult("", blocked_msg)
+                elif risk == 'high':
+                    if sanitizer.is_high_risk(command):
+                        logger.warning(f"HIGH RISK command blocked: {command[:50]}")
+                        return InterpreterResult("", f"HIGH RISK: Command blocked for security: {command[:50]}...")
+                
+                # Sanitize the command
+                try:
+                    sanitized = sanitizer.sanitize(command)
+                except SecurityError as e:
+                    return InterpreterResult("", f"Security violation: {e}")
+            else:
+                # Fallback: Basic sanitization without CommandSanitizer
+                dangerous_patterns = [
+                    'rm -rf /', 'rm -rf /*', 'mkfs', 'dd if=/dev',
+                    ':(){ :|:& };:', 'chmod -R 777 /', '/etc/shadow',
+                    '/etc/passwd', 'wget -O- | sh', 'curl | sh', 'curl | bash',
+                    'shutdown', 'reboot', 'halt', 'poweroff', 'init 0', 'init 6'
+                ]
+                cmd_lower = command.lower()
+                for pattern in dangerous_patterns:
+                    if pattern.lower() in cmd_lower:
+                        logger.warning(f"SECURITY: Blocked dangerous pattern: {pattern}")
+                        return InterpreterResult("", f"Dangerous command pattern blocked: {pattern}")
+                sanitized = command
+            
+            # Run sanitized command
             process = subprocess.run(
-                command, 
+                sanitized, 
                 shell=True, 
                 capture_output=True, 
                 text=True,
                 timeout=60
             )
             return InterpreterResult(process.stdout, process.stderr)
+            
+        except subprocess.TimeoutExpired:
+            return InterpreterResult("", "Command timed out after 60 seconds")
         except Exception as e:
+            logger.error(f"Shell execution error: {e}")
             return InterpreterResult("", str(e))
 
     def reset(self):

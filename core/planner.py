@@ -42,7 +42,15 @@ class Planner:
     STRATEGY-DRIVEN PLANNER
     
     Plans are created FROM STRATEGIES, not hardcoded.
+    
+    LOOP PROTECTION:
+    - Maximum replan attempts per step
+    - Global replan limit per session
     """
+    
+    # Replan limits to prevent infinite loops
+    MAX_REPLAN_PER_STEP = 3  # Maximum replans for a single step
+    MAX_REPLAN_PER_SESSION = 10  # Maximum total replans per session
     
     # Action to tool mapping
     ACTION_TO_TOOL = {
@@ -127,10 +135,38 @@ class Planner:
         """
         Replan after failure with ADAPTIVE LEARNING.
         Facade method that delegates to specialized helpers.
+        
+        LOOP PROTECTION:
+        - Tracks replan count per step
+        - Tracks global replan count per session
+        - Refuses to replan if limits exceeded
         """
+        # Initialize replan tracking if needed
+        if not hasattr(self, '_replan_counts'):
+            self._replan_counts = {}
+        if not hasattr(self, '_total_replans'):
+            self._total_replans = 0
+        
         step = self._find_step(failed_step_id)
         if step is None:
             return False
+        
+        # Check replan limits
+        step_replan_count = self._replan_counts.get(failed_step_id, 0)
+        
+        if step_replan_count >= self.MAX_REPLAN_PER_STEP:
+            import logging
+            logging.getLogger(__name__).warning(f"Step {failed_step_id} exceeded replan limit ({step_replan_count}/{self.MAX_REPLAN_PER_STEP})")
+            return self._skip_step(step, f"Replan limit exceeded ({step_replan_count}x)")
+        
+        if self._total_replans >= self.MAX_REPLAN_PER_SESSION:
+            import logging
+            logging.getLogger(__name__).warning(f"Session replan limit exceeded ({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})")
+            return self._skip_step(step, f"Session replan limit exceeded ({self._total_replans}x)")
+        
+        # Increment counters
+        self._replan_counts[failed_step_id] = step_replan_count + 1
+        self._total_replans += 1
             
         # 1. Analyze & Learn
         failure_context = self._analyze_failure(step)
@@ -324,6 +360,38 @@ class Planner:
                 "error": ""
             },
         ]
+        
+        # Store in persistent memory
+        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        
+        # Load into local state
+        self.current_plan_id = plan_id
+        self.steps = [self._dict_to_step(s) for s in steps]
+        self.current_step_index = 0
+        
+        return plan_id
+    
+    def create_plan_from_profile(self, target: str, profile, goal: str = "pentest") -> str:
+        """
+        Create a plan from a StrategyProfile.
+        
+        Args:
+            target: Target IP/URL
+            profile: StrategyProfile object with step_order, parameters, aggressiveness
+            goal: Goal identifier for the plan
+            
+        Returns:
+            plan_id
+        """
+        import uuid
+        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        
+        # Generate steps from profile
+        steps = self._generate_steps_from_profile(target, profile, plan_id)
+        
+        if not steps:
+            # Fallback to default plan if no steps generated
+            return self.create_plan_for_target(target, goal)
         
         # Store in persistent memory
         self.memory.create_plan(goal, steps, plan_id=plan_id)

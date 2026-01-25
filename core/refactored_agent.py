@@ -4,8 +4,12 @@
 
 import asyncio
 import json
+import logging
 import time
 from typing import Dict, List, Optional
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -18,6 +22,7 @@ from core.evolution_memory import ActionRecord, get_evolution_memory
 from core.execution_engine import ExecutionEngine
 from core.planner import Planner, StepStatus
 from core.state import (AgentState, AttackPhase, reset_state, ServiceInfo, VulnerabilityInfo)
+from modules.report_generator import FindingSeverity
 from core.self_refining_engine import (
     SelfRefiningEngine, 
     Strategy, 
@@ -77,115 +82,186 @@ class RefactoredDrakbenAgent:
     STYLE_MAGENTA_BLINK = "bold magenta blink"
     STYLE_BLUE = "bold blue"
 
-    def initialize(self, target: str):
+    def initialize(self, target: str, mode: str = "auto"):
         """
         Initialize agent with PROFILE-BASED SELECTION
+        
+        Args:
+            target: Target IP/URL
+            mode: Scan mode - "auto", "stealth", "aggressive"
+                  - "auto": Let agent decide based on target
+                  - "stealth": Use low-aggression profiles, slower scans
+                  - "aggressive": Use high-aggression profiles, fast scans
         
         ENFORCED ORDER:
         1. Classify target → target_signature
         2. Select strategy.name (with policy filtering)
         3. Select best strategy_profile (not retired, not failed)
         4. Generate plan FROM THAT PROFILE
+        
+        SAFETY:
+        - Full try-except wrapping for graceful degradation
+        - Fallback to basic operation on database errors
         """
+        import sqlite3
+        
+        # Store scan mode for strategy selection
+        self._scan_mode = mode.lower() if mode else "auto"
+        
+        mode_label = {
+            "stealth": "🥷 STEALTH (Sessiz)",
+            "aggressive": "⚡ AGGRESSIVE (Hızlı)",
+            "auto": "🤖 AUTO"
+        }.get(self._scan_mode, "🤖 AUTO")
+        
         self.console.print(
-            f"🔄 Initializing agent for target: {target}", style=self.STYLE_BLUE
+            f"🔄 Initializing agent for target: {target} [{mode_label}]", style=self.STYLE_BLUE
         )
+        
+        # Track fallback mode for graceful degradation
+        self._fallback_mode = False
 
-        # 1. Reset State
-        self.state = reset_state(target)
-        self.state.phase = AttackPhase.INIT
-
-        # 1.5. EVOLVE TOOL PRIORITIES (penalty-aware)
         try:
-            self.tool_selector.evolve_strategies(self.evolution)
-        except Exception as e:
-            self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
+            # 1. Reset State
+            self.state = reset_state(target)
+            self.state.phase = AttackPhase.INIT
 
-        # 2. CLASSIFY TARGET
-        target_type = self.refining_engine.classify_target(target)
-        self.target_signature = self.refining_engine.get_target_signature(target)
-        self.console.print(
-            f"🎯 Target Classification: {target_type}", style="cyan"
-        )
-        self.console.print(
-            f"🔑 Target Signature: {self.target_signature}", style="dim"
-        )
+            # 1.5. EVOLVE TOOL PRIORITIES (penalty-aware)
+            try:
+                self.tool_selector.evolve_strategies(self.evolution)
+            except Exception as e:
+                self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
 
-        # 3. SELECT STRATEGY AND PROFILE (enforced order)
-        try:
-            self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
-        except Exception as e:
-            self.console.print(f"❌ Strategy selection failed: {e}", style="red")
-            logger.exception("Strategy selection error")
-            return
-        
-        if not self.current_strategy or not self.current_profile:
-            self.console.print("❌ No strategy/profile available", style="red")
-            return
-        
-        self.console.print(
-            f"🧠 Selected Strategy: {self.current_strategy.name}",
-            style=self.STYLE_MAGENTA
-        )
-        self.console.print(
-            f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
-            f"(gen: {self.current_profile.mutation_generation}, "
-            f"success_rate: {self.current_profile.success_rate:.1%}, "
-            f"aggression: {self.current_profile.aggressiveness:.2f})",
-            style=self.STYLE_CYAN
-        )
-        
-        # Show profile details
-        self.console.print(
-            f"   📋 Step Order: {self.current_profile.step_order}",
-            style="dim"
-        )
-        self.console.print(
-            f"   ⚙️  Parameters: {json.dumps(self.current_profile.parameters)}",
-            style="dim"
-        )
-
-        # 4. CREATE PLAN FROM PROFILE (not strategy!)
-        existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
-        if existing_plan:
+            # 2. CLASSIFY TARGET
+            target_type = self.refining_engine.classify_target(target)
+            self.target_signature = self.refining_engine.get_target_signature(target)
             self.console.print(
-                f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN
-            )
-            self.planner.load_plan(existing_plan.plan_id)
-        else:
-            # Create plan FROM PROFILE
-            plan_id = self.planner.create_plan_from_profile(
-                target, 
-                self.current_profile,
-                f"pentest_{target}"
+                f"🎯 Target Classification: {target_type}", style="cyan"
             )
             self.console.print(
-                f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN
+                f"🔑 Target Signature: {self.target_signature}", style="dim"
             )
 
-        # 5. SHOW EVOLUTION STATUS
-        status = self.refining_engine.get_evolution_status()
-        self.console.print(
-            f"🧬 Evolution Status: {status['active_policies']} policies, "
-            f"{status['retired_profiles']} retired profiles, "
-            f"{status['max_mutation_generation']} max mutation gen",
-            style="dim"
-        )
+            # 3. SELECT STRATEGY AND PROFILE (enforced order)
+            # Apply mode-based filtering
+            try:
+                self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
+                
+                # MODE-BASED PROFILE FILTERING
+                if self._scan_mode == "stealth" and self.current_profile:
+                    # For stealth mode, prefer low aggression profiles
+                    if self.current_profile.aggressiveness > 0.4:
+                        self.console.print("🥷 Stealth mode: Searching for low-aggression profile...", style="dim")
+                        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+                        stealth_profiles = [p for p in profiles if p.aggressiveness <= 0.4]
+                        if stealth_profiles:
+                            self.current_profile = sorted(stealth_profiles, key=lambda p: p.aggressiveness)[0]
+                            self.console.print(f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})", style="green")
+                            
+                elif self._scan_mode == "aggressive" and self.current_profile:
+                    # For aggressive mode, prefer high aggression profiles
+                    if self.current_profile.aggressiveness < 0.6:
+                        self.console.print("⚡ Aggressive mode: Searching for high-aggression profile...", style="dim")
+                        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+                        aggressive_profiles = [p for p in profiles if p.aggressiveness >= 0.6]
+                        if aggressive_profiles:
+                            self.current_profile = sorted(aggressive_profiles, key=lambda p: -p.aggressiveness)[0]
+                            self.console.print(f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})", style="yellow")
+                            
+            except Exception as e:
+                self.console.print(f"❌ Strategy selection failed: {e}", style="red")
+                logger.exception("Strategy selection error")
+                return
+            
+            if not self.current_strategy or not self.current_profile:
+                self.console.print("❌ No strategy/profile available", style="red")
+                return
+            
+            self.console.print(
+                f"🧠 Selected Strategy: {self.current_strategy.name}",
+                style=self.STYLE_MAGENTA
+            )
+            self.console.print(
+                f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
+                f"(gen: {self.current_profile.mutation_generation}, "
+                f"success_rate: {self.current_profile.success_rate:.1%}, "
+                f"aggression: {self.current_profile.aggressiveness:.2f})",
+                style=self.STYLE_CYAN
+            )
+            
+            # Show profile details
+            self.console.print(
+                f"   📋 Step Order: {self.current_profile.step_order}",
+                style="dim"
+            )
+            self.console.print(
+                f"   ⚙️  Parameters: {json.dumps(self.current_profile.parameters)}",
+                style="dim"
+            )
 
-        # 6. SHOW APPLICABLE POLICIES (with conflict resolution info)
-        context = {"target_type": target_type}
-        policies = self.refining_engine.get_applicable_policies(context)
-        if policies:
-            self.console.print(f"📜 Active Policies: {len(policies)}", style="yellow")
-            for p in policies[:3]:
-                tier_name = PolicyTier(p.priority_tier).name
+            # 4. CREATE PLAN FROM PROFILE (not strategy!)
+            existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
+            if existing_plan:
                 self.console.print(
-                    f"   - Tier {p.priority_tier} ({tier_name}): {p.action} (weight: {p.weight:.2f})", 
-                    style="dim"
+                    f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN
+                )
+                self.planner.load_plan(existing_plan.plan_id)
+            else:
+                # Create plan FROM PROFILE
+                plan_id = self.planner.create_plan_from_profile(
+                    target, 
+                    self.current_profile,
+                    f"pentest_{target}"
+                )
+                self.console.print(
+                    f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN
                 )
 
-        self.running = True
-        self.stagnation_counter = 0
+            # 5. SHOW EVOLUTION STATUS
+            try:
+                status = self.refining_engine.get_evolution_status()
+                self.console.print(
+                    f"🧬 Evolution Status: {status['active_policies']} policies, "
+                    f"{status['retired_profiles']} retired profiles, "
+                    f"{status['max_mutation_generation']} max mutation gen",
+                    style="dim"
+                )
+            except Exception as e:
+                logger.warning(f"Could not get evolution status: {e}")
+
+            # 6. SHOW APPLICABLE POLICIES (with conflict resolution info)
+            try:
+                context = {"target_type": target_type}
+                policies = self.refining_engine.get_applicable_policies(context)
+                if policies:
+                    self.console.print(f"📜 Active Policies: {len(policies)}", style="yellow")
+                    for p in policies[:3]:
+                        tier_name = PolicyTier(p.priority_tier).name
+                        self.console.print(
+                            f"   - Tier {p.priority_tier} ({tier_name}): {p.action} (weight: {p.weight:.2f})", 
+                            style="dim"
+                        )
+            except Exception as e:
+                logger.warning(f"Could not get applicable policies: {e}")
+
+            self.running = True
+            self.stagnation_counter = 0
+            
+        except sqlite3.OperationalError as e:
+            logger.critical(f"Database error during init: {e}")
+            self.console.print(f"⚠️  Database error: {e}", style="yellow")
+            self.console.print("⚠️  Switching to fallback mode (limited functionality)", style="yellow")
+            self._fallback_mode = True
+            # Still allow basic operation
+            self.state = reset_state(target)
+            self.state.phase = AttackPhase.INIT
+            self.running = True
+            self.stagnation_counter = 0
+            
+        except Exception as e:
+            logger.exception(f"Critical initialization error: {e}")
+            self.console.print(f"❌ Critical error during initialization: {e}", style=self.STYLE_RED)
+            raise RuntimeError(f"Agent initialization failed: {e}")
 
     def run_autonomous_loop(self):
         """
@@ -461,7 +537,7 @@ class RefactoredDrakbenAgent:
 
     def _get_llm_decision(self, context: Dict) -> Optional[Dict]:
         """
-        LLM'den TEK aksiyon al
+        LLM'den TEK aksiyon al - with retry and fallback mechanism
 
         LLM'ye gönderilen:
         - State snapshot (5 satır özet)
@@ -474,23 +550,54 @@ class RefactoredDrakbenAgent:
             "tool": "tool_name",
             "args": {"param": "value"}
         }
+        
+        ERROR RECOVERY:
+        1. Try LLM first (with retry)
+        2. Fall back to deterministic decision
+        3. Return None only if all options exhausted
         """
-        # Fallback to deterministic if LLM unavailable
+        MAX_LLM_RETRIES = 2
+        llm_error = None
+        
+        # Try LLM first (with retry)
+        for attempt in range(MAX_LLM_RETRIES):
+            try:
+                # Simplified LLM call - brain should return just tool selection
+                result = self.brain.select_next_tool(context)
+
+                if isinstance(result, dict) and "tool" in result:
+                    return result
+                    
+                # If result is error response, try again
+                if isinstance(result, dict) and result.get("error"):
+                    llm_error = result.get("error")
+                    if attempt < MAX_LLM_RETRIES - 1:
+                        self.console.print(f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{MAX_LLM_RETRIES})", style="yellow")
+                        time.sleep(1)  # Brief pause before retry
+                        continue
+                    break
+                    
+            except Exception as e:
+                llm_error = str(e)
+                if attempt < MAX_LLM_RETRIES - 1:
+                    self.console.print(f"⚠️  LLM error, retrying... ({attempt + 1}/{MAX_LLM_RETRIES}): {e}", style="yellow")
+                    time.sleep(1)
+                    continue
+                break
+        
+        # Log LLM failure
+        if llm_error:
+            self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
+            self.console.print("🔄 Deterministik karar mekanizmasına geçiliyor...", style="dim")
+            logger.warning(f"LLM decision failed after {MAX_LLM_RETRIES} attempts: {llm_error}")
+
+        # Fallback to deterministic decision
         deterministic_decision = self.tool_selector.recommend_next_action(self.state)
 
         if deterministic_decision:
             action_type, tool_name, args = deterministic_decision
+            self.console.print(f"✅ Deterministik karar: {tool_name}", style="dim")
             return {"tool": tool_name, "args": args}
-
-        # If no deterministic decision, try LLM
-        try:
-            # Simplified LLM call - brain should return just tool selection
-            result = self.brain.select_next_tool(context)
-
-            if isinstance(result, dict) and "tool" in result:
-                return result
-        except Exception as e:
-            self.console.print(f"⚠️  LLM error: {e}", style="yellow")
 
         return None
 
@@ -503,19 +610,47 @@ class RefactoredDrakbenAgent:
         
         # Map internal tool names to package names
         tool_pkg_map = {
+            # Nmap variants
             "nmap_port_scan": "nmap",
             "nmap_service_scan": "nmap", 
             "nmap_vuln_scan": "nmap",
+            "nmap": "nmap",
+            # SQLMap
             "sqlmap_scan": "sqlmap",
             "sqlmap_exploit": "sqlmap",
+            "sqlmap": "sqlmap",
+            # Web scanners
             "nikto_web_scan": "nikto",
-            # Add others as needed
+            "nikto": "nikto",
+            "gobuster": "gobuster",
+            "dirb": "dirb",
+            "wfuzz": "wfuzz",
+            # Network tools
+            "netcat": "netcat",
+            "nc": "netcat",
+            "hydra": "hydra",
+            "medusa": "medusa",
+            # Metasploit
+            "msfconsole": "metasploit-framework",
+            "msfvenom": "metasploit-framework",
+            # Other common tools
+            "whatweb": "whatweb",
+            "wpscan": "wpscan",
+            "masscan": "masscan",
+            "john": "john",
+            "hashcat": "hashcat",
+            "aircrack-ng": "aircrack-ng",
+            "wireshark": "wireshark",
+            "tcpdump": "tcpdump",
+            "curl": "curl",
+            "wget": "wget",
         }
         
         pkg = tool_pkg_map.get(tool_name)
         if not pkg:
-            return False
-            
+            # Try using tool_name directly as package name
+            pkg = tool_name.split("_")[0]  # nmap_port_scan -> nmap
+        
         system = platform.system().lower()
         self.console.print(f"🛠️ Attempting to auto-install '{pkg}'...", style="yellow")
         
@@ -649,28 +784,527 @@ class RefactoredDrakbenAgent:
 
         return self._format_tool_result(result, args)
 
+    # Track self-healing attempts to prevent infinite loops
+    _self_heal_attempts: Dict[str, int] = {}
+    MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
+    
     def _handle_tool_failure(self, tool_name: str, command: str, result, args: Dict) -> Dict:
-        """Handle tool failure, including auto-install retry"""
+        """
+        Handle tool failure with comprehensive self-healing.
+        
+        Error Types Handled:
+        1. Missing tool → Auto-install
+        2. Permission denied → Suggest sudo / elevate
+        3. Connection refused → Network check / retry
+        4. Timeout → Increase timeout / retry
+        5. Python module missing → pip install
+        6. Unknown → LLM-assisted diagnosis
+        
+        LOOP PROTECTION:
+        - Maximum 2 self-heal attempts per tool per session
+        - Prevents infinite retry loops
+        """
+        # Initialize tracking dict if needed
+        if not hasattr(self, '_self_heal_attempts') or self._self_heal_attempts is None:
+            self._self_heal_attempts = {}
+        
+        # Check if we've exceeded self-heal limit for this tool
+        heal_key = f"{tool_name}:{command[:50]}"
+        current_attempts = self._self_heal_attempts.get(heal_key, 0)
+        
+        if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
+            self.console.print(f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})", style="yellow")
+            self.tool_selector.record_tool_failure(tool_name)
+            return self._format_tool_result(result, args)
+        
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
+        combined_output = f"{stdout_str}\n{stderr_str}".lower()
         
-        # Check for missing tool
-        if "not found" in stderr_str.lower() or "not recognized" in stderr_str.lower() or "bulunamadı" in stderr_str.lower():
-                # Attempt auto-install
-                if self._install_tool(tool_name):
-                    self.console.print(f"🔄 Retrying {tool_name} after installation...", style="cyan")
-                    # Retry execution
+        # Diagnose error type
+        error_diagnosis = self._diagnose_error(combined_output, result.exit_code)
+        
+        if error_diagnosis["type"] != "unknown":
+            self.console.print(f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}", style="yellow")
+        
+        # Increment self-heal attempt counter
+        self._self_heal_attempts[heal_key] = current_attempts + 1
+        self.console.print(f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}", style="dim")
+        
+        # Apply self-healing based on error type
+        healed = False
+        retry_result = None
+        
+        if error_diagnosis["type"] == "missing_tool":
+            # Attempt auto-install
+            if self._install_tool(tool_name):
+                self.console.print(f"🔄 {tool_name} yüklendi, yeniden deneniyor...", style="cyan")
+                retry_result = self.executor.terminal.execute(command, timeout=300)
+                healed = retry_result.exit_code == 0
+                
+        elif error_diagnosis["type"] == "permission_denied":
+            # Try with sudo (Linux/Mac only)
+            import platform
+            if platform.system().lower() != "windows" and not command.startswith("sudo"):
+                self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
+                sudo_cmd = f"sudo {command}"
+                retry_result = self.executor.terminal.execute(sudo_cmd, timeout=300)
+                healed = retry_result.exit_code == 0
+                
+        elif error_diagnosis["type"] == "python_module_missing":
+            # Extract module name and pip install
+            module_name = error_diagnosis.get("module")
+            if module_name:
+                self.console.print(f"📦 Python modülü eksik: {module_name} - yükleniyor...", style="yellow")
+                pip_cmd = f"pip install {module_name}"
+                pip_result = self.executor.terminal.execute(pip_cmd, timeout=120)
+                if pip_result.exit_code == 0:
+                    self.console.print(f"✅ {module_name} yüklendi, yeniden deneniyor...", style="green")
                     retry_result = self.executor.terminal.execute(command, timeout=300)
-                    if retry_result.exit_code == 0:
-                        return self._format_tool_result(retry_result, args)
+                    healed = retry_result.exit_code == 0
                     
-                    # Update result if retry failed
-                    result = retry_result
+        elif error_diagnosis["type"] == "connection_error":
+            # Retry with backoff
+            self.console.print("🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...", style="yellow")
+            time.sleep(3)
+            retry_result = self.executor.terminal.execute(command, timeout=300)
+            healed = retry_result.exit_code == 0
+            
+        elif error_diagnosis["type"] == "timeout":
+            # Retry with longer timeout
+            self.console.print("⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow")
+            retry_result = self.executor.terminal.execute(command, timeout=600)
+            healed = retry_result.exit_code == 0
         
+        elif error_diagnosis["type"] == "library_missing":
+            # Try to install missing library
+            library = error_diagnosis.get("library", "")
+            if library:
+                self.console.print(f"📚 Kütüphane eksik: {library} - yükleniyor...", style="yellow")
+                import platform
+                system = platform.system().lower()
+                
+                # Map common libraries to packages
+                lib_pkg_map = {
+                    "libssl": "openssl" if system == "darwin" else "libssl-dev",
+                    "libcrypto": "openssl" if system == "darwin" else "libssl-dev",
+                    "libffi": "libffi-dev",
+                    "libpython": "python3-dev",
+                }
+                pkg = lib_pkg_map.get(library.split(".")[0], library)
+                
+                if system == "linux":
+                    install_cmd = f"sudo apt-get install -y {pkg}"
+                elif system == "darwin":
+                    install_cmd = f"brew install {pkg}"
+                else:
+                    install_cmd = None
+                
+                if install_cmd:
+                    install_result = self.executor.terminal.execute(install_cmd, timeout=180)
+                    if install_result.exit_code == 0:
+                        retry_result = self.executor.terminal.execute(command, timeout=300)
+                        healed = retry_result.exit_code == 0
+        
+        elif error_diagnosis["type"] == "rate_limit":
+            # Wait and retry with exponential backoff
+            self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
+            time.sleep(30)
+            retry_result = self.executor.terminal.execute(command, timeout=300)
+            healed = retry_result.exit_code == 0
+        
+        elif error_diagnosis["type"] == "port_in_use":
+            # Try to find and suggest killing the process using the port
+            port = error_diagnosis.get("port")
+            if port:
+                self.console.print(f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...", style="yellow")
+                import platform
+                if platform.system().lower() != "windows":
+                    kill_cmd = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
+                else:
+                    kill_cmd = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
+                
+                kill_result = self.executor.terminal.execute(kill_cmd, timeout=30)
+                time.sleep(2)  # Give the port time to free up
+                retry_result = self.executor.terminal.execute(command, timeout=300)
+                healed = retry_result.exit_code == 0
+        
+        elif error_diagnosis["type"] == "disk_full":
+            # Try to clear some space
+            self.console.print("💾 Disk alanı yetersiz - temizlik yapılıyor...", style="yellow")
+            import platform
+            if platform.system().lower() != "windows":
+                cleanup_cmd = "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
+            else:
+                cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
+            
+            self.executor.terminal.execute(cleanup_cmd, timeout=60)
+            retry_result = self.executor.terminal.execute(command, timeout=300)
+            healed = retry_result.exit_code == 0
+        
+        elif error_diagnosis["type"] == "firewall_blocked":
+            # Suggest stealth mode or wait
+            self.console.print("🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...", style="yellow")
+            time.sleep(10)
+            # If the command has rate/speed parameters, try slower
+            if "--rate" in command or "-T" in command:
+                slower_cmd = command.replace("-T4", "-T1").replace("-T5", "-T2")
+                retry_result = self.executor.terminal.execute(slower_cmd, timeout=600)
+                healed = retry_result.exit_code == 0
+            else:
+                retry_result = self.executor.terminal.execute(command, timeout=300)
+                healed = retry_result.exit_code == 0
+        
+        elif error_diagnosis["type"] == "database_error":
+            # Try to fix common database issues
+            self.console.print("🗄️ Veritabanı hatası - düzeltme deneniyor...", style="yellow")
+            # Remove lock files for SQLite
+            import glob
+            for lock_file in glob.glob("*.db-journal") + glob.glob("*.db-wal") + glob.glob("*.db-shm"):
+                try:
+                    import os
+                    os.remove(lock_file)
+                    self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
+                except Exception:
+                    pass
+            retry_result = self.executor.terminal.execute(command, timeout=300)
+            healed = retry_result.exit_code == 0
+            
+        elif error_diagnosis["type"] == "unknown" and self.brain:
+            # Use LLM to diagnose and suggest fix
+            healed, retry_result = self._llm_assisted_error_fix(tool_name, command, combined_output, args)
+        
+        # Update result if healed
+        if healed and retry_result:
+            self.console.print(f"✅ Hata otomatik olarak düzeltildi!", style="green")
+            return self._format_tool_result(retry_result, args)
+        
+        # Record failure if not healed
         if result.exit_code != 0:
-                self.tool_selector.record_tool_failure(tool_name)
+            self.tool_selector.record_tool_failure(tool_name)
         
         return self._format_tool_result(result, args)
+    
+    def _diagnose_error(self, output: str, exit_code: int) -> Dict:
+        """
+        Comprehensive error diagnosis from output and exit code.
+        Covers 25+ error types in multiple languages.
+        
+        Returns diagnosis with type, description, and suggested fix.
+        """
+        import re
+        output_lower = output.lower()
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 1. MISSING TOOL / COMMAND NOT FOUND
+        # ═══════════════════════════════════════════════════════════════
+        missing_tool_patterns = [
+            "not found", "not recognized", "bulunamadı", "command not found",
+            "komut bulunamadı", "keine berechtigung", "befehl nicht gefunden",
+            "no such command", "unknown command", "bilinmeyen komut",
+            "is not recognized as", "nie rozpoznano", "non trouvé",
+            "comando non trovato", "não encontrado", "'\\w+' is not",
+            "bash:", "sh:", "zsh:", "cmd:", "powershell:"
+        ]
+        if any(x in output_lower for x in missing_tool_patterns):
+            # Try to extract tool name
+            match = re.search(r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower)
+            tool = match.group(1) if match else None
+            return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 2. PERMISSION / ACCESS DENIED
+        # ═══════════════════════════════════════════════════════════════
+        permission_patterns = [
+            "permission denied", "access denied", "izin reddedildi",
+            "erişim engellendi", "operation not permitted", "access is denied",
+            "zugriff verweigert", "accès refusé", "permiso denegado",
+            "root privileges required", "must be root", "run as administrator",
+            "yönetici olarak çalıştır", "sudo required", "insufficient permissions",
+            "eacces", "eperm", "not privileged", "requires elevation"
+        ]
+        if any(x in output_lower for x in permission_patterns):
+            return {"type": "permission_denied", "type_tr": "İzin hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 3. PYTHON MODULE MISSING
+        # ═══════════════════════════════════════════════════════════════
+        python_module_patterns = [
+            "no module named", "modulenotfounderror", "importerror",
+            "cannot import name", "modül bulunamadı", "import error"
+        ]
+        if any(x in output_lower for x in python_module_patterns):
+            match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
+            if not match:
+                match = re.search(r"cannot import name ['\"]?(\w+)", output_lower)
+            module = match.group(1) if match else None
+            return {"type": "python_module_missing", "type_tr": "Python modülü eksik", "module": module}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 4. LIBRARY / SHARED OBJECT MISSING
+        # ═══════════════════════════════════════════════════════════════
+        library_patterns = [
+            "cannot open shared object", "library not found", ".so:", ".dll",
+            "libssl", "libcrypto", "libpython", "libc.so", "ld.so",
+            "kütüphane bulunamadı", "dynamic library", "dylib"
+        ]
+        if any(x in output_lower for x in library_patterns):
+            match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
+            library = match.group(1) if match else None
+            return {"type": "library_missing", "type_tr": "Sistem kütüphanesi eksik", "library": library}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 5. CONNECTION / NETWORK ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        connection_patterns = [
+            "connection refused", "connection reset", "network unreachable",
+            "host unreachable", "bağlantı reddedildi", "no route to host",
+            "name or service not known", "temporary failure in name resolution",
+            "could not resolve host", "dns", "econnrefused", "econnreset",
+            "enetunreach", "ehostunreach", "connection timed out",
+            "ssl: certificate", "ssl handshake", "ssl error", "tls",
+            "sunucu yanıt vermiyor", "bağlantı kurulamadı"
+        ]
+        if any(x in output_lower for x in connection_patterns):
+            return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 6. TIMEOUT
+        # ═══════════════════════════════════════════════════════════════
+        timeout_patterns = [
+            "timed out", "timeout", "zaman aşımı", "operation timed out",
+            "read timed out", "connect timed out", "etimedout",
+            "deadline exceeded", "request timeout", "gateway timeout"
+        ]
+        if any(x in output_lower for x in timeout_patterns):
+            return {"type": "timeout", "type_tr": "Zaman aşımı"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 7. SYNTAX / ARGUMENT ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        syntax_patterns = [
+            "invalid argument", "invalid option", "unrecognized option",
+            "geçersiz argüman", "syntax error", "bad argument", "illegal option",
+            "unknown option", "missing argument", "unexpected argument",
+            "usage:", "try '--help'", "bilinmeyen seçenek", "hatalı sözdizimi"
+        ]
+        if any(x in output_lower for x in syntax_patterns):
+            return {"type": "invalid_argument", "type_tr": "Geçersiz argüman/sözdizimi"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 8. FILE NOT FOUND
+        # ═══════════════════════════════════════════════════════════════
+        file_patterns = [
+            "no such file", "file not found", "dosya bulunamadı",
+            "enoent", "path not found", "cannot find", "does not exist",
+            "yol bulunamadı", "datei nicht gefunden", "fichier non trouvé"
+        ]
+        if any(x in output_lower for x in file_patterns):
+            match = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
+            filepath = match.group(1) if match else None
+            return {"type": "file_not_found", "type_tr": "Dosya bulunamadı", "file": filepath}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 9. MEMORY ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        memory_patterns = [
+            "out of memory", "memory error", "bellek hatası", "enomem",
+            "cannot allocate", "memory allocation failed", "oom",
+            "killed", "segmentation fault", "segfault", "sigsegv",
+            "core dumped", "stack overflow", "heap overflow"
+        ]
+        if any(x in output_lower for x in memory_patterns):
+            return {"type": "memory_error", "type_tr": "Bellek hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 10. DISK SPACE
+        # ═══════════════════════════════════════════════════════════════
+        disk_patterns = [
+            "no space left", "disk full", "disk quota", "enospc",
+            "out of disk", "insufficient disk", "yetersiz disk alanı"
+        ]
+        if any(x in output_lower for x in disk_patterns):
+            return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 11. AUTHENTICATION ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        auth_patterns = [
+            "authentication failed", "invalid credentials", "wrong password",
+            "unauthorized", "401", "403 forbidden", "login failed",
+            "kimlik doğrulama başarısız", "geçersiz şifre", "access token"
+        ]
+        if any(x in output_lower for x in auth_patterns):
+            return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 12. PORT IN USE
+        # ═══════════════════════════════════════════════════════════════
+        port_patterns = [
+            "address already in use", "port already in use", "eaddrinuse",
+            "bind failed", "port is busy", "port kullanımda"
+        ]
+        if any(x in output_lower for x in port_patterns):
+            match = re.search(r"port[:\s]*(\d+)", output_lower)
+            port = match.group(1) if match else None
+            return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 13. DATABASE ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        db_patterns = [
+            "database", "sqlite", "mysql", "postgresql", "mongodb",
+            "connection to .* failed", "db error", "veritabanı hatası",
+            "locked", "deadlock", "constraint violation"
+        ]
+        if any(x in output_lower for x in db_patterns):
+            return {"type": "database_error", "type_tr": "Veritabanı hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 14. JSON/XML PARSING ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        parse_patterns = [
+            "json", "xml", "parsing error", "decode error", "invalid json",
+            "unexpected token", "malformed", "ayrıştırma hatası"
+        ]
+        if any(x in output_lower for x in parse_patterns):
+            return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 15. VERSION/COMPATIBILITY ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        version_patterns = [
+            "version", "incompatible", "requires python", "unsupported",
+            "deprecated", "sürüm uyumsuz", "eski sürüm"
+        ]
+        if any(x in output_lower for x in version_patterns):
+            return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 16. RATE LIMITING
+        # ═══════════════════════════════════════════════════════════════
+        rate_patterns = [
+            "rate limit", "too many requests", "429", "throttled",
+            "quota exceeded", "istek limiti", "çok fazla istek"
+        ]
+        if any(x in output_lower for x in rate_patterns):
+            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 17. FIREWALL / WAF BLOCKED
+        # ═══════════════════════════════════════════════════════════════
+        firewall_patterns = [
+            "blocked", "firewall", "waf", "forbidden", "filtered",
+            "connection reset by peer", "engellenmiş", "güvenlik duvarı"
+        ]
+        if any(x in output_lower for x in firewall_patterns):
+            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 18. PROCESS/RESOURCE ERRORS
+        # ═══════════════════════════════════════════════════════════════
+        process_patterns = [
+            "too many open files", "resource temporarily unavailable",
+            "eagain", "emfile", "enfile", "process limit", "fork failed"
+        ]
+        if any(x in output_lower for x in process_patterns):
+            return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 19. EXIT CODE BASED DIAGNOSIS (when no text match)
+        # ═══════════════════════════════════════════════════════════════
+        if exit_code != 0 and not output.strip():
+            exit_code_map = {
+                1: {"type": "general_error", "type_tr": "Genel hata"},
+                2: {"type": "invalid_argument", "type_tr": "Geçersiz argüman"},
+                126: {"type": "permission_denied", "type_tr": "Çalıştırma izni yok"},
+                127: {"type": "missing_tool", "type_tr": "Komut bulunamadı"},
+                128: {"type": "invalid_argument", "type_tr": "Geçersiz çıkış kodu"},
+                130: {"type": "interrupted", "type_tr": "Kullanıcı tarafından iptal"},
+                137: {"type": "killed", "type_tr": "İşlem sonlandırıldı (OOM?)"},
+                139: {"type": "segfault", "type_tr": "Segmentation fault"},
+                143: {"type": "terminated", "type_tr": "SIGTERM ile sonlandırıldı"},
+            }
+            if exit_code in exit_code_map:
+                return exit_code_map[exit_code]
+            if exit_code > 128:
+                signal_num = exit_code - 128
+                return {"type": "signal_killed", "type_tr": f"Sinyal {signal_num} ile sonlandırıldı"}
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 20. UNKNOWN - Will be handled by LLM
+        # ═══════════════════════════════════════════════════════════════
+        # Log unknown error for future pattern learning
+        self._log_unknown_error(output, exit_code)
+        return {"type": "unknown", "type_tr": "Tanımlanamayan hata", "raw_output": output[:500]}
+    
+    def _log_unknown_error(self, output: str, exit_code: int):
+        """Log unknown errors for future pattern learning"""
+        try:
+            import os
+            from datetime import datetime
+            
+            log_dir = "logs"
+            os.makedirs(log_dir, exist_ok=True)
+            
+            log_file = os.path.join(log_dir, "unknown_errors.log")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                f.write(f"Exit Code: {exit_code}\n")
+                f.write(f"Output:\n{output[:1000]}\n")
+        except Exception:
+            pass  # Silent fail - logging shouldn't break main flow
+    
+    def _llm_assisted_error_fix(self, tool_name: str, command: str, error_output: str, args: Dict) -> tuple:
+        """
+        Use LLM to diagnose unknown errors and suggest fixes.
+        Returns (healed: bool, retry_result)
+        """
+        try:
+            self.console.print("🤖 LLM ile hata analizi yapılıyor...", style="dim")
+            
+            prompt = f"""Analyze this command execution error and suggest a fix:
+
+Command: {command}
+Tool: {tool_name}
+Error Output: {error_output[:1000]}
+
+Respond in JSON:
+{{
+    "error_type": "brief error classification",
+    "root_cause": "what caused this error",
+    "fix_command": "shell command to fix (or null if not fixable)",
+    "should_retry": true/false,
+    "explanation": "brief explanation in Turkish"
+}}"""
+
+            result = self.brain.llm_client.query(prompt, timeout=15)
+            
+            # Try to parse JSON response
+            import json
+            import re
+            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            if json_match:
+                fix_data = json.loads(json_match.group())
+                
+                self.console.print(f"🔍 LLM Analizi: {fix_data.get('explanation', 'Analiz tamamlandı')}", style="dim")
+                
+                # Apply fix command if provided
+                fix_cmd = fix_data.get("fix_command")
+                if fix_cmd and fix_cmd != "null":
+                    self.console.print(f"🔧 Düzeltme uygulanıyor: {fix_cmd}", style="yellow")
+                    fix_result = self.executor.terminal.execute(fix_cmd, timeout=120)
+                    
+                    if fix_result.exit_code == 0 and fix_data.get("should_retry", False):
+                        self.console.print("🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...", style="cyan")
+                        retry_result = self.executor.terminal.execute(command, timeout=300)
+                        return (retry_result.exit_code == 0, retry_result)
+                        
+        except Exception as e:
+            logger.warning(f"LLM-assisted error fix failed: {e}")
+        
+        return (False, None)
 
     def _format_tool_result(self, result, args: Dict) -> Dict:
         """Format execution result dictionary with standardized errors"""

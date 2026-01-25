@@ -26,6 +26,10 @@ PHASE_TOLERANCE = 1
 STAGNATION_CHECK_WINDOW = 3
 MAX_HALLUCINATIONS_THRESHOLD = 3
 
+# Thread-safe singleton implementation - MUST be defined BEFORE AgentState class
+_state_lock = threading.RLock()
+_state_instance: Optional["AgentState"] = None  # Forward reference
+
 
 class AttackPhase(Enum):
     """Attack phases - deterministic flow"""
@@ -340,15 +344,16 @@ class AgentState:
         Args:
             tool_name: Name of called tool
         """
-        self.tool_call_history.append(tool_name)
-        if len(self.tool_call_history) > MAX_TOOL_CALL_HISTORY:
-            self.tool_call_history = self.tool_call_history[-MAX_TOOL_CALL_HISTORY:]
+        with self._lock:  # THREAD SAFETY: Add lock for consistent state access
+            self.tool_call_history.append(tool_name)
+            if len(self.tool_call_history) > MAX_TOOL_CALL_HISTORY:
+                self.tool_call_history = self.tool_call_history[-MAX_TOOL_CALL_HISTORY:]
 
-        if len(self.tool_call_history) >= 2:
-            if self.tool_call_history[-1] == self.tool_call_history[-2]:
-                self.consecutive_same_tool += 1
-            else:
-                self.consecutive_same_tool = 0
+            if len(self.tool_call_history) >= 2:
+                if self.tool_call_history[-1] == self.tool_call_history[-2]:
+                    self.consecutive_same_tool += 1
+                else:
+                    self.consecutive_same_tool = 0
 
     def compute_state_hash(self) -> str:
         """
@@ -653,9 +658,8 @@ class AgentState:
         # Other fields as needed for future session recovery
 
 
-# Thread-safe singleton implementation
-_state_lock = threading.RLock()
-_state_instance: Optional[AgentState] = None
+# NOTE: _state_lock and _state_instance are defined at module top (before AgentState class)
+# This ensures they're available when AgentState.__new__ is called
 
 
 def get_state() -> AgentState:

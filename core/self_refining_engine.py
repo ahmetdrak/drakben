@@ -18,6 +18,8 @@ import logging
 import random
 import sqlite3
 import threading
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import IntEnum
@@ -216,8 +218,24 @@ class SelfRefiningEngine:
         logger.debug("SelfRefiningEngine created (lazy initialization)")
     
     def _ensure_initialized(self):
-        """Ensure database is initialized (lazy initialization)"""
+        """
+        Ensure database is initialized (lazy initialization).
+        
+        Improvements:
+        - On failure, _initialized stays False to allow retry
+        - Added retry counter to prevent infinite retry loops
+        - Better error handling and logging
+        """
         if self._initialized:
+            return
+        
+        # Track retry attempts to prevent infinite loops
+        if not hasattr(self, '_init_attempts'):
+            self._init_attempts = 0
+        
+        # Max 3 retry attempts
+        if self._init_attempts >= 3:
+            logger.warning("Max initialization attempts reached, skipping database init")
             return
         
         with self._init_lock:
@@ -225,8 +243,10 @@ class SelfRefiningEngine:
             if self._initialized:
                 return
             
+            self._init_attempts += 1
+            
             try:
-                logger.info("Initializing SelfRefiningEngine database (lazy init)...")
+                logger.info(f"Initializing SelfRefiningEngine database (attempt {self._init_attempts}/3)...")
                 self._init_database()
                 self._seed_default_strategies()
                 self._initialized = True
@@ -234,9 +254,8 @@ class SelfRefiningEngine:
             except Exception as e:
                 logger.error(f"Failed to initialize SelfRefiningEngine: {e}")
                 logger.exception("Initialization error details")
-                # Don't raise - allow retry on next use
-                # But mark as attempted to prevent infinite retries
-                self._initialized = True  # Mark as attempted to prevent retry loops
+                # DON'T set _initialized = True on failure
+                # This allows retry on next use (up to max attempts)
     
     def _get_conn(self) -> sqlite3.Connection:
         """Get thread-local database connection with timeout protection"""
@@ -249,9 +268,49 @@ class SelfRefiningEngine:
         # Enable WAL mode for better concurrency (reduces lock contention)
         try:
             conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")  # 5 second busy timeout
         except sqlite3.OperationalError:
             pass  # WAL might not be available, continue anyway
         return conn
+    
+    @contextmanager
+    def _db_operation(self, timeout: float = 5.0):
+        """
+        Safe database operation context manager.
+        
+        Automatically handles:
+        - Lock acquisition with timeout
+        - Connection management
+        - Commit on success
+        - Proper cleanup on failure
+        
+        Usage:
+            with self._db_operation() as conn:
+                cursor = conn.execute(...)
+                # conn.commit() is called automatically on success
+        """
+        acquired = self._lock.acquire(timeout=timeout)
+        if not acquired:
+            raise TimeoutError("Database lock acquisition timeout - possible deadlock")
+        
+        conn = None
+        try:
+            conn = self._get_conn()
+            yield conn
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Database operation failed: {e}")
+            raise
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            try:
+                self._lock.release()
+            except Exception:
+                pass
     
     def _init_database(self):
         """Initialize database schema with migration support"""
@@ -276,17 +335,27 @@ class SelfRefiningEngine:
         finally:
             self._cleanup_conn_and_lock(conn, lock_acquired)
 
-    def _acquire_db_lock(self, max_retries: int = 3) -> bool:
-        """Attempt to acquire database lock with retries"""
+    def _acquire_db_lock(self, max_retries: int = 3, timeout_per_attempt: float = 1.5) -> bool:
+        """
+        Attempt to acquire database lock with retries.
+        
+        Args:
+            max_retries: Maximum number of retry attempts
+            timeout_per_attempt: Timeout per attempt in seconds
+            
+        Returns:
+            True if lock acquired, False otherwise
+        """
         for attempt in range(max_retries):
             try:
-                if self._lock.acquire(timeout=1.0):
+                if self._lock.acquire(timeout=timeout_per_attempt):
                     return True
                 logger.warning(f"Lock wait attempt {attempt + 1}/{max_retries}")
-                import time
-                time.sleep(0.5)
+                time.sleep(0.3)  # Short sleep before retry
             except Exception as e:
                 logger.error(f"Lock error: {e}")
+        
+        logger.error(f"Failed to acquire lock after {max_retries} attempts - possible deadlock")
         return False
 
     def _handle_schema_migration(self, conn: sqlite3.Connection):
@@ -1259,120 +1328,115 @@ class SelfRefiningEngine:
     
     def select_strategy_and_profile(self, target: str) -> Tuple[Optional[Strategy], Optional[StrategyProfile]]:
         """
-        ENFORCED SELECTION ORDER:
-        1. Classify target → target_signature
-        2. Select strategy.name (with policy filtering)
-        3. Select best strategy_profile (not retired, not failed)
-        
-        Returns (strategy, profile) tuple
-        
-        Includes timeout protection to prevent hangs.
+        ENFORCED SELECTION ORDER with Timeout Protection.
         """
         import time
         start_time = time.time()
-        max_duration = 30  # Maximum 30 seconds for selection
+        max_duration = 30
         
-        # Ensure database is initialized
         self._ensure_initialized()
         
-        # Use timeout-aware lock acquisition to prevent deadlock
-        lock_acquired = False
-        max_retries = 3
-        retry_delay = 0.3
-        
-        for attempt in range(max_retries):
-            try:
-                if self._lock.acquire(timeout=2.0):
-                    lock_acquired = True
-                    break
-                else:
-                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed, retrying...")
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-            except Exception as e:
-                logger.error(f"Lock acquisition error: {e}")
-                if attempt == max_retries - 1:
-                    return None, None
-                time.sleep(retry_delay)
-        
-        if not lock_acquired:
+        if not self._acquire_lock_safe(max_retries=3):
             logger.error("Failed to acquire lock within timeout - possible deadlock")
             return None, None
         
         try:
-            # Step 1: Classify target
-            target_type = self.classify_target(target)
-            target_signature = self.get_target_signature(target)
-            
-            if time.time() - start_time > max_duration:
-                logger.warning("Strategy selection timeout during classification")
+            # Step 1: Analysis
+            target_info = self._analyze_target_for_selection(target, start_time, max_duration)
+            if not target_info:
                 return None, None
-            
-            # Step 2: Get strategies for this target type
-            strategies = self.get_strategies_for_target_type(target_type)
-            if not strategies:
+                
+            # Step 2: Strategy Selection
+            strategy = self._select_strategy(target_info, start_time, max_duration)
+            if not strategy:
                 return None, None
+
+            # Step 3: Profile Selection
+            profile = self._select_profile(strategy, target_info, start_time, max_duration)
             
-            if time.time() - start_time > max_duration:
-                logger.warning("Strategy selection timeout during strategy retrieval")
-                return None, None
-            
-            # Apply policies to strategies
-            context = {
-                "target_type": target_type,
-                "target_signature": target_signature
-            }
-            strategies = self.apply_policies_to_strategies(strategies, context)
-            if not strategies:
-                return None, None
-            
-            # Sort by historical success (would need strategy-level metrics in production)
-            # For now, just pick first one
-            selected_strategy = strategies[0]
-            
-            if time.time() - start_time > max_duration:
-                logger.warning("Strategy selection timeout during policy application")
-                return None, None
-            
-            # Step 3: Get profiles for selected strategy
-            profiles = self.get_profiles_for_strategy(selected_strategy.name, include_retired=False)
-            
-            # Apply policies to profiles
-            profiles = self.apply_policies_to_profiles(profiles, context)
-            
-            # Exclude profiles that have failed for this target
-            failed_profiles = self.get_failed_profiles_for_target(target_signature)
-            profiles = [p for p in profiles if p.profile_id not in failed_profiles]
-            
-            if time.time() - start_time > max_duration:
-                logger.warning("Strategy selection timeout during profile filtering")
-                # Return first available profile if any, otherwise None
-                if profiles:
-                    return selected_strategy, profiles[0]
-                return None, None
-            
-            if not profiles:
-                # All profiles failed or retired - need mutation (with timeout check)
-                try:
-                    profile = self.select_best_profile(selected_strategy.name, failed_profiles)
-                except Exception as e:
-                    logger.error(f"Profile selection/mutation failed: {e}")
-                    return None, None
-            else:
-                # Sort by success rate and pick best
-                profiles.sort(key=lambda p: p.success_rate, reverse=True)
-                profile = profiles[0]
-            
-            return selected_strategy, profile
+            return strategy, profile
+
         except Exception as e:
             logger.exception(f"Error in select_strategy_and_profile: {e}")
             return None, None
         finally:
-            if lock_acquired:
-                try:
-                    self._lock.release()
-                except:
-                    pass
+            self._release_lock_safe()
+
+    def _analyze_target_for_selection(self, target, start_time, max_duration):
+        """Step 1: Classify and generate signature"""
+        import time
+        if time.time() - start_time > max_duration:
+             return None
+             
+        target_type = self.classify_target(target)
+        target_signature = self.get_target_signature(target)
+        
+        # Pre-calculate context
+        context = {
+            "target_type": target_type,
+            "target_signature": target_signature
+        }
+        return context
+
+    def _select_strategy(self, context, start_time, max_duration):
+        """Step 2: Select best strategy"""
+        import time
+        if time.time() - start_time > max_duration:
+            return None
+
+        # Get strategies
+        strategies = self.get_strategies_for_target_type(context["target_type"])
+        if not strategies:
+            return None
+        
+        # Apply policies
+        if time.time() - start_time > max_duration:
+            return None
+            
+        strategies = self.apply_policies_to_strategies(strategies, context)
+        return strategies[0] if strategies else None
+
+    def _select_profile(self, strategy, context, start_time, max_duration):
+        """Step 3: Select, filter and mutate profile"""
+        import time
+        
+        # Get profiles
+        if time.time() - start_time > max_duration:
+            return None
+            
+        profiles = self.get_profiles_for_strategy(strategy.name, include_retired=False)
+        
+        # Filter profiles (Policies + Failures)
+        profiles = self.apply_policies_to_profiles(profiles, context)
+        
+        failed_profiles = self.get_failed_profiles_for_target(context["target_signature"])
+        profiles = [p for p in profiles if p.profile_id not in failed_profiles]
+        
+        # Decision
+        if time.time() - start_time > max_duration:
+             return profiles[0] if profiles else None
+
+        if not profiles:
+            return self._handle_no_profiles(strategy, failed_profiles)
+            
+        # Sort by success rate
+        profiles.sort(key=lambda p: p.success_rate, reverse=True)
+        return profiles[0]
+
+    def _handle_no_profiles(self, strategy, failed_profiles):
+        """Handle case where all profiles are exhausted"""
+        try:
+            return self.select_best_profile(strategy.name, failed_profiles)
+        except Exception as e:
+            logger.error(f"Profile selection/mutation failed: {e}")
+            return None
+
+    def _release_lock_safe(self):
+        """Safely release lock"""
+        try:
+            self._lock.release()
+        except Exception:
+            pass
     
     # =========================================================================
     # EVOLUTION STATUS & DEBUG

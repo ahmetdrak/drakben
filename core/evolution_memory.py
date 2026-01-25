@@ -68,17 +68,39 @@ class EvolutionMemory:
         self._init_database()
     
     def _init_database(self):
-        """Create tables if not exist"""
+        """
+        Create tables if not exist.
+        
+        Improvements:
+        - Timeout protection on connection
+        - WAL mode for concurrency
+        - Proper error handling
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         with self._lock:
             db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
-            conn = sqlite3.connect(db_path_str, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
             
-            # For in-memory databases, keep the connection open
-            if self._is_memory:
-                self._persistent_conn = conn
-            
-            cursor = conn.cursor()
+            try:
+                conn = sqlite3.connect(db_path_str, timeout=10.0, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                
+                # Enable WAL mode for better concurrency
+                try:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA busy_timeout=10000")
+                except sqlite3.OperationalError:
+                    pass  # WAL might not be available
+                
+                # For in-memory databases, keep the connection open
+                if self._is_memory:
+                    self._persistent_conn = conn
+                
+                cursor = conn.cursor()
+            except sqlite3.OperationalError as e:
+                logger.error(f"Database initialization failed: {e}")
+                raise RuntimeError(f"Could not initialize evolution database: {e}")
             
             # ACTION HISTORY TABLE - stores every action with outcome
             cursor.execute("""
@@ -151,14 +173,38 @@ class EvolutionMemory:
                 self._close_conn(conn)
     
     def _get_conn(self) -> sqlite3.Connection:
+        """
+        Get database connection with timeout protection and WAL mode.
+        
+        Improvements:
+        - timeout=10.0 to prevent indefinite blocking
+        - WAL mode for better concurrency
+        - busy_timeout PRAGMA for SQLite-level timeout
+        - Proper error handling with logging
+        """
         # For in-memory databases, return the persistent connection
         if self._is_memory and self._persistent_conn:
             return self._persistent_conn
         
         db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
-        conn = sqlite3.connect(db_path_str, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
+        
+        try:
+            conn = sqlite3.connect(db_path_str, timeout=10.0, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            
+            # Enable WAL mode for better concurrency (reduces lock contention)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=10000")  # 10 second busy timeout
+            except sqlite3.OperationalError:
+                pass  # WAL might not be available, continue anyway
+            
+            return conn
+        except sqlite3.OperationalError as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Database connection failed: {e}")
+            raise
     
     def _close_conn(self, conn: sqlite3.Connection):
         """Close connection, unless it's an in-memory persistent connection"""

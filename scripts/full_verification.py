@@ -32,6 +32,9 @@ import sqlite3
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+# Default database filename
+DEFAULT_DB_NAME = "drakben_memory.db"
+
 # Results storage
 RESULTS = {
     "files": {},
@@ -499,7 +502,7 @@ def test_planner():
     except Exception as e:
         results["Planner.is_plan_complete"] = {"status": "FAIL", "error": str(e)}
     
-    safe_remove("drakben_memory.db")
+    safe_remove(DEFAULT_DB_NAME)
     return results
 
 
@@ -705,7 +708,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
     
     del engine
     safe_remove(db_path)
-    safe_remove("drakben_memory.db")
+    safe_remove(DEFAULT_DB_NAME)
     
     # Verdict
     all_passed = all(r.get("status") == "PASS" for r in results.values())

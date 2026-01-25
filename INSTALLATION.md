@@ -1,10 +1,10 @@
-# Kurulum Rehberi
+# 📦 Kurulum Rehberi
 
 DRAKBEN - Otonom Pentest AI Framework Kurulumu
 
 ---
 
-## Linux (Kali / Ubuntu / Debian)
+## 🐧 Linux (Kali / Ubuntu / Debian)
 
 **Süre: ~2 dakika**
 
@@ -31,7 +31,7 @@ sudo apt install nmap sqlmap nikto hydra john hashcat
 
 ---
 
-## Windows
+## 🪟 Windows
 
 **Süre: ~3 dakika**
 
@@ -53,7 +53,7 @@ python drakben.py
 
 ---
 
-## macOS
+## 🍎 macOS
 
 **Süre: ~3 dakika**
 
@@ -80,7 +80,7 @@ brew install nmap sqlmap nikto hydra john hashcat
 
 ---
 
-## AI/LLM Kurulumu (Opsiyonel)
+## 🤖 AI/LLM Kurulumu (Opsiyonel)
 
 Framework **%100 offline** çalışır. AI özellikleri için aşağıdakilerden birini yapılandır:
 
@@ -135,7 +135,7 @@ OPENAI_MODEL=gpt-4o-mini
 
 ---
 
-## Kurulumu Doğrula
+## ✅ Kurulumu Doğrula
 
 ```bash
 # Virtual environment aktif değilse
@@ -143,23 +143,20 @@ source .venv/bin/activate  # Linux/Mac
 # veya
 .\.venv\Scripts\Activate.ps1  # Windows
 
-# Testleri çalıştır
-python tests/test_improvements.py
-
-# Uygulamayı başlat
+# Çalıştır
 python drakben.py
 
 # Komutları test et
 /help
 /target 127.0.0.1
 /status
-/llm
+/stats
 /exit
 ```
 
 ---
 
-## Sorun Giderme
+## 🔧 Sorun Giderme
 
 ### `python3: command not found`
 ```bash
@@ -173,9 +170,10 @@ sudo apt install python3.11
 pip install -r requirements.txt
 ```
 
-### `pycryptodome` hatası
+### `paramiko` veya `pycryptodome` hatası
 ```bash
-pip install pycryptodome
+# Opsiyonel, gerekirse yükle
+pip install paramiko pycryptodome
 ```
 
 ### Permission denied (Linux)
@@ -190,16 +188,9 @@ chmod +x drakben.py
 - `config/api.env` formatını kontrol et
 - Key'in geçerli olduğunu doğrula
 
-### Veritabanı hatası
-```bash
-# Veritabanını sıfırla
-rm drakben_evolution.db
-python drakben.py
-```
-
 ---
 
-## Gereksinimler
+## 📋 Gereksinimler
 
 | Bileşen | Minimum | Önerilen |
 |---------|---------|----------|
@@ -210,16 +201,24 @@ python drakben.py
 
 ---
 
-## Hafıza Sistemi
+## 🧠 Hafıza Sistemi
 
 DRAKBEN kalıcı hafıza kullanır:
 
-- **`drakben_evolution.db`**: SQLite veritabanı
-- Otomatik oluşturulur, silmeyin (öğrenilen veriler kaybolur)
-- Tüm komut geçmişi, tool penalties, heuristikler burada
+- **`drakben_memory.db`**: SQLite veritabanı
+- Otomatik oluşturulur, silmeyin
+- Tüm komut geçmişi, öğrenilen patternler burada
 
 ---
 
-**Kurulum tamamlandı!**
+## 🚀 Sonraki Adımlar
 
-**Sadece yetkili hedeflerde kullanın.**
+1. [README.md](README.md) - Özellikler
+2. [QUICKSTART.md](QUICKSTART.md) - Kullanım örnekleri
+3. AI yapılandır (yukarıya bak)
+
+---
+
+**Kurulum tamamlandı! İyi hacklemeler! 🎉**
+
+⚠️ **Sadece yetkili hedeflerde kullanın.**

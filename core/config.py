@@ -18,6 +18,43 @@ logger = logging.getLogger(__name__)
 # Constants
 API_ENV_PATH = "config/api.env"
 
+# ===========================================
+# CENTRALIZED TIMEOUT CONFIGURATION
+# All modules should use these values for consistency
+# ===========================================
+class TimeoutConfig:
+    """Centralized timeout settings for consistency across modules"""
+    
+    # Database timeouts
+    SQLITE_CONNECT_TIMEOUT = 10.0  # seconds
+    SQLITE_BUSY_TIMEOUT = 10000    # milliseconds
+    
+    # Network timeouts
+    HTTP_REQUEST_TIMEOUT = 30      # seconds
+    SOCKET_TIMEOUT = 10            # seconds
+    
+    # LLM timeouts
+    LLM_QUERY_TIMEOUT = 30         # seconds
+    LLM_STREAMING_TIMEOUT = 60     # seconds
+    LLM_MAX_STREAM_TIME = 300      # 5 minutes max
+    
+    # Tool execution timeouts
+    TOOL_DEFAULT_TIMEOUT = 300     # 5 minutes
+    TOOL_FAST_TIMEOUT = 60         # 1 minute for fast tools
+    TOOL_SLOW_TIMEOUT = 600        # 10 minutes for slow tools
+    
+    # Thread timeouts
+    THREAD_JOIN_TIMEOUT = 5.0      # seconds
+    LOCK_ACQUIRE_TIMEOUT = 5.0     # seconds
+    
+    # Process timeouts
+    PROCESS_TERMINATE_TIMEOUT = 5  # seconds before kill
+    PROCESS_CLEANUP_TIMEOUT = 2    # seconds for cleanup
+
+
+# Export for easy import
+TIMEOUTS = TimeoutConfig()
+
 
 @dataclass
 class DrakbenConfig:
@@ -271,14 +308,26 @@ class ConfigManager:
             return DrakbenConfig()
 
     def save_config(self):
-        """Save configuration to file (thread-safe)"""
+        """Save configuration to file (thread-safe)
+        
+        Raises:
+            PermissionError: If file cannot be written due to permissions
+            OSError: If file system error occurs
+        """
         with self._lock:
             try:
                 self.config_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.config_file, "w", encoding="utf-8") as f:
                     json.dump(asdict(self.config), f, indent=2, ensure_ascii=False)
+            except PermissionError as e:
+                logger.error(f"Config save error (permission denied): {e}")
+                raise  # Re-raise to allow caller to handle
+            except OSError as e:
+                logger.error(f"Config save error (OS error): {e}")
+                raise  # Re-raise to allow caller to handle
             except Exception as e:
-                logger.error(f"Config save error: {e}")
+                logger.error(f"Config save error (unexpected): {e}")
+                raise  # Re-raise to allow caller to handle
 
     def set_language(self, lang: str):
         """Set interface language (thread-safe)"""

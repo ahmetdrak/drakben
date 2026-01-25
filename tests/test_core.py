@@ -346,6 +346,64 @@ class TestExecutionEngine(unittest.TestCase):
         # ExecutionEngine uses terminal.execute, not execute directly
         result = engine.terminal.execute("echo test", timeout=10)
         self.assertEqual(result.status.value, "success")
+    
+    def test_requires_confirmation(self):
+        """Test command confirmation detection"""
+        from core.execution_engine import CommandSanitizer
+        
+        # Commands that should require confirmation
+        high_risk_commands = [
+            ("sudo rm -rf /tmp/*", True),
+            ("rm -rf ./test", True),
+            ("chmod 777 /etc/passwd", True),
+            ("echo hello", False),
+            ("ls -la", False),
+        ]
+        
+        for cmd, should_require in high_risk_commands:
+            requires, reason = CommandSanitizer.requires_confirmation(cmd)
+            self.assertEqual(requires, should_require, 
+                f"Command '{cmd}' should {'require' if should_require else 'not require'} confirmation")
+    
+    def test_url_sanitization(self):
+        """Test URL sanitization in command generator"""
+        from core.execution_engine import CommandGenerator
+        generator = CommandGenerator()
+        
+        # Test malicious URL with injection attempt
+        # The semicolon and single quotes are removed, breaking the injection
+        malicious_url = "http://evil.com'; rm -rf /"
+        cmd = generator.generate_sqlmap_command(malicious_url)
+        
+        # Dangerous characters (', ;, |) should be removed from the URL
+        # This prevents the shell from interpreting ; as a command separator
+        self.assertNotIn("'; rm", cmd)  # Single quote + semicolon injection should be sanitized
+        self.assertNotIn(";", cmd)  # No semicolons should remain
+        
+        # Valid URL should still work
+        safe_url = "http://example.com/page?id=1"
+        safe_cmd = generator.generate_sqlmap_command(safe_url)
+        self.assertIn("http://example.com/page?id=1", safe_cmd)
+    
+    def test_confirmation_callback(self):
+        """Test confirmation callback mechanism"""
+        from core.execution_engine import SmartTerminal
+        
+        # Track if callback was called
+        callback_called = [False]
+        
+        def test_callback(cmd, reason):
+            callback_called[0] = True
+            return False  # Deny
+        
+        terminal = SmartTerminal(confirmation_callback=test_callback)
+        
+        # Try to execute a high-risk command
+        result = terminal.execute("sudo rm -rf /tmp/test", skip_sanitization=True)
+        
+        # Callback should have been called and command denied
+        self.assertTrue(callback_called[0])
+        self.assertEqual(result.exit_code, -2)  # Confirmation denied code
 
 
 class TestDrakbenBrain(unittest.TestCase):
