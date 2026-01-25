@@ -12,7 +12,7 @@ passed = []
 try:
     from core.brain import DrakbenBrain, ContinuousReasoning
     from core.config import ConfigManager
-    from core.state import AgentState, get_state
+    from core.state import AgentState, reset_state
     from core.evolution_memory import get_evolution_memory
     from core.planner import Planner
     from core.tool_selector import ToolSelector
@@ -48,8 +48,9 @@ except Exception as e:
 
 # Test 5: State singleton
 try:
-    s1 = get_state()
-    s2 = get_state()
+    from core.state import AgentState
+    s1 = AgentState("test1")
+    s2 = AgentState("test2")  # Should return same instance
     assert s1 is s2, 'Singleton failed'
     passed.append('State singleton')
 except Exception as e:

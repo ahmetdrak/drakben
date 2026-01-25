@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.evolution_memory import get_evolution_memory
 
@@ -78,10 +78,23 @@ class Planner:
         self.current_step_index: int = 0
         self.current_strategy_name: Optional[str] = None
     
-    def create_plan_from_strategy(self, target: str, strategy, goal: str = "pentest") -> str:
+    def create_plan_from_strategy(self, target: str, strategy: Any, goal: str = "pentest") -> str:
         """
         Create a plan FROM A STRATEGY.
         Strategy determines the steps, not hardcoded logic.
+        
+        Args:
+            target: Target IP/URL to scan
+            strategy: Strategy object with steps and parameters
+            goal: Plan goal description (default: "pentest")
+            
+        Returns:
+            plan_id: Unique identifier for the created plan
+            
+        Behavior:
+            - Converts strategy steps to PlanStep objects
+            - Persists plan to evolution memory
+            - Sets as current plan for execution
         """
         plan_id = self._generate_plan_id()
         self.current_strategy_name = strategy.name
@@ -136,6 +149,12 @@ class Planner:
         Replan after failure with ADAPTIVE LEARNING.
         Facade method that delegates to specialized helpers.
         
+        Args:
+            failed_step_id: ID of the step that failed
+            
+        Returns:
+            True if replanning succeeded, False if limits exceeded
+            
         LOOP PROTECTION:
         - Tracks replan count per step
         - Tracks global replan count per session
@@ -422,6 +441,17 @@ class Planner:
         return True
     
     def get_next_step(self) -> Optional[PlanStep]:
+        """
+        Get next executable step from current plan.
+        
+        Returns:
+            Next PlanStep ready for execution, or None if plan complete
+            
+        Selection Logic:
+            - Skips completed/failed steps
+            - Checks dependencies
+            - Returns first executable step
+        """
         """
         Get next step to execute.
         Checks dependencies and skips blocked tools.

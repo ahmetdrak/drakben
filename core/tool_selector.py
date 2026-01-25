@@ -6,7 +6,7 @@
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class ToolSelector:
             logger.debug("Evolution: No changes needed")
 
     def update_tool_priority(self, tool_name: str, delta: int):
-        """Tek bir aracın önceliğini güncelle"""
+        """Update priority for a single tool"""
         if tool_name in self.tools:
             self.tools[tool_name].priority = max(
                 0, min(100, self.tools[tool_name].priority + delta)
@@ -269,10 +269,10 @@ class ToolSelector:
         """
         Return allowed tools based on state
 
-        KURALLAR:
-        - Phase'e uygun olmalı
-        - Foothold gerektiriyorsa, foothold olmalı
-        - Bloke edilmemiş olmalı
+        RULES:
+        - Must match current phase
+        - If requires foothold, foothold must exist
+        - Must not be blocked
         """
         allowed = []
 
@@ -298,21 +298,21 @@ class ToolSelector:
         return allowed
 
     def filter_for_system_tools(self) -> List[str]:
-        """Sistemde kurulu olması gereken araçları listele"""
+        """List tools that should be installed on system"""
         return [spec.system_tool for spec in self.tools.values() if spec.system_tool]
 
     def select_tool_for_surface(
         self, state: AgentState, surface: str
-    ) -> Optional[Tuple[str, Dict]]:
+    ) -> Optional[Tuple[str, Dict[str, Any]]]:
         """
-        Belirli bir attack surface için uygun tool seç
-
+        Select appropriate tool for a specific attack surface.
+        
         Args:
             state: Current agent state
-            surface: Attack surface string (e.g., "80:http")
-
+            surface: Attack surface string (format: "port:service")
+            
         Returns:
-            (tool_name, args) tuple or None
+            Tuple of (tool_name, params_dict) or None if no suitable tool
         """
         # Parse surface
         try:
@@ -351,7 +351,7 @@ class ToolSelector:
 
     def get_fallback_tool(self, failed_tool: str, state: AgentState) -> Optional[str]:
         """
-        Başarısız tool için fallback al - DETERMİNİSTİK
+        Get fallback tool for failed tool - DETERMINISTIC
 
         Args:
             failed_tool: Tool that failed
@@ -377,7 +377,7 @@ class ToolSelector:
         self, tool_name: str, state: AgentState
     ) -> Tuple[bool, str]:
         """
-        Tool seçiminin geçerli olup olmadığını kontrol et
+        Check if tool selection is valid
 
         Returns:
             (valid, reason) tuple
@@ -403,16 +403,16 @@ class ToolSelector:
         return True, "Valid"
 
     def record_tool_failure(self, tool_name: str):
-        """Tool failure kaydet (selector-local)"""
+        """Record tool failure (selector-local)"""
         self.failed_tools[tool_name] = self.failed_tools.get(tool_name, 0) + 1
 
     def is_tool_blocked(self, tool_name: str, max_failures: int = 2) -> bool:
-        """Tool bloke edilmiş mi? (2 kez fail -> blok)"""
+        """Check if tool is blocked? (2 failures -> block)"""
         return self.failed_tools.get(tool_name, 0) >= max_failures
 
     def get_next_phase_tools(self, state: AgentState) -> List[str]:
         """
-        Bir sonraki phase için gerekli tool'ları öneri
+        Suggest tools needed for next phase.
 
         Phase progression:
         INIT -> RECON -> VULN_SCAN -> EXPLOIT -> FOOTHOLD -> POST_EXPLOIT
@@ -432,7 +432,7 @@ class ToolSelector:
         self, state: AgentState
     ) -> Optional[Tuple[str, str, Dict]]:
         """
-        State'e göre bir sonraki aksiyonu öner - DETERMİNİSTİK
+        Recommend next action based on state - DETERMINISTIC
 
         Returns:
             (action_type, tool_name, args) or None
@@ -497,8 +497,7 @@ class ToolSelector:
         return None
 
     def _get_exploit_tool_for_vuln(self, vuln) -> Optional[str]:
-        """Zafiyet için uygun exploit tool seç"""
+        """Select appropriate exploit tool for vulnerability"""
         if "sql" in vuln.vuln_id.lower():
             return "sqlmap_exploit"
-        # Add more mappings as needed
         return "metasploit_exploit"

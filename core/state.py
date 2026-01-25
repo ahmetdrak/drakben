@@ -190,7 +190,13 @@ class AgentState:
         Updates with more specific/detailed info, preserves existing.
         
         Args:
-            services: List of discovered services
+            services: List of ServiceInfo objects discovered
+            
+        Behavior:
+            - Merges new services with existing ones
+            - Prefers versioned info over unknown
+            - Preserves tested/vulnerable flags
+            - Thread-safe operation
         """
         with self._lock:
             self._update_services_internal(services)

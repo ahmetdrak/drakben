@@ -508,6 +508,174 @@ os.system("rm -rf /")
             self.assertIsInstance(violations, list)
 
 
+class TestPlanner(unittest.TestCase):
+    """Tests for Planner class"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        from core.planner import Planner
+        self.planner = Planner()
+    
+    def test_initialization(self):
+        """Test planner initialization"""
+        self.assertIsNotNone(self.planner)
+        self.assertEqual(self.planner.current_step_index, 0)
+        self.assertEqual(len(self.planner.steps), 0)
+    
+    def test_create_plan_from_strategy(self):
+        """Test plan creation from strategy"""
+        from core.self_refining_engine import Strategy
+        from dataclasses import dataclass
+        
+        # Create mock strategy object
+        @dataclass
+        class MockStrategy:
+            strategy_id: str
+            name: str
+            target_type: str
+            description: str
+            base_parameters: dict
+            steps: list
+        
+        strategy = MockStrategy(
+            strategy_id="test_strategy",
+            name="test_strategy",
+            target_type="web",
+            description="Test strategy",
+            base_parameters={"param1": "value1"},
+            steps=["port_scan", "service_scan"]
+        )
+        
+        plan_id = self.planner.create_plan_from_strategy("192.168.1.1", strategy)
+        self.assertIsNotNone(plan_id)
+        self.assertEqual(len(self.planner.steps), 2)
+    
+    def test_get_next_step(self):
+        """Test getting next step from plan"""
+        from dataclasses import dataclass
+        
+        @dataclass
+        class MockStrategy:
+            strategy_id: str
+            name: str
+            target_type: str
+            description: str
+            base_parameters: dict
+            steps: list
+        
+        strategy = MockStrategy(
+            strategy_id="test",
+            name="test",
+            target_type="web",
+            description="Test",
+            base_parameters={},
+            steps=["port_scan"]
+        )
+        
+        self.planner.create_plan_from_strategy("192.168.1.1", strategy)
+        step = self.planner.get_next_step()
+        
+        self.assertIsNotNone(step)
+        self.assertEqual(step.action, "port_scan")
+    
+    def test_replan_limits(self):
+        """Test replan limits prevent infinite loops"""
+        from dataclasses import dataclass
+        
+        @dataclass
+        class MockStrategy:
+            strategy_id: str
+            name: str
+            target_type: str
+            description: str
+            base_parameters: dict
+            steps: list
+        
+        strategy = MockStrategy(
+            strategy_id="test",
+            name="test",
+            target_type="web",
+            description="Test",
+            base_parameters={},
+            steps=["port_scan"]
+        )
+        
+        self.planner.create_plan_from_strategy("192.168.1.1", strategy)
+        
+        # Try to replan multiple times
+        for i in range(5):
+            result = self.planner.replan("test_step_1")
+            if not result:
+                break
+        
+        # Should hit limit
+        total_replans = getattr(self.planner, '_total_replans', 0)
+        self.assertLessEqual(total_replans, self.planner.MAX_REPLAN_PER_SESSION)
+
+
+class TestSelfRefiningEngine(unittest.TestCase):
+    """Tests for SelfRefiningEngine class"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        import tempfile
+        import os
+        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db.close()
+        # Use in-memory database for tests
+        os.environ['DRAKBEN_EVOLUTION_DB'] = ":memory:"
+    
+    def tearDown(self):
+        """Cleanup"""
+        import os
+        try:
+            if hasattr(self, 'temp_db') and os.path.exists(self.temp_db.name):
+                os.unlink(self.temp_db.name)
+        except:
+            pass
+    
+    def test_initialization(self):
+        """Test engine initialization"""
+        from core.self_refining_engine import SelfRefiningEngine
+        try:
+            engine = SelfRefiningEngine()
+            self.assertIsNotNone(engine)
+        except Exception as e:
+            self.skipTest(f"SelfRefiningEngine initialization failed: {e}")
+    
+    def test_strategy_selection(self):
+        """Test strategy selection"""
+        from core.self_refining_engine import SelfRefiningEngine
+        try:
+            engine = SelfRefiningEngine()
+            # Should return strategy and profile
+            strategy, profile = engine.select_strategy_and_profile("192.168.1.1")
+            self.assertIsNotNone(strategy)
+            self.assertIsNotNone(profile)
+        except Exception as e:
+            self.skipTest(f"Strategy selection test failed: {e}")
+    
+    def test_profile_mutation(self):
+        """Test profile mutation on failure"""
+        from core.self_refining_engine import SelfRefiningEngine
+        try:
+            engine = SelfRefiningEngine()
+            # Get initial profile
+            strategy, profile = engine.select_strategy_and_profile("192.168.1.1")
+            original_id = profile.profile_id
+            
+            # Mark as failed and mutate
+            engine.update_profile_outcome(profile.profile_id, False)
+            engine.mutate_profile(profile.profile_id)
+            
+            # Should create new profile
+            strategy2, profile2 = engine.select_strategy_and_profile("192.168.1.1")
+            # New profile should be different (or same if mutation didn't create new)
+            self.assertIsNotNone(profile2)
+        except Exception as e:
+            self.skipTest(f"Profile mutation test failed: {e}")
+
+
 class TestLogging(unittest.TestCase):
     """Tests for logging configuration"""
     

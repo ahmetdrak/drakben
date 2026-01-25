@@ -501,36 +501,51 @@ class DrakbenMenu:
             /scan sessiz       - Stealth mode (Turkish alias)
             /scan hizli        - Aggressive mode (Turkish alias)
         """
+        scan_mode = self._parse_scan_mode(args)
+        
+        if not self._check_target_set():
+            return
+        
+        self._display_scan_panel(scan_mode)
+        self._start_scan_with_recovery(scan_mode)
+    
+    def _parse_scan_mode(self, args: str) -> str:
+        """Parse scan mode from arguments"""
+        args_lower = args.strip().lower()
+        if args_lower in ["stealth", "sessiz", "silent", "quiet", "gizli"]:
+            return "stealth"
+        elif args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
+            return "aggressive"
+        return "auto"
+    
+    def _check_target_set(self) -> bool:
+        """Check if target is set, show error if not"""
+        from rich.panel import Panel
+        
+        if self.config.target:
+            return True
+        
+        lang = self.config.language
+        if lang == "tr":
+            msg = "Önce hedef belirle: [bold]/target <IP>[/]"
+            title = "❌ Hedef Yok"
+        else:
+            msg = "Set target first: [bold]/target <IP>[/]"
+            title = "❌ No Target"
+        
+        self.console.print(Panel(
+            f"[red]{msg}[/]",
+            title=f"[red]{title}[/]",
+            border_style="red",
+            padding=(0, 1)
+        ))
+        return False
+    
+    def _display_scan_panel(self, scan_mode: str) -> None:
+        """Display scan initialization panel"""
         from rich.panel import Panel
         
         lang = self.config.language
-        
-        # Parse mode from args
-        args_lower = args.strip().lower()
-        scan_mode = "auto"
-        
-        if args_lower in ["stealth", "sessiz", "silent", "quiet", "gizli"]:
-            scan_mode = "stealth"
-        elif args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
-            scan_mode = "aggressive"
-
-        if not self.config.target:
-            if lang == "tr":
-                msg = "Önce hedef belirle: [bold]/target <IP>[/]"
-                title = "❌ Hedef Yok"
-            else:
-                msg = "Set target first: [bold]/target <IP>[/]"
-                title = "❌ No Target"
-            
-            self.console.print(Panel(
-                f"[red]{msg}[/]",
-                title=f"[red]{title}[/]",
-                border_style="red",
-                padding=(0, 1)
-            ))
-            return
-
-        # Mode-specific messaging
         mode_info = {
             "stealth": ("🥷 STEALTH", "Sessiz mod - Yavaş ama gizli" if lang == "tr" else "Silent mode - Slow but stealthy"),
             "aggressive": ("⚡ AGGRESSIVE", "Hızlı mod - Agresif tarama" if lang == "tr" else "Fast mode - Aggressive scan"),
@@ -551,35 +566,15 @@ class DrakbenMenu:
             border_style=self.COLORS["cyan"],
             padding=(0, 1)
         ))
-
-        # Start agent with error recovery
+    
+    def _start_scan_with_recovery(self, scan_mode: str) -> None:
+        """Start scan with error recovery"""
+        lang = self.config.language
+        
         try:
-            if not self.agent:
-                from core.refactored_agent import RefactoredDrakbenAgent
-
-                self.agent = RefactoredDrakbenAgent(self.config_manager)
-            
-            # Initialize with error handling and scan mode
-            try:
-                self.agent.initialize(target=self.config.target, mode=scan_mode)
-            except Exception as init_error:
-                error_msg = (
-                    f"Agent başlatma hatası: {init_error}" if lang == "tr" 
-                    else f"Agent initialization error: {init_error}"
-                )
-                self.console.print(Panel(
-                    f"[red]{error_msg}[/]\n[dim]Yeniden deneniyor... / Retrying...[/]",
-                    title="[red]⚠️ Hata / Error[/]",
-                    border_style="yellow",
-                    padding=(0, 1)
-                ))
-                # Retry with fresh agent
-                from core.refactored_agent import RefactoredDrakbenAgent
-                self.agent = RefactoredDrakbenAgent(self.config_manager)
-                self.agent.initialize(target=self.config.target, mode=scan_mode)
-
+            self._ensure_agent_initialized()
+            self._initialize_agent_with_retry(scan_mode, lang)
             self.agent.run_autonomous_loop()
-            
         except KeyboardInterrupt:
             interrupt_msg = "Tarama kullanıcı tarafından durduruldu." if lang == "tr" else "Scan stopped by user."
             self.console.print(f"\n⚠️ {interrupt_msg}", style="yellow")
@@ -587,17 +582,36 @@ class DrakbenMenu:
             import logging
             logger = logging.getLogger(__name__)
             logger.exception(f"Scan error: {e}")
-            
+            error_msg = f"Tarama sırasında hata: {e}" if lang == "tr" else f"Scan error: {e}"
+            self.console.print(f"❌ {error_msg}", style="red")
+    
+    def _ensure_agent_initialized(self) -> None:
+        """Ensure agent is initialized"""
+        if not self.agent:
+            from core.refactored_agent import RefactoredDrakbenAgent
+            self.agent = RefactoredDrakbenAgent(self.config_manager)
+    
+    def _initialize_agent_with_retry(self, scan_mode: str, lang: str) -> None:
+        """Initialize agent with retry on failure"""
+        from rich.panel import Panel
+        
+        try:
+            self.agent.initialize(target=self.config.target, mode=scan_mode)
+        except Exception as init_error:
             error_msg = (
-                f"Tarama sırasında hata: {e}" if lang == "tr"
-                else f"Error during scan: {e}"
+                f"Agent başlatma hatası: {init_error}" if lang == "tr" 
+                else f"Agent initialization error: {init_error}"
             )
             self.console.print(Panel(
-                f"[red]{error_msg}[/]\n[dim]Detaylar için log dosyasını kontrol edin.[/]",
-                title="[red]❌ Tarama Hatası / Scan Error[/]",
-                border_style="red",
+                f"[red]{error_msg}[/]\n[dim]Yeniden deneniyor... / Retrying...[/]",
+                title="[red]⚠️ Hata / Error[/]",
+                border_style="yellow",
                 padding=(0, 1)
             ))
+            # Retry with fresh agent
+            from core.refactored_agent import RefactoredDrakbenAgent
+            self.agent = RefactoredDrakbenAgent(self.config_manager)
+            self.agent.initialize(target=self.config.target, mode=scan_mode)
 
     def _cmd_clear(self, args: str = ""):
         """Clear screen - banner and menu remain"""

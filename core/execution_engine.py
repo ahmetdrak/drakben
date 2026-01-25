@@ -288,7 +288,7 @@ class SmartTerminal:
         timeout: int = 300,
         capture_output: bool = True,
         shell: bool = False,
-        callback: Optional[Callable] = None,
+        callback: Optional[Callable[[ExecutionResult], None]] = None,
         skip_sanitization: bool = False,
         skip_confirmation: bool = False,
     ) -> ExecutionResult:
@@ -296,7 +296,26 @@ class SmartTerminal:
         Execute command with monitoring, security checks, and user confirmation.
         
         Args:
+            command: Command string to execute
+            timeout: Maximum execution time in seconds (default: 300)
+            capture_output: Whether to capture stdout/stderr (default: True)
+            shell: Whether to use shell execution (default: False, security risk if True)
+            callback: Optional callback function called with ExecutionResult
+            skip_sanitization: Skip security sanitization (USE WITH CAUTION!)
             skip_confirmation: If True, bypass user confirmation (use with caution!)
+            
+        Returns:
+            ExecutionResult object with:
+                - command: str - Executed command
+                - status: ExecutionStatus - SUCCESS, FAILED, TIMEOUT, etc.
+                - stdout: str - Standard output
+                - stderr: str - Error output
+                - exit_code: int - Process exit code
+                - duration: float - Execution time in seconds
+                - timestamp: float - Execution timestamp
+                
+        Raises:
+            SecurityError: If command contains forbidden patterns
         """
         start_time = time.time()
 
@@ -807,6 +826,20 @@ class StreamingMonitor:
         stderr_lines = []
         stop_event = threading.Event()
 
+        stdout_thread, stderr_thread = self._start_monitor_threads(
+            process, stop_event, stdout_lines, stderr_lines, callback
+        )
+        
+        self._wait_for_process_with_timeout(process, timeout, stop_event)
+        self._join_monitor_threads(stdout_thread, stderr_thread, stop_event)
+
+        return "".join(stdout_lines), "".join(stderr_lines)
+    
+    def _start_monitor_threads(
+        self, process: subprocess.Popen, stop_event: threading.Event,
+        stdout_lines: List[str], stderr_lines: List[str], callback: Optional[Callable]
+    ) -> Tuple[threading.Thread, threading.Thread]:
+        """Start monitoring threads for stdout and stderr"""
         def read_stdout():
             try:
                 for line in process.stdout:
@@ -829,28 +862,38 @@ class StreamingMonitor:
             except Exception as e:
                 logger.debug(f"Stderr reader exception: {e}")
 
-        # Start threads as daemon to prevent blocking
         stdout_thread = threading.Thread(target=read_stdout, daemon=True)
         stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-
         stdout_thread.start()
         stderr_thread.start()
-
-        # Wait for process with timeout
+        return stdout_thread, stderr_thread
+    
+    def _wait_for_process_with_timeout(
+        self, process: subprocess.Popen, timeout: float, stop_event: threading.Event
+    ) -> None:
+        """Wait for process with timeout and handle termination"""
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             logger.warning(f"Process timed out after {timeout}s, terminating...")
             stop_event.set()
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-
-        # Join threads with timeout to prevent deadlock
-        stop_event.set()  # Signal threads to stop
-        join_timeout = 5.0  # Max 5 seconds to wait for threads
+            self._terminate_process(process)
+    
+    def _terminate_process(self, process: subprocess.Popen) -> None:
+        """Terminate process gracefully, kill if needed"""
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+    
+    def _join_monitor_threads(
+        self, stdout_thread: threading.Thread, stderr_thread: threading.Thread,
+        stop_event: threading.Event
+    ) -> None:
+        """Join monitor threads with timeout"""
+        stop_event.set()
+        join_timeout = 5.0
         
         stdout_thread.join(timeout=join_timeout)
         if stdout_thread.is_alive():
@@ -859,8 +902,6 @@ class StreamingMonitor:
         stderr_thread.join(timeout=join_timeout)
         if stderr_thread.is_alive():
             logger.warning("Stderr thread did not terminate in time")
-
-        return "".join(stdout_lines), "".join(stderr_lines)
 
     def stream_output(self, line_type: str, line: str):
         """Stream output to queue"""

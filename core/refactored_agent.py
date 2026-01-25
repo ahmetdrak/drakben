@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any, Callable
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ from core.coder import AICoder
 from core.config import ConfigManager
 from core.evolution_memory import ActionRecord, get_evolution_memory
 from core.execution_engine import ExecutionEngine
-from core.planner import Planner, StepStatus
+from core.planner import Planner, PlanStep, StepStatus
 from core.state import (AgentState, AttackPhase, reset_state, ServiceInfo, VulnerabilityInfo)
 from modules.report_generator import FindingSeverity
 from core.self_refining_engine import (
@@ -82,7 +82,7 @@ class RefactoredDrakbenAgent:
     STYLE_MAGENTA_BLINK = "bold magenta blink"
     STYLE_BLUE = "bold blue"
 
-    def initialize(self, target: str, mode: str = "auto"):
+    def initialize(self, target: str, mode: str = "auto") -> None:
         """
         Initialize agent with PROFILE-BASED SELECTION
         
@@ -105,144 +105,19 @@ class RefactoredDrakbenAgent:
         """
         import sqlite3
         
-        # Store scan mode for strategy selection
-        self._scan_mode = mode.lower() if mode else "auto"
-        
-        mode_label = {
-            "stealth": "🥷 STEALTH (Sessiz)",
-            "aggressive": "⚡ AGGRESSIVE (Hızlı)",
-            "auto": "🤖 AUTO"
-        }.get(self._scan_mode, "🤖 AUTO")
-        
-        self.console.print(
-            f"🔄 Initializing agent for target: {target} [{mode_label}]", style=self.STYLE_BLUE
-        )
-        
-        # Track fallback mode for graceful degradation
+        self._setup_scan_mode(mode, target)
         self._fallback_mode = False
 
         try:
-            # 1. Reset State
-            self.state = reset_state(target)
-            self.state.phase = AttackPhase.INIT
-
-            # 1.5. EVOLVE TOOL PRIORITIES (penalty-aware)
-            try:
-                self.tool_selector.evolve_strategies(self.evolution)
-            except Exception as e:
-                self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
-
-            # 2. CLASSIFY TARGET
-            target_type = self.refining_engine.classify_target(target)
-            self.target_signature = self.refining_engine.get_target_signature(target)
-            self.console.print(
-                f"🎯 Target Classification: {target_type}", style="cyan"
-            )
-            self.console.print(
-                f"🔑 Target Signature: {self.target_signature}", style="dim"
-            )
-
-            # 3. SELECT STRATEGY AND PROFILE (enforced order)
-            # Apply mode-based filtering
-            try:
-                self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
-                
-                # MODE-BASED PROFILE FILTERING
-                if self._scan_mode == "stealth" and self.current_profile:
-                    # For stealth mode, prefer low aggression profiles
-                    if self.current_profile.aggressiveness > 0.4:
-                        self.console.print("🥷 Stealth mode: Searching for low-aggression profile...", style="dim")
-                        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-                        stealth_profiles = [p for p in profiles if p.aggressiveness <= 0.4]
-                        if stealth_profiles:
-                            self.current_profile = sorted(stealth_profiles, key=lambda p: p.aggressiveness)[0]
-                            self.console.print(f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})", style="green")
-                            
-                elif self._scan_mode == "aggressive" and self.current_profile:
-                    # For aggressive mode, prefer high aggression profiles
-                    if self.current_profile.aggressiveness < 0.6:
-                        self.console.print("⚡ Aggressive mode: Searching for high-aggression profile...", style="dim")
-                        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-                        aggressive_profiles = [p for p in profiles if p.aggressiveness >= 0.6]
-                        if aggressive_profiles:
-                            self.current_profile = sorted(aggressive_profiles, key=lambda p: -p.aggressiveness)[0]
-                            self.console.print(f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})", style="yellow")
-                            
-            except Exception as e:
-                self.console.print(f"❌ Strategy selection failed: {e}", style="red")
-                logger.exception("Strategy selection error")
+            self._reset_and_evolve_state(target)
+            target_type = self._classify_target(target)
+            
+            if not self._select_and_filter_profile(target):
                 return
             
-            if not self.current_strategy or not self.current_profile:
-                self.console.print("❌ No strategy/profile available", style="red")
-                return
-            
-            self.console.print(
-                f"🧠 Selected Strategy: {self.current_strategy.name}",
-                style=self.STYLE_MAGENTA
-            )
-            self.console.print(
-                f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
-                f"(gen: {self.current_profile.mutation_generation}, "
-                f"success_rate: {self.current_profile.success_rate:.1%}, "
-                f"aggression: {self.current_profile.aggressiveness:.2f})",
-                style=self.STYLE_CYAN
-            )
-            
-            # Show profile details
-            self.console.print(
-                f"   📋 Step Order: {self.current_profile.step_order}",
-                style="dim"
-            )
-            self.console.print(
-                f"   ⚙️  Parameters: {json.dumps(self.current_profile.parameters)}",
-                style="dim"
-            )
-
-            # 4. CREATE PLAN FROM PROFILE (not strategy!)
-            existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
-            if existing_plan:
-                self.console.print(
-                    f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN
-                )
-                self.planner.load_plan(existing_plan.plan_id)
-            else:
-                # Create plan FROM PROFILE
-                plan_id = self.planner.create_plan_from_profile(
-                    target, 
-                    self.current_profile,
-                    f"pentest_{target}"
-                )
-                self.console.print(
-                    f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN
-                )
-
-            # 5. SHOW EVOLUTION STATUS
-            try:
-                status = self.refining_engine.get_evolution_status()
-                self.console.print(
-                    f"🧬 Evolution Status: {status['active_policies']} policies, "
-                    f"{status['retired_profiles']} retired profiles, "
-                    f"{status['max_mutation_generation']} max mutation gen",
-                    style="dim"
-                )
-            except Exception as e:
-                logger.warning(f"Could not get evolution status: {e}")
-
-            # 6. SHOW APPLICABLE POLICIES (with conflict resolution info)
-            try:
-                context = {"target_type": target_type}
-                policies = self.refining_engine.get_applicable_policies(context)
-                if policies:
-                    self.console.print(f"📜 Active Policies: {len(policies)}", style="yellow")
-                    for p in policies[:3]:
-                        tier_name = PolicyTier(p.priority_tier).name
-                        self.console.print(
-                            f"   - Tier {p.priority_tier} ({tier_name}): {p.action} (weight: {p.weight:.2f})", 
-                            style="dim"
-                        )
-            except Exception as e:
-                logger.warning(f"Could not get applicable policies: {e}")
+            self._display_selected_profile()
+            self._create_or_load_plan(target)
+            self._show_evolution_info(target_type)
 
             self.running = True
             self.stagnation_counter = 0
@@ -252,6 +127,128 @@ class RefactoredDrakbenAgent:
             self.console.print(f"⚠️  Database error: {e}", style="yellow")
             self.console.print("⚠️  Switching to fallback mode (limited functionality)", style="yellow")
             self._fallback_mode = True
+    
+    def _setup_scan_mode(self, mode: str, target: str) -> None:
+        """Setup scan mode and display initialization message"""
+        self._scan_mode = mode.lower() if mode else "auto"
+        mode_label = {
+            "stealth": "🥷 STEALTH (Sessiz)",
+            "aggressive": "⚡ AGGRESSIVE (Hızlı)",
+            "auto": "🤖 AUTO"
+        }.get(self._scan_mode, "🤖 AUTO")
+        self.console.print(
+            f"🔄 Initializing agent for target: {target} [{mode_label}]", 
+            style=self.STYLE_BLUE
+        )
+    
+    def _reset_and_evolve_state(self, target: str) -> None:
+        """Reset state and evolve tool priorities"""
+        self.state = reset_state(target)
+        self.state.phase = AttackPhase.INIT
+        try:
+            self.tool_selector.evolve_strategies(self.evolution)
+        except Exception as e:
+            self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
+    
+    def _classify_target(self, target: str) -> str:
+        """Classify target and set signature"""
+        target_type = self.refining_engine.classify_target(target)
+        self.target_signature = self.refining_engine.get_target_signature(target)
+        self.console.print(f"🎯 Target Classification: {target_type}", style="cyan")
+        self.console.print(f"🔑 Target Signature: {self.target_signature}", style="dim")
+        return target_type
+    
+    def _select_and_filter_profile(self, target: str) -> bool:
+        """Select strategy/profile and apply mode-based filtering. Returns False if failed."""
+        try:
+            self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
+            self._apply_mode_filtering()
+        except Exception as e:
+            self.console.print(f"❌ Strategy selection failed: {e}", style="red")
+            logger.exception("Strategy selection error")
+            return False
+        
+        if not self.current_strategy or not self.current_profile:
+            self.console.print("❌ No strategy/profile available", style="red")
+            return False
+        return True
+    
+    def _apply_mode_filtering(self) -> None:
+        """Apply mode-based profile filtering"""
+        if self._scan_mode == "stealth" and self.current_profile:
+            if self.current_profile.aggressiveness > 0.4:
+                self._switch_to_stealth_profile()
+        elif self._scan_mode == "aggressive" and self.current_profile:
+            if self.current_profile.aggressiveness < 0.6:
+                self._switch_to_aggressive_profile()
+    
+    def _switch_to_stealth_profile(self) -> None:
+        """Switch to low-aggression profile for stealth mode"""
+        self.console.print("🥷 Stealth mode: Searching for low-aggression profile...", style="dim")
+        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        stealth_profiles = [p for p in profiles if p.aggressiveness <= 0.4]
+        if stealth_profiles:
+            self.current_profile = sorted(stealth_profiles, key=lambda p: p.aggressiveness)[0]
+            self.console.print(f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})", style="green")
+    
+    def _switch_to_aggressive_profile(self) -> None:
+        """Switch to high-aggression profile for aggressive mode"""
+        self.console.print("⚡ Aggressive mode: Searching for high-aggression profile...", style="dim")
+        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        aggressive_profiles = [p for p in profiles if p.aggressiveness >= 0.6]
+        if aggressive_profiles:
+            self.current_profile = sorted(aggressive_profiles, key=lambda p: -p.aggressiveness)[0]
+            self.console.print(f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})", style="yellow")
+    
+    def _display_selected_profile(self) -> None:
+        """Display selected strategy and profile information"""
+        self.console.print(f"🧠 Selected Strategy: {self.current_strategy.name}", style=self.STYLE_MAGENTA)
+        self.console.print(
+            f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
+            f"(gen: {self.current_profile.mutation_generation}, "
+            f"success_rate: {self.current_profile.success_rate:.1%}, "
+            f"aggression: {self.current_profile.aggressiveness:.2f})",
+            style=self.STYLE_CYAN
+        )
+        self.console.print(f"   📋 Step Order: {self.current_profile.step_order}", style="dim")
+        self.console.print(f"   ⚙️  Parameters: {json.dumps(self.current_profile.parameters)}", style="dim")
+    
+    def _create_or_load_plan(self, target: str) -> None:
+        """Create new plan or load existing plan"""
+        existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
+        if existing_plan:
+            self.console.print(f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN)
+            self.planner.load_plan(existing_plan.plan_id)
+        else:
+            plan_id = self.planner.create_plan_from_profile(target, self.current_profile, f"pentest_{target}")
+            self.console.print(f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN)
+    
+    def _show_evolution_info(self, target_type: str) -> None:
+        """Show evolution status and applicable policies"""
+        try:
+            status = self.refining_engine.get_evolution_status()
+            self.console.print(
+                f"🧬 Evolution Status: {status['active_policies']} policies, "
+                f"{status['retired_profiles']} retired profiles, "
+                f"{status['max_mutation_generation']} max mutation gen",
+                style="dim"
+            )
+        except Exception as e:
+            logger.warning(f"Could not get evolution status: {e}")
+        
+        try:
+            context = {"target_type": target_type}
+            policies = self.refining_engine.get_applicable_policies(context)
+            if policies:
+                self.console.print(f"📜 Active Policies: {len(policies)}", style="yellow")
+                for p in policies[:3]:
+                    tier_name = PolicyTier(p.priority_tier).name
+                    self.console.print(
+                        f"   - Tier {p.priority_tier} ({tier_name}): {p.action} (weight: {p.weight:.2f})", 
+                        style="dim"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not get applicable policies: {e}")
             # Still allow basic operation
             self.state = reset_state(target)
             self.state.phase = AttackPhase.INIT
@@ -263,7 +260,7 @@ class RefactoredDrakbenAgent:
             self.console.print(f"❌ Critical error during initialization: {e}", style=self.STYLE_RED)
             raise RuntimeError(f"Agent initialization failed: {e}")
 
-    def run_autonomous_loop(self):
+    def run_autonomous_loop(self) -> None:
         """
         EVOLVED AGENTIC LOOP
         Refactored to reduce Cognitive Complexity.
@@ -313,8 +310,16 @@ class RefactoredDrakbenAgent:
         self._execute_and_handle_step(step)
         return True
 
-    def _execute_and_handle_step(self, step):
-        """Execute step and handle results"""
+    def _execute_and_handle_step(self, step: PlanStep) -> bool:
+        """
+        Execute step and handle results.
+        
+        Args:
+            step: Plan step to execute
+            
+        Returns:
+            True if execution should continue, False to halt
+        """
         self.planner.mark_step_executing(step.step_id)
         self.console.print(f"🔧 Executing: {step.tool}...", style="yellow")
 
@@ -358,7 +363,7 @@ class RefactoredDrakbenAgent:
                 return True
         return False
 
-    def _handle_plan_completion(self):
+    def _handle_plan_completion(self) -> None:
         """Handle case where no steps are left."""
         if self.planner.is_plan_complete():
             self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
@@ -366,7 +371,7 @@ class RefactoredDrakbenAgent:
         else:
             self.console.print("❓ No executable step found", style="yellow")
 
-    def _check_tool_blocked(self, step) -> bool:
+    def _check_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked by evolution penalty."""
         penalty = self.evolution.get_tool_penalty(step.tool)
         if self.evolution.is_tool_blocked(step.tool):
@@ -384,7 +389,7 @@ class RefactoredDrakbenAgent:
         )
         return False
 
-    def _record_action(self, step, success, penalty, execution_result):
+    def _record_action(self, step: PlanStep, success: bool, penalty: float, execution_result: Dict[str, Any]) -> None:
         """Record action to evolution memory."""
         record = ActionRecord(
             goal=f"pentest_{self.state.target}",
@@ -400,7 +405,7 @@ class RefactoredDrakbenAgent:
         )
         self.evolution.record_action(record)
 
-    def _handle_step_success(self, step, execution_result):
+    def _handle_step_success(self, step: PlanStep, execution_result: Dict[str, Any]) -> None:
         """Handle successful step execution."""
         self.planner.mark_step_success(step.step_id, execution_result.get("stdout", "")[:200])
         self.console.print(f"✅ Step succeeded", style="green")
@@ -410,7 +415,7 @@ class RefactoredDrakbenAgent:
         if self.current_profile:
             self.refining_engine.update_profile_outcome(self.current_profile.profile_id, True)
 
-    def _handle_step_failure(self, step, execution_result) -> bool:
+    def _handle_step_failure(self, step: PlanStep, execution_result: Dict[str, Any]) -> bool:
         """Handle failed step execution. Returns False if critical failure loop break needed."""
         stderr_msg = execution_result.get("stderr", "Unknown error")
         should_replan = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
@@ -832,158 +837,189 @@ class RefactoredDrakbenAgent:
         self.console.print(f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}", style="dim")
         
         # Apply self-healing based on error type
-        healed = False
-        retry_result = None
+        healed, retry_result = self._apply_error_specific_healing(
+            error_diagnosis, tool_name, command, combined_output, args
+        )
         
-        if error_diagnosis["type"] == "missing_tool":
-            # Attempt auto-install
-            if self._install_tool(tool_name):
-                self.console.print(f"🔄 {tool_name} yüklendi, yeniden deneniyor...", style="cyan")
+        return self._finalize_healing_result(healed, retry_result, result, tool_name, args)
+    
+    def _apply_error_specific_healing(
+        self, error_diagnosis: Dict[str, Any], tool_name: str, command: str,
+        combined_output: str, args: Dict[str, Any]
+    ) -> Tuple[bool, Optional[Any]]:
+        """Apply error-specific healing strategies"""
+        error_type = error_diagnosis["type"]
+        healing_map = {
+            "missing_tool": self._heal_missing_tool,
+            "permission_denied": self._heal_permission_denied,
+            "python_module_missing": self._heal_python_module_missing,
+            "connection_error": self._heal_connection_error,
+            "timeout": self._heal_timeout,
+            "library_missing": self._heal_library_missing,
+            "rate_limit": self._heal_rate_limit,
+            "port_in_use": self._heal_port_in_use,
+            "disk_full": self._heal_disk_full,
+            "firewall_blocked": self._heal_firewall_blocked,
+            "database_error": self._heal_database_error,
+        }
+        
+        if error_type in healing_map:
+            return healing_map[error_type](tool_name, command, error_diagnosis)
+        elif error_type == "unknown" and self.brain:
+            return self._llm_assisted_error_fix(tool_name, command, combined_output, args)
+        
+        return False, None
+    
+    def _heal_missing_tool(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal missing tool error by auto-installing"""
+        if self._install_tool(tool_name):
+            self.console.print(f"🔄 {tool_name} yüklendi, yeniden deneniyor...", style="cyan")
+            retry_result = self.executor.terminal.execute(command, timeout=300)
+            return retry_result.exit_code == 0, retry_result
+        return False, None
+    
+    def _heal_permission_denied(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal permission denied by trying sudo"""
+        import platform
+        if platform.system().lower() != "windows" and not command.startswith("sudo"):
+            self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
+            sudo_cmd = f"sudo {command}"
+            retry_result = self.executor.terminal.execute(sudo_cmd, timeout=300)
+            return retry_result.exit_code == 0, retry_result
+        return False, None
+    
+    def _heal_python_module_missing(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal missing Python module by pip install"""
+        module_name = error_diagnosis.get("module")
+        if module_name:
+            self.console.print(f"📦 Python modülü eksik: {module_name} - yükleniyor...", style="yellow")
+            pip_cmd = f"pip install {module_name}"
+            pip_result = self.executor.terminal.execute(pip_cmd, timeout=120)
+            if pip_result.exit_code == 0:
+                self.console.print(f"✅ {module_name} yüklendi, yeniden deneniyor...", style="green")
                 retry_result = self.executor.terminal.execute(command, timeout=300)
-                healed = retry_result.exit_code == 0
-                
-        elif error_diagnosis["type"] == "permission_denied":
-            # Try with sudo (Linux/Mac only)
-            import platform
-            if platform.system().lower() != "windows" and not command.startswith("sudo"):
-                self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
-                sudo_cmd = f"sudo {command}"
-                retry_result = self.executor.terminal.execute(sudo_cmd, timeout=300)
-                healed = retry_result.exit_code == 0
-                
-        elif error_diagnosis["type"] == "python_module_missing":
-            # Extract module name and pip install
-            module_name = error_diagnosis.get("module")
-            if module_name:
-                self.console.print(f"📦 Python modülü eksik: {module_name} - yükleniyor...", style="yellow")
-                pip_cmd = f"pip install {module_name}"
-                pip_result = self.executor.terminal.execute(pip_cmd, timeout=120)
-                if pip_result.exit_code == 0:
-                    self.console.print(f"✅ {module_name} yüklendi, yeniden deneniyor...", style="green")
-                    retry_result = self.executor.terminal.execute(command, timeout=300)
-                    healed = retry_result.exit_code == 0
-                    
-        elif error_diagnosis["type"] == "connection_error":
-            # Retry with backoff
-            self.console.print("🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...", style="yellow")
-            time.sleep(3)
+                return retry_result.exit_code == 0, retry_result
+        return False, None
+    
+    def _heal_connection_error(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal connection error by retrying with backoff"""
+        self.console.print("🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...", style="yellow")
+        time.sleep(3)
+        retry_result = self.executor.terminal.execute(command, timeout=300)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_timeout(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal timeout by retrying with longer timeout"""
+        self.console.print("⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow")
+        retry_result = self.executor.terminal.execute(command, timeout=600)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_library_missing(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal missing library by installing system package"""
+        library = error_diagnosis.get("library", "")
+        if not library:
+            return False, None
+        
+        self.console.print(f"📚 Kütüphane eksik: {library} - yükleniyor...", style="yellow")
+        import platform
+        system = platform.system().lower()
+        lib_pkg_map = {
+            "libssl": "openssl" if system == "darwin" else "libssl-dev",
+            "libcrypto": "openssl" if system == "darwin" else "libssl-dev",
+            "libffi": "libffi-dev",
+            "libpython": "python3-dev",
+        }
+        pkg = lib_pkg_map.get(library.split(".")[0], library)
+        
+        if system == "linux":
+            install_cmd = f"sudo apt-get install -y {pkg}"
+        elif system == "darwin":
+            install_cmd = f"brew install {pkg}"
+        else:
+            return False, None
+        
+        install_result = self.executor.terminal.execute(install_cmd, timeout=180)
+        if install_result.exit_code == 0:
             retry_result = self.executor.terminal.execute(command, timeout=300)
-            healed = retry_result.exit_code == 0
-            
-        elif error_diagnosis["type"] == "timeout":
-            # Retry with longer timeout
-            self.console.print("⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow")
-            retry_result = self.executor.terminal.execute(command, timeout=600)
-            healed = retry_result.exit_code == 0
+            return retry_result.exit_code == 0, retry_result
+        return False, None
+    
+    def _heal_rate_limit(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal rate limit by waiting and retrying"""
+        self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
+        time.sleep(30)
+        retry_result = self.executor.terminal.execute(command, timeout=300)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_port_in_use(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal port in use by killing process"""
+        port = error_diagnosis.get("port")
+        if not port:
+            return False, None
         
-        elif error_diagnosis["type"] == "library_missing":
-            # Try to install missing library
-            library = error_diagnosis.get("library", "")
-            if library:
-                self.console.print(f"📚 Kütüphane eksik: {library} - yükleniyor...", style="yellow")
-                import platform
-                system = platform.system().lower()
-                
-                # Map common libraries to packages
-                lib_pkg_map = {
-                    "libssl": "openssl" if system == "darwin" else "libssl-dev",
-                    "libcrypto": "openssl" if system == "darwin" else "libssl-dev",
-                    "libffi": "libffi-dev",
-                    "libpython": "python3-dev",
-                }
-                pkg = lib_pkg_map.get(library.split(".")[0], library)
-                
-                if system == "linux":
-                    install_cmd = f"sudo apt-get install -y {pkg}"
-                elif system == "darwin":
-                    install_cmd = f"brew install {pkg}"
-                else:
-                    install_cmd = None
-                
-                if install_cmd:
-                    install_result = self.executor.terminal.execute(install_cmd, timeout=180)
-                    if install_result.exit_code == 0:
-                        retry_result = self.executor.terminal.execute(command, timeout=300)
-                        healed = retry_result.exit_code == 0
+        self.console.print(f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...", style="yellow")
+        import platform
+        if platform.system().lower() != "windows":
+            kill_cmd = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
+        else:
+            kill_cmd = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
         
-        elif error_diagnosis["type"] == "rate_limit":
-            # Wait and retry with exponential backoff
-            self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
-            time.sleep(30)
+        self.executor.terminal.execute(kill_cmd, timeout=30)
+        time.sleep(2)
+        retry_result = self.executor.terminal.execute(command, timeout=300)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_disk_full(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal disk full by cleaning up"""
+        self.console.print("💾 Disk alanı yetersiz - temizlik yapılıyor...", style="yellow")
+        import platform
+        if platform.system().lower() != "windows":
+            cleanup_cmd = "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
+        else:
+            cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
+        
+        self.executor.terminal.execute(cleanup_cmd, timeout=60)
+        retry_result = self.executor.terminal.execute(command, timeout=300)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_firewall_blocked(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal firewall blocked by waiting and trying slower"""
+        self.console.print("🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...", style="yellow")
+        time.sleep(10)
+        if "--rate" in command or "-T" in command:
+            slower_cmd = command.replace("-T4", "-T1").replace("-T5", "-T2")
+            retry_result = self.executor.terminal.execute(slower_cmd, timeout=600)
+        else:
             retry_result = self.executor.terminal.execute(command, timeout=300)
-            healed = retry_result.exit_code == 0
-        
-        elif error_diagnosis["type"] == "port_in_use":
-            # Try to find and suggest killing the process using the port
-            port = error_diagnosis.get("port")
-            if port:
-                self.console.print(f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...", style="yellow")
-                import platform
-                if platform.system().lower() != "windows":
-                    kill_cmd = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
-                else:
-                    kill_cmd = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
-                
-                kill_result = self.executor.terminal.execute(kill_cmd, timeout=30)
-                time.sleep(2)  # Give the port time to free up
-                retry_result = self.executor.terminal.execute(command, timeout=300)
-                healed = retry_result.exit_code == 0
-        
-        elif error_diagnosis["type"] == "disk_full":
-            # Try to clear some space
-            self.console.print("💾 Disk alanı yetersiz - temizlik yapılıyor...", style="yellow")
-            import platform
-            if platform.system().lower() != "windows":
-                cleanup_cmd = "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
-            else:
-                cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
-            
-            self.executor.terminal.execute(cleanup_cmd, timeout=60)
-            retry_result = self.executor.terminal.execute(command, timeout=300)
-            healed = retry_result.exit_code == 0
-        
-        elif error_diagnosis["type"] == "firewall_blocked":
-            # Suggest stealth mode or wait
-            self.console.print("🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...", style="yellow")
-            time.sleep(10)
-            # If the command has rate/speed parameters, try slower
-            if "--rate" in command or "-T" in command:
-                slower_cmd = command.replace("-T4", "-T1").replace("-T5", "-T2")
-                retry_result = self.executor.terminal.execute(slower_cmd, timeout=600)
-                healed = retry_result.exit_code == 0
-            else:
-                retry_result = self.executor.terminal.execute(command, timeout=300)
-                healed = retry_result.exit_code == 0
-        
-        elif error_diagnosis["type"] == "database_error":
-            # Try to fix common database issues
-            self.console.print("🗄️ Veritabanı hatası - düzeltme deneniyor...", style="yellow")
-            # Remove lock files for SQLite
-            import glob
-            for lock_file in glob.glob("*.db-journal") + glob.glob("*.db-wal") + glob.glob("*.db-shm"):
-                try:
-                    import os
-                    os.remove(lock_file)
-                    self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
-                except Exception:
-                    pass
-            retry_result = self.executor.terminal.execute(command, timeout=300)
-            healed = retry_result.exit_code == 0
-            
-        elif error_diagnosis["type"] == "unknown" and self.brain:
-            # Use LLM to diagnose and suggest fix
-            healed, retry_result = self._llm_assisted_error_fix(tool_name, command, combined_output, args)
-        
-        # Update result if healed
+        return retry_result.exit_code == 0, retry_result
+    
+    def _heal_database_error(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+        """Heal database error by removing lock files"""
+        self.console.print("🗄️ Veritabanı hatası - düzeltme deneniyor...", style="yellow")
+        import glob
+        import os
+        for lock_file in glob.glob("*.db-journal") + glob.glob("*.db-wal") + glob.glob("*.db-shm"):
+            try:
+                os.remove(lock_file)
+                self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
+            except Exception:
+                pass
+        retry_result = self.executor.terminal.execute(command, timeout=300)
+        return retry_result.exit_code == 0, retry_result
+    
+    def _finalize_healing_result(
+        self, healed: bool, retry_result: Optional[Any], result: Any,
+        tool_name: str, args: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Finalize healing result and return formatted output"""
         if healed and retry_result:
             self.console.print(f"✅ Hata otomatik olarak düzeltildi!", style="green")
             return self._format_tool_result(retry_result, args)
         
-        # Record failure if not healed
         if result.exit_code != 0:
             self.tool_selector.record_tool_failure(tool_name)
         
-        return self._format_tool_result(result, args)
+        return self._finalize_healing_result(healed, retry_result, result, tool_name, args)
     
     def _diagnose_error(self, output: str, exit_code: int) -> Dict:
         """
@@ -1633,6 +1669,6 @@ Respond in JSON:
 
         self.console.print(Panel(report, border_style="green", title="Summary"))
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the agent"""
         self.running = False

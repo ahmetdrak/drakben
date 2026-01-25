@@ -199,8 +199,26 @@ class ContinuousReasoning:
         rule_result["fallback_mode"] = True  # Mark that we used fallback
         return rule_result
 
-    def _analyze_with_llm(self, user_input: str, context: ExecutionContext) -> Dict:
-        """LLM-powered analysis with language-aware response"""
+    def _analyze_with_llm(self, user_input: str, context: ExecutionContext) -> Dict[str, Any]:
+        """
+        LLM-powered analysis with language-aware response.
+        
+        Args:
+            user_input: User's natural language request
+            context: Execution context with target, language, system info
+            
+        Returns:
+            Dict with keys:
+                - success: bool - Whether analysis succeeded
+                - intent: str - Detected intent (scan, exploit, etc.)
+                - confidence: float - Confidence score 0.0-1.0
+                - response: str - User-facing response in their language
+                - steps: List[Dict] - Suggested action steps
+                - reasoning: str - Technical explanation
+                - risks: List[str] - Identified risks
+                - command: Optional[str] - Suggested command
+                - error: Optional[str] - Error message if failed
+        """
 
         # LANGUAGE LOGIC: Think in English, speak in user's language
         user_lang = getattr(context, "language", "tr")

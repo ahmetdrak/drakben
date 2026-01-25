@@ -180,42 +180,63 @@ class UniversalInterpreter:
         import shlex
         
         try:
-            # SECURITY: Sanitize command through CommandSanitizer
-            if SANITIZER_AVAILABLE and CommandSanitizer:
-                sanitizer = CommandSanitizer()
-                
-                # Get risk level first
-                risk = sanitizer.get_risk_level(command)
-                if risk == 'critical':
-                    blocked_msg = f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
-                    logger.warning(f"SECURITY BLOCKED: {blocked_msg}")
-                    return InterpreterResult("", blocked_msg)
-                elif risk == 'high':
-                    if sanitizer.is_high_risk(command):
-                        logger.warning(f"HIGH RISK command blocked: {command[:50]}")
-                        return InterpreterResult("", f"HIGH RISK: Command blocked for security: {command[:50]}...")
-                
-                # Sanitize the command
-                try:
-                    sanitized = sanitizer.sanitize(command)
-                except SecurityError as e:
-                    return InterpreterResult("", f"Security violation: {e}")
-            else:
-                # Fallback: Basic sanitization without CommandSanitizer
-                dangerous_patterns = [
-                    'rm -rf /', 'rm -rf /*', 'mkfs', 'dd if=/dev',
-                    ':(){ :|:& };:', 'chmod -R 777 /', '/etc/shadow',
-                    '/etc/passwd', 'wget -O- | sh', 'curl | sh', 'curl | bash',
-                    'shutdown', 'reboot', 'halt', 'poweroff', 'init 0', 'init 6'
-                ]
-                cmd_lower = command.lower()
-                for pattern in dangerous_patterns:
-                    if pattern.lower() in cmd_lower:
-                        logger.warning(f"SECURITY: Blocked dangerous pattern: {pattern}")
-                        return InterpreterResult("", f"Dangerous command pattern blocked: {pattern}")
-                sanitized = command
+            sanitized = self._sanitize_command(command)
+            if not sanitized:
+                return InterpreterResult("", "Command blocked by security policy")
             
-            # Run sanitized command
+            return self._execute_sanitized_command(sanitized)
+        except Exception as e:
+            logger.error(f"Shell execution error: {e}")
+            return InterpreterResult("", str(e))
+    
+    def _sanitize_command(self, command: str) -> Optional[str]:
+        """Sanitize command using CommandSanitizer or fallback"""
+        if SANITIZER_AVAILABLE and CommandSanitizer:
+            return self._sanitize_with_sanitizer(command)
+        else:
+            return self._sanitize_fallback(command)
+    
+    def _sanitize_with_sanitizer(self, command: str) -> Optional[str]:
+        """Sanitize using CommandSanitizer"""
+        sanitizer = CommandSanitizer()
+        risk = sanitizer.get_risk_level(command)
+        
+        if risk == 'critical':
+            blocked_msg = f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
+            logger.warning(f"SECURITY BLOCKED: {blocked_msg}")
+            return None
+        
+        if risk == 'high' and sanitizer.is_high_risk(command):
+            logger.warning(f"HIGH RISK command blocked: {command[:50]}")
+            return None
+        
+        try:
+            return sanitizer.sanitize(command)
+        except SecurityError as e:
+            logger.warning(f"Security violation: {e}")
+            return None
+    
+    def _sanitize_fallback(self, command: str) -> Optional[str]:
+        """Fallback sanitization without CommandSanitizer"""
+        dangerous_patterns = [
+            'rm -rf /', 'rm -rf /*', 'mkfs', 'dd if=/dev',
+            ':(){ :|:& };:', 'chmod -R 777 /', '/etc/shadow',
+            '/etc/passwd', 'wget -O- | sh', 'curl | sh', 'curl | bash',
+            'shutdown', 'reboot', 'halt', 'poweroff', 'init 0', 'init 6'
+        ]
+        cmd_lower = command.lower()
+        for pattern in dangerous_patterns:
+            if pattern.lower() in cmd_lower:
+                logger.warning(f"SECURITY: Blocked dangerous pattern: {pattern}")
+                return None
+        return command
+    
+    def _execute_sanitized_command(self, sanitized: str) -> InterpreterResult:
+        """Execute sanitized command"""
+        import subprocess
+        import shlex
+        
+        try:
             process = subprocess.run(
                 sanitized, 
                 shell=True, 
