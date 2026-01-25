@@ -260,7 +260,7 @@ class DrakbenProgress:
         Create a progress bar context manager.
         
         Usage:
-            with progress.bar("Downloading...", 100) as p:
+            with progress.bar() as p:
                 task = p.add_task("download", total=100)
                 for i in range(100):
                     p.update(task, advance=1)
@@ -316,7 +316,7 @@ class DrakbenProgress:
         """
         results = []
         
-        with self.bar(description, len(targets)) as progress:
+        with self.bar() as progress:
             task = progress.add_task(description, total=len(targets))
             
             for target in targets:
@@ -353,7 +353,7 @@ class DrakbenProgress:
             async with semaphore:
                 return await scan_func(target)
         
-        with self.bar(description, len(targets)) as progress:
+        with self.bar() as progress:
             task = progress.add_task(description, total=len(targets))
             
             tasks = []
