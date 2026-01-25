@@ -346,8 +346,7 @@ class MetasploitRPC:
         payload: str = "generic/shell_reverse_tcp",
         lhost: str = "",
         lport: int = 4444,
-        options: Dict[str, Any] = None,
-        timeout: int = 120
+        options: Dict[str, Any] = None
     ) -> ExploitResult:
         """
         Run an exploit against a target.
@@ -360,13 +359,13 @@ class MetasploitRPC:
             lhost: Local host for reverse connections
             lport: Local port for reverse connections
             options: Additional options
-            timeout: Execution timeout
             
         Returns:
             ExploitResult object
         """
         start_time = time.time()
         options = options or {}
+        timeout_seconds = 120  # Fixed timeout value
         
         logger.info(f"Running exploit: {exploit_name} against {target_host}")
         
@@ -400,10 +399,8 @@ class MetasploitRPC:
                 )
             
             # Wait for exploit to complete
-            session = await self._wait_for_session(
-                target_host, 
-                timeout=timeout
-            )
+            async with asyncio.timeout(timeout_seconds):
+                session = await self._wait_for_session(target_host)
             
             duration = time.time() - start_time
             
@@ -425,12 +422,12 @@ class MetasploitRPC:
                     duration_seconds=duration
                 )
                 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ExploitResult(
                 status=ExploitStatus.FAILED,
                 exploit_name=exploit_name,
                 target=target_host,
-                error=f"Timeout after {timeout}s",
+                error=f"Timeout after {timeout_seconds}s",
                 duration_seconds=time.time() - start_time
             )
         except Exception as e:
@@ -445,13 +442,13 @@ class MetasploitRPC:
     
     async def _wait_for_session(
         self, 
-        target_host: str, 
-        timeout: int = 120
+        target_host: str
     ) -> Optional[MSFSession]:
         """Wait for a session to be created"""
+        timeout_seconds = 120  # Fixed timeout value
         start_time = time.time()
         
-        while time.time() - start_time < timeout:
+        while time.time() - start_time < timeout_seconds:
             sessions = await self.list_sessions()
             
             for session in sessions:

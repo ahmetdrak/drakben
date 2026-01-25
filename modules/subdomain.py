@@ -91,8 +91,7 @@ class SubdomainEnumerator:
         self,
         domain: str,
         use_bruteforce: bool = False,
-        resolve: bool = True,
-        timeout: int = 300
+        resolve: bool = True
     ) -> List[SubdomainResult]:
         """
         Enumerate subdomains for a domain.
@@ -101,7 +100,6 @@ class SubdomainEnumerator:
             domain: Target domain
             use_bruteforce: Whether to use DNS brute force
             resolve: Whether to resolve subdomains
-            timeout: Overall timeout in seconds
             
         Returns:
             List of SubdomainResult objects
@@ -109,13 +107,13 @@ class SubdomainEnumerator:
         domain = self._clean_domain(domain)
         logger.info(f"Starting subdomain enumeration for: {domain}")
         
-        tasks = self._build_enumeration_tasks(domain, use_bruteforce, timeout)
-        source_results = await self._gather_enumeration_results(tasks, timeout)
+        tasks = self._build_enumeration_tasks(domain, use_bruteforce)
+        source_results = await self._gather_enumeration_results(tasks)
         results = await self._process_enumeration_results(source_results, resolve)
         
         return sorted(results, key=lambda x: x.subdomain)
     
-    def _build_enumeration_tasks(self, domain: str, use_bruteforce: bool, timeout: int) -> List:
+    def _build_enumeration_tasks(self, domain: str, use_bruteforce: bool) -> List:
         """Build list of enumeration tasks"""
         tasks = [
             self._crtsh_enum(domain),
@@ -129,21 +127,20 @@ class SubdomainEnumerator:
             if self.subfinder_available:
                 tasks.append(self._subfinder_enum(domain))
             if self.amass_available:
-                tasks.append(self._amass_enum(domain, timeout=min(timeout, 120)))
+                tasks.append(self._amass_enum(domain))
         
         if use_bruteforce:
             tasks.append(self._bruteforce_enum(domain))
         
         return tasks
     
-    async def _gather_enumeration_results(self, tasks: List, timeout: int) -> List:
+    async def _gather_enumeration_results(self, tasks: List) -> List:
         """Gather results from all enumeration tasks"""
+        timeout_seconds = 300  # Fixed timeout value
         try:
-            return await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(timeout_seconds):
+                return await asyncio.gather(*tasks, return_exceptions=True)
+        except TimeoutError:
             logger.warning("Subdomain enumeration timed out")
             return []
     
@@ -340,9 +337,10 @@ class SubdomainEnumerator:
                 results.append(SubdomainResult(subdomain=line, source="subfinder"))
         return results
     
-    async def _amass_enum(self, domain: str, timeout: int = 120) -> List[SubdomainResult]:
+    async def _amass_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using amass"""
         results = []
+        timeout_seconds = 120  # Fixed timeout value
         
         if not self.amass_available:
             return results
@@ -357,7 +355,8 @@ class SubdomainEnumerator:
                 stderr=asyncio.subprocess.PIPE
             )
             
-            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            async with asyncio.timeout(timeout_seconds):
+                stdout, _ = await process.communicate()
             
             for line in stdout.decode().strip().split("\n"):
                 line = line.strip()
@@ -369,7 +368,7 @@ class SubdomainEnumerator:
             
             logger.info(f"Amass found {len(results)} subdomains")
             
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Amass timed out")
         except Exception as e:
             logger.error(f"Amass error: {e}")
