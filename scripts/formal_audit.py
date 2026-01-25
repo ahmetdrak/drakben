@@ -469,24 +469,35 @@ import ast
 
 def find_function_calls(file_path: str, func_name: str) -> list:
     """Find all calls to a function in a file"""
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        content = f.read()
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+    except Exception:
+        return []
     
     try:
         tree = ast.parse(content)
     except (SyntaxError, ValueError):
         return []
     
+    return _extract_function_calls(tree, func_name)
+
+def _extract_function_calls(tree: ast.AST, func_name: str) -> List[int]:
+    """Extract function calls from AST"""
     calls = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                if node.func.attr == func_name:
-                    calls.append(node.lineno)
-            elif isinstance(node.func, ast.Name):
-                if node.func.id == func_name:
-                    calls.append(node.lineno)
+            if _is_matching_call(node, func_name):
+                calls.append(node.lineno)
     return calls
+
+def _is_matching_call(node: ast.Call, func_name: str) -> bool:
+    """Check if call node matches function name"""
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr == func_name
+    elif isinstance(node.func, ast.Name):
+        return node.func.id == func_name
+    return False
 
 # Check evolve_strategies
 evolve_calls = find_function_calls(os.path.join(PROJECT_ROOT, "core", "refactored_agent.py"), "evolve_strategies")

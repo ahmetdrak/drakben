@@ -449,7 +449,8 @@ class SmartTerminal:
                 stdout, stderr = process.communicate(timeout=1)
             except subprocess.TimeoutExpired:
                  stdout, stderr = "", "Command timed out and output buffer was lost"
-            except Exception:
+            except (OSError, IOError, ValueError) as e:
+                 logger.debug(f"Error capturing output during timeout: {e}")
                  stdout, stderr = "", "Command timed out (output capture failed)"
             
             return stdout or "", stderr or "", -1, ExecutionStatus.TIMEOUT
@@ -491,8 +492,8 @@ class SmartTerminal:
             logger.warning(f"Error during process cleanup: {e}")
             try:
                 process.kill()
-            except Exception:
-                pass
+            except (ProcessLookupError, OSError) as e:
+                logger.debug(f"Error killing process: {e}")
 
     def _handle_execution_error(self, command: str, error: Exception, start_time: float) -> ExecutionResult:
         """Handle generic execution error"""

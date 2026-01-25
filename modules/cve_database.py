@@ -285,19 +285,26 @@ class CVEDatabase:
         Returns:
             List of matching CVEEntry objects
         """
-        results = []
+        results = self._search_cached_cves(keyword, min_cvss, max_results)
+        if len(results) >= max_results:
+            return results[:max_results]
         
-        # Check local cache first
+        api_results = await self._fetch_cves_from_api(keyword, max_results, min_cvss)
+        return self._merge_cve_results(results, api_results, max_results)
+    
+    def _search_cached_cves(self, keyword: str, min_cvss: float, max_results: int) -> List[CVEEntry]:
+        """Search CVEs in local cache"""
+        results = []
         cached_results = self._search_cache(keyword)
         for entry in cached_results:
             if entry.cvss_score >= min_cvss:
                 results.append(entry)
-        
-        if len(results) >= max_results:
-            return results[:max_results]
-        
-        # Fetch from API
+        return results
+    
+    async def _fetch_cves_from_api(self, keyword: str, max_results: int, min_cvss: float) -> List[CVEEntry]:
+        """Fetch CVEs from NVD API"""
         logger.info(f"Searching NVD for: {keyword}")
+        results = []
         try:
             headers = {}
             if self.api_key:
@@ -308,16 +315,30 @@ class CVEDatabase:
                 async with session.get(url, headers=headers, timeout=60) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        for item in data.get("vulnerabilities", []):
-                            entry = self._parse_nvd_response(item)
-                            if entry and entry.cvss_score >= min_cvss:
-                                self._save_to_cache(entry)
-                                if entry not in results:
-                                    results.append(entry)
+                        results = self._process_api_results(data, min_cvss)
         except Exception as e:
             logger.error(f"Error searching CVEs: {e}")
         
-        return results[:max_results]
+        return results
+    
+    def _process_api_results(self, data: Dict, min_cvss: float) -> List[CVEEntry]:
+        """Process API response and filter by CVSS"""
+        results = []
+        for item in data.get("vulnerabilities", []):
+            entry = self._parse_nvd_response(item)
+            if entry and entry.cvss_score >= min_cvss:
+                self._save_to_cache(entry)
+                results.append(entry)
+        return results
+    
+    def _merge_cve_results(self, cached: List[CVEEntry], api: List[CVEEntry], max_results: int) -> List[CVEEntry]:
+        """Merge cached and API results, removing duplicates"""
+        seen_ids = {entry.cve_id for entry in cached}
+        for entry in api:
+            if entry.cve_id not in seen_ids:
+                cached.append(entry)
+                seen_ids.add(entry.cve_id)
+        return cached[:max_results]
     
     async def search_by_cpe(self, cpe: str, max_results: int = 20) -> List[CVEEntry]:
         """
@@ -581,40 +602,61 @@ class VulnerabilityMatcher:
         Returns:
             List of VulnerabilityMatch objects sorted by confidence
         """
-        matches = []
         vuln_lower = vuln_type.lower()
         
         # Strategy 1: Check if it's already a CVE ID
-        if vuln_lower.startswith("cve-"):
-            entry = await self.cve_db.fetch_cve(vuln_type.upper())
-            if entry:
-                matches.append(VulnerabilityMatch(
-                    detected_vuln=vuln_type,
-                    cve_entry=entry,
-                    confidence=1.0,
-                    match_method="exact"
-                ))
-                return matches
+        exact_match = await self._try_exact_cve_match(vuln_type, vuln_lower)
+        if exact_match:
+            return exact_match
         
-        # Strategy 2: CPE-based search if product/version known
-        if product:
-            cpe_string = self._build_cpe(product, version)
-            if cpe_string:
-                cpe_results = await self.cve_db.search_by_cpe(cpe_string, max_results=10)
-                for entry in cpe_results:
-                    matches.append(VulnerabilityMatch(
-                        detected_vuln=vuln_type,
-                        cve_entry=entry,
-                        confidence=0.85,
-                        match_method="cpe"
-                    ))
+        matches = []
+        matches.extend(await self._try_cpe_match(vuln_type, product, version))
+        matches.extend(await self._try_keyword_match(vuln_type, vuln_lower))
         
-        # Strategy 3: Keyword-based search
+        return self._deduplicate_and_sort_matches(matches)
+    
+    async def _try_exact_cve_match(self, vuln_type: str, vuln_lower: str) -> Optional[List[VulnerabilityMatch]]:
+        """Try to match as exact CVE ID"""
+        if not vuln_lower.startswith("cve-"):
+            return None
+        
+        entry = await self.cve_db.fetch_cve(vuln_type.upper())
+        if entry:
+            return [VulnerabilityMatch(
+                detected_vuln=vuln_type,
+                cve_entry=entry,
+                confidence=1.0,
+                match_method="exact"
+            )]
+        return None
+    
+    async def _try_cpe_match(self, vuln_type: str, product: Optional[str], version: Optional[str]) -> List[VulnerabilityMatch]:
+        """Try CPE-based matching"""
+        matches = []
+        if not product:
+            return matches
+        
+        cpe_string = self._build_cpe(product, version)
+        if not cpe_string:
+            return matches
+        
+        cpe_results = await self.cve_db.search_by_cpe(cpe_string, max_results=10)
+        for entry in cpe_results:
+            matches.append(VulnerabilityMatch(
+                detected_vuln=vuln_type,
+                cve_entry=entry,
+                confidence=0.85,
+                match_method="cpe"
+            ))
+        return matches
+    
+    async def _try_keyword_match(self, vuln_type: str, vuln_lower: str) -> List[VulnerabilityMatch]:
+        """Try keyword-based matching"""
+        matches = []
         keywords = self._get_search_keywords(vuln_lower)
         for keyword in keywords:
             search_results = await self.cve_db.search_cves(keyword, max_results=5)
             for entry in search_results:
-                # Calculate confidence based on description match
                 confidence = self._calculate_confidence(vuln_lower, entry.description)
                 if confidence > 0.5:
                     matches.append(VulnerabilityMatch(
@@ -623,15 +665,16 @@ class VulnerabilityMatcher:
                         confidence=confidence,
                         match_method="keyword"
                     ))
-        
-        # Remove duplicates and sort by confidence
+        return matches
+    
+    def _deduplicate_and_sort_matches(self, matches: List[VulnerabilityMatch]) -> List[VulnerabilityMatch]:
+        """Remove duplicates and sort by confidence"""
         seen_cves = set()
         unique_matches = []
         for match in sorted(matches, key=lambda x: x.confidence, reverse=True):
             if match.cve_entry and match.cve_entry.cve_id not in seen_cves:
                 seen_cves.add(match.cve_entry.cve_id)
                 unique_matches.append(match)
-        
         return unique_matches[:10]  # Top 10 matches
     
     def _get_search_keywords(self, vuln_type: str) -> List[str]:

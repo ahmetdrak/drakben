@@ -219,8 +219,8 @@ class MetasploitRPC:
             if sock:
                 try:
                     sock.close()
-                except Exception:
-                    pass
+                except (OSError, AttributeError) as e:
+                    logger.debug(f"Error closing socket: {e}")
     
     async def disconnect(self) -> None:
         """Disconnect from Metasploit RPC"""

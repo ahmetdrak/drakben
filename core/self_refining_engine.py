@@ -305,12 +305,12 @@ class SelfRefiningEngine:
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except (sqlite3.Error, AttributeError) as e:
+                    logger.debug(f"Error closing connection: {e}")
             try:
                 self._lock.release()
-            except Exception:
-                pass
+            except (RuntimeError, AttributeError) as e:
+                logger.debug(f"Error releasing lock: {e}")
     
     def _init_database(self):
         """Initialize database schema with migration support"""
@@ -523,13 +523,13 @@ class SelfRefiningEngine:
         if conn:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except (sqlite3.Error, AttributeError) as e:
+                logger.debug(f"Error closing connection: {e}")
         if lock_acquired:
             try:
                 self._lock.release()
-            except Exception:
-                pass
+            except (RuntimeError, AttributeError) as e:
+                logger.debug(f"Error releasing lock: {e}")
     
     def _create_initial_profiles(self, conn: sqlite3.Connection, strategy_name: str, 
                                   base_params: Dict, created_at: str):

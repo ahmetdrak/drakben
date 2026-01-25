@@ -739,7 +739,8 @@ class OpenRouterClient:
         try:
             result = self.query("Hello", use_cache=False, timeout=10)
             return "[Error]" not in result and "[Offline]" not in result
-        except Exception:
+        except (ConnectionError, TimeoutError, ValueError) as e:
+            logger.debug(f"Health check failed: {e}")
             return False
 
     def clear_cache(self):
@@ -764,5 +765,5 @@ class OpenRouterClient:
         """Cleanup on deletion"""
         try:
             self.close()
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError) as e:
+            logger.debug(f"Error during cleanup: {e}")

@@ -154,10 +154,7 @@ class SubdomainEnumerator:
         
         for result in source_results:
             if isinstance(result, list):
-                for r in result:
-                    if r.subdomain not in subdomains:
-                        subdomains.add(r.subdomain)
-                        results.append(r)
+                results.extend(_extract_unique_subdomains(result, subdomains))
             elif isinstance(result, Exception):
                 logger.error(f"Source error: {result}")
         
@@ -166,28 +163,15 @@ class SubdomainEnumerator:
         if resolve:
             results = await self._resolve_subdomains(results)
         return results
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Subdomain enumeration timed out")
-            source_results = []
-        
-        # Combine results
-        for result in source_results:
-            if isinstance(result, list):
-                for r in result:
-                    if r.subdomain not in subdomains:
-                        subdomains.add(r.subdomain)
-                        results.append(r)
-            elif isinstance(result, Exception):
-                logger.error(f"Source error: {result}")
-        
-        logger.info(f"Found {len(results)} unique subdomains")
-        
-        # Resolve if requested
-        if resolve:
-            results = await self._resolve_subdomains(results)
-        
-        return sorted(results, key=lambda x: x.subdomain)
+
+def _extract_unique_subdomains(result_list: List[SubdomainResult], subdomains: Set[str]) -> List[SubdomainResult]:
+    """Extract unique subdomains from result list"""
+    unique_results = []
+    for r in result_list:
+        if r.subdomain not in subdomains:
+            subdomains.add(r.subdomain)
+            unique_results.append(r)
+    return unique_results
     
     def _clean_domain(self, domain: str) -> str:
         """Clean domain string"""
@@ -404,7 +388,8 @@ class SubdomainEnumerator:
                     source="bruteforce",
                     resolved=True
                 )
-            except Exception:
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+                logger.debug(f"Error in crt.sh query: {e}")
                 return None
         
         # Run checks concurrently in batches
@@ -452,7 +437,8 @@ class SubdomainEnumerator:
                 )
                 result.resolved = True
                 result.ip_addresses = [str(r) for r in answers]
-            except Exception:
+            except (OSError, ValueError) as e:
+                logger.debug(f"DNS resolution error: {e}")
                 result.resolved = False
             
             # Try CNAME
@@ -465,8 +451,8 @@ class SubdomainEnumerator:
                     'CNAME'
                 )
                 result.cname = str(answers[0])
-            except Exception:
-                pass
+            except (OSError, IndexError) as e:
+                logger.debug(f"CNAME lookup error: {e}")
             
             return result
         

@@ -162,9 +162,10 @@ class UniversalInterpreter:
                     # Compile to check syntax first
                     compiled = compile(code, "<string>", "exec")
                     exec(compiled, self.locals)
-                except Exception:
+                except (SyntaxError, NameError, TypeError, ValueError) as e:
                     # Capture traceback
                     traceback.print_exc()
+                    logger.debug(f"Code execution error: {e}")
             
             output = stdout_capture.getvalue()
             error = stderr_capture.getvalue()

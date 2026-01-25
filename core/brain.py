@@ -835,7 +835,8 @@ class DrakbenBrain:
         if llm_client is None and LLM_AVAILABLE:
             try:
                 llm_client = OpenRouterClient()
-            except Exception:
+            except (ValueError, ConnectionError, ImportError) as e:
+                logger.debug(f"Could not initialize LLM client: {e}")
                 llm_client = None
 
         self.llm_client = llm_client

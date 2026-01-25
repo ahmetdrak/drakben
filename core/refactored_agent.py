@@ -1027,8 +1027,8 @@ class RefactoredDrakbenAgent:
             try:
                 os.remove(lock_file)
                 self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
-            except Exception:
-                pass
+            except (OSError, PermissionError) as e:
+                logger.debug(f"Could not remove lock file {lock_file}: {e}")
         retry_result = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
@@ -1327,8 +1327,8 @@ class RefactoredDrakbenAgent:
                 f.write(f"Timestamp: {datetime.now().isoformat()}\n")
                 f.write(f"Exit Code: {exit_code}\n")
                 f.write(f"Output:\n{output[:1000]}\n")
-        except Exception:
-            pass  # Silent fail - logging shouldn't break main flow
+        except (IOError, OSError, PermissionError) as e:
+            logger.debug(f"Could not write to log file {log_file}: {e}")
     
     def _llm_assisted_error_fix(self, tool_name: str, command: str, error_output: str, args: Dict) -> tuple:
         """

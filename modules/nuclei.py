@@ -360,7 +360,8 @@ def _cleanup_nuclei_temp_file(targets_file: str) -> None:
             # Count lines in output
             return len(result.stdout.strip().split('\n'))
             
-        except Exception:
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
+            logger.debug(f"Error counting templates: {e}")
             return 0
 
 
