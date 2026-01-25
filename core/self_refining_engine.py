@@ -228,52 +228,69 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 5  # Maximum 5 seconds for database init
         
-        with self._lock:
+        # Use timeout-aware lock acquisition
+        lock_acquired = False
+        try:
+            if not self._lock.acquire(timeout=2.0):
+                logger.error("Failed to acquire lock for database init")
+                raise RuntimeError("Lock acquisition timeout")
+            lock_acquired = True
+        except Exception as e:
+            logger.error(f"Lock acquisition error in _init_database: {e}")
+            raise
+        
+        conn = None
+        try:
             try:
                 conn = self._get_conn()
             except sqlite3.OperationalError as e:
                 logger.error(f"Database connection failed during init: {e}")
                 raise  # This is critical, so we should raise
             
+            # Check if we need to migrate (old schema detection)
             try:
-                # Check if we need to migrate (old schema detection)
-                try:
-                    cursor = conn.execute("SELECT priority_tier FROM policies LIMIT 1")
-                except sqlite3.OperationalError:
-                    # Old schema detected - need to recreate
-                    if time.time() - start_time > max_duration:
-                        logger.warning("Database migration timeout")
-                        return
-                    
-                    logger.info("Migrating database to new schema...")
-                    conn.executescript("""
-                        DROP TABLE IF EXISTS policies;
-                        DROP TABLE IF EXISTS failure_contexts;
-                        DROP TABLE IF EXISTS strategy_profiles;
-                        DROP TABLE IF EXISTS strategies;
-                        DROP INDEX IF EXISTS idx_profiles_strategy;
-                        DROP INDEX IF EXISTS idx_profiles_retired;
-                        DROP INDEX IF EXISTS idx_policies_tier;
-                        DROP INDEX IF EXISTS idx_failures_signature;
-                    """)
-                    conn.commit()
-                
+                cursor = conn.execute("SELECT priority_tier FROM policies LIMIT 1")
+            except sqlite3.OperationalError:
+                # Old schema detected - need to recreate
                 if time.time() - start_time > max_duration:
-                    logger.warning("Schema creation timeout")
+                    logger.warning("Database migration timeout")
                     return
                 
-                conn.executescript(SCHEMA_SQL)
+                logger.info("Migrating database to new schema...")
+                conn.executescript("""
+                    DROP TABLE IF EXISTS policies;
+                    DROP TABLE IF EXISTS failure_contexts;
+                    DROP TABLE IF EXISTS strategy_profiles;
+                    DROP TABLE IF EXISTS strategies;
+                    DROP INDEX IF EXISTS idx_profiles_strategy;
+                    DROP INDEX IF EXISTS idx_profiles_retired;
+                    DROP INDEX IF EXISTS idx_policies_tier;
+                    DROP INDEX IF EXISTS idx_failures_signature;
+                """)
                 conn.commit()
-            except sqlite3.OperationalError as e:
-                logger.error(f"Database operation failed: {e}")
-                # Check if it's a lock error
-                if "locked" in str(e).lower() or "database is locked" in str(e).lower():
-                    logger.error("Database is locked by another process. Please close other instances.")
-                    raise
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Schema creation timeout")
+                return
+            
+            conn.executescript(SCHEMA_SQL)
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database operation failed: {e}")
+            # Check if it's a lock error
+            if "locked" in str(e).lower() or "database is locked" in str(e).lower():
+                logger.error("Database is locked by another process. Please close other instances.")
                 raise
-            finally:
+            raise
+        finally:
+            if conn:
                 try:
                     conn.close()
+                except:
+                    pass
+            if lock_acquired:
+                try:
+                    self._lock.release()
                 except:
                     pass
     
@@ -296,25 +313,36 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 10  # Maximum 10 seconds for seeding
         
-        with self._lock:
+        # Use timeout-aware lock acquisition
+        lock_acquired = False
+        try:
+            if not self._lock.acquire(timeout=3.0):
+                logger.error("Failed to acquire lock for seeding strategies")
+                return  # Skip seeding if lock unavailable
+            lock_acquired = True
+        except Exception as e:
+            logger.error(f"Lock acquisition error in _seed_default_strategies: {e}")
+            return
+        
+        conn = None
+        try:
             try:
                 conn = self._get_conn()
             except sqlite3.OperationalError as e:
                 logger.error(f"Database connection failed during seeding: {e}")
                 return  # Skip seeding if database is locked
             
-            try:
-                cursor = conn.execute("SELECT COUNT(*) FROM strategies")
-                if cursor.fetchone()[0] > 0:
-                    return  # Already seeded
-                
-                if time.time() - start_time > max_duration:
-                    logger.warning("Seeding timeout before starting")
-                    return
-                
-                default_strategies = [
-                    {
-                        "name": "aggressive_scan",
+            cursor = conn.execute("SELECT COUNT(*) FROM strategies")
+            if cursor.fetchone()[0] > 0:
+                return  # Already seeded
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Seeding timeout before starting")
+                return
+            
+            default_strategies = [
+                {
+                    "name": "aggressive_scan",
                         "target_type": "network_host",
                         "description": "Fast aggressive network scanning",
                         "base_parameters": {
@@ -377,13 +405,13 @@ class SelfRefiningEngine:
                             "rate_limit": 5
                         }
                     }
-                ]
-                
-                now = datetime.now().isoformat()
-                
-                # Batch insert strategies for better performance
-                strategy_inserts = []
-                for strat in default_strategies:
+            ]
+            
+            now = datetime.now().isoformat()
+            
+            # Batch insert strategies for better performance
+            strategy_inserts = []
+            for strat in default_strategies:
                     if time.time() - start_time > max_duration:
                         logger.warning(f"Seeding timeout after {len(strategy_inserts)} strategies")
                         break
@@ -396,36 +424,42 @@ class SelfRefiningEngine:
                         strat["description"],
                         json.dumps(strat["base_parameters"]),
                         now
-                    ))
-                
-                # Batch insert all strategies at once
-                if strategy_inserts:
-                    conn.executemany("""
-                        INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, strategy_inserts)
-                    conn.commit()
-                
-                # Create profiles for each strategy (with timeout check)
-                for strat in default_strategies:
-                    if time.time() - start_time > max_duration:
-                        logger.warning("Seeding timeout during profile creation")
-                        break
-                    try:
-                        self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
-                    except Exception as e:
-                        logger.error(f"Failed to create profiles for {strat['name']}: {e}")
-                        continue
-                
+                ))
+            
+            # Batch insert all strategies at once
+            if strategy_inserts:
+                conn.executemany("""
+                    INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, strategy_inserts)
                 conn.commit()
-            except sqlite3.OperationalError as e:
-                logger.error(f"Database error during seeding: {e}")
-                # Don't raise - allow application to continue
-            except Exception as e:
-                logger.exception(f"Unexpected error during seeding: {e}")
-            finally:
+            
+            # Create profiles for each strategy (with timeout check)
+            for strat in default_strategies:
+                if time.time() - start_time > max_duration:
+                    logger.warning("Seeding timeout during profile creation")
+                    break
+                try:
+                    self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
+                except Exception as e:
+                    logger.error(f"Failed to create profiles for {strat['name']}: {e}")
+                    continue
+            
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database error during seeding: {e}")
+            # Don't raise - allow application to continue
+        except Exception as e:
+            logger.exception(f"Unexpected error during seeding: {e}")
+        finally:
+            if conn:
                 try:
                     conn.close()
+                except:
+                    pass
+            if lock_acquired:
+                try:
+                    self._lock.release()
                 except:
                     pass
     
@@ -1239,6 +1273,18 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 30  # Maximum 30 seconds for selection
         
+        # Use timeout-aware lock acquisition to prevent deadlock
+        lock_acquired = False
+        try:
+            # Try to acquire lock with timeout (non-blocking check)
+            if not self._lock.acquire(timeout=5.0):
+                logger.error("Failed to acquire lock within 5 seconds - possible deadlock")
+                return None, None
+            lock_acquired = True
+        except Exception as e:
+            logger.error(f"Lock acquisition error: {e}")
+            return None, None
+        
         try:
             # Step 1: Classify target
             target_type = self.classify_target(target)
@@ -1307,6 +1353,12 @@ class SelfRefiningEngine:
         except Exception as e:
             logger.exception(f"Error in select_strategy_and_profile: {e}")
             return None, None
+        finally:
+            if lock_acquired:
+                try:
+                    self._lock.release()
+                except:
+                    pass
     
     # =========================================================================
     # EVOLUTION STATUS & DEBUG
