@@ -198,17 +198,42 @@ class SelfRefiningEngine:
     def __init__(self, db_path: str = "evolution.db"):
         self.db_path = db_path
         self._lock = threading.RLock()
-        try:
-            self._init_database()
-            self._seed_default_strategies()
-        except Exception as e:
-            logger.error(f"Failed to initialize SelfRefiningEngine: {e}")
-            logger.exception("Initialization error details")
-            # Continue anyway - will retry on first use
-            raise
+        self._initialized = False
+        self._init_lock = threading.Lock()  # Separate lock for initialization
+        
+        # LAZY INITIALIZATION: Don't initialize database in __init__
+        # This prevents blocking during object creation
+        # Database will be initialized on first use
+        logger.debug("SelfRefiningEngine created (lazy initialization)")
+    
+    def _ensure_initialized(self):
+        """Ensure database is initialized (lazy initialization)"""
+        if self._initialized:
+            return
+        
+        with self._init_lock:
+            # Double-check after acquiring lock
+            if self._initialized:
+                return
+            
+            try:
+                logger.info("Initializing SelfRefiningEngine database (lazy init)...")
+                self._init_database()
+                self._seed_default_strategies()
+                self._initialized = True
+                logger.info("SelfRefiningEngine database initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize SelfRefiningEngine: {e}")
+                logger.exception("Initialization error details")
+                # Don't raise - allow retry on next use
+                # But mark as attempted to prevent infinite retries
+                self._initialized = True  # Mark as attempted to prevent retry loops
     
     def _get_conn(self) -> sqlite3.Connection:
         """Get thread-local database connection with timeout protection"""
+        # Ensure database is initialized before getting connection
+        self._ensure_initialized()
+        
         # Set timeout to prevent indefinite blocking (5 seconds)
         conn = sqlite3.connect(self.db_path, timeout=5.0)
         conn.row_factory = sqlite3.Row
@@ -228,16 +253,28 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 5  # Maximum 5 seconds for database init
         
-        # Use timeout-aware lock acquisition
+        # Use non-blocking lock acquisition with retry
         lock_acquired = False
-        try:
-            if not self._lock.acquire(timeout=2.0):
-                logger.error("Failed to acquire lock for database init")
-                raise RuntimeError("Lock acquisition timeout")
-            lock_acquired = True
-        except Exception as e:
-            logger.error(f"Lock acquisition error in _init_database: {e}")
-            raise
+        max_retries = 3
+        retry_delay = 0.5
+        
+        for attempt in range(max_retries):
+            try:
+                if self._lock.acquire(timeout=1.0):
+                    lock_acquired = True
+                    break
+                else:
+                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed, retrying...")
+                    time.sleep(retry_delay)
+            except Exception as e:
+                logger.error(f"Lock acquisition error in _init_database: {e}")
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Failed to acquire lock after {max_retries} attempts: {e}")
+                time.sleep(retry_delay)
+        
+        if not lock_acquired:
+            logger.error("Failed to acquire lock for database init after all retries")
+            raise RuntimeError("Lock acquisition timeout - possible deadlock")
         
         conn = None
         try:
@@ -313,16 +350,29 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 10  # Maximum 10 seconds for seeding
         
-        # Use timeout-aware lock acquisition
+        # Use non-blocking lock acquisition with retry
         lock_acquired = False
-        try:
-            if not self._lock.acquire(timeout=3.0):
-                logger.error("Failed to acquire lock for seeding strategies")
-                return  # Skip seeding if lock unavailable
-            lock_acquired = True
-        except Exception as e:
-            logger.error(f"Lock acquisition error in _seed_default_strategies: {e}")
-            return
+        max_retries = 2
+        retry_delay = 0.5
+        
+        for attempt in range(max_retries):
+            try:
+                if self._lock.acquire(timeout=1.5):
+                    lock_acquired = True
+                    break
+                else:
+                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed for seeding, retrying...")
+                    time.sleep(retry_delay)
+            except Exception as e:
+                logger.error(f"Lock acquisition error in _seed_default_strategies: {e}")
+                if attempt == max_retries - 1:
+                    logger.warning("Failed to acquire lock for seeding - skipping")
+                    return
+                time.sleep(retry_delay)
+        
+        if not lock_acquired:
+            logger.warning("Failed to acquire lock for seeding after all retries - skipping")
+            return  # Skip seeding if lock unavailable
         
         conn = None
         try:
@@ -1273,16 +1323,31 @@ class SelfRefiningEngine:
         start_time = time.time()
         max_duration = 30  # Maximum 30 seconds for selection
         
+        # Ensure database is initialized
+        self._ensure_initialized()
+        
         # Use timeout-aware lock acquisition to prevent deadlock
         lock_acquired = False
-        try:
-            # Try to acquire lock with timeout (non-blocking check)
-            if not self._lock.acquire(timeout=5.0):
-                logger.error("Failed to acquire lock within 5 seconds - possible deadlock")
-                return None, None
-            lock_acquired = True
-        except Exception as e:
-            logger.error(f"Lock acquisition error: {e}")
+        max_retries = 3
+        retry_delay = 0.3
+        
+        for attempt in range(max_retries):
+            try:
+                if self._lock.acquire(timeout=2.0):
+                    lock_acquired = True
+                    break
+                else:
+                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed, retrying...")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            except Exception as e:
+                logger.error(f"Lock acquisition error: {e}")
+                if attempt == max_retries - 1:
+                    return None, None
+                time.sleep(retry_delay)
+        
+        if not lock_acquired:
+            logger.error("Failed to acquire lock within timeout - possible deadlock")
             return None, None
         
         try:
