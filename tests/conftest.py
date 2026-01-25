@@ -55,9 +55,10 @@ def reset_state():
 @pytest.fixture
 def sample_state(reset_state):
     """Create sample AgentState with basic data"""
-    from core.state import reset_state, ServiceInfo, VulnerabilityInfo
+    from core.state import reset_state as reset_state_func, ServiceInfo, VulnerabilityInfo
     
-    state = reset_state("192.168.1.1")
+    # Use reset_state fixture implicitly via argument, but use function for explicit call
+    state = reset_state_func("192.168.1.1")
     
     # Add some services
     state.add_open_services([
