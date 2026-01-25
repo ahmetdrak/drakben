@@ -224,7 +224,8 @@ Special Commands (Use these in 'command' field for automation):
 Target: """ + (context.target or "Not set")
 
         try:
-            response = self.llm_client.query(user_input, system_prompt)
+            # Add timeout to prevent hanging on Cloudflare WAF blocking
+            response = self.llm_client.query(user_input, system_prompt, timeout=20)
 
             # Check for error responses
             if response.startswith("[") and any(
@@ -332,7 +333,8 @@ IMPORTANT:
 - Do NOT use JSON format. Just chat."""
 
         try:
-            response = self.llm_client.query(user_input, system_prompt)
+            # Add timeout to prevent hanging on Cloudflare WAF blocking
+            response = self.llm_client.query(user_input, system_prompt, timeout=20)
 
             # Check for error responses
             if response.startswith("[") and any(
@@ -934,7 +936,8 @@ class DrakbenBrain:
             return {"connected": False, "error": "No LLM client configured"}
 
         try:
-            response = self.llm_client.query("Merhaba, çalışıyor musun?")
+            # Add timeout to prevent hanging
+            response = self.llm_client.query("Merhaba, çalışıyor musun?", timeout=15)
             is_error = response.startswith("[") and any(
                 x in response for x in ["Error", "Offline", "Timeout"]
             )
@@ -996,9 +999,11 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
 {{"tool": "tool_name", "args": {{"param": "value"}}}}"""
 
         try:
+            # Add timeout to prevent hanging on API calls
             response = self.llm_client.query(
                 prompt,
                 system_prompt="You are a penetration testing AI. Respond only in JSON.",
+                timeout=20
             )
 
             # Parse JSON using reasoning module's parser

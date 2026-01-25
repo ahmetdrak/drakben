@@ -195,8 +195,17 @@ class SelfRefiningEngine:
     MIN_USAGE_FOR_RETIRE = 3         # Minimum uses before retirement
     MUTATION_PARAM_CHANGE = 0.2      # How much to change params on mutation
     
-    def __init__(self, db_path: str = "evolution.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        # Use consistent database naming with EvolutionMemory
+        if db_path is None:
+            # Check if drakben_evolution.db exists (for compatibility)
+            import os
+            if os.path.exists("drakben_evolution.db"):
+                self.db_path = "drakben_evolution.db"
+            else:
+                self.db_path = "evolution.db"
+        else:
+            self.db_path = db_path
         self._lock = threading.RLock()
         self._initialized = False
         self._init_lock = threading.Lock()  # Separate lock for initialization

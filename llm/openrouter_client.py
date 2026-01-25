@@ -299,7 +299,7 @@ class OpenRouterClient:
         prompt: str, 
         system_prompt: Optional[str] = None,
         use_cache: bool = True,
-        timeout: int = 30
+        timeout: int = 20  # Reduced from 30 to prevent long waits on WAF blocking
     ) -> str:
         """
         Query the LLM with automatic provider routing.
@@ -403,7 +403,19 @@ class OpenRouterClient:
                 return
             
             import json
-            for line in response.iter_lines(decode_unicode=True):
+            import signal
+            
+            # Set timeout for iter_lines to prevent infinite wait
+            start_time = time.time()
+            max_stream_time = timeout * 2  # Allow 2x timeout for streaming
+            
+            for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
+                # Check overall timeout
+                if time.time() - start_time > max_stream_time:
+                    logger.warning(f"Streaming timeout after {max_stream_time}s")
+                    yield "[Timeout] Streaming response took too long."
+                    break
+                
                 if line:
                     try:
                         data = json.loads(line)
@@ -420,11 +432,16 @@ class OpenRouterClient:
                         continue
                         
         except requests.exceptions.Timeout:
+            logger.warning("Ollama request timeout")
             yield "[Timeout] Ollama streaming timed out."
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Ollama connection error: {e}")
             yield "[Offline] Ollama connection failed."
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Ollama request error: {e}")
+            yield f"[Request Error] {str(e)}"
         except Exception as e:
-            logger.error(f"Ollama streaming error: {e}")
+            logger.exception(f"Ollama streaming error: {e}")
             yield f"[Error] {str(e)}"
 
     def _query_openai_streaming(
@@ -480,7 +497,18 @@ class OpenRouterClient:
                 return
             
             import json
-            for line in response.iter_lines(decode_unicode=True):
+            
+            # Set timeout for iter_lines to prevent infinite wait (Cloudflare WAF blocking)
+            start_time = time.time()
+            max_stream_time = timeout * 2  # Allow 2x timeout for streaming
+            
+            for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
+                # Check overall timeout (prevent Cloudflare WAF infinite wait)
+                if time.time() - start_time > max_stream_time:
+                    logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
+                    yield "[Timeout] Streaming response took too long (possible WAF blocking)."
+                    break
+                
                 if line:
                     # Skip "data: " prefix
                     if line.startswith("data: "):
@@ -504,11 +532,16 @@ class OpenRouterClient:
                         continue
                         
         except requests.exceptions.Timeout:
-            yield "[Timeout] API streaming timed out."
-        except requests.exceptions.ConnectionError:
-            yield "[Offline] No internet connection."
+            logger.warning("OpenAI-compatible API streaming timeout - possible WAF blocking")
+            yield "[Timeout] API streaming timed out (possible WAF blocking)."
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"OpenAI-compatible API connection error: {e}")
+            yield "[Offline] No internet connection or connection refused."
+        except requests.exceptions.RequestException as e:
+            logger.error(f"OpenAI-compatible API request error: {e}")
+            yield f"[Request Error] {str(e)}"
         except Exception as e:
-            logger.error(f"API streaming error: {e}")
+            logger.exception(f"API streaming error: {e}")
             yield f"[Error] {str(e)}"
 
     def _query_ollama(self, prompt: str, system_prompt: str, timeout: int) -> str:
@@ -603,8 +636,8 @@ class OpenRouterClient:
                 elif response.status_code >= 500:
                     # Server error - retry with exponential backoff
                     if attempt < self.max_retries - 1:
-                        wait_time = 2 ** attempt
-                        logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s")
+                        wait_time = min(2 ** attempt, 5)  # Cap exponential backoff at 5s
+                        logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
                         time.sleep(wait_time)
                         continue
                     return f"[Server Error] {response.status_code}: Service unavailable"
@@ -613,19 +646,26 @@ class OpenRouterClient:
                     return f"[API Error] {response.status_code}: {response.text[:100]}"
                     
             except requests.exceptions.Timeout:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Timeout, retrying (attempt {attempt + 1}/{self.max_retries})")
-                    continue
-                return "[Timeout] API did not respond. Please retry."
+                logger.warning(f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking")
+                # Don't retry on timeout - likely WAF blocking or network issue
+                return "[Timeout] API did not respond in time (possible WAF blocking)."
                 
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
+                logger.warning(f"Connection error: {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(min(2 ** attempt, 5))  # Cap wait time
                     continue
-                return "[Offline] No internet connection."
+                return "[Offline] No internet connection or connection refused."
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error: {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(1)
+                    continue
+                return f"[Request Error] {str(e)}"
                 
             except Exception as e:
-                logger.error(f"API query error: {e}")
+                logger.exception(f"API query error: {e}")
                 return f"[Error] {str(e)}"
         
         return "[Error] Max retries exceeded"
