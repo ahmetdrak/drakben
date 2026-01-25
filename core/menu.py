@@ -901,6 +901,7 @@ class DrakbenMenu:
 
     def _save_llm_config(self, provider_key, selected_model, api_key):
         from pathlib import Path
+        from rich.panel import Panel
         env_file = Path("config/api.env")
         
         # Configuration templates
