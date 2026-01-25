@@ -186,16 +186,15 @@ async def bind_shell(
         raise RuntimeError("State is required for payload execution")
 
     # STATE VALIDATION
-    if STATE_AVAILABLE and state:
-        if not state.validate():
-            logger.error("State invariant violation before bind shell")
-            return {
-                "type": "BindShell",
-                "success": False,
-                "error": STATE_INVARIANT_VIOLATION,
-                "blocked": True,
-                "invariant_violations": getattr(state, "invariant_violations", []),
-            }
+    if STATE_AVAILABLE and state and not state.validate():
+        logger.error("State invariant violation before bind shell")
+        return {
+            "type": "BindShell",
+            "success": False,
+            "error": STATE_INVARIANT_VIOLATION,
+            "blocked": True,
+            "invariant_violations": getattr(state, "invariant_violations", []),
+        }
 
     # PRECONDITION CHECK - REQUIRED
     can_execute, reason = check_payload_preconditions(state)

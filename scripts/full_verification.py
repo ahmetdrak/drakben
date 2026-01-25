@@ -740,7 +740,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
         )
         
         # Select again - should get different profile
-        _, profile2 = engine.select_strategy_and_profile(FAIL_TEST_URL)
+        _, _ = engine.select_strategy_and_profile(FAIL_TEST_URL)
         
         # They may be the same if there's only one profile for this strategy
         # The key test is that has_failed_before returns True

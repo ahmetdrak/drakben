@@ -315,7 +315,7 @@ class TestExecutionEngine(unittest.TestCase):
     def test_command_validation(self):
         """Test command validation patterns"""
         from core.execution_engine import CommandSanitizer, SecurityError
-        sanitizer = CommandSanitizer()
+        _ = CommandSanitizer()
         
         # Test various dangerous patterns
         dangerous_commands = [
@@ -447,7 +447,7 @@ class TestToolSelector(unittest.TestCase):
         from core.state import reset_state, AttackPhase
         
         # Reset state
-        state = reset_state("192.168.1.1")
+        _ = reset_state("192.168.1.1")
         selector = ToolSelector()
         
         # ToolSelector doesn't have get_suggested_tools, but has tools dict
@@ -603,7 +603,7 @@ class TestPlanner(unittest.TestCase):
         self.planner.create_plan_from_strategy("192.168.1.1", strategy)
         
         # Try to replan multiple times
-        for i in range(5):
+        for _ in range(5):
             result = self.planner.replan("test_step_1")
             if not result:
                 break

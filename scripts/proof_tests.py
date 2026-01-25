@@ -201,7 +201,7 @@ def proof_policy_conflict_resolution():
     time.sleep(0.01)  # Ensure different created_at
     
     # Policy B: Tier 3 (TOOL_SELECTION), weight=0.9, prefer sqlmap (CONFLICT!)
-    pol_b = engine.add_policy(
+    _ = engine.add_policy(
         condition=condition,
         action={"prefer_tools": ["sqlmap"]},
         priority_tier=PolicyTier.TOOL_SELECTION,
@@ -324,7 +324,7 @@ def proof_restart_behavior_change():
     print(f"\n[SIMULATING FAILURE] Recording failure for profile {profile1.profile_id[:8]}...")
     
     # Record multiple failures to trigger policy learning
-    for i in range(3):
+    for _ in range(3):
         ctx_id = engine1.record_failure(
             target_signature=target_sig,
             strategy_name=strategy1.name,
