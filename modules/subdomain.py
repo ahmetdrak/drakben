@@ -244,7 +244,7 @@ class SubdomainEnumerator:
             return []
         
         try:
-            url = f"https://www.virustotal.com/vtapi/v2/domain/report"
+            url = "https://www.virustotal.com/vtapi/v2/domain/report"
             params = {"apikey": self.vt_api_key, "domain": domain}
             
             async with aiohttp.ClientSession() as session:

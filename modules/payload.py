@@ -248,7 +248,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 # -------------------------
 # Command Execution Payload
 # -------------------------
-def execute_command(state: "AgentState", cmd: str = "id"):
+def execute_command(state: "AgentState"):
     """
     Direct command execution is forbidden for security.
     
@@ -271,7 +271,7 @@ def execute_command(state: "AgentState", cmd: str = "id"):
 # -------------------------
 # AI-Powered Payload Recommendation
 # -------------------------
-def ai_payload_advice(state: "AgentState", exploit_output: Dict) -> Dict[str, Any]:
+def ai_payload_advice(state: "AgentState") -> Dict[str, Any]:
     """
     AI-powered payload recommendation.
     

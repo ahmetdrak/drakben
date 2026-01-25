@@ -285,14 +285,14 @@ class CVEDatabase:
         Returns:
             List of matching CVEEntry objects
         """
-        results = self._search_cached_cves(keyword, min_cvss, max_results)
+        results = self._search_cached_cves(keyword, min_cvss)
         if len(results) >= max_results:
             return results[:max_results]
         
         api_results = await self._fetch_cves_from_api(keyword, max_results, min_cvss)
         return self._merge_cve_results(results, api_results, max_results)
     
-    def _search_cached_cves(self, keyword: str, min_cvss: float, max_results: int) -> List[CVEEntry]:
+    def _search_cached_cves(self, keyword: str, min_cvss: float) -> List[CVEEntry]:
         """Search CVEs in local cache"""
         results = []
         cached_results = self._search_cache(keyword)

@@ -106,7 +106,7 @@ def _parse_sqlmap_vulnerabilities(output: str) -> List[Dict]:
 
 def _process_sqlmap_line(line: str, current_vuln: Dict, results: List[Dict]) -> Dict:
     """Process a single line of sqlmap output"""
-    param_match = re.search(r"Parameter:\s*[#]?(\S+)", line)
+    param_match = re.search(r"Parameter:\s*#?(\S+)", line)
     if param_match:
         if current_vuln:
             results.append(current_vuln)

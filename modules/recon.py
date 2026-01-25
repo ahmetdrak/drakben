@@ -246,7 +246,7 @@ async def _fetch_additional_resources(session: aiohttp.ClientSession, target: st
     resp = await fetch_url(session, robots_url, timeout=5)
     if not resp["error"] and resp["status"] == 200:
         result["robots"] = resp["text"].splitlines()[:50]
-        logger.debug(f"Found robots.txt")
+        logger.debug("Found robots.txt")
 
     # Sitemap.xml
     sitemap_url = f"{base_url}/sitemap.xml"

@@ -387,7 +387,12 @@ class StatusDisplay:
             status = data.get("status", "Unknown")
             details = data.get("details", "")
             
-            status_style = "green" if status == "OK" else "yellow" if status == "Running" else "red"
+            if status == "OK":
+                status_style = "green"
+            elif status == "Running":
+                status_style = "yellow"
+            else:
+                status_style = "red"
             table.add_row(component, f"[{status_style}]{status}[/]", details)
         
         return table

@@ -428,7 +428,6 @@ class RefactoredDrakbenAgent:
         elif "permission" in error_msg.lower():
             error_type = "permission_denied"
         elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
-            error_type = "missing_tool"
             self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' not found! Please install it.", style=self.STYLE_RED)
             self.running = False
             return False
@@ -856,14 +855,14 @@ class RefactoredDrakbenAgent:
         
         # Apply self-healing based on error type
         healed, retry_result = self._apply_error_specific_healing(
-            error_diagnosis, tool_name, command, combined_output, args
+            error_diagnosis, tool_name, command, combined_output
         )
         
         return self._finalize_healing_result(healed, retry_result, result, tool_name, args)
     
     def _apply_error_specific_healing(
         self, error_diagnosis: Dict[str, Any], tool_name: str, command: str,
-        combined_output: str, args: Dict[str, Any]
+        combined_output: str
     ) -> Tuple[bool, Optional[Any]]:
         """Apply error-specific healing strategies"""
         error_type = error_diagnosis["type"]

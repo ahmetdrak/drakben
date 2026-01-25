@@ -19,7 +19,6 @@ if env_file.exists():
 
 from rich.console import Console  # noqa: E402
 
-# from core.refactored_agent import RefactoredDrakbenAgent
 from core.config import ConfigManager  # noqa: E402
 from core.logging_config import setup_logging, get_logger  # noqa: E402
 
