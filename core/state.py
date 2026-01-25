@@ -236,9 +236,13 @@ class AgentState:
         if svc.version and not existing.version:
             return svc
         elif not svc.version and existing.version:
-            if svc.service != "unknown" and svc.service != existing.service:
-                return svc
-        return svc
+            # Keep existing if it has version and new doesn't
+            return existing
+        elif svc.service != "unknown" and svc.service != existing.service:
+            # Prefer new service if it's better identified
+            return svc
+        # Default: keep existing service
+        return existing
     
     def _add_to_attack_surface(self, svc: ServiceInfo) -> None:
         """Add service to attack surface if not tested"""
