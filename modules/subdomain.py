@@ -420,64 +420,77 @@ def _extract_unique_subdomains(result_list: List[SubdomainResult], subdomains: S
         results: List[SubdomainResult]
     ) -> List[SubdomainResult]:
         """Resolve subdomains to IP addresses"""
-        try:
-            import dns.resolver
-            DNS_AVAILABLE = True
-        except ImportError:
-            DNS_AVAILABLE = False
+        resolver = self._setup_resolver()
+        if not resolver:
             return results
         
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 3
-        resolver.lifetime = 3
-        
-        async def resolve_one(result: SubdomainResult) -> SubdomainResult:
-            if result.resolved:
-                return result
-            
-            try:
-                loop = asyncio.get_event_loop()
-                answers = await loop.run_in_executor(
-                    None, 
-                    resolver.resolve, 
-                    result.subdomain, 
-                    'A'
-                )
-                result.resolved = True
-                result.ip_addresses = [str(r) for r in answers]
-            except (OSError, ValueError) as e:
-                logger.debug(f"DNS resolution error: {e}")
-                result.resolved = False
-            
-            # Try CNAME
-            try:
-                loop = asyncio.get_event_loop()
-                answers = await loop.run_in_executor(
-                    None,
-                    resolver.resolve,
-                    result.subdomain,
-                    'CNAME'
-                )
-                result.cname = str(answers[0])
-            except (OSError, IndexError) as e:
-                logger.debug(f"CNAME lookup error: {e}")
-            
-            return result
-        
-        # Resolve in batches
+        resolved_results = await self._resolve_in_batches(results, resolver)
+        resolved_count = sum(1 for r in resolved_results if r.resolved)
+        logger.info(f"Resolved {resolved_count}/{len(results)} subdomains")
+        return resolved_results
+
+    def _setup_resolver(self):
+        """Setup DNS resolver"""
+        try:
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 3
+            resolver.lifetime = 3
+            return resolver
+        except ImportError:
+            return None
+
+    async def _resolve_in_batches(self, results: List[SubdomainResult], resolver) -> List[SubdomainResult]:
+        """Resolve subdomains in batches"""
         batch_size = 25
         resolved_results = []
         
         for i in range(0, len(results), batch_size):
             batch = results[i:i + batch_size]
-            tasks = [resolve_one(r) for r in batch]
+            tasks = [self._resolve_single_subdomain(r, resolver) for r in batch]
             batch_results = await asyncio.gather(*tasks)
             resolved_results.extend(batch_results)
         
-        resolved_count = sum(1 for r in resolved_results if r.resolved)
-        logger.info(f"Resolved {resolved_count}/{len(results)} subdomains")
-        
         return resolved_results
+
+    async def _resolve_single_subdomain(self, result: SubdomainResult, resolver) -> SubdomainResult:
+        """Resolve a single subdomain"""
+        if result.resolved:
+            return result
+        
+        await self._resolve_a_record(result, resolver)
+        await self._resolve_cname_record(result, resolver)
+        return result
+
+    async def _resolve_a_record(self, result: SubdomainResult, resolver) -> None:
+        """Resolve A record for subdomain"""
+        try:
+            loop = asyncio.get_event_loop()
+            answers = await loop.run_in_executor(
+                None, 
+                resolver.resolve, 
+                result.subdomain, 
+                'A'
+            )
+            result.resolved = True
+            result.ip_addresses = [str(r) for r in answers]
+        except (OSError, ValueError) as e:
+            logger.debug(f"DNS resolution error: {e}")
+            result.resolved = False
+
+    async def _resolve_cname_record(self, result: SubdomainResult, resolver) -> None:
+        """Resolve CNAME record for subdomain"""
+        try:
+            loop = asyncio.get_event_loop()
+            answers = await loop.run_in_executor(
+                None,
+                resolver.resolve,
+                result.subdomain,
+                'CNAME'
+            )
+            result.cname = str(answers[0])
+        except (OSError, IndexError) as e:
+            logger.debug(f"CNAME lookup error: {e}")
 
 
 async def enumerate_subdomains_for_state(
