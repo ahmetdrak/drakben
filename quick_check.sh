@@ -1,8 +1,19 @@
 #!/bin/bash
 # DRAKBEN Quick Status Check
-# PID: 1206226
+# Auto-detect PID or use provided PID
 
-PID=1206226
+if [ -z "$1" ]; then
+    # Auto-detect PID
+    PID=$(pgrep -f drakben.py | head -1)
+    if [ -z "$PID" ]; then
+        echo "❌ DRAKBEN process bulunamadı!"
+        exit 1
+    fi
+    echo "🔍 Auto-detected PID: $PID"
+else
+    PID=$1
+    echo "📌 Using provided PID: $PID"
+fi
 
 echo "=== DRAKBEN Process Status (PID: $PID) ==="
 echo ""
