@@ -175,152 +175,169 @@ def _extract_unique_subdomains(result_list: List[SubdomainResult], subdomains: S
     
     def _clean_domain(self, domain: str) -> str:
         """Clean domain string"""
-        # Remove protocol if present
-        if "://" in domain:
-            domain = urlparse(domain).netloc
-        
-        # Remove port if present
-        if ":" in domain:
-            domain = domain.split(":")[0]
-        
-        # Remove www prefix for enumeration
-        if domain.startswith("www."):
-            domain = domain[4:]
-        
+        domain = self._remove_protocol(domain)
+        domain = self._remove_port(domain)
+        domain = self._remove_www_prefix(domain)
         return domain.lower().strip()
+
+    def _remove_protocol(self, domain: str) -> str:
+        """Remove protocol from domain"""
+        if "://" in domain:
+            return urlparse(domain).netloc
+        return domain
+
+    def _remove_port(self, domain: str) -> str:
+        """Remove port from domain"""
+        if ":" in domain:
+            return domain.split(":")[0]
+        return domain
+
+    def _remove_www_prefix(self, domain: str) -> str:
+        """Remove www prefix from domain"""
+        if domain.startswith("www."):
+            return domain[4:]
+        return domain
     
     async def _crtsh_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using crt.sh (Certificate Transparency)"""
-        results = []
-        
         try:
             url = f"https://crt.sh/?q=%.{domain}&output=json"
-            
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        
-                        seen = set()
-                        for entry in data:
-                            name = entry.get("name_value", "")
-                            # Handle wildcard and multiple names
-                            for sub in name.split("\n"):
-                                sub = sub.strip().lower()
-                                if sub.startswith("*."):
-                                    sub = sub[2:]
-                                if sub.endswith(domain) and sub not in seen:
-                                    seen.add(sub)
-                                    results.append(SubdomainResult(
-                                        subdomain=sub,
-                                        source="crt.sh"
-                                    ))
-            
-            logger.info(f"crt.sh found {len(results)} subdomains")
-            
+                        results = self._parse_crtsh_data(data, domain)
+                        logger.info(f"crt.sh found {len(results)} subdomains")
+                        return results
+            return []
         except Exception as e:
             logger.error(f"crt.sh error: {e}")
-        
+            return []
+
+    def _parse_crtsh_data(self, data: List[Dict], domain: str) -> List[SubdomainResult]:
+        """Parse crt.sh JSON data"""
+        results = []
+        seen = set()
+        for entry in data:
+            name = entry.get("name_value", "")
+            subdomains = self._extract_subdomains_from_name(name, domain)
+            for sub in subdomains:
+                if sub not in seen:
+                    seen.add(sub)
+                    results.append(SubdomainResult(subdomain=sub, source="crt.sh"))
         return results
+
+    def _extract_subdomains_from_name(self, name: str, domain: str) -> List[str]:
+        """Extract subdomains from name string"""
+        subdomains = []
+        for sub in name.split("\n"):
+            sub = sub.strip().lower()
+            if sub.startswith("*."):
+                sub = sub[2:]
+            if sub.endswith(domain):
+                subdomains.append(sub)
+        return subdomains
     
     async def _virustotal_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using VirusTotal API"""
-        results = []
-        
         if not self.vt_api_key:
-            return results
+            return []
         
         try:
             url = f"https://www.virustotal.com/vtapi/v2/domain/report"
-            params = {
-                "apikey": self.vt_api_key,
-                "domain": domain
-            }
+            params = {"apikey": self.vt_api_key, "domain": domain}
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params, timeout=30) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        
-                        for sub in data.get("subdomains", []):
-                            results.append(SubdomainResult(
-                                subdomain=sub,
-                                source="virustotal"
-                            ))
-            
-            logger.info(f"VirusTotal found {len(results)} subdomains")
-            
+                        results = self._parse_virustotal_data(data)
+                        logger.info(f"VirusTotal found {len(results)} subdomains")
+                        return results
+            return []
         except Exception as e:
             logger.error(f"VirusTotal error: {e}")
-        
+            return []
+
+    def _parse_virustotal_data(self, data: Dict) -> List[SubdomainResult]:
+        """Parse VirusTotal API response"""
+        results = []
+        for sub in data.get("subdomains", []):
+            results.append(SubdomainResult(subdomain=sub, source="virustotal"))
         return results
     
     async def _web_archive_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using Web Archive"""
-        results = []
-        
         try:
             url = f"https://web.archive.org/cdx/search/cdx?url=*.{domain}&output=json&fl=original&collapse=urlkey"
-            
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        
-                        seen = set()
-                        for entry in data[1:]:  # Skip header
-                            try:
-                                parsed = urlparse(entry[0])
-                                host = parsed.netloc.lower()
-                                if host.endswith(domain) and host not in seen:
-                                    seen.add(host)
-                                    results.append(SubdomainResult(
-                                        subdomain=host,
-                                        source="web_archive"
-                                    ))
-                            except Exception:
-                                pass
-            
-            logger.info(f"Web Archive found {len(results)} subdomains")
-            
+                        results = self._parse_web_archive_data(data, domain)
+                        logger.info(f"Web Archive found {len(results)} subdomains")
+                        return results
+            return []
         except Exception as e:
             logger.error(f"Web Archive error: {e}")
-        
+            return []
+
+    def _parse_web_archive_data(self, data: List[List], domain: str) -> List[SubdomainResult]:
+        """Parse Web Archive JSON data"""
+        results = []
+        seen = set()
+        for entry in data[1:]:  # Skip header
+            host = self._extract_host_from_entry(entry, domain)
+            if host and host not in seen:
+                seen.add(host)
+                results.append(SubdomainResult(subdomain=host, source="web_archive"))
         return results
+
+    def _extract_host_from_entry(self, entry: List, domain: str) -> Optional[str]:
+        """Extract host from web archive entry"""
+        try:
+            parsed = urlparse(entry[0])
+            host = parsed.netloc.lower()
+            if host.endswith(domain):
+                return host
+        except (ValueError, IndexError, AttributeError) as e:
+            logger.debug(f"Error parsing web archive entry: {e}")
+        return None
     
     async def _subfinder_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using subfinder"""
-        results = []
-        
         if not self.subfinder_available:
-            return results
+            return []
         
         try:
-            process = await asyncio.create_subprocess_exec(
-                "subfinder",
-                "-d", domain,
-                "-silent",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=120)
-            
-            for line in stdout.decode().strip().split("\n"):
-                line = line.strip()
-                if line and line.endswith(domain):
-                    results.append(SubdomainResult(
-                        subdomain=line,
-                        source="subfinder"
-                    ))
-            
+            stdout = await self._run_subfinder_process(domain)
+            results = self._parse_subfinder_output(stdout, domain)
             logger.info(f"Subfinder found {len(results)} subdomains")
-            
+            return results
         except asyncio.TimeoutError:
             logger.warning("Subfinder timed out")
+            return []
         except Exception as e:
             logger.error(f"Subfinder error: {e}")
-        
+            return []
+
+    async def _run_subfinder_process(self, domain: str) -> str:
+        """Run subfinder process"""
+        process = await asyncio.create_subprocess_exec(
+            "subfinder", "-d", domain, "-silent",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=120)
+        return stdout.decode()
+
+    def _parse_subfinder_output(self, stdout: str, domain: str) -> List[SubdomainResult]:
+        """Parse subfinder output"""
+        results = []
+        for line in stdout.strip().split("\n"):
+            line = line.strip()
+            if line and line.endswith(domain):
+                results.append(SubdomainResult(subdomain=line, source="subfinder"))
         return results
     
     async def _amass_enum(self, domain: str, timeout: int = 120) -> List[SubdomainResult]:
