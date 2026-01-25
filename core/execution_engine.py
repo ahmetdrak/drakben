@@ -279,9 +279,16 @@ class SmartTerminal:
         return subprocess.Popen(cmd_args, **popen_kwargs)
 
     def _wait_for_process(self, process: subprocess.Popen, timeout: int, command_preview: str) -> Tuple[str, str, int, ExecutionStatus]:
-        """Wait for process completion or timeout"""
+        """
+        Wait for process completion with DEADLOCK PREVENTION.
+        Uses explicit communication handling and process group cleanup.
+        """
         try:
+            # COMMUNICATION: Use communicate to prevent buffer deadlocks
+            # This reads stdout/stderr until EOF, strictly respecting timeout
             stdout, stderr = process.communicate(timeout=timeout)
+            
+            # Process finished naturally
             exit_code = process.returncode
             status = (
                 ExecutionStatus.SUCCESS
@@ -291,16 +298,28 @@ class SmartTerminal:
             return stdout or "", stderr or "", exit_code, status
             
         except subprocess.TimeoutExpired:
+            # TIMEOUT HANDLER
+            logger.warning(f"Timeout reached ({timeout}s). Terminating process: {command_preview[:50]}...")
+            
+            # 1. Kill the process group to ensure children die too
             self._terminate_process_group(process)
             
-            # Get phase output
+            # 2. Try to salvage partial output after kill
             try:
+                # Give it a split second to flush buffers after kill signal
                 stdout, stderr = process.communicate(timeout=1)
             except subprocess.TimeoutExpired:
-                 stdout, stderr = "", "Command timed out and could not be cleaned up"
+                 stdout, stderr = "", "Command timed out and output buffer was lost"
+            except Exception:
+                 stdout, stderr = "", "Command timed out (output capture failed)"
             
-            logger.warning(f"Command timed out after {timeout}s: {command_preview[:50]}...")
             return stdout or "", stderr or "", -1, ExecutionStatus.TIMEOUT
+            
+        except Exception as e:
+            # UNEXPECTED ERROR (e.g., OS errors)
+            logger.error(f"Error waiting for process: {e}")
+            self._terminate_process_group(process)
+            return "", str(e), -1, ExecutionStatus.FAILED
 
     def _terminate_process_group(self, process: subprocess.Popen):
         """Terminate process and all children"""
