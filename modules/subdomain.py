@@ -154,7 +154,7 @@ class SubdomainEnumerator:
         
         for result in source_results:
             if isinstance(result, list):
-                results.extend(_extract_unique_subdomains(result, subdomains))
+                results.extend(self._extract_unique_subdomains(result, subdomains))
             elif isinstance(result, Exception):
                 logger.error(f"Source error: {result}")
         
@@ -164,15 +164,15 @@ class SubdomainEnumerator:
             results = await self._resolve_subdomains(results)
         return results
 
-def _extract_unique_subdomains(result_list: List[SubdomainResult], subdomains: Set[str]) -> List[SubdomainResult]:
-    """Extract unique subdomains from result list"""
-    unique_results = []
-    for r in result_list:
-        if r.subdomain not in subdomains:
-            subdomains.add(r.subdomain)
-            unique_results.append(r)
-    return unique_results
-    
+    def _extract_unique_subdomains(self, result_list: List[SubdomainResult], subdomains: Set[str]) -> List[SubdomainResult]:
+        """Extract unique subdomains from result list"""
+        unique_results = []
+        for r in result_list:
+            if r.subdomain not in subdomains:
+                subdomains.add(r.subdomain)
+                unique_results.append(r)
+        return unique_results
+
     def _clean_domain(self, domain: str) -> str:
         """Clean domain string"""
         domain = self._remove_protocol(domain)
