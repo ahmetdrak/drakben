@@ -788,8 +788,7 @@ class SelfRefiningEngine:
         parent_aggression = row["aggressiveness"]
         
         mutated_profile = self._apply_mutation(
-            parent_params, parent_steps, parent_aggression,
-            row["profile_id"], row["mutation_generation"]
+            parent_params, parent_steps, parent_aggression
         )
         
         # Insert new profile
@@ -831,7 +830,7 @@ class SelfRefiningEngine:
         )
     
     def _apply_mutation(self, params: Dict, steps: List[str], 
-                        aggression: float, parent_id: str, generation: int) -> Dict:
+                        aggression: float) -> Dict:
         """Apply measurable mutation to create new profile"""
         new_id = self._generate_id("mut_")
         

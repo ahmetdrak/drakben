@@ -448,7 +448,7 @@ class AgentState:
 
         return False
 
-    def is_tool_allowed_for_phase(self, tool_name: str, tool_phase: str) -> bool:
+    def is_tool_allowed_for_phase(self, tool_phase: str) -> bool:
         """
         Check if tool is allowed in current phase.
         

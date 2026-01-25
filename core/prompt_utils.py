@@ -254,9 +254,7 @@ class DrakbenProgress:
         )
     
     def bar(
-        self,
-        description: str = "Progress",
-        total: int = 100
+        self
     ):
         """
         Create a progress bar context manager.

@@ -55,7 +55,7 @@ class RefactoredDrakbenAgent:
 
         # Core Components
         self.brain = DrakbenBrain(llm_client=config_manager.llm_client)
-        self.state: AgentState = None
+        self.state: Optional[AgentState] = None
         self.tool_selector = ToolSelector()
         self.executor = ExecutionEngine()
         
@@ -248,17 +248,13 @@ class RefactoredDrakbenAgent:
                         style="dim"
                     )
         except Exception as e:
-            logger.warning(f"Could not get applicable policies: {e}")
+            logger.exception(f"Critical initialization error: {e}")
+            self.console.print(f"❌ Critical error during initialization: {e}", style=self.STYLE_RED)
             # Still allow basic operation
             self.state = reset_state(target)
             self.state.phase = AttackPhase.INIT
             self.running = True
             self.stagnation_counter = 0
-            
-        except Exception as e:
-            logger.exception(f"Critical initialization error: {e}")
-            self.console.print(f"❌ Critical error during initialization: {e}", style=self.STYLE_RED)
-            raise RuntimeError(f"Agent initialization failed: {e}")
 
     def run_autonomous_loop(self) -> None:
         """
@@ -391,8 +387,9 @@ class RefactoredDrakbenAgent:
 
     def _record_action(self, step: PlanStep, success: bool, penalty: float, execution_result: Dict[str, Any]) -> None:
         """Record action to evolution memory."""
+        target = self.state.target if self.state else "unknown"
         record = ActionRecord(
-            goal=f"pentest_{self.state.target}",
+            goal=f"pentest_{target}",
             plan_id=self.planner.current_plan_id or "unknown",
             step_id=step.step_id,
             action_name=step.action,
@@ -586,20 +583,16 @@ class RefactoredDrakbenAgent:
             
             llm_error = self._extract_llm_error(result)
             if llm_error and self._should_retry(attempt, max_retries):
-                self._handle_llm_retry(attempt, max_retries, llm_error)
+                self._handle_llm_retry(attempt, max_retries)
             return None
         except Exception as e:
             if self._should_retry(attempt, max_retries):
-                self._handle_llm_retry(attempt, max_retries, str(e))
+                self._handle_llm_retry(attempt, max_retries)
             return None
     
     def _should_retry(self, attempt: int, max_retries: int) -> bool:
         """Check if we should retry based on attempt number"""
         return attempt < max_retries - 1
-        
-        if llm_error:
-            self._log_llm_failure(llm_error, MAX_LLM_RETRIES)
-        return None
     
     def _is_valid_llm_result(self, result: Any) -> bool:
         """Check if LLM result is valid"""
@@ -611,7 +604,7 @@ class RefactoredDrakbenAgent:
             return result.get("error")
         return None
     
-    def _handle_llm_retry(self, attempt: int, max_retries: int, error: str) -> None:
+    def _handle_llm_retry(self, attempt: int, max_retries: int) -> None:
         """Handle LLM retry with user feedback"""
         self.console.print(f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{max_retries})", style="yellow")
         time.sleep(1)
@@ -891,7 +884,7 @@ class RefactoredDrakbenAgent:
         if error_type in healing_map:
             return healing_map[error_type](tool_name, command, error_diagnosis)
         elif error_type == "unknown" and self.brain:
-            return self._llm_assisted_error_fix(tool_name, command, combined_output, args)
+            return self._llm_assisted_error_fix(tool_name, command, combined_output)
         
         return False, None
     
@@ -1330,7 +1323,7 @@ class RefactoredDrakbenAgent:
         except (IOError, OSError, PermissionError) as e:
             logger.debug(f"Could not write to log file {log_file}: {e}")
     
-    def _llm_assisted_error_fix(self, tool_name: str, command: str, error_output: str, args: Dict) -> tuple:
+    def _llm_assisted_error_fix(self, tool_name: str, command: str, error_output: str) -> tuple:
         """
         Use LLM to diagnose unknown errors and suggest fixes.
         Returns (healed: bool, retry_result)
@@ -1517,7 +1510,7 @@ Respond in JSON:
         if "nmap_port_scan" in tool_name:
             self._update_state_nmap_port_scan(result)
         elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
-            self._update_state_service_completion(tool_name, result)
+            self._update_state_service_completion(result)
         elif "vuln" in tool_name or "sqlmap" in tool_name:
             observation = result.get("stdout", "")
             self._process_vulnerability_result(tool_name, result, observation)
@@ -1567,7 +1560,7 @@ Respond in JSON:
         ]
         self.state.update_services(services)
 
-    def _update_state_service_completion(self, tool_name: str, result: Dict):
+    def _update_state_service_completion(self, result: Dict):
         """Mark service as tested"""
         args_port = result.get("args", {}).get("port")
         if not args_port:
