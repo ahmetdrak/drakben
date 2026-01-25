@@ -361,51 +361,59 @@ def _extract_unique_subdomains(result_list: List[SubdomainResult], subdomains: S
     
     async def _bruteforce_enum(self, domain: str) -> List[SubdomainResult]:
         """DNS brute force enumeration"""
-        results = []
-        
-        try:
-            import dns.resolver
-            DNS_AVAILABLE = True
-        except ImportError:
-            DNS_AVAILABLE = False
-            logger.warning("dnspython not available for brute force")
-            return results
+        resolver = self._setup_dns_resolver()
+        if not resolver:
+            return []
         
         logger.info(f"Starting DNS brute force for {domain}")
-        
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 2
-        resolver.lifetime = 2
-        
-        async def check_subdomain(sub: str) -> Optional[SubdomainResult]:
-            fqdn = f"{sub}.{domain}"
-            try:
-                # Run DNS query in thread pool
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, resolver.resolve, fqdn, 'A')
-                return SubdomainResult(
-                    subdomain=fqdn,
-                    source="bruteforce",
-                    resolved=True
-                )
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
-                logger.debug(f"Error in crt.sh query: {e}")
-                return None
-        
-        # Run checks concurrently in batches
+        results = await self._process_bruteforce_batches(domain, resolver)
+        logger.info(f"Brute force found {len(results)} subdomains")
+        return results
+
+    def _setup_dns_resolver(self):
+        """Setup DNS resolver"""
+        try:
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 2
+            resolver.lifetime = 2
+            return resolver
+        except ImportError:
+            logger.warning("dnspython not available for brute force")
+            return None
+
+    async def _process_bruteforce_batches(self, domain: str, resolver) -> List[SubdomainResult]:
+        """Process bruteforce in batches"""
+        results = []
         batch_size = 50
+        
         for i in range(0, len(self.COMMON_SUBDOMAINS), batch_size):
             batch = self.COMMON_SUBDOMAINS[i:i + batch_size]
-            tasks = [check_subdomain(sub) for sub in batch]
-            batch_results = await asyncio.gather(*tasks)
-            
-            for result in batch_results:
-                if result:
-                    results.append(result)
-        
-        logger.info(f"Brute force found {len(results)} subdomains")
+            batch_results = await self._check_batch_subdomains(batch, domain, resolver)
+            results.extend(batch_results)
         
         return results
+
+    async def _check_batch_subdomains(self, batch: List[str], domain: str, resolver) -> List[SubdomainResult]:
+        """Check a batch of subdomains"""
+        tasks = [self._check_single_subdomain(sub, domain, resolver) for sub in batch]
+        batch_results = await asyncio.gather(*tasks)
+        return [r for r in batch_results if r]
+
+    async def _check_single_subdomain(self, sub: str, domain: str, resolver) -> Optional[SubdomainResult]:
+        """Check a single subdomain"""
+        fqdn = f"{sub}.{domain}"
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, resolver.resolve, fqdn, 'A')
+            return SubdomainResult(
+                subdomain=fqdn,
+                source="bruteforce",
+                resolved=True
+            )
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+            logger.debug(f"Error in crt.sh query: {e}")
+            return None
     
     async def _resolve_subdomains(
         self, 

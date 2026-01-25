@@ -28,6 +28,10 @@ from unittest.mock import Mock, patch, MagicMock
 import tempfile
 import sqlite3
 
+# Test result keys - constants to avoid duplication
+TEST_KEY_ADD_POLICY = "SelfRefiningEngine.add_policy"
+TEST_KEY_GET_APPLICABLE_POLICIES = "SelfRefiningEngine.get_applicable_policies"
+
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -139,9 +143,14 @@ def task1_file_enumeration() -> Dict[str, FileAnalysis]:
     print("TASK 1: FILE ENUMERATION")
     print("="*70 + "\n")
     
-    files = {}
-    py_files = []
+    py_files = _collect_python_files()
+    files = _analyze_files(py_files)
     
+    return files
+
+def _collect_python_files() -> List[str]:
+    """Collect all Python files in project"""
+    py_files = []
     for root, dirs, filenames in os.walk(PROJECT_ROOT):
         dirs[:] = [d for d in dirs if d not in ['__pycache__', 'venv', '.venv', '.git']]
         for f in filenames:
@@ -149,37 +158,45 @@ def task1_file_enumeration() -> Dict[str, FileAnalysis]:
                 full_path = os.path.join(root, f)
                 rel_path = os.path.relpath(full_path, PROJECT_ROOT)
                 py_files.append(rel_path)
-    
-    for rel_path in sorted(py_files):
-        full_path = os.path.join(PROJECT_ROOT, rel_path)
-        size = os.path.getsize(full_path)
-        
-        imports = analyze_imports(full_path)
-        code_items = get_classes_and_functions(full_path)
-        
-        analysis = FileAnalysis(
-            path=rel_path,
-            size=size,
-            imports_used=imports.get("used", []),
-            imports_unused=imports.get("unused", []),
-            classes=code_items["classes"],
-            functions=code_items["functions"],
-            is_entry_point=(rel_path == "drakben.py"),
-            status="ANALYZED"
-        )
-        
+    return sorted(py_files)
+
+def _analyze_files(py_files: List[str]) -> Dict[str, FileAnalysis]:
+    """Analyze collected Python files"""
+    files = {}
+    for rel_path in py_files:
+        analysis = _analyze_single_file(rel_path)
         files[rel_path] = analysis
-        
-        print(f"📄 {rel_path}")
-        print(f"   Size: {size} bytes")
-        print(f"   Classes: {len(code_items['classes'])}")
-        print(f"   Functions: {len(code_items['functions'])}")
-        print(f"   Imports (used/unused): {len(imports.get('used', []))}/{len(imports.get('unused', []))}")
-        if imports.get('unused'):
-            print(f"   ⚠️  Unused imports: {imports.get('unused')[:3]}...")
-        print()
-    
+        _print_file_info(rel_path, analysis)
     return files
+
+def _analyze_single_file(rel_path: str) -> FileAnalysis:
+    """Analyze a single file"""
+    full_path = os.path.join(PROJECT_ROOT, rel_path)
+    size = os.path.getsize(full_path)
+    imports = analyze_imports(full_path)
+    code_items = get_classes_and_functions(full_path)
+    
+    return FileAnalysis(
+        path=rel_path,
+        size=size,
+        imports_used=imports.get("used", []),
+        imports_unused=imports.get("unused", []),
+        classes=code_items["classes"],
+        functions=code_items["functions"],
+        is_entry_point=(rel_path == "drakben.py"),
+        status="ANALYZED"
+    )
+
+def _print_file_info(rel_path: str, analysis: FileAnalysis) -> None:
+    """Print file analysis information"""
+    print(f"📄 {rel_path}")
+    print(f"   Size: {analysis.size} bytes")
+    print(f"   Classes: {len(analysis.classes)}")
+    print(f"   Functions: {len(analysis.functions)}")
+    print(f"   Imports (used/unused): {len(analysis.imports_used)}/{len(analysis.imports_unused)}")
+    if analysis.imports_unused:
+        print(f"   ⚠️  Unused imports: {analysis.imports_unused[:3]}...")
+    print()
 
 
 # =============================================================================
@@ -294,13 +311,9 @@ def _test_engine_policy(engine: SelfRefiningEngine, results: Dict) -> None:
             priority_tier=PolicyTier.TOOL_SELECTION
         )
         assert policy_id is not None
-        results["SelfRefiningEngine.add_policy"] = {"status": "PASS", "proof": policy_id[:12]}
+        results[TEST_KEY_ADD_POLICY] = {"status": "PASS", "proof": policy_id[:12]}
     except Exception as e:
-        results["SelfRefiningEngine.add_policy"] = {"status": "FAIL", "error": str(e)}
-        assert policy_id is not None
-        results["SelfRefiningEngine.add_policy"] = {"status": "PASS", "proof": policy_id[:12]}
-    except Exception as e:
-        results["SelfRefiningEngine.add_policy"] = {"status": "FAIL", "error": str(e)}
+        results[TEST_KEY_ADD_POLICY] = {"status": "FAIL", "error": str(e)}
     
     _test_engine_policies(engine, results)
     _test_engine_remaining_functions(engine, results)
@@ -313,7 +326,7 @@ def _test_engine_policies(engine: SelfRefiningEngine, results: Dict) -> None:
     try:
         policies = engine.get_applicable_policies({"target_type": "web_app"})
         assert len(policies) > 0
-        results["SelfRefiningEngine.get_applicable_policies"] = {
+        results[TEST_KEY_GET_APPLICABLE_POLICIES] = {
             "status": "PASS", 
             "proof": f"{len(policies)} policies"
         }
@@ -331,7 +344,7 @@ def _test_engine_policies(engine: SelfRefiningEngine, results: Dict) -> None:
             "proof": f"{len(filtered)} strategies"
         }
     except Exception as e:
-        results["SelfRefiningEngine.get_applicable_policies"] = {"status": "FAIL", "error": str(e)}
+        results[TEST_KEY_GET_APPLICABLE_POLICIES] = {"status": "FAIL", "error": str(e)}
 
 def _test_engine_remaining_functions(engine: SelfRefiningEngine, results: Dict) -> None:
     """Test remaining engine functions"""
@@ -344,7 +357,7 @@ def _test_engine_policy_functions(engine: SelfRefiningEngine, results: Dict) -> 
     try:
         policies = engine.get_applicable_policies({"target_type": "web_app"})
         assert len(policies) > 0
-        results["SelfRefiningEngine.get_applicable_policies"] = {
+        results[TEST_KEY_GET_APPLICABLE_POLICIES] = {
             "status": "PASS", 
             "proof": f"{len(policies)} policies"
         }
@@ -362,7 +375,7 @@ def _test_engine_policy_functions(engine: SelfRefiningEngine, results: Dict) -> 
             "proof": f"{len(filtered)} strategies"
         }
     except Exception as e:
-        results["SelfRefiningEngine.get_applicable_policies"] = {"status": "FAIL", "error": str(e)}
+        results[TEST_KEY_GET_APPLICABLE_POLICIES] = {"status": "FAIL", "error": str(e)}
 
 def _test_engine_failure_recording(engine: SelfRefiningEngine, results: Dict) -> None:
     """Test failure recording"""

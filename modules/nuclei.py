@@ -17,6 +17,10 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+def _get_default_port(scheme: Optional[str]) -> int:
+    """Get default port for scheme"""
+    return 443 if scheme == "https" else 80
+
 
 class NucleiSeverity(Enum):
     """Nuclei severity levels"""
@@ -444,7 +448,7 @@ async def nuclei_scan_state_target(
         if result.severity in [NucleiSeverity.CRITICAL, NucleiSeverity.HIGH, NucleiSeverity.MEDIUM]:
             # Extract port and service from result URL
             parsed_url = urlparse(result.url) if hasattr(result, 'url') and result.url else urlparse(state.target)
-            port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+            port = parsed_url.port or _get_default_port(parsed_url.scheme)
             service = parsed_url.scheme or "http"
             vuln = VulnerabilityInfo(
                 vuln_id=result.template_id,
