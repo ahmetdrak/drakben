@@ -89,16 +89,15 @@ async def reverse_shell(
         raise RuntimeError("State is required for payload execution")
 
     # STATE VALIDATION
-    if STATE_AVAILABLE and state:
-        if not state.validate():
-            logger.error(f"{STATE_INVARIANT_VIOLATION} before reverse shell")
-            return {
-                "type": "ReverseShell",
-                "success": False,
-                "error": STATE_INVARIANT_VIOLATION,
-                "blocked": True,
-                "invariant_violations": getattr(state, "invariant_violations", []),
-            }
+    if STATE_AVAILABLE and state and not state.validate():
+        logger.error(f"{STATE_INVARIANT_VIOLATION} before reverse shell")
+        return {
+            "type": "ReverseShell",
+            "success": False,
+            "error": STATE_INVARIANT_VIOLATION,
+            "blocked": True,
+            "invariant_violations": getattr(state, "invariant_violations", []),
+        }
 
     # PRECONDITION CHECK - REQUIRED
     can_execute, reason = check_payload_preconditions(state)
@@ -288,15 +287,14 @@ def ai_payload_advice(state: "AgentState") -> Dict[str, Any]:
         raise RuntimeError("State is required for AI payload advice")
     
     # STATE VALIDATION
-    if STATE_AVAILABLE and state:
-        if not state.validate():
-            logger.error(f"{STATE_INVARIANT_VIOLATION} in AI advice")
-            return {
-                "type": "AI",
-                "error": STATE_INVARIANT_VIOLATION,
-                "blocked": True,
-                "invariant_violations": getattr(state, "invariant_violations", []),
-            }
+    if STATE_AVAILABLE and state and not state.validate():
+        logger.error(f"{STATE_INVARIANT_VIOLATION} in AI advice")
+        return {
+            "type": "AI",
+            "error": STATE_INVARIANT_VIOLATION,
+            "blocked": True,
+            "invariant_violations": getattr(state, "invariant_violations", []),
+        }
 
     can_execute, reason = check_payload_preconditions(state)
     if not can_execute:
@@ -447,14 +445,13 @@ def generate_payload(
         raise RuntimeError("State is required for payload generation")
 
     # STATE VALIDATION
-    if STATE_AVAILABLE and state:
-        if not state.validate():
-            logger.error(f"{STATE_INVARIANT_VIOLATION} in payload generation")
-            return {
-                "error": STATE_INVARIANT_VIOLATION,
-                "blocked": True,
-                "invariant_violations": getattr(state, "invariant_violations", []),
-            }
+    if STATE_AVAILABLE and state and not state.validate():
+        logger.error(f"{STATE_INVARIANT_VIOLATION} in payload generation")
+        return {
+            "error": STATE_INVARIANT_VIOLATION,
+            "blocked": True,
+            "invariant_violations": getattr(state, "invariant_violations", []),
+        }
 
     can_execute, reason = check_payload_preconditions(state)
     if not can_execute:

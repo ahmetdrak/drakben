@@ -95,9 +95,8 @@ def analyze_imports(file_path: str) -> Dict[str, Any]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
     
     # Simple usage check (look for names in code)
     used = []
@@ -662,7 +661,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
             "status": "PASS",
             "proof": f"Profile {profile.profile_id[:8]} used for plan {plan_id}"
         }
-        print(f"  ✅ Plan created from profile")
+        print("  ✅ Plan created from profile")
     except Exception as e:
         results["profile_precedes_planning"] = {"status": "FAIL", "error": str(e)}
         print(f"  ❌ {e}")
@@ -751,7 +750,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
             "status": "PASS",
             "proof": f"has_failed_before({profile1.profile_id[:8]})={has_failed}"
         }
-        print(f"  ✅ Failure recorded, influences selection")
+        print("  ✅ Failure recorded, influences selection")
     except Exception as e:
         results["failures_influence_decisions"] = {"status": "FAIL", "error": str(e)}
         print(f"  ❌ {e}")
@@ -1058,7 +1057,7 @@ def main():
     
     RESULTS["verdict"] = verdict
     
-    print(f"\n" + "="*70)
+    print("\n" + "="*70)
     print(f"  VERDICT: {verdict}")
     print("="*70)
     
@@ -1066,7 +1065,7 @@ def main():
     with open("verification_results.json", "w") as f:
         json.dump(RESULTS, f, indent=2, default=str)
     
-    print(f"\nResults saved to: verification_results.json")
+    print("\nResults saved to: verification_results.json")
     
     return verdict
 

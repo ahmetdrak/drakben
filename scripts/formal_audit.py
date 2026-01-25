@@ -154,7 +154,7 @@ p1 = engine.add_policy(
     priority_tier=PolicyTier.TOOL_SELECTION,
     weight=0.9
 )
-print(f"  Policy 1: Tier 3 (TOOL_SELECTION), weight=0.9, avoid_tools=['sqlmap']")
+print("  Policy 1: Tier 3 (TOOL_SELECTION), weight=0.9, avoid_tools=['sqlmap']")
 
 time.sleep(0.01)
 
@@ -165,7 +165,7 @@ p2 = engine.add_policy(
     priority_tier=PolicyTier.STRATEGY_OVERRIDE,
     weight=0.8
 )
-print(f"  Policy 2: Tier 2 (STRATEGY_OVERRIDE), weight=0.8, prefer_tools=['sqlmap']")
+print("  Policy 2: Tier 2 (STRATEGY_OVERRIDE), weight=0.8, prefer_tools=['sqlmap']")
 
 time.sleep(0.01)
 
@@ -176,7 +176,7 @@ p3 = engine.add_policy(
     priority_tier=PolicyTier.HARD_AVOIDANCE,
     weight=0.5
 )
-print(f"  Policy 3: Tier 1 (HARD_AVOIDANCE), weight=0.5, block_tool='nikto'")
+print("  Policy 3: Tier 1 (HARD_AVOIDANCE), weight=0.5, block_tool='nikto'")
 
 print()
 print("CONFLICT DETECTION LOCATION:")
@@ -217,9 +217,9 @@ all_hashes = [r["hash"] for r in results]
 if len(set(all_hashes)) == 1:
     print()
     print("✅ PROOF: Same input → Same output (3/3 identical)")
-    print(f"   Policy winner: Tier 1 (HARD_AVOIDANCE) blocks 'nikto'")
-    print(f"   Tier 2 preference applied second")
-    print(f"   Result is DETERMINISTIC")
+    print("   Policy winner: Tier 1 (HARD_AVOIDANCE) blocks 'nikto'")
+    print("   Tier 2 preference applied second")
+    print("   Result is DETERMINISTIC")
     CONFLICT_RESULT = "PASS"
 else:
     print()
@@ -260,7 +260,7 @@ for run_num in range(1, 6):
     strategy, profile = engine.select_strategy_and_profile(target)
     
     if not strategy or not profile:
-        print(f"  ⚠️ No strategy/profile available")
+        print("  ⚠️ No strategy/profile available")
         del engine
         gc.collect()
         continue
@@ -486,9 +486,8 @@ def _extract_function_calls(tree: ast.AST, func_name: str) -> List[int]:
     """Extract function calls from AST"""
     calls = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            if _is_matching_call(node, func_name):
-                calls.append(node.lineno)
+        if isinstance(node, ast.Call) and _is_matching_call(node, func_name):
+            calls.append(node.lineno)
     return calls
 
 def _is_matching_call(node: ast.Call, func_name: str) -> bool:

@@ -94,7 +94,7 @@ def test_strategy_and_profile_selection():
     if profile2.profile_id != profile.profile_id:
         print(f"  ✅ After failure, selected different profile: {profile2.profile_id[:12]}...")
     else:
-        print(f"  ⚠️ Same profile selected (may be OK if only one available)")
+        print("  ⚠️ Same profile selected (may be OK if only one available)")
     
     # Check has_failed_before
     has_failed = engine.has_failed_before(target_sig, profile.profile_id)
@@ -171,9 +171,9 @@ def test_policy_affects_tools():
     print(f"  ✅ Tools after policy filter: {filtered}")
     
     if "sqlmap_scan" not in filtered:
-        print(f"  ✅ sqlmap_scan was correctly filtered out")
+        print("  ✅ sqlmap_scan was correctly filtered out")
     else:
-        print(f"  ❌ sqlmap_scan should have been filtered")
+        print("  ❌ sqlmap_scan should have been filtered")
         return False
     
     del engine
@@ -209,7 +209,7 @@ def test_profile_mutation():
         print(f"     Parent: {mutated.parent_profile_id[:12] if mutated.parent_profile_id else 'None'}...")
         print(f"     Generation: {mutated.mutation_generation}")
     else:
-        print(f"  ❌ No mutated profile created")
+        print("  ❌ No mutated profile created")
         return False
     
     del engine
@@ -274,7 +274,7 @@ def test_evolution_status():
     print(f"  Retired profiles: {status['retired_profiles']}")
     print(f"  Active policies: {status['active_policies']}")
     print(f"  Total failures: {status['total_failures']}")
-    print(f"  ✅ Evolution status works")
+    print("  ✅ Evolution status works")
     
     del engine
     safe_remove(db_path)

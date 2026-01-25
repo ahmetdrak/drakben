@@ -63,7 +63,7 @@ def _check_measurable_differences(original_data: list, mutated_profile: Strategy
             break
     
     if parent is None:
-        return None
+        return []
     
     differences = []
     
@@ -129,7 +129,7 @@ def proof_profile_mutation():
         safe_remove(db_path)
         return False
     
-    print(f"\nMUTATED PROFILE CREATED:")
+    print("\nMUTATED PROFILE CREATED:")
     print(f"  Profile ID: {mutated_profile.profile_id}")
     print(f"  Parent ID:  {mutated_profile.parent_profile_id}")
     print(f"  Generation: {mutated_profile.mutation_generation}")
@@ -147,7 +147,7 @@ def proof_profile_mutation():
         safe_remove(db_path)
         return False
     
-    print(f"\nMEASURABLE DIFFERENCES FROM PARENT:")
+    print("\nMEASURABLE DIFFERENCES FROM PARENT:")
     for diff in differences:
         print(f"  ✓ {diff}")
     
@@ -197,7 +197,7 @@ def proof_policy_conflict_resolution():
         weight=0.9,
         source="test"
     )
-    print(f"  Policy A: Tier 3 (TOOL_SELECTION), weight=0.9 → avoid sqlmap")
+    print("  Policy A: Tier 3 (TOOL_SELECTION), weight=0.9 → avoid sqlmap")
     time.sleep(0.01)  # Ensure different created_at
     
     # Policy B: Tier 3 (TOOL_SELECTION), weight=0.9, prefer sqlmap (CONFLICT!)
@@ -219,7 +219,7 @@ def proof_policy_conflict_resolution():
         weight=0.5,
         source="test"
     )
-    print(f"  Policy C: Tier 1 (HARD_AVOIDANCE), weight=0.5 → block sqlmap")
+    print("  Policy C: Tier 1 (HARD_AVOIDANCE), weight=0.5 → block sqlmap")
     time.sleep(0.01)
     
     # Policy D: Tier 2 (STRATEGY_OVERRIDE), weight=0.8, prefer stealth
@@ -245,7 +245,7 @@ def proof_policy_conflict_resolution():
     print("\n[ACTION] Resolving conflicts...")
     resolved = engine.resolve_policy_conflicts(applicable)
     
-    print(f"\nRESOLVED ACTIONS (execution order):")
+    print("\nRESOLVED ACTIONS (execution order):")
     for action in resolved:
         print(f"  Tier {action['tier']}: {action['action_type']} = {action['action_value']}")
         print(f"         Source policy: {action['source_policy'][:8]}...")
@@ -340,11 +340,11 @@ def proof_restart_behavior_change():
     engine1.update_profile_outcome(profile1.profile_id, success=False)
     engine1.update_profile_outcome(profile1.profile_id, success=False)
     
-    print(f"  Recorded 3 failures")
+    print("  Recorded 3 failures")
     print(f"  Profile success rate: {engine1.get_profile(profile1.profile_id).success_rate:.2f}")
     
     status1 = engine1.get_evolution_status()
-    print(f"\nSession 1 Evolution Status:")
+    print("\nSession 1 Evolution Status:")
     print(f"  Active Profiles: {status1['active_profiles']}")
     print(f"  Retired Profiles: {status1['retired_profiles']}")
     print(f"  Active Policies: {status1['active_policies']}")
@@ -362,7 +362,7 @@ def proof_restart_behavior_change():
     
     # Check that evolution data persisted
     status2 = engine2.get_evolution_status()
-    print(f"Loaded Evolution Status:")
+    print("Loaded Evolution Status:")
     print(f"  Active Profiles: {status2['active_profiles']}")
     print(f"  Retired Profiles: {status2['retired_profiles']}")
     print(f"  Active Policies: {status2['active_policies']}")
@@ -505,9 +505,9 @@ def proof_non_repetition():
         safe_remove(db_path)
         return False
     
-    print(f"\n✅ PROOF COMPLETE: Non-repetition guarantee works")
+    print("\n✅ PROOF COMPLETE: Non-repetition guarantee works")
     print(f"   - {len(used_profiles)} consecutive failures used {len(used_profiles)} DIFFERENT profiles")
-    print(f"   - No profile was ever repeated after failure")
+    print("   - No profile was ever repeated after failure")
     
     safe_remove(db_path)
     return True
@@ -595,9 +595,9 @@ def proof_selection_order():
         safe_remove(db_path)
         return False
     
-    print(f"\n✅ PROOF COMPLETE: Selection order is enforced")
-    print(f"   - Classification → Strategy Selection → Profile Selection → Planning")
-    print(f"   - Profile correctly belongs to selected strategy")
+    print("\n✅ PROOF COMPLETE: Selection order is enforced")
+    print("   - Classification → Strategy Selection → Profile Selection → Planning")
+    print("   - Profile correctly belongs to selected strategy")
     
     safe_remove(db_path)
     return True
