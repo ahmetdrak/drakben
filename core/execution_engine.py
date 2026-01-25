@@ -5,9 +5,12 @@ Description: 5 modules for intelligent command execution and monitoring
 """
 
 import logging
+import os
+import platform
 import queue
 import re
 import shlex
+import signal
 import subprocess
 import threading
 import time
@@ -234,21 +237,25 @@ class SmartTerminal:
                 cmd_args = shlex.split(command)
             
             # Execute command
+            # Create process in new session/process group for proper cleanup
+            # This ensures child processes are killed on timeout (Open Interpreter approach)
+            popen_kwargs = {
+                "shell": shell,
+                "text": True if capture_output else False,
+            }
+            
+            # Use process groups for better cleanup (Unix/Linux)
+            if platform.system() != "Windows":
+                popen_kwargs["start_new_session"] = True
+            
             if capture_output:
-                process = subprocess.Popen(
-                    cmd_args,
-                    shell=shell,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
+                popen_kwargs["stdout"] = subprocess.PIPE
+                popen_kwargs["stderr"] = subprocess.PIPE
             else:
-                process = subprocess.Popen(
-                    cmd_args, 
-                    shell=shell,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                popen_kwargs["stdout"] = subprocess.DEVNULL
+                popen_kwargs["stderr"] = subprocess.DEVNULL
+            
+            process = subprocess.Popen(cmd_args, **popen_kwargs)
             self.current_process = process
 
             # Wait with timeout (with proper cleanup)
@@ -265,17 +272,49 @@ class SmartTerminal:
                     else ExecutionStatus.FAILED
                 )
             except subprocess.TimeoutExpired:
-                # Force kill and cleanup
+                # Open Interpreter approach: Kill entire process group
+                # This ensures child processes are also terminated
                 try:
-                    process.kill()
-                    process.wait(timeout=5)  # Wait for kill to complete
-                except subprocess.TimeoutExpired:
-                    # Force terminate if kill didn't work
-                    process.terminate()
+                    if platform.system() != "Windows":
+                        # Unix/Linux: Kill entire process group
+                        try:
+                            pgid = os.getpgid(process.pid)
+                            os.killpg(pgid, signal.SIGTERM)  # Graceful termination first
+                            time.sleep(0.5)  # Give processes time to cleanup
+                            try:
+                                os.killpg(pgid, signal.SIGKILL)  # Force kill if still running
+                            except ProcessLookupError:
+                                pass  # Already terminated
+                        except (ProcessLookupError, OSError):
+                            # Fallback to individual process kill
+                            process.terminate()
+                            time.sleep(0.5)
+                            process.kill()
+                    else:
+                        # Windows: Use taskkill for process tree termination
+                        try:
+                            # Try graceful termination first
+                            process.terminate()
+                            process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            # Force kill on Windows
+                            try:
+                                # Use taskkill to kill process tree
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                                    capture_output=True,
+                                    timeout=2
+                                )
+                            except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+                                # Final fallback
+                                process.kill()
+                except Exception as e:
+                    logger.warning(f"Error during process cleanup: {e}")
+                    # Final fallback
                     try:
-                        process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        pass  # Process is stuck, continue anyway
+                        process.kill()
+                    except:
+                        pass
                 
                 # Get any partial output
                 try:
