@@ -749,7 +749,7 @@ class DrakbenMenu:
         agent_table.add_row("🚩 Foothold", foothold_icon)
         return agent_table
 
-    def _create_llm_content(self, lang):
+    def _create_llm_content(self):
         llm_content = "[dim]Not initialized[/]"
         if self.brain and self.brain.llm_client:
             info = self.brain.llm_client.get_provider_info()
