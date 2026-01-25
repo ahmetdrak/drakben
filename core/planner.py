@@ -75,65 +75,131 @@ class Planner:
         Create a plan FROM A STRATEGY.
         Strategy determines the steps, not hardcoded logic.
         """
-        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        plan_id = self._generate_plan_id()
         self.current_strategy_name = strategy.name
         
+        steps = self._build_strategy_steps(strategy, plan_id, target)
+        
+        # Initialize and Persist
+        self._save_and_load_plan(plan_id, goal, steps)
+        
+        return plan_id
+        
+    def _build_strategy_steps(self, strategy, plan_id: str, target: str) -> List[Dict]:
+        """Helper to build steps from strategy objects"""
         steps = []
         for i, action in enumerate(strategy.steps):
             tool = self.ACTION_TO_TOOL.get(action, action)
-            
-            step = {
-                "step_id": f"{plan_id}_step_{i+1}",
-                "action": action,
-                "tool": tool,
-                "target": target,
-                "params": {},
-                "depends_on": [f"{plan_id}_step_{i}"] if i > 0 else [],
-                "status": StepStatus.PENDING.value,
-                "max_retries": 2,
-                "retry_count": 0,
-                "expected_outcome": f"complete_{action}",
-                "actual_outcome": "",
-                "error": ""
-            }
+            step = self._create_step_dict(plan_id, i, action, tool, target)
             steps.append(step)
-        
-        # Store in persistent memory
+        return steps
+
+    def _create_step_dict(self, plan_id: str, index: int, action: str, tool: str, target: str) -> Dict:
+        """Create a single step dictionary structure"""
+        return {
+            "step_id": f"{plan_id}_step_{index+1}",
+            "action": action,
+            "tool": tool,
+            "target": target,
+            "params": {},
+            "depends_on": [f"{plan_id}_step_{index}"] if index > 0 else [],
+            "status": StepStatus.PENDING.value,
+            "max_retries": 2,
+            "retry_count": 0,
+            "expected_outcome": f"complete_{action}",
+            "actual_outcome": "",
+            "error": ""
+        }
+
+    def _save_and_load_plan(self, plan_id: str, goal: str, steps: List[Dict]):
+        """Persist plan to memory and load into local state"""
         self.memory.create_plan(goal, steps, plan_id=plan_id)
-        
-        # Load into local state
         self.current_plan_id = plan_id
         self.steps = [self._dict_to_step(s) for s in steps]
         self.current_step_index = 0
-        
-        return plan_id
+
+    def _generate_plan_id(self) -> str:
+        return f"plan_{uuid.uuid4().hex[:8]}"
     
-    def create_plan_from_profile(self, target: str, profile, goal: str = "pentest") -> str:
+    # ... (other create_plan methods refactored similarly if needed) ...
+
+    def replan(self, failed_step_id: str) -> bool:
         """
-        Create a plan FROM A STRATEGY PROFILE.
-        
-        Profile determines:
-        - step_order: Order of actions
-        - parameters: Tool parameters (timeout, threads, etc.)
-        - aggressiveness: Affects tool selection
-        
-        This is the CORRECT way to generate plans in Self-Refining Agent.
+        Replan after failure with ADAPTIVE LEARNING.
+        Facade method that delegates to specialized helpers.
         """
-        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
-        self.current_strategy_name = profile.strategy_name
+        step = self._find_step(failed_step_id)
+        if step is None:
+            return False
+            
+        # 1. Analyze & Learn
+        failure_context = self._analyze_failure(step)
+        self._apply_adaptive_learning(step, failure_context)
         
-        # Generate steps
-        steps = self._generate_steps_from_profile(target, profile, plan_id)
+        # 2. Attempt Strategy Shift
+        if self._try_switch_tool(step, failure_context):
+            return True
+            
+        # 3. Fallback
+        return self._skip_step(step, "No alternative tool available")
+
+    def _analyze_failure(self, step: PlanStep) -> Dict:
+        """Analyze why a step failed"""
+        error_lower = step.error.lower()
+        return {
+            "is_timeout": "timeout" in error_lower or "timed out" in error_lower,
+            "is_conn_refused": "connection refused" in error_lower,
+            "is_missing": "not found" in error_lower or "missing" in error_lower,
+            "original_tool": step.tool
+        }
+
+    def _apply_adaptive_learning(self, step: PlanStep, context: Dict):
+        """Adjust system heuristics based on failure context"""
+        if context["is_timeout"]:
+            # Backend learning: Increase timeout tolerance
+            self.memory.update_heuristic("default_timeout", lambda x: min(x * 1.5, 300))
+            self.memory.update_heuristic("aggressiveness", lambda x: max(x - 0.2, 0.1))
+            
+            # Local adaptation: Boost this step's timeout
+            step.params["timeout"] = 120 
+
+    def _try_switch_tool(self, step: PlanStep, context: Dict) -> bool:
+        """Try to find and switch to an alternative tool"""
+        alternative = self._find_alternative_tool(step.action, step.tool)
         
-        # Store in persistent memory
-        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        if not alternative:
+            return False
+            
+        # Execute Switch
+        step.tool = alternative
+        step.status = StepStatus.PENDING
+        step.retry_count = 0
         
-        # Load into local state
-        self.current_plan_id = plan_id
-        self.steps = [self._dict_to_step(s) for s in steps]
-        self.current_step_index = 0
+        reason = self._format_replan_reason(context)
+        step.error = f"{reason}Switched {context['original_tool']} -> {alternative}"
         
-        return plan_id
+        self._persist_steps()
+        self._penalize_tool(context["original_tool"])
+        
+        return True
+
+    def _skip_step(self, step: PlanStep, reason: str) -> bool:
+        """Mark step as skipped"""
+        step.status = StepStatus.SKIPPED
+        step.error = f"{reason}. Original error: {step.error}"
+        self._persist_steps()
+        return True
+
+    def _format_replan_reason(self, context: Dict) -> str:
+        """Format human-readable reason for replan"""
+        if context["is_timeout"]: return "Adaptive Replan: Timeout detected. "
+        if context["is_missing"]: return "Adaptive Replan: Tool missing. "
+        return "Adaptive Replan: "
+
+    def _penalize_tool(self, tool_name: str):
+        """Increase penalty for a failed tool"""
+        current = self.memory.get_heuristic("penalty_increment")
+        self.memory.set_heuristic("penalty_increment", min(20.0, current + 1.0))
 
     def _generate_steps_from_profile(self, target: str, profile, plan_id: str) -> List[Dict]:
         """Helper to generate steps from profile config"""

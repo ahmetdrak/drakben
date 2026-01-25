@@ -160,36 +160,36 @@ class CodeAnalyzer:
     def check_ast_safety(cls, code: str) -> Tuple[bool, List[str]]:
         """
         Perform AST-based safety check.
-        
-        Returns:
-            (is_safe, list of issues)
         """
         issues = []
-        
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
             return False, [f"Syntax error: {e}"]
-        
-        # Check for dangerous nodes
+            
         for node in ast.walk(tree):
-            # Check for eval/exec calls
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name):
-                    if node.func.id in ('eval', 'exec', 'compile'):
-                        issues.append(f"Dangerous function call: {node.func.id}")
+            cls._check_node_safety(node, issues)
             
-            # Check for dangerous imports
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name in ('ctypes', 'pickle', 'marshal'):
-                        issues.append(f"Dangerous import: {alias.name}")
-            
-            if isinstance(node, ast.ImportFrom):
-                if node.module in ('ctypes', 'pickle', 'marshal'):
-                    issues.append(f"Dangerous import from: {node.module}")
-        
         return len(issues) == 0, issues
+        
+    @classmethod
+    def _check_node_safety(cls, node: ast.AST, issues: List[str]):
+        """Helper to check individual AST nodes for safety"""
+        # Check for dangerous function calls
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in ('eval', 'exec', 'compile'):
+                issues.append(f"Dangerous function call: {node.func.id}")
+                
+        # Check for dangerous imports
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in ('ctypes', 'pickle', 'marshal'):
+                    issues.append(f"Dangerous import: {alias.name}")
+                    
+        # Check for dangerous "from" imports
+        if isinstance(node, ast.ImportFrom):
+            if node.module in ('ctypes', 'pickle', 'marshal'):
+                issues.append(f"Dangerous import from: {node.module}")
 
 
 class CodeReview:
