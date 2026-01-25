@@ -192,175 +192,165 @@ class SmartTerminal:
     ) -> ExecutionResult:
         """
         Execute command with monitoring and security checks.
-        
-        Args:
-            command: Command to execute
-            timeout: Timeout in seconds (default: 300)
-            capture_output: Whether to capture stdout/stderr (default: True)
-            shell: Whether to use shell execution (default: False, SECURITY RISK if True)
-            callback: Optional callback function for result
-            skip_sanitization: Skip security checks (USE WITH CAUTION)
-            
-        Returns:
-            ExecutionResult with command output and status
         """
         start_time = time.time()
 
         try:
-            # SECURITY: Sanitize command before execution
-            if not skip_sanitization:
-                try:
-                    command = CommandSanitizer.sanitize(command, allow_shell=shell)
-                except SecurityError as e:
-                    logger.warning(f"Security violation blocked: {e}")
-                    return ExecutionResult(
-                        command=command,
-                        status=ExecutionStatus.FAILED,
-                        stdout="",
-                        stderr=f"SECURITY ERROR: {str(e)}",
-                        exit_code=-1,
-                        duration=0.0,
-                        timestamp=start_time,
-                    )
+            # 1. Prepare Command (Sanitize & Parse)
+            try:
+                sanitized_cmd, cmd_args = self._prepare_command(command, shell, skip_sanitization)
+            except SecurityError as e:
+                logger.warning(f"Security violation blocked: {e}")
+                return ExecutionResult(
+                    command=command,
+                    status=ExecutionStatus.FAILED,
+                    stdout="",
+                    stderr=f"SECURITY ERROR: {str(e)}",
+                    exit_code=-1,
+                    duration=0.0,
+                    timestamp=start_time,
+                )
             
-            # Log high-risk commands
-            risk_level = CommandSanitizer.get_risk_level(command)
-            if risk_level in ('high', 'critical'):
-                logger.warning(f"Executing {risk_level} risk command: {command[:100]}...")
-            
-            # Parse command for safer execution
-            # SECURITY: Prefer non-shell execution whenever possible
-            if shell:
-                logger.warning("Shell execution enabled - this is a security risk")
-                cmd_args = command
-            else:
-                cmd_args = shlex.split(command)
-            
-            # Execute command
-            # Create process in new session/process group for proper cleanup
-            # This ensures child processes are killed on timeout (Open Interpreter approach)
-            popen_kwargs = {
-                "shell": shell,
-                "text": True if capture_output else False,
-            }
-            
-            # Use process groups for better cleanup (Unix/Linux)
-            if platform.system() != "Windows":
-                popen_kwargs["start_new_session"] = True
-            
-            if capture_output:
-                popen_kwargs["stdout"] = subprocess.PIPE
-                popen_kwargs["stderr"] = subprocess.PIPE
-            else:
-                popen_kwargs["stdout"] = subprocess.DEVNULL
-                popen_kwargs["stderr"] = subprocess.DEVNULL
-            
-            process = subprocess.Popen(cmd_args, **popen_kwargs)
+            # 2. Execute process
+            process = self._create_process(cmd_args, shell, capture_output)
             self.current_process = process
 
-            # Wait with timeout (with proper cleanup)
-            stdout, stderr = "", ""
-            exit_code = -1
-            status = ExecutionStatus.FAILED
+            # 3. Wait for result
+            stdout, stderr, exit_code, status = self._wait_for_process(process, timeout, sanitized_cmd)
             
-            try:
-                stdout, stderr = process.communicate(timeout=timeout)
-                exit_code = process.returncode
-                status = (
-                    ExecutionStatus.SUCCESS
-                    if exit_code == 0
-                    else ExecutionStatus.FAILED
-                )
-            except subprocess.TimeoutExpired:
-                # Open Interpreter approach: Kill entire process group
-                # This ensures child processes are also terminated
-                try:
-                    if platform.system() != "Windows":
-                        # Unix/Linux: Kill entire process group
-                        try:
-                            pgid = os.getpgid(process.pid)
-                            os.killpg(pgid, signal.SIGTERM)  # Graceful termination first
-                            time.sleep(0.5)  # Give processes time to cleanup
-                            try:
-                                os.killpg(pgid, signal.SIGKILL)  # Force kill if still running
-                            except ProcessLookupError:
-                                pass  # Already terminated
-                        except (ProcessLookupError, OSError):
-                            # Fallback to individual process kill
-                            process.terminate()
-                            time.sleep(0.5)
-                            process.kill()
-                    else:
-                        # Windows: Use taskkill for process tree termination
-                        try:
-                            # Try graceful termination first
-                            process.terminate()
-                            process.wait(timeout=2)
-                        except subprocess.TimeoutExpired:
-                            # Force kill on Windows
-                            try:
-                                # Use taskkill to kill process tree
-                                subprocess.run(
-                                    ["taskkill", "/F", "/T", "/PID", str(process.pid)],
-                                    capture_output=True,
-                                    timeout=2
-                                )
-                            except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-                                # Final fallback
-                                process.kill()
-                except Exception as e:
-                    logger.warning(f"Error during process cleanup: {e}")
-                    # Final fallback
-                    try:
-                        process.kill()
-                    except:
-                        pass
-                
-                # Get any partial output
-                try:
-                    stdout, stderr = process.communicate(timeout=1)
-                except subprocess.TimeoutExpired:
-                    stdout, stderr = "", "Command timed out and could not be cleaned up"
-                
-                exit_code = -1
-                status = ExecutionStatus.TIMEOUT
-                logger.warning(f"Command timed out after {timeout}s: {command[:50]}...")
-
             duration = time.time() - start_time
-
             result = ExecutionResult(
-                command=command,
+                command=sanitized_cmd,
                 status=status,
-                stdout=stdout or "",
-                stderr=stderr or "",
+                stdout=stdout,
+                stderr=stderr,
                 exit_code=exit_code,
                 duration=duration,
                 timestamp=start_time,
             )
 
             self.execution_history.append(result)
-
             if callback:
                 callback(result)
-
             return result
 
         except Exception as e:
-            duration = time.time() - start_time
-            logger.error(f"Command execution failed: {e}")
-            result = ExecutionResult(
-                command=command,
-                status=ExecutionStatus.FAILED,
-                stdout="",
-                stderr=str(e),
-                exit_code=-1,
-                duration=duration,
-                timestamp=start_time,
-            )
-            self.execution_history.append(result)
-            return result
+            return self._handle_execution_error(command, e, start_time)
         finally:
             self.current_process = None
+
+    def _prepare_command(self, command: str, shell: bool, skip_sanitization: bool) -> Tuple[str, List[str]]:
+        """Prepare command for execution: sanitize and split"""
+        # SECURITY: Sanitize command before execution
+        if not skip_sanitization:
+            command = CommandSanitizer.sanitize(command, allow_shell=shell)
+
+        # Log high-risk commands
+        risk_level = CommandSanitizer.get_risk_level(command)
+        if risk_level in ('high', 'critical'):
+            logger.warning(f"Executing {risk_level} risk command: {command[:100]}...")
+
+        if shell:
+            logger.warning("Shell execution enabled - this is a security risk")
+            cmd_args = command
+        else:
+            cmd_args = shlex.split(command)
+            
+        return command, cmd_args
+
+    def _create_process(self, cmd_args, shell: bool, capture_output: bool) -> subprocess.Popen:
+        """Create and start the subprocess"""
+        popen_kwargs = {
+            "shell": shell,
+            "text": True if capture_output else False,
+        }
+        
+        # Use process groups for better cleanup (Unix/Linux)
+        if platform.system() != "Windows":
+            popen_kwargs["start_new_session"] = True
+        
+        if capture_output:
+            popen_kwargs["stdout"] = subprocess.PIPE
+            popen_kwargs["stderr"] = subprocess.PIPE
+        else:
+            popen_kwargs["stdout"] = subprocess.DEVNULL
+            popen_kwargs["stderr"] = subprocess.DEVNULL
+        
+        return subprocess.Popen(cmd_args, **popen_kwargs)
+
+    def _wait_for_process(self, process: subprocess.Popen, timeout: int, command_preview: str) -> Tuple[str, str, int, ExecutionStatus]:
+        """Wait for process completion or timeout"""
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            exit_code = process.returncode
+            status = (
+                ExecutionStatus.SUCCESS
+                if exit_code == 0
+                else ExecutionStatus.FAILED
+            )
+            return stdout or "", stderr or "", exit_code, status
+            
+        except subprocess.TimeoutExpired:
+            self._terminate_process_group(process)
+            
+            # Get phase output
+            try:
+                stdout, stderr = process.communicate(timeout=1)
+            except subprocess.TimeoutExpired:
+                 stdout, stderr = "", "Command timed out and could not be cleaned up"
+            
+            logger.warning(f"Command timed out after {timeout}s: {command_preview[:50]}...")
+            return stdout or "", stderr or "", -1, ExecutionStatus.TIMEOUT
+
+    def _terminate_process_group(self, process: subprocess.Popen):
+        """Terminate process and all children"""
+        try:
+            if platform.system() != "Windows":
+                try:
+                    pgid = os.getpgid(process.pid)
+                    os.killpg(pgid, signal.SIGTERM)
+                    time.sleep(0.5)
+                    try:
+                        os.killpg(pgid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                except (ProcessLookupError, OSError):
+                    process.terminate()
+                    time.sleep(0.5)
+                    process.kill()
+            else:
+                # Windows
+                try:
+                    process.terminate()
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                        capture_output=True,
+                        timeout=2
+                    )
+        except Exception as e:
+            logger.warning(f"Error during process cleanup: {e}")
+            try:
+                process.kill()
+            except:
+                pass
+
+    def _handle_execution_error(self, command: str, error: Exception, start_time: float) -> ExecutionResult:
+        """Handle generic execution error"""
+        duration = time.time() - start_time
+        logger.error(f"Command execution failed: {error}")
+        result = ExecutionResult(
+            command=command,
+            status=ExecutionStatus.FAILED,
+            stdout="",
+            stderr=str(error),
+            exit_code=-1,
+            duration=duration,
+            timestamp=start_time,
+        )
+        self.execution_history.append(result)
+        return result
 
     def execute_async(
         self, 

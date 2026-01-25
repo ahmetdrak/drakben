@@ -2,10 +2,10 @@
 # DRAKBEN Quick Status Check
 # Auto-detect PID or use provided PID
 
-if [ -z "$1" ]; then
+if [[ -z "$1" ]]; then
     # Auto-detect PID
     PID=$(pgrep -f drakben.py | head -1)
-    if [ -z "$PID" ]; then
+    if [[ -z "$PID" ]]; then
         echo "❌ DRAKBEN process bulunamadı!"
         exit 1
     fi
@@ -35,11 +35,11 @@ echo ""
 
 # 4. Process'in çalıştığı dizini bul
 PROCESS_CWD=$(lsof -p $PID 2>/dev/null | grep "cwd" | awk '{print $NF}' | head -1)
-if [ -z "$PROCESS_CWD" ]; then
+if [[ -z "$PROCESS_CWD" ]]; then
     # Fallback: drakben klasörünü ara
-    if [ -d "drakben" ]; then
+    if [[ -d "drakben" ]]; then
         PROCESS_CWD="$PWD/drakben"
-    elif [ -d "$HOME/drakben" ]; then
+    elif [[ -d "$HOME/drakben" ]]; then
         PROCESS_CWD="$HOME/drakben"
     else
         PROCESS_CWD="$PWD"
@@ -52,7 +52,7 @@ echo ""
 
 # 5. Database Dosyaları (process'in çalıştığı dizinde)
 echo "=== DATABASE FILES ==="
-if [ -n "$PROCESS_CWD" ] && [ -d "$PROCESS_CWD" ]; then
+if [[ -n "$PROCESS_CWD" ]] && [[ -d "$PROCESS_CWD" ]]; then
     cd "$PROCESS_CWD" 2>/dev/null
     ls -lh evolution.db* drakben_evolution.db* 2>/dev/null || echo "Database dosyaları bulunamadı"
     cd - > /dev/null
@@ -63,9 +63,9 @@ echo ""
 
 # 6. Database Lock Kontrolü
 echo "=== DATABASE LOCK CHECK ==="
-if [ -n "$PROCESS_CWD" ] && [ -d "$PROCESS_CWD" ]; then
+if [[ -n "$PROCESS_CWD" ]] && [[ -d "$PROCESS_CWD" ]]; then
     cd "$PROCESS_CWD" 2>/dev/null
-    if [ -f "evolution.db" ]; then
+    if [[ -f "evolution.db" ]]; then
         lsof evolution.db 2>/dev/null | grep -v "^COMMAND" || echo "Database lock yok"
     else
         echo "evolution.db dosyası bulunamadı"
@@ -78,9 +78,9 @@ echo ""
 
 # 7. Log Dosyaları (process'in çalıştığı dizinde)
 echo "=== LOG FILES ==="
-if [ -n "$PROCESS_CWD" ] && [ -d "$PROCESS_CWD" ]; then
+if [[ -n "$PROCESS_CWD" ]] && [[ -d "$PROCESS_CWD" ]]; then
     cd "$PROCESS_CWD" 2>/dev/null
-    if [ -d "logs" ]; then
+    if [[ -d "logs" ]]; then
         ls -lh logs/*.log 2>/dev/null | tail -3
         echo ""
         echo "=== LAST 10 LOG LINES ==="

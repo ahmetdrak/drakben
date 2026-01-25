@@ -541,269 +541,21 @@ class RefactoredDrakbenAgent:
 
     def _execute_tool(self, tool_name: str, args: Dict) -> Dict:
         """
-        Execute a single tool.
-        Supports both static tools and AI-generated dynamic tools.
+        Execute tool with error handling and retry logic
         """
-        if not self.state:
-            return {"success": False, "error": "State is not initialized", "args": args}
-
-        # ============ DYNAMIC TOOL CHECK ============
-        # If tool starts with "auto_" it's AI-generated
-        if tool_name.startswith("auto_") or tool_name in self.coder.created_tools:
-            self.console.print(
-                f"🧬 Executing AI-generated tool: {tool_name}",
-                style=self.STYLE_MAGENTA
-            )
-            result = self.coder.execute_dynamic_tool(
-                tool_name=tool_name,
-                target=self.state.target,
-                args=args
-            )
+        # 1. Check if tool is blocked
+        if self.tool_selector.is_tool_blocked(tool_name):
             return {
-                "success": result.get("success", False),
-                "stdout": result.get("output", ""),
-                "stderr": result.get("error", ""),
-                "exit_code": 0 if result.get("success") else 1,
-                "args": args
-            }
-
-        # ============ STATIC TOOL EXECUTION ============
-        # Route exploit/payload tools through state-aware modules
-
-        # 🛡️ SAFETY CHECK: Hard-stop approval for critical tools
-        tool_spec = self.tool_selector.tools.get(tool_name)
-        if tool_spec and tool_spec.risk_level == "critical":
-            self.console.print(
-                f"\n⚠️  CRITICAL ACTION DETECTED: {tool_name}", style=self.STYLE_RED
-            )
-            self.console.print(f"Args: {args}", style="red")
-
-            # Interactive confirmation (Input loop with timeout protection)
-            max_attempts = 3
-            attempts = 0
-            while attempts < max_attempts:
-                try:
-                    response = (
-                        input("🛑 Do you authorize this action? (YES/NO): ").strip().upper()
-                    )
-                    if response == "YES":
-                        self.console.print("✅ Action authorized by user.", style="green")
-                        break
-                    elif response == "NO":
-                        self.console.print("🚫 Action blocked by user.", style=self.STYLE_RED)
-                        return {
-                            "success": False,
-                            "error": "User denied authorization",
-                            "blocked": True,
-                        }
-                    else:
-                        attempts += 1
-                        if attempts < max_attempts:
-                            self.console.print("⚠️  Please enter YES or NO", style="yellow")
-                except (EOFError, KeyboardInterrupt):
-                    self.console.print("\n🚫 Action cancelled by user", style=self.STYLE_RED)
-                    return {
-                        "success": False,
-                        "error": "User cancelled authorization",
-                        "blocked": True,
-                    }
-            
-            if attempts >= max_attempts:
-                self.console.print("🚫 Too many invalid responses, blocking action", style=self.STYLE_RED)
-                return {
-                    "success": False,
-                    "error": "Authorization failed after max attempts",
-                    "blocked": True,
-                }
-
-        if tool_name in ["sqlmap_exploit", "sqlmap_scan"]:
-            target = args.get("target") or f"http://{self.state.target}"
-            # Fixed: Correct parameter order - state first
-            result = exploit_module.run_sqlmap(self.state, target)
-            return {
-                "success": result.get("exit_code", 1) == 0
-                and not result.get("blocked"),
-                "stdout": result.get("stdout", "")[:500],
-                "stderr": result.get("stderr", "")[:200],
-                "exit_code": result.get("exit_code", -1),
-                "error": result.get("error"),
+                "success": False,
+                "error": f"Tool {tool_name} blocked due to repeated failures",
                 "args": args,
             }
 
-        if tool_name in ["reverse_shell", "msfvenom_payload"]:
-            # Reverse shell requires foothold and state
-            target_ip = args.get("lhost") or self.state.target or "127.0.0.1"
-            target_port = int(args.get("lport", 4444))
-            # Fixed: Correct parameter order and names - state first, then target_ip, target_port
-            result = self._run_async(
-                payload_module.reverse_shell(self.state, target_ip, target_port)
-            )
-            return {
-                "success": result.get("success", False) and not result.get("blocked"),
-                "stdout": "",
-                "stderr": "",
-                "exit_code": 0 if result.get("success") else 1,
-                "error": result.get("error"),
-                "args": args,
-            }
-
-        if tool_name == "passive_recon":
-            # Passive recon via Python module
-            from modules import recon as recon_module
-
-            target = args.get("target") or f"http://{self.state.target}"
-
-            # Only run on HTTP/HTTPS targets
-            if not target.startswith("http"):
-                target = f"http://{target}"
-
-            result = self._run_async(recon_module.passive_recon(target, self.state))
-            return {
-                "success": not result.get("error") and not result.get("blocked"),
-                "stdout": str(result.get("ai_summary", "Recon completed"))[:500],
-                "stderr": result.get("error", "")[:200],
-                "exit_code": 0 if not result.get("error") else 1,
-                "error": result.get("error"),
-                "args": args,
-            }
-
-        if tool_name == "generic_command":
-            # High-risk flexible command execution
-            cmd = args.get("command", "")
-            if not cmd:
-                return {"success": False, "error": "No command provided", "args": args}
-
-            # Security filter for destructive commands
-            forbidden = [
-                "rm -rf",
-                "mkfs",
-                "dd if=",
-                ":(){ :|:& };:",
-                "shutdown",
-                "reboot",
-            ]
-            if any(f in cmd for f in forbidden):
-                self.console.print(
-                    f"🛑 BLOCKED DESTRUCTIVE COMMAND: {cmd}", style=self.STYLE_RED
-                )
-                return {
-                    "success": False,
-                    "error": "Command blocked by safety filter",
-                    "args": args,
-                }
-
-            # Allow execution
-            self.console.print(
-                f"⚠️  EXECUTING GENERIC COMMAND: {cmd}", style=self.STYLE_YELLOW
-            )
-            result = self.executor.terminal.execute(cmd, timeout=60)
-            return {
-                "success": result.exit_code == 0,
-                "stdout": result.stdout[:500],
-                "stderr": result.stderr[:200],
-                "exit_code": result.exit_code,
-                "args": args,
-            }
-
+        # 2. SYSTEM EVOLUTION (Meta-tool)
         if tool_name == "system_evolution":
-            # GOD MODE: Self-Modification & Evolution
-            action = args.get("action")  # create_tool, modify_file
-            target = args.get("target")  # tool_name or file_path
-            instruction = args.get(
-                "instruction"
-            )  # "Make nmap faster" or "Remove firewall check"
+            return self._handle_system_evolution(args)
 
-            self.console.print(
-                f"🧬 SYSTEM EVOLUTION TRIGGERED: {action} on {target}",
-                style=self.STYLE_MAGENTA_BLINK,
-            )
-
-            if action == "create_tool":
-                # Create brand new tool dynamically
-                result = self.coder.create_tool(target, instruction, "python")
-                if result["success"]:
-                    # Register immediately using dynamic loader
-                    tool_name = f"dynamic_{target.replace('.', '_').replace(' ', '_')}"
-                    self.tool_selector.register_dynamic_tool(
-                        name=tool_name,
-                        phase=self.state.phase,
-                        command_template=f"python dynamic_tools/{tool_name}.py {{target}}"
-                    )
-                    return {
-                        "success": True,
-                        "output": f"Created and registered tool: {target}. It is now available.",
-                    }
-                return {"success": False, "error": result["error"]}
-
-            elif action == "modify_file":
-                # DANGEROUS: Modify existing core files
-                # 1. Read file
-                try:
-                    with open(target, "r", encoding="utf-8") as f:
-                        original_content = f.read()
-                except Exception as e:
-                    return {"success": False, "error": f"Read failed: {e}"}
-
-                # 2. Ask LLM to modify
-                prompt = f"""You are a Senior Python Architect.
-Refactor this file: {target}
-Instruction: {instruction}
-Original Content:
-```python
-{original_content}
-```
-Output the FULL modified file content in ```python``` block. Ensure valid syntax.
-"""
-                try:
-                    response = self.brain.llm_client.query(prompt)
-                    new_content = self.coder._extract_code(response)
-
-                    # 3. Syntax Check (CRITICAL)
-                    if self.coder._validate_syntax(new_content):
-                        import os
-                        import shutil
-
-                        # Safe Atomic Write Pattern
-                        backup_path = f"{target}.bak"
-                        temp_path = f"{target}.tmp"
-
-                        try:
-                            # 1. Write to temp first
-                            with open(temp_path, "w", encoding="utf-8") as f:
-                                f.write(new_content)
-
-                            # 2. Create backup of original
-                            shutil.copy2(target, backup_path)
-
-                            # 3. Atomic Replace (Try to overwrite)
-                            # On Windows, os.replace might fail if open, but it's the best attempt
-                            try:
-                                os.replace(temp_path, target)
-                                return {
-                                    "success": True,
-                                    "output": f"Modified {target} successfully. Backup created at {backup_path}.",
-                                }
-                            except PermissionError:
-                                # Fallback: If locked, leave .tmp and notify
-                                return {
-                                    "success": False,
-                                    "error": f"FILE EXTENSION LOCKED by Windows. Written to {temp_path}. Manual replace or restart required.",
-                                    "warning": "Agent is running from this file.",
-                                }
-
-                        except Exception as e:
-                            return {
-                                "success": False,
-                                "error": f"File operation failed: {e}",
-                            }
-                    else:
-                        return {
-                            "success": False,
-                            "error": "Generated code had syntax errors. Change rejected.",
-                        }
-                except Exception as e:
-                    return {"success": False, "error": f"Modification failed: {e}"}
-
+        # 3. Metasploit special case
         if tool_name == "metasploit_exploit":
             return {
                 "success": False,
@@ -811,12 +563,72 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
                 "args": args,
             }
 
-        # Get tool spec
+        # 4. Get tool spec
         tool_spec = self.tool_selector.tools.get(tool_name)
-
         if not tool_spec:
             return {"success": False, "error": "Tool not found", "args": args}
 
+        # 5. Execute system tool
+        return self._run_system_tool(tool_name, tool_spec, args)
+
+    def _handle_system_evolution(self, args: Dict) -> Dict:
+        """Handle the system_evolution meta-tool"""
+        action = args.get("action")
+        target = args.get("target")  # file path or tool name
+        instruction = args.get("instruction")
+
+        if action == "create_tool":
+            # Dynamic tool creation via Coder
+            result = self.coder.create_tool(
+                tool_name=target, description=instruction
+            )
+            if result["success"]:
+                # Register new tool dynamically
+                self.tool_selector.register_dynamic_tool(
+                    name=target,
+                    phase=AttackPhase.EXPLOIT,
+                    command_template=f"python3 modules/{target}.py {{target}}"
+                )
+                return {"success": True, "output": f"Tool {target} created and registered."}
+            return result
+
+        elif action == "modify_file":
+            # Self-modification
+            # Security check: only allow modifying non-core files?
+            # For now, allow all (God Mode)
+            
+            # Read file first
+            try:
+                with open(target, 'r') as f:
+                    content = f.read()
+            except Exception as e:
+                return {"success": False, "error": f"Read failed: {e}"}
+
+            # Ask LLM for modification
+            modification = self.brain.ask_coder(
+                f"Modify this file:\n{target}\n\nInstruction:\n{instruction}\n\nContent:\n{content}"
+            )
+            
+            if modification.get("code"):
+                new_content = modification["code"]
+                # Verify syntax
+                import ast
+                try:
+                    ast.parse(new_content)
+                    with open(target, 'w') as f:
+                        f.write(new_content)
+                    return {"success": True, "output": f"File {target} modified successfully."}
+                except SyntaxError:
+                    return {
+                        "success": False,
+                        "error": "Generated code had syntax errors. Change rejected.",
+                    }
+            return {"success": False, "error": "No code generated"}
+
+        return {"success": False, "error": "Unknown evolution action"}
+
+    def _run_system_tool(self, tool_name: str, tool_spec, args: Dict) -> Dict:
+        """Run a standard system tool"""
         # Build command from template
         try:
             command = tool_spec.command_template.format(**args)
@@ -828,34 +640,44 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
 
         # Track tool failures globally
         if result.exit_code != 0:
-            stdout_str = result.stdout or ""
-            stderr_str = result.stderr or ""
-            
-            # Check for missing tool
-            if "not found" in stderr_str.lower() or "not recognized" in stderr_str.lower() or "bulunamadı" in stderr_str.lower():
-                 # Attempt auto-install
-                 if self._install_tool(tool_name):
-                     self.console.print(f"🔄 Retrying {tool_name} after installation...", style="cyan")
-                     # Retry execution
-                     result = self.executor.terminal.execute(command, timeout=300)
-                     # Update output vars
-                     stdout_str = result.stdout or ""
-                     stderr_str = result.stderr or ""
-            
-            if result.exit_code != 0:
-                 self.tool_selector.record_tool_failure(tool_name)
+            return self._handle_tool_failure(tool_name, command, result, args)
 
-        # Smart error extraction (ensure vars exist if not retried)
-        if 'stdout_str' not in locals():
-            stdout_str = result.stdout or ""
-            stderr_str = result.stderr or ""
+        return self._format_tool_result(result, args)
+
+    def _handle_tool_failure(self, tool_name: str, command: str, result, args: Dict) -> Dict:
+        """Handle tool failure, including auto-install retry"""
+        stdout_str = result.stdout or ""
+        stderr_str = result.stderr or ""
+        
+        # Check for missing tool
+        if "not found" in stderr_str.lower() or "not recognized" in stderr_str.lower() or "bulunamadı" in stderr_str.lower():
+                # Attempt auto-install
+                if self._install_tool(tool_name):
+                    self.console.print(f"🔄 Retrying {tool_name} after installation...", style="cyan")
+                    # Retry execution
+                    retry_result = self.executor.terminal.execute(command, timeout=300)
+                    if retry_result.exit_code == 0:
+                        return self._format_tool_result(retry_result, args)
+                    
+                    # Update result if retry failed
+                    result = retry_result
+        
+        if result.exit_code != 0:
+                self.tool_selector.record_tool_failure(tool_name)
+        
+        return self._format_tool_result(result, args)
+
+    def _format_tool_result(self, result, args: Dict) -> Dict:
+        """Format execution result dictionary"""
+        stdout_str = result.stdout or ""
+        stderr_str = result.stderr or ""
         
         # Some tools output errors to stdout (like nmap sometimes)
         if result.exit_code != 0 and not stderr_str.strip():
             if stdout_str.strip():
-               stderr_str = f"Tool Error (in stdout): {stdout_str[-500:]}"
+                stderr_str = f"Tool Error (in stdout): {stdout_str[-500:]}"
             else:
-               stderr_str = f"Command failed with exit code {result.exit_code} (No output captured)"
+                stderr_str = f"Command failed with exit code {result.exit_code} (No output captured)"
 
         return {
             "success": result.status.value == "success",

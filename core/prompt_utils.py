@@ -86,25 +86,37 @@ class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
         
         # Command completions
         if text.startswith('/'):
-            for cmd, desc in self.commands.items():
-                if cmd.startswith(text):
-                    yield Completion(
-                        cmd,
-                        start_position=-len(text),
-                        display_meta=desc
-                    )
+            yield from self._get_command_completions(text)
         
         # Tool completions
         elif any(text.startswith(t) for t in ['scan', 'run', 'use']):
-            for tool in self.tool_commands:
-                if tool.startswith(word):
-                    yield Completion(tool, start_position=-len(word))
+            yield from self._get_tool_completions(word)
         
         # Target completions from history
         elif text.startswith('/target '):
-            for target in self.targets_history:
-                if target.startswith(word):
-                    yield Completion(target, start_position=-len(word))
+            yield from self._get_target_completions(word)
+
+    def _get_command_completions(self, text):
+        """Get completions for commands"""
+        for cmd, desc in self.commands.items():
+            if cmd.startswith(text):
+                yield Completion(
+                    cmd,
+                    start_position=-len(text),
+                    display_meta=desc
+                )
+
+    def _get_tool_completions(self, word):
+        """Get completions for tools"""
+        for tool in self.tool_commands:
+            if tool.startswith(word):
+                yield Completion(tool, start_position=-len(word))
+
+    def _get_target_completions(self, word):
+        """Get completions for targets"""
+        for target in self.targets_history:
+            if target.startswith(word):
+                yield Completion(target, start_position=-len(word))
     
     def add_target(self, target: str):
         """Add target to history for completion"""

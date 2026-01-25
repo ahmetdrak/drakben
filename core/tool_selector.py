@@ -440,42 +440,60 @@ class ToolSelector:
         # Check if we have remaining attack surface
         remaining = state.get_available_attack_surface()
 
+        # 1. Try to scan remaining surfaces
         if remaining and state.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN]:
-            # Test next surface
-            surface = remaining[0]
-            tool_result = self.select_tool_for_surface(state, surface)
-            if tool_result:
-                tool_name, args = tool_result
-                return ("scan_surface", tool_name, args)
+            scan_action = self._recommend_surface_scan(state, remaining[0])
+            if scan_action:
+                return scan_action
 
-        # Check if we should move to next phase
+        # 2. Check if we should move to next phase
         if not remaining:
-            # No more surfaces to test in current phase
-            if state.phase == AttackPhase.RECON and state.open_services:
-                # Move to vuln scan
-                return (
-                    "phase_transition",
-                    "vuln_scan",
-                    {"next_phase": AttackPhase.VULN_SCAN},
-                )
+            transition = self._recommend_phase_transition(state)
+            if transition:
+                return transition
 
-            elif state.phase == AttackPhase.VULN_SCAN and state.vulnerabilities:
-                # Move to exploit
-                return (
-                    "phase_transition",
-                    "exploit",
-                    {"next_phase": AttackPhase.EXPLOIT},
-                )
-
-        # Check if we have exploitable vulns
+        # 3. Check if we have exploitable vulns
         if state.phase == AttackPhase.EXPLOIT:
-            for vuln in state.vulnerabilities:
-                if vuln.exploitable and not vuln.exploit_attempted:
-                    # Try to exploit
-                    tool_name = self._get_exploit_tool_for_vuln(vuln)
-                    if tool_name:
-                        return ("exploit_vuln", tool_name, {"vuln_id": vuln.vuln_id})
+            return self._recommend_exploit(state)
 
+        return None
+
+    def _recommend_surface_scan(self, state: AgentState, surface: str) -> Optional[Tuple[str, str, Dict]]:
+        """Recommend a scan action for a specific surface"""
+        tool_result = self.select_tool_for_surface(state, surface)
+        if tool_result:
+            tool_name, args = tool_result
+            return ("scan_surface", tool_name, args)
+        return None
+
+    def _recommend_phase_transition(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+        """Recommend a phase transition if applicable"""
+        # No more surfaces to test in current phase
+        if state.phase == AttackPhase.RECON and state.open_services:
+            # Move to vuln scan
+            return (
+                "phase_transition",
+                "vuln_scan",
+                {"next_phase": AttackPhase.VULN_SCAN},
+            )
+
+        elif state.phase == AttackPhase.VULN_SCAN and state.vulnerabilities:
+            # Move to exploit
+            return (
+                "phase_transition",
+                "exploit",
+                {"next_phase": AttackPhase.EXPLOIT},
+            )
+        return None
+
+    def _recommend_exploit(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+        """Recommend an exploit action"""
+        for vuln in state.vulnerabilities:
+            if vuln.exploitable and not vuln.exploit_attempted:
+                # Try to exploit
+                tool_name = self._get_exploit_tool_for_vuln(vuln)
+                if tool_name:
+                    return ("exploit_vuln", tool_name, {"vuln_id": vuln.vuln_id})
         return None
 
     def _get_exploit_tool_for_vuln(self, vuln) -> Optional[str]:

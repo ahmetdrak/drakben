@@ -64,21 +64,23 @@ class KaliDetector:
     def suggest_tools_for_target(self, target_type: str) -> list:
         """Hedef türüne göre uygun araçları öner"""
         suggestions = []
-
-        if target_type in ["web", "webapp"]:
-            for tool in ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"]:
-                if tool in self.available_tools:
-                    suggestions.append(tool)
-
-        elif target_type in ["network", "host"]:
-            for tool in ["nmap", "hydra", "metasploit"]:
-                if tool in self.available_tools:
-                    suggestions.append(tool)
-
-        elif target_type == "password":
-            for tool in ["hashcat", "john", "hydra"]:
-                if tool in self.available_tools:
-                    suggestions.append(tool)
+        
+        # Mapping target types to potential tools
+        tool_mapping = {
+            "web": ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"],
+            "webapp": ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"],
+            "network": ["nmap", "hydra", "metasploit"],
+            "host": ["nmap", "hydra", "metasploit"],
+            "password": ["hashcat", "john", "hydra"]
+        }
+        
+        # Get potential tools for the target type
+        potential_tools = tool_mapping.get(target_type, [])
+        
+        # Filter by availability
+        for tool in potential_tools:
+            if tool in self.available_tools:
+                suggestions.append(tool)
 
         return suggestions
 

@@ -55,7 +55,7 @@ class TestAgentState(unittest.TestCase):
         state = reset_state("192.168.1.1")
         
         service = ServiceInfo(port=80, protocol="tcp", service="http", version="Apache/2.4")
-        state.add_open_services([service])
+        state.update_services([service])
         
         self.assertIn(80, state.open_services)
     
@@ -104,7 +104,7 @@ class TestAgentState(unittest.TestCase):
             for i in range(100):
                 try:
                     service = ServiceInfo(port=8000 + i, protocol="tcp", service=f"service_{i}")
-                    state.add_open_services([service])
+                    state.update_services([service])
                 except Exception as e:
                     errors.append(str(e))
         
@@ -273,7 +273,7 @@ class TestEvolutionMemory(unittest.TestCase):
     
     def test_strategy_profile(self):
         """Test strategy profile management"""
-        from core.evolution_memory import EvolutionMemory
+        from core.evolution_memory import EvolutionMemory, ActionRecord
         memory = EvolutionMemory(db_path=self.temp_db.name)
         
         # Strategy profiles are not implemented in EvolutionMemory
@@ -290,6 +290,7 @@ class TestEvolutionMemory(unittest.TestCase):
             penalty_score=10.0
         )
         memory.record_action(record)
+        memory.update_penalty("nmap", success=False)
         
         penalty = memory.get_penalty("nmap")
         self.assertGreater(penalty, 0)
@@ -328,14 +329,16 @@ class TestExecutionEngine(unittest.TestCase):
             with self.assertRaises(SecurityError, msg=f"Command should be blocked: {cmd}"):
                 CommandSanitizer.sanitize(cmd)
     
-    @patch('subprocess.run')
-    def test_execute_safe_command(self, mock_run):
+    @patch('subprocess.Popen')
+    def test_execute_safe_command(self, mock_popen):
         """Test safe command execution"""
-        mock_run.return_value = MagicMock(
-            stdout="output",
-            stderr="",
-            returncode=0
-        )
+        # Mock Popen instance
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = ("output", "")
+        process_mock.returncode = 0
+        
+        # Configure Popen constructor to return our mock
+        mock_popen.return_value = process_mock
         
         from core.execution_engine import ExecutionEngine
         engine = ExecutionEngine()

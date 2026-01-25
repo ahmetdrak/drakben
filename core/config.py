@@ -171,9 +171,7 @@ class ConfigManager:
         from rich.console import Console
         console = Console()
         
-        console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
-        choice = input("> ").strip().lower()
-        if choice not in ["e", "y", "evet", "yes"]:
+        if not self._prompt_user_consent(console):
             self.config.llm_setup_complete = True
             self.save_config()
             return
@@ -183,7 +181,24 @@ class ConfigManager:
 
         env_values = existing.copy()
 
-        if provider_choice == "1":
+        if not self._configure_provider(provider_choice, env_values):
+            self.config.llm_setup_complete = True
+            self.save_config()
+            return
+
+        self._write_env_file(env_values)
+        self.config.llm_setup_complete = True
+        self.save_config()
+
+    def _prompt_user_consent(self, console) -> bool:
+        """Ask user if they want to configure LLM"""
+        console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
+        choice = input("> ").strip().lower()
+        return choice in ["e", "y", "evet", "yes"]
+
+    def _configure_provider(self, choice: str, env_values: Dict[str, str]) -> bool:
+        """Configure specific provider based on user choice"""
+        if choice == "1":
             self.config.llm_provider = "openrouter"
             api_key = input("OpenRouter API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
@@ -193,8 +208,9 @@ class ConfigManager:
             if model:
                 env_values["OPENROUTER_MODEL"] = model
                 self.config.openrouter_model = model
+            return True
 
-        elif provider_choice == "2":
+        elif choice == "2":
             self.config.llm_provider = "openai"
             api_key = input("OpenAI API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
@@ -204,8 +220,9 @@ class ConfigManager:
             if model:
                 env_values["OPENAI_MODEL"] = model
                 self.config.openai_model = model
+            return True
 
-        elif provider_choice == "3":
+        elif choice == "3":
             self.config.llm_provider = "ollama"
             url = input("Ollama URL (leave empty: http://localhost:11434): ").strip()
             model = input("Ollama model (leave empty: llama3.1): ").strip()
@@ -217,15 +234,9 @@ class ConfigManager:
             )
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
-
-        else:
-            self.config.llm_setup_complete = True
-            self.save_config()
-            return
-
-        self._write_env_file(env_values)
-        self.config.llm_setup_complete = True
-        self.save_config()
+            return True
+        
+        return False
 
     @property
     def llm_client(self):

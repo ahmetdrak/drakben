@@ -654,7 +654,7 @@ class AgentState:
 
 
 # Thread-safe singleton implementation
-_state_lock = threading.Lock()
+_state_lock = threading.RLock()
 _state_instance: Optional[AgentState] = None
 
 
@@ -685,5 +685,6 @@ def reset_state(target: Optional[str] = None) -> AgentState:
     """
     global _state_instance
     with _state_lock:
+        _state_instance = None
         _state_instance = AgentState(target)
         return _state_instance

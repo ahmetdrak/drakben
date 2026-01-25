@@ -456,24 +456,8 @@ class OpenRouterClient:
             yield "[Offline Mode] No API key configured."
             return
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        # Add OpenRouter-specific headers
-        if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
-            headers["X-Title"] = "DRAKBEN Pentest AI"
-
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": True,
-        }
+        headers = self._build_headers()
+        payload = self._build_payload(prompt, system_prompt, stream=True)
 
         try:
             response = self._session.post(
@@ -484,52 +468,11 @@ class OpenRouterClient:
                 stream=True
             )
             
-            if response.status_code == 401:
-                yield "[Auth Error] Invalid API key."
-                return
-            elif response.status_code == 429:
-                retry_after = int(response.headers.get("Retry-After", 5))
-                self._rate_limiter.set_retry_after(retry_after)
-                yield "[Rate Limit] Too many requests."
-                return
-            elif response.status_code != 200:
-                yield f"[API Error] {response.status_code}"
+            if response.status_code != 200:
+                yield from self._handle_error_response(response)
                 return
             
-            import json
-            
-            # Set timeout for iter_lines to prevent infinite wait (Cloudflare WAF blocking)
-            start_time = time.time()
-            max_stream_time = timeout * 2  # Allow 2x timeout for streaming
-            
-            for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
-                # Check overall timeout (prevent Cloudflare WAF infinite wait)
-                if time.time() - start_time > max_stream_time:
-                    logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
-                    yield "[Timeout] Streaming response took too long (possible WAF blocking)."
-                    break
-                
-                if line:
-                    # Skip "data: " prefix
-                    if line.startswith("data: "):
-                        line = line[6:]
-                    
-                    # Check for end of stream
-                    if line == "[DONE]":
-                        break
-                    
-                    try:
-                        data = json.loads(line)
-                        choices = data.get("choices", [])
-                        if choices:
-                            delta = choices[0].get("delta", {})
-                            chunk = delta.get("content", "")
-                            if chunk:
-                                if callback:
-                                    callback(chunk)
-                                yield chunk
-                    except json.JSONDecodeError:
-                        continue
+            yield from self._process_streaming_response(response, callback, timeout)
                         
         except requests.exceptions.Timeout:
             logger.warning("OpenAI-compatible API streaming timeout - possible WAF blocking")
@@ -543,6 +486,74 @@ class OpenRouterClient:
         except Exception as e:
             logger.exception(f"API streaming error: {e}")
             yield f"[Error] {str(e)}"
+
+    def _build_headers(self) -> Dict[str, str]:
+        """Build API headers"""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        if self.provider == "openrouter":
+            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
+            headers["X-Title"] = "DRAKBEN Pentest AI"
+        return headers
+
+    def _build_payload(self, prompt: str, system_prompt: str, stream: bool = False) -> Dict:
+        """Build API payload"""
+        return {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            "stream": stream,
+        }
+
+    def _handle_error_response(self, response):
+        """Handle error response codes"""
+        if response.status_code == 401:
+            yield "[Auth Error] Invalid API key."
+        elif response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", 5))
+            self._rate_limiter.set_retry_after(retry_after)
+            yield "[Rate Limit] Too many requests."
+        else:
+            yield f"[API Error] {response.status_code}"
+
+    def _process_streaming_response(self, response, callback, timeout):
+        """Process streaming response lines"""
+        import json
+        start_time = time.time()
+        max_stream_time = timeout * 2
+        
+        for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
+            if time.time() - start_time > max_stream_time:
+                logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
+                yield "[Timeout] Streaming response took too long (possible WAF blocking)."
+                break
+            
+            if line:
+                if line.startswith("data: "):
+                    line = line[6:]
+                if line == "[DONE]":
+                    break
+                try:
+                    data = json.loads(line)
+                    chunk = self._extract_chunk(data)
+                    if chunk:
+                        if callback:
+                            callback(chunk)
+                        yield chunk
+                except json.JSONDecodeError:
+                    continue
+
+    def _extract_chunk(self, data: Dict) -> str:
+        """Extract content chunk from response data"""
+        choices = data.get("choices", [])
+        if choices:
+            delta = choices[0].get("delta", {})
+            return delta.get("content", "")
+        return ""
 
     def _query_ollama(self, prompt: str, system_prompt: str, timeout: int) -> str:
         """Query local Ollama instance with retry logic"""
