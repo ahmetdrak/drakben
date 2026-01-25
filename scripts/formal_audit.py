@@ -31,7 +31,7 @@ def safe_remove(path: str):
     try:
         if os.path.exists(path):
             os.remove(path)
-    except (OSError, PermissionError):
+    except OSError:
         pass
 
 
@@ -314,10 +314,10 @@ else:
     run5 = run_results[-1]  # Last run instead of index 4
     
     # Decision entropy - different profiles selected
-    profile_diversity = len(set(r["selected_profile"] for r in run_results))
+    profile_diversity = len({r["selected_profile"] for r in run_results})
     
     # Action diversity - different step orders
-    unique_step_orders = len(set(tuple(r["step_order"]) for r in run_results))
+    unique_step_orders = len({tuple(r["step_order"]) for r in run_results})
     
     # State change
     failure_change = run5["total_failures"] - run1["total_failures"]

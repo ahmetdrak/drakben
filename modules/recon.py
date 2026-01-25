@@ -305,7 +305,7 @@ def detect_cms(html: str, headers: Dict[str, str]) -> Optional[str]:
             return cms
     
     # Check headers for CMS hints
-    server = headers.get("Server", "").lower()
+    _ = headers.get("Server", "").lower()
     x_powered = headers.get("X-Powered-By", "").lower()
     
     if "wp" in x_powered or "wordpress" in x_powered:

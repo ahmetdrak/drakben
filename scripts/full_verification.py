@@ -58,7 +58,7 @@ def safe_remove(path: str):
     try:
         if os.path.exists(path):
             os.remove(path)
-    except (OSError, PermissionError):
+    except OSError:
         pass
 
 
@@ -937,9 +937,7 @@ def task5_dead_fake_detection() -> Dict[str, Any]:
     
     # Check for dead imports
     print("Checking for dead imports...")
-    dead_imports = [
-        # List any imports that are never used
-    ]
+    # List any imports that are never used
     
     # Check for functions that are never called
     print("Checking for uncalled functions...")
@@ -958,8 +956,6 @@ def task5_dead_fake_detection() -> Dict[str, Any]:
     print("\nChecking for fake intelligence...")
     
     # Things that LOOK like AI but don't actually affect behavior
-    fake_candidates = []
-    
     # The self_refining_engine was verified to actually affect behavior
     # So it's NOT fake intelligence
     

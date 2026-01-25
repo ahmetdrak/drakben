@@ -211,7 +211,7 @@ class CredentialStore:
             key = self._derive_key(password, salt)
             decrypted = self._decrypt(encrypted, key)
             return json.loads(decrypted)
-        except (ValueError, json.JSONDecodeError, Exception):
+        except Exception:
             return {}
     
     def _save_file(self, credentials: Dict[str, str], password: str):
@@ -478,7 +478,7 @@ class AuditLogger:
             
             prev_hash = "GENESIS"
             for row in cursor:
-                timestamp, event_type, action, stored_hash, stored_prev = row
+                timestamp, _, _, stored_hash, stored_prev = row
                 
                 if stored_prev != prev_hash:
                     return False, f"Chain broken at {timestamp}: prev_hash mismatch"
@@ -558,7 +558,7 @@ class ProxyManager:
             test_socket.connect(("check.torproject.org", 80))
             test_socket.close()
             return True
-        except (OSError, ConnectionError, Exception):
+        except Exception:
             return False
     
     def add_proxy(self, proxy: ProxyConfig):

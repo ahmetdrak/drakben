@@ -360,9 +360,6 @@ class SelfRefiningEngine:
 
     def _handle_schema_migration(self, conn: sqlite3.Connection):
         """Check and migrate old schema if needed"""
-        import time
-        start_time = time.time()
-        
         if self._needs_migration(conn):
             logger.info("Migrating database to new schema...")
             conn.executescript("""
@@ -428,7 +425,7 @@ class SelfRefiningEngine:
 
     def _acquire_lock_safe(self, max_retries=2) -> bool:
         """Helper to acquire lock safely"""
-        for attempt in range(max_retries):
+        for _ in range(max_retries):
             try:
                 if self._lock.acquire(timeout=1.5):
                     return True

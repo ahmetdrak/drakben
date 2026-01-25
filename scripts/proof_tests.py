@@ -190,7 +190,7 @@ def proof_policy_conflict_resolution():
     print("Creating conflicting policies:\n")
     
     # Policy A: Tier 3 (TOOL_SELECTION), weight 0.9, avoid sqlmap
-    pol_a = engine.add_policy(
+    _ = engine.add_policy(
         condition=condition,
         action={"avoid_tools": ["sqlmap"]},
         priority_tier=PolicyTier.TOOL_SELECTION,
@@ -212,7 +212,7 @@ def proof_policy_conflict_resolution():
     time.sleep(0.01)
     
     # Policy C: Tier 1 (HARD_AVOIDANCE), weight=0.5, block sqlmap
-    pol_c = engine.add_policy(
+    _ = engine.add_policy(
         condition=condition,
         action={"block_tool": "sqlmap"},
         priority_tier=PolicyTier.HARD_AVOIDANCE,
@@ -223,7 +223,7 @@ def proof_policy_conflict_resolution():
     time.sleep(0.01)
     
     # Policy D: Tier 2 (STRATEGY_OVERRIDE), weight=0.8, prefer stealth
-    pol_d = engine.add_policy(
+    _ = engine.add_policy(
         condition=condition,
         action={"prefer_strategy": "web_stealth"},
         priority_tier=PolicyTier.STRATEGY_OVERRIDE,
@@ -336,7 +336,7 @@ def proof_restart_behavior_change():
         engine1.learn_policy_from_failure(ctx_id)
     
     # Update profile outcome (failure)
-    retired_profile = engine1.update_profile_outcome(profile1.profile_id, success=False)
+    _ = engine1.update_profile_outcome(profile1.profile_id, success=False)
     engine1.update_profile_outcome(profile1.profile_id, success=False)
     engine1.update_profile_outcome(profile1.profile_id, success=False)
     

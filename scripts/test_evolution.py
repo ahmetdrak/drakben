@@ -80,7 +80,7 @@ def test_strategy_and_profile_selection():
     
     # Simulate failure
     target_sig = engine.get_target_signature("https://example.com")
-    failure_id = engine.record_failure(
+    _ = engine.record_failure(
         target_signature=target_sig,
         strategy_name=strategy.name,
         profile_id=profile.profile_id,
@@ -89,7 +89,7 @@ def test_strategy_and_profile_selection():
     )
     
     # Now get new selection - should be different profile
-    strategy2, profile2 = engine.select_strategy_and_profile("https://example.com")
+    _, _ = engine.select_strategy_and_profile("https://example.com")
     
     if profile2.profile_id != profile.profile_id:
         print(f"  ✅ After failure, selected different profile: {profile2.profile_id[:12]}...")

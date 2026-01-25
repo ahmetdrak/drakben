@@ -214,7 +214,7 @@ def _cleanup_nuclei_temp_file(targets_file: str) -> None:
     import os
     try:
         os.unlink(targets_file)
-    except (OSError, FileNotFoundError):
+    except OSError:
         pass
     
     async def scan_cves(

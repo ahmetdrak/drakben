@@ -259,7 +259,7 @@ class CodeReview:
                 pass
         
         # Analyze risk
-        risk_level, concerns = CodeAnalyzer.analyze_code(new_content)
+        risk_level, _ = CodeAnalyzer.analyze_code(new_content)
         
         # Generate diff
         diff_lines = list(difflib.unified_diff(
@@ -434,11 +434,9 @@ class CodeReview:
                 # Extract original filename
                 original_name = backup_file.name.replace(f"{change_id}_", "").replace(".bak", "")
                 
-                # Read backup content
+                # Read backup content (simplified rollback - would need more context in production)
                 with open(backup_file, "r", encoding="utf-8") as f:
-                    backup_content = f.read()
-                
-                # This is a simplified rollback - would need more context in production
+                    _ = f.read()
                 self.console.print(f"[yellow]Rollback content available for: {original_name}[/yellow]")
                 self.console.print(f"Backup file: {backup_file}")
                 

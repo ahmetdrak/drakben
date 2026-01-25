@@ -227,7 +227,7 @@ class MetasploitRPC:
         if self.connected and self.token:
             try:
                 await self._call("auth.logout", [self.token])
-            except (ConnectionError, TimeoutError, Exception):
+            except Exception:
                 pass
         
         self.connected = False
@@ -399,8 +399,6 @@ class MetasploitRPC:
                     duration_seconds=time.time() - start_time
                 )
             
-            job_id = result.get("result", {}).get("job_id")
-            
             # Wait for exploit to complete
             session = await self._wait_for_session(
                 target_host, 
@@ -549,7 +547,7 @@ class MetasploitRPC:
         Returns:
             Command output
         """
-        result = await self._call(
+        await self._call(
             "session.meterpreter_run_single", 
             [session_id, command]
         )
@@ -607,7 +605,7 @@ class MetasploitRPC:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except (OSError, ConnectionError, Exception):
+        except Exception:
             return "127.0.0.1"
 
 

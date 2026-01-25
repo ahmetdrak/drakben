@@ -71,10 +71,6 @@ class ToolSelector:
             penalty = evolution_memory.get_penalty(tool_name)
             is_blocked = evolution_memory.is_tool_blocked(tool_name)
             
-            # Calculate effective success rate from penalty
-            # Higher penalty = lower success rate
-            rate = max(0, 100 - (penalty * 10))  # penalty 0 = 100%, penalty 10 = 0%
-
             original_priority = self.tools[tool_name].priority
             new_priority = original_priority
 

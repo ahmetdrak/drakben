@@ -100,7 +100,7 @@ class TestExploitModule(unittest.TestCase):
         """Test precondition check without state"""
         from modules.exploit import check_exploit_preconditions
         
-        can_exploit, reason = check_exploit_preconditions(None, "target", "sqli")
+        can_exploit, _ = check_exploit_preconditions(None, "target", "sqli")
         self.assertFalse(can_exploit)
     
     def test_precondition_check_no_target(self):
@@ -109,7 +109,7 @@ class TestExploitModule(unittest.TestCase):
         from core.state import AgentState
         
         state = AgentState()
-        can_exploit, reason = check_exploit_preconditions(state, "", "sqli")
+        can_exploit, _ = check_exploit_preconditions(state, "", "sqli")
         self.assertFalse(can_exploit)
     
     def test_precondition_check_wrong_phase(self):

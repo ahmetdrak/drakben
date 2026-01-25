@@ -584,7 +584,7 @@ class RefactoredDrakbenAgent:
             if llm_error and self._should_retry(attempt, max_retries):
                 self._handle_llm_retry(attempt, max_retries)
             return None
-        except Exception as e:
+        except Exception:
             if self._should_retry(attempt, max_retries):
                 self._handle_llm_retry(attempt, max_retries)
             return None
@@ -618,7 +618,7 @@ class RefactoredDrakbenAgent:
         """Get deterministic decision as fallback"""
         deterministic_decision = self.tool_selector.recommend_next_action(self.state)
         if deterministic_decision:
-            action_type, tool_name, args = deterministic_decision
+            _, tool_name, args = deterministic_decision
             self.console.print(f"✅ Deterministik karar: {tool_name}", style="dim")
             return {"tool": tool_name, "args": args}
         return None
@@ -1019,7 +1019,7 @@ class RefactoredDrakbenAgent:
             try:
                 os.remove(lock_file)
                 self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
-            except (OSError, PermissionError) as e:
+            except OSError as e:
                 logger.debug(f"Could not remove lock file {lock_file}: {e}")
         retry_result = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
@@ -1319,7 +1319,7 @@ class RefactoredDrakbenAgent:
                 f.write(f"Timestamp: {datetime.now().isoformat()}\n")
                 f.write(f"Exit Code: {exit_code}\n")
                 f.write(f"Output:\n{output[:1000]}\n")
-        except (IOError, OSError, PermissionError) as e:
+        except OSError as e:
             logger.debug(f"Could not write to log file {log_file}: {e}")
     
     def _llm_assisted_error_fix(self, tool_name: str, command: str, error_output: str) -> tuple:

@@ -211,7 +211,7 @@ class TestEvolutionMemory(unittest.TestCase):
     def test_initialization(self):
         """Test database initialization"""
         from core.evolution_memory import EvolutionMemory
-        memory = EvolutionMemory(db_path=self.temp_db.name)
+        _ = EvolutionMemory(db_path=self.temp_db.name)
         
         # Check tables exist
         conn = sqlite3.connect(self.temp_db.name)
@@ -302,7 +302,7 @@ class TestExecutionEngine(unittest.TestCase):
     def test_command_sanitization(self):
         """Test command sanitization"""
         from core.execution_engine import CommandSanitizer, SecurityError
-        sanitizer = CommandSanitizer()
+        _ = CommandSanitizer()
         
         # Safe commands
         safe_cmd = CommandSanitizer.sanitize("nmap -sV 192.168.1.1")
@@ -361,7 +361,7 @@ class TestExecutionEngine(unittest.TestCase):
         ]
         
         for cmd, should_require in high_risk_commands:
-            requires, reason = CommandSanitizer.requires_confirmation(cmd)
+            requires, _ = CommandSanitizer.requires_confirmation(cmd)
             self.assertEqual(requires, should_require, 
                 f"Command '{cmd}' should {'require' if should_require else 'not require'} confirmation")
     
@@ -631,7 +631,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
         try:
             if hasattr(self, 'temp_db') and os.path.exists(self.temp_db.name):
                 os.unlink(self.temp_db.name)
-        except (OSError, PermissionError) as e:
+        except OSError:
             # Ignore cleanup errors in tests
             pass
     
@@ -662,15 +662,15 @@ class TestSelfRefiningEngine(unittest.TestCase):
         try:
             engine = SelfRefiningEngine()
             # Get initial profile
-            strategy, profile = engine.select_strategy_and_profile("192.168.1.1")
-            original_id = profile.profile_id
+            _, profile = engine.select_strategy_and_profile("192.168.1.1")
+            _ = profile.profile_id
             
             # Mark as failed and mutate
             engine.update_profile_outcome(profile.profile_id, False)
             engine.mutate_profile(profile.profile_id)
             
             # Should create new profile
-            strategy2, profile2 = engine.select_strategy_and_profile("192.168.1.1")
+            _, _ = engine.select_strategy_and_profile("192.168.1.1")
             # New profile should be different (or same if mutation didn't create new)
             self.assertIsNotNone(profile2)
         except Exception as e:

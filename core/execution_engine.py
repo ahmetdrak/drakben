@@ -473,7 +473,7 @@ class SmartTerminal:
                         os.killpg(pgid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                except (ProcessLookupError, OSError):
+                except OSError:
                     process.terminate()
                     time.sleep(0.5)
                     process.kill()
@@ -492,7 +492,7 @@ class SmartTerminal:
             logger.warning(f"Error during process cleanup: {e}")
             try:
                 process.kill()
-            except (ProcessLookupError, OSError) as e:
+            except OSError as e:
                 logger.debug(f"Error killing process: {e}")
 
     def _handle_execution_error(self, command: str, error: Exception, start_time: float) -> ExecutionResult:
