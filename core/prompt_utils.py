@@ -159,7 +159,7 @@ class EnhancedPrompt:
         """Initialize prompt_toolkit session"""
         # Style
         style = Style.from_dict({
-            'prompt': '#bd93f9 bold',
+            'prompt': '#8BE9FD bold',  # Cyan (Hacker Blue) - Dracula Cyan
             'command': '#50fa7b',
             'path': '#8be9fd',
         })

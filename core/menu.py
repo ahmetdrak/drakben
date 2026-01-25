@@ -41,7 +41,7 @@ class DrakbenMenu:
         "red": "#FF5555",
         "green": "#50FA7B",
         "yellow": "#F1FA8C",
-        "purple": "#8BE9FD",  # Cyan (Hacker Blue) - Replaced Purple
+        "purple": "#8BE9FD",  # Cyan (Hacker Blue) - Dracula Cyan
         "cyan": "#8BE9FD",
         "pink": "#FFB86C",  # Orange - Replaced Pink
         "fg": "#F8F8F2",
@@ -381,7 +381,7 @@ class DrakbenMenu:
         
         # Commands table
         table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("Cmd", style=f"bold {self.COLORS['purple']}")
+        table.add_column("Cmd", style=f"bold {self.COLORS['red']}")  # Komutlar kırmızı
         table.add_column("Desc", style=self.COLORS["fg"])
         
         if lang == "tr":
