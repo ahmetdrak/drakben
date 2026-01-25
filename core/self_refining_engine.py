@@ -323,200 +323,144 @@ class SelfRefiningEngine:
             logger.error("Database is locked by another process.")
         raise
 
+    def _seed_default_strategies(self):
+        """Seed default strategies if none exist"""
+        import time
+        max_duration = 10
+        start_time = time.time()
+        
+        # Acquire lock safely
+        lock_acquired = self._acquire_lock_safe()
+        if not lock_acquired:
+            return
+        
+        conn = None
+        try:
+            conn = self._get_conn()
+            if self._strategies_exist(conn):
+                return
+
+            default_strategies = self._get_default_strategy_definitions()
+            
+            # Batch Insert Strategies
+            self._batch_insert_strategies(conn, default_strategies, start_time, max_duration)
+            
+            # Create Profiles
+            self._create_profiles_batch(conn, default_strategies, start_time, max_duration)
+            
+            conn.commit()
+            
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database error during seeding: {e}")
+        except Exception as e:
+            logger.exception(f"Unexpected error during seeding: {e}")
+        finally:
+            self._cleanup_conn_and_lock(conn, lock_acquired)
+
+    def _acquire_lock_safe(self, max_retries=2) -> bool:
+        """Helper to acquire lock safely"""
+        for attempt in range(max_retries):
+            try:
+                if self._lock.acquire(timeout=1.5):
+                    return True
+                time.sleep(0.5)
+            except Exception as e:
+                logger.error(f"Lock error: {e}")
+        return False
+
+    def _strategies_exist(self, conn) -> bool:
+        """Check if strategies table is populated"""
+        cursor = conn.execute("SELECT COUNT(*) FROM strategies")
+        return cursor.fetchone()[0] > 0
+
+    def _get_default_strategy_definitions(self) -> List[Dict]:
+        """Return list of default strategies"""
+        return [
+            {
+                "name": "aggressive_scan",
+                "target_type": "network_host",
+                "description": "Fast aggressive network scanning",
+                "base_parameters": {"scan_speed": "fast", "stealth": False, "parallel_scans": 10, "timeout": 30}
+            },
+            {
+                "name": "stealth_scan",
+                "target_type": "network_host",
+                "description": "Slow stealthy network scanning",
+                "base_parameters": {"scan_speed": "slow", "stealth": True, "parallel_scans": 1, "timeout": 120}
+            },
+            {
+                "name": "web_aggressive",
+                "target_type": "web_app",
+                "description": "Aggressive web application testing",
+                "base_parameters": {"threads": 10, "follow_redirects": True, "test_all_params": True, "timeout": 30}
+            },
+            {
+                "name": "web_stealth",
+                "target_type": "web_app",
+                "description": "Stealthy web application testing",
+                "base_parameters": {"threads": 1, "follow_redirects": False, "test_all_params": False, "timeout": 60}
+            },
+            {
+                "name": "api_fuzzing",
+                "target_type": "api_endpoint",
+                "description": "API endpoint fuzzing",
+                "base_parameters": {"fuzz_depth": 3, "auth_bypass": True, "rate_limit": 10}
+            },
+            {
+                "name": "api_enumeration",
+                "target_type": "api_endpoint",
+                "description": "API endpoint enumeration",
+                "base_parameters": {"discover_endpoints": True, "test_methods": ["GET", "POST", "PUT", "DELETE"], "rate_limit": 5}
+            }
+        ]
+
+    def _batch_insert_strategies(self, conn, strategies, start_time, max_duration):
+        """Insert strategies in batch"""
+        import time
+        now = datetime.now().isoformat()
+        strategy_inserts = []
+        
+        for strat in strategies:
+            if time.time() - start_time > max_duration:
+                break
+            
+            strategy_id = self._generate_id("strat_")
+            strategy_inserts.append((
+                strategy_id, strat["name"], strat["target_type"], 
+                strat["description"], json.dumps(strat["base_parameters"]), now
+            ))
+
+        if strategy_inserts:
+            conn.executemany("""
+                INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, strategy_inserts)
+
+    def _create_profiles_batch(self, conn, strategies, start_time, max_duration):
+        """Create profiles for strategies"""
+        import time
+        now = datetime.now().isoformat()
+        
+        for strat in strategies:
+            if time.time() - start_time > max_duration:
+                break
+            try:
+                self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
+            except Exception as e:
+                logger.error(f"Failed profile creation for {strat['name']}: {e}")
+
     def _cleanup_conn_and_lock(self, conn, lock_acquired):
         """Cleanup connection and release lock"""
         if conn:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
         if lock_acquired:
             try:
                 self._lock.release()
-            except:
+            except Exception:
                 pass
-    
-    def _generate_id(self, prefix: str = "") -> str:
-        """Generate unique ID"""
-        timestamp = datetime.now().isoformat()
-        data = f"{prefix}{timestamp}{random.random()}"
-        return hashlib.sha256(data.encode()).hexdigest()[:16]
-    
-    # =========================================================================
-    # STRATEGY MANAGEMENT
-    # =========================================================================
-    
-    def _seed_default_strategies(self):
-        """Seed default strategies if none exist
-        
-        Includes timeout protection and batch operations for performance.
-        """
-        import time
-        start_time = time.time()
-        max_duration = 10  # Maximum 10 seconds for seeding
-        
-        # Use non-blocking lock acquisition with retry
-        lock_acquired = False
-        max_retries = 2
-        retry_delay = 0.5
-        
-        for attempt in range(max_retries):
-            try:
-                if self._lock.acquire(timeout=1.5):
-                    lock_acquired = True
-                    break
-                else:
-                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed for seeding, retrying...")
-                    time.sleep(retry_delay)
-            except Exception as e:
-                logger.error(f"Lock acquisition error in _seed_default_strategies: {e}")
-                if attempt == max_retries - 1:
-                    logger.warning("Failed to acquire lock for seeding - skipping")
-                    return
-                time.sleep(retry_delay)
-        
-        if not lock_acquired:
-            logger.warning("Failed to acquire lock for seeding after all retries - skipping")
-            return  # Skip seeding if lock unavailable
-        
-        conn = None
-        try:
-            try:
-                conn = self._get_conn()
-            except sqlite3.OperationalError as e:
-                logger.error(f"Database connection failed during seeding: {e}")
-                return  # Skip seeding if database is locked
-            
-            cursor = conn.execute("SELECT COUNT(*) FROM strategies")
-            if cursor.fetchone()[0] > 0:
-                return  # Already seeded
-            
-            if time.time() - start_time > max_duration:
-                logger.warning("Seeding timeout before starting")
-                return
-            
-            default_strategies = [
-                {
-                    "name": "aggressive_scan",
-                        "target_type": "network_host",
-                        "description": "Fast aggressive network scanning",
-                        "base_parameters": {
-                            "scan_speed": "fast",
-                            "stealth": False,
-                            "parallel_scans": 10,
-                            "timeout": 30
-                        }
-                    },
-                    {
-                        "name": "stealth_scan",
-                        "target_type": "network_host",
-                        "description": "Slow stealthy network scanning",
-                        "base_parameters": {
-                            "scan_speed": "slow",
-                            "stealth": True,
-                            "parallel_scans": 1,
-                            "timeout": 120
-                        }
-                    },
-                    {
-                        "name": "web_aggressive",
-                        "target_type": "web_app",
-                        "description": "Aggressive web application testing",
-                        "base_parameters": {
-                            "threads": 10,
-                            "follow_redirects": True,
-                            "test_all_params": True,
-                            "timeout": 30
-                        }
-                    },
-                    {
-                        "name": "web_stealth",
-                        "target_type": "web_app",
-                        "description": "Stealthy web application testing",
-                        "base_parameters": {
-                            "threads": 1,
-                            "follow_redirects": False,
-                            "test_all_params": False,
-                            "timeout": 60
-                        }
-                    },
-                    {
-                        "name": "api_fuzzing",
-                        "target_type": "api_endpoint",
-                        "description": "API endpoint fuzzing",
-                        "base_parameters": {
-                            "fuzz_depth": 3,
-                            "auth_bypass": True,
-                            "rate_limit": 10
-                        }
-                    },
-                    {
-                        "name": "api_enumeration",
-                        "target_type": "api_endpoint",
-                        "description": "API endpoint enumeration",
-                        "base_parameters": {
-                            "discover_endpoints": True,
-                            "test_methods": ["GET", "POST", "PUT", "DELETE"],
-                            "rate_limit": 5
-                        }
-                    }
-            ]
-            
-            now = datetime.now().isoformat()
-            
-            # Batch insert strategies for better performance
-            strategy_inserts = []
-            for strat in default_strategies:
-                    if time.time() - start_time > max_duration:
-                        logger.warning(f"Seeding timeout after {len(strategy_inserts)} strategies")
-                        break
-                    
-                    strategy_id = self._generate_id("strat_")
-                    strategy_inserts.append((
-                        strategy_id,
-                        strat["name"],
-                        strat["target_type"],
-                        strat["description"],
-                        json.dumps(strat["base_parameters"]),
-                        now
-                ))
-            
-            # Batch insert all strategies at once
-            if strategy_inserts:
-                conn.executemany("""
-                    INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, strategy_inserts)
-                conn.commit()
-            
-            # Create profiles for each strategy (with timeout check)
-            for strat in default_strategies:
-                if time.time() - start_time > max_duration:
-                    logger.warning("Seeding timeout during profile creation")
-                    break
-                try:
-                    self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
-                except Exception as e:
-                    logger.error(f"Failed to create profiles for {strat['name']}: {e}")
-                    continue
-            
-            conn.commit()
-        except sqlite3.OperationalError as e:
-            logger.error(f"Database error during seeding: {e}")
-            # Don't raise - allow application to continue
-        except Exception as e:
-            logger.exception(f"Unexpected error during seeding: {e}")
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            if lock_acquired:
-                try:
-                    self._lock.release()
-                except:
-                    pass
     
     def _create_initial_profiles(self, conn: sqlite3.Connection, strategy_name: str, 
                                   base_params: Dict, created_at: str):

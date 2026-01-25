@@ -190,81 +190,83 @@ class RefactoredDrakbenAgent:
     def run_autonomous_loop(self):
         """
         EVOLVED AGENTIC LOOP
-        
         Refactored to reduce Cognitive Complexity.
         """
-        lang = self.config.language
         self.console.print(
             f"\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
         )
 
         max_iterations = self.state.max_iterations
-        iteration = 0
+        while self.running and self.state.iteration_count < max_iterations:
+            should_continue = self._run_single_iteration(max_iterations)
+            if not should_continue:
+                break
         
-        while self.running and iteration < max_iterations:
-            iteration = self.state.iteration_count + 1
-            self.console.print(f"\n{'='*60}", style="dim")
-            self.console.print(
-                f"⚡ Iteration {iteration}/{max_iterations}",
-                style=self.STYLE_CYAN,
-            )
-            
-            # Safety: Prevent infinite loops
-            if iteration > max_iterations:
-                self.console.print("🛑 Maximum iterations reached, stopping", style=self.STYLE_RED)
-                break
-
-            # 1. Stagnation Check
-            if self._check_stagnation():
-                break
-
-            # 2. Get Next Step
-            step = self.planner.get_next_step()
-            if not step:
-                self._handle_plan_completion()
-                break
-
-            self.console.print(
-                f"📋 Plan Step: {step.step_id} | Action: {step.action} | Tool: {step.tool}",
-                style="cyan"
-            )
-
-            # 3. Check Penalty
-            if self._check_tool_blocked(step):
-                continue
-
-            # 4. Execute
-            self.planner.mark_step_executing(step.step_id)
-            self.console.print(f"🔧 Executing: {step.tool}...", style="yellow")
-
-            execution_result = self._execute_tool(step.tool, step.params)
-            success = execution_result.get("success", False)
-
-            # 5. Record & Update
-            penalty = self.evolution.get_tool_penalty(step.tool)
-            self._record_action(step, success, penalty, execution_result)
-            self.evolution.update_penalty(step.tool, success=success)
-
-            # 6. Handle Result
-            if success:
-                self._handle_step_success(step, execution_result)
-            else:
-                if not self._handle_step_failure(step, execution_result):
-                    break
-
-            # 7. Update State
-            observation = f"{step.tool}: {'success' if success else 'failed'}"
-            self._update_state_from_result(step.tool, execution_result, observation)
-
-            # 8. Validation & Halt Limit
-            if not self._validate_loop_state():
-                break
-
-            self.state.increment_iteration()
-            time.sleep(0.5)
-
         # ============ FINAL REPORT ============
         self._show_final_report()
+
+    def _run_single_iteration(self, max_iterations: int) -> bool:
+        """Execute a single iteration of the autonomous loop"""
+        iteration = self.state.iteration_count + 1
+        
+        self.console.print(f"\n{'='*60}", style="dim")
+        self.console.print(
+            f"⚡ Iteration {iteration}/{max_iterations}",
+            style=self.STYLE_CYAN,
+        )
+
+        # 1. Stagnation Check
+        if self._check_stagnation():
+            return False
+
+        # 2. Get Next Step
+        step = self.planner.get_next_step()
+        if not step:
+            self._handle_plan_completion()
+            return False
+
+        self.console.print(
+            f"📋 Plan Step: {step.step_id} | Action: {step.action} | Tool: {step.tool}",
+            style="cyan"
+        )
+
+        # 3. Check Penalty & Execute
+        if self._check_tool_blocked(step):
+            return True
+
+        self._execute_and_handle_step(step)
+        return True
+
+    def _execute_and_handle_step(self, step):
+        """Execute step and handle results"""
+        self.planner.mark_step_executing(step.step_id)
+        self.console.print(f"🔧 Executing: {step.tool}...", style="yellow")
+
+        execution_result = self._execute_tool(step.tool, step.params)
+        success = execution_result.get("success", False)
+
+        # Record & Update
+        penalty = self.evolution.get_tool_penalty(step.tool)
+        self._record_action(step, success, penalty, execution_result)
+        self.evolution.update_penalty(step.tool, success=success)
+
+        # Handle Result
+        if success:
+            self._handle_step_success(step, execution_result)
+        else:
+            if not self._handle_step_failure(step, execution_result):
+                return False
+
+        # 7. Update State
+        observation = f"{step.tool}: {'success' if success else 'failed'}"
+        self._update_state_from_result(step.tool, execution_result, observation)
+
+        # 8. Validation & Halt Limit
+        if not self._validate_loop_state():
+            return False
+
+        self.state.increment_iteration()
+        return True
 
     def _check_stagnation(self) -> bool:
         """Check for stagnation and triggering replan if needed. Returns True if halt required."""
