@@ -352,7 +352,7 @@ class SmartTerminal:
             logger.warning(f"Error during process cleanup: {e}")
             try:
                 process.kill()
-            except:
+            except Exception:
                 pass
 
     def _handle_execution_error(self, command: str, error: Exception, start_time: float) -> ExecutionResult:

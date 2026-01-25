@@ -809,8 +809,19 @@ class RefactoredDrakbenAgent:
         elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
             self._update_state_service_completion(tool_name, result)
         elif "vuln" in tool_name or "sqlmap" in tool_name:
-            # Placeholder for vuln update logic if needed
-            pass
+            observation = result.get("stdout", "")
+            self._process_vulnerability_result(tool_name, result, observation)
+        elif "exploit" in tool_name:
+            self._process_exploit_result(tool_name, result)
+
+    def _process_exploit_result(self, tool_name: str, result: Dict):
+        """Helper to process exploit results"""
+        observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
+        # Check if exploit succeeded
+        if "success" in observation.lower() or "shell" in observation.lower() or result.get("success"):
+            self.state.set_foothold(tool_name)
+        else:
+            self.state.set_observation("Exploit did not succeed; foothold not set")
 
     def _update_state_nmap_port_scan(self, result: Dict):
         """Update state from Nmap port scan results"""
@@ -860,71 +871,51 @@ class RefactoredDrakbenAgent:
             self.state.mark_surface_tested(args_port, service_info.service)
 
 
-        elif "vuln" in tool_name or "sqlmap" in tool_name:
-            # Check if vulnerability found
-            if (
-                "vulnerable" in observation.lower()
-                or "injection" in observation.lower()
-            ):
-                # Parse sqlmap output for details
-                from core.tool_parsers import parse_sqlmap_output
+    def _process_vulnerability_result(self, tool_name: str, result: Dict, observation: str):
+        """Helper to process vulnerability scan results"""
+        if "vuln" in tool_name or "sqlmap" in tool_name:
+            if "vulnerable" in observation.lower() or "injection" in observation.lower():
+                self._handle_sqlmap_vulnerabilities(result)
 
-                stdout = result.get("stdout", "")
-                # Hybrid parsing with LLM fallback
-                parsed_vulns = parse_sqlmap_output(
-                    stdout, llm_client=self.brain.llm_client
+    def _handle_sqlmap_vulnerabilities(self, result: Dict):
+        """Process SQLMap results and update state"""
+        from core.tool_parsers import parse_sqlmap_output
+        
+        stdout = result.get("stdout", "")
+        # Hybrid parsing with LLM fallback
+        parsed_vulns = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
+
+        if parsed_vulns:
+            target_port = self._extract_port_from_result(result)
+            
+            for vuln_dict in parsed_vulns:
+                vuln = VulnerabilityInfo(
+                    vuln_id=f"sqli_{vuln_dict.get('parameter', 'unknown')}",
+                    service="http",
+                    port=target_port,
+                    severity=FindingSeverity.CRITICAL, # Assuming high severity for SQLi
+                    description=f"SQL Injection: {vuln_dict.get('title', 'Unknown')}",
+                    remediation="Use parameterized queries"
                 )
+                self.state.add_vulnerability(vuln)
+                
+    def _extract_port_from_result(self, result: Dict) -> int:
+        """Extract port number from tool result arguments"""
+        args_port = result.get("args", {}).get("port")
+        if args_port:
+            return args_port
+            
+        args_url = result.get("args", {}).get("url", "")
+        if args_url:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(args_url)
+            if parsed_url.port:
+                return parsed_url.port
+            return 443 if parsed_url.scheme == "https" else 80
+            
+        return 80  # Default fallback
 
-                if parsed_vulns:
-                    # Extract port from args or use default
-                    args_port = result.get("args", {}).get("port")
-                    if not args_port:
-                        # Try to extract from URL if present
-                        args_url = result.get("args", {}).get("url", "")
-                        if args_url:
-                            from urllib.parse import urlparse
-                            parsed_url = urlparse(args_url)
-                            if parsed_url.port:
-                                args_port = parsed_url.port
-                            elif parsed_url.scheme == "https":
-                                args_port = 443
-                            else:
-                                args_port = 80
-                        else:
-                            args_port = 80  # Default HTTP port
-                    
-                    for vuln_dict in parsed_vulns:
-                        vuln = VulnerabilityInfo(
-                            vuln_id=f"sqli_{vuln_dict.get('parameter', 'unknown')}",
-                            service="http",
-                            port=args_port,
-                            severity="high",
-                            exploitable=True,
-                        )
-                        self.state.add_vulnerability(vuln)
-                        # 🧠 LEARNING: Record experience
-                        # Note: Evolution memory handles learning through record_action
-                else:
-                    # Fallback mock
-                    vuln = VulnerabilityInfo(
-                        vuln_id="sqli_001",
-                        service="http",
-                        port=80,
-                        severity="high",
-                        exploitable=True,
-                    )
-                    self.state.add_vulnerability(vuln)
-            else:
-                self.state.set_observation(
-                    "No confirmed vulnerability; state not updated"
-                )
 
-        elif "exploit" in tool_name:
-            # Check if exploit succeeded
-            if "success" in observation.lower() or "shell" in observation.lower():
-                self.state.set_foothold(tool_name)
-            else:
-                self.state.set_observation("Exploit did not succeed; foothold not set")
 
     def _check_phase_transition(self):
         """
