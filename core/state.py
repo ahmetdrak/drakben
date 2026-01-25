@@ -209,31 +209,42 @@ class AgentState:
             services: List of discovered services
         """
         for svc in services:
-            if svc.port in self.open_services:
-                existing = self.open_services[svc.port]
-
-                # Rule 1: Don't overwrite known service with 'unknown'
-                if svc.service in ["unknown", "tcpwrapped"] and \
-                   existing.service not in ["unknown", "tcpwrapped"]:
-                    continue
-
-                # Rule 2: Prefer versioned info
-                if svc.version and not existing.version:
-                    self.open_services[svc.port] = svc
-                elif not svc.version and existing.version:
-                    if svc.service != "unknown" and svc.service != existing.service:
-                        self.open_services[svc.port] = svc
-                else:
-                    self.open_services[svc.port] = svc
-            else:
-                self.open_services[svc.port] = svc
-
-            # Add to attack surface if not tested
-            surface_key = f"{svc.port}:{self.open_services[svc.port].service}"
-            if surface_key not in self.tested_attack_surface:
-                self.remaining_attack_surface.add(surface_key)
+            self._merge_service(svc)
+            self._add_to_attack_surface(svc)
 
         self._record_change("services_discovered", len(services))
+    
+    def _merge_service(self, svc: ServiceInfo) -> None:
+        """Merge a service into open_services with smart rules"""
+        if svc.port not in self.open_services:
+            self.open_services[svc.port] = svc
+            return
+        
+        existing = self.open_services[svc.port]
+        if self._should_skip_unknown_service(svc, existing):
+            return
+        
+        self.open_services[svc.port] = self._select_best_service(svc, existing)
+    
+    def _should_skip_unknown_service(self, svc: ServiceInfo, existing: ServiceInfo) -> bool:
+        """Rule 1: Don't overwrite known service with 'unknown'"""
+        return (svc.service in ["unknown", "tcpwrapped"] and 
+                existing.service not in ["unknown", "tcpwrapped"])
+    
+    def _select_best_service(self, svc: ServiceInfo, existing: ServiceInfo) -> ServiceInfo:
+        """Rule 2: Prefer versioned info, then better service name"""
+        if svc.version and not existing.version:
+            return svc
+        elif not svc.version and existing.version:
+            if svc.service != "unknown" and svc.service != existing.service:
+                return svc
+        return svc
+    
+    def _add_to_attack_surface(self, svc: ServiceInfo) -> None:
+        """Add service to attack surface if not tested"""
+        surface_key = f"{svc.port}:{self.open_services[svc.port].service}"
+        if surface_key not in self.tested_attack_surface:
+            self.remaining_attack_surface.add(surface_key)
 
     def mark_surface_tested(self, port: int, service: str) -> None:
         """
@@ -548,66 +559,80 @@ class AgentState:
             True if valid, False if invariant violated
         """
         violations = []
-
-        # Invariant 1: Post-exploit without foothold is forbidden
+        violations.extend(self._check_foothold_invariant())
+        violations.extend(self._check_exploit_invariants())
+        violations.extend(self._check_iteration_invariant())
+        violations.extend(self._check_surface_invariants())
+        violations.extend(self._check_limits_invariants())
+        
+        if violations:
+            self.invariant_violations.extend(violations)
+            logger.error(f"State invariant violations: {violations}")
+            return False
+        return True
+    
+    def _check_foothold_invariant(self) -> List[str]:
+        """Check foothold-related invariants"""
+        violations = []
         if not self.has_foothold and self.post_exploit_completed:
             violations.append("Post-exploit attempted without foothold")
-
-        # Invariant 2: At least 1 service before exploit phase
-        if self.phase == AttackPhase.EXPLOIT and len(self.open_services) == 0:
-            violations.append("Exploit phase without discovered services")
-
-        # Invariant 3: Cannot exceed max iterations
+        return violations
+    
+    def _check_exploit_invariants(self) -> List[str]:
+        """Check exploit phase invariants"""
+        violations = []
+        if self.phase == AttackPhase.EXPLOIT:
+            if len(self.open_services) == 0:
+                violations.append("Exploit phase without discovered services")
+            if len(self.vulnerabilities) == 0:
+                has_exploitable = any(svc.vulnerable for svc in self.open_services.values())
+                if not has_exploitable:
+                    violations.append("Exploit phase without any vulnerabilities or exploitable services")
+        return violations
+    
+    def _check_iteration_invariant(self) -> List[str]:
+        """Check iteration count invariant"""
+        violations = []
         if self.iteration_count > self.max_iterations:
             violations.append("Max iteration exceeded")
-
-        # Invariant 4: Tested surface must be subset of open services
-        for tested in self.tested_attack_surface:
-            port_str = tested.split(":")[0]
+        return violations
+    
+    def _check_surface_invariants(self) -> List[str]:
+        """Check attack surface invariants"""
+        violations = []
+        violations.extend(self._validate_surface_set(self.tested_attack_surface, "Tested"))
+        violations.extend(self._validate_surface_set(self.remaining_attack_surface, "Remaining"))
+        return violations
+    
+    def _validate_surface_set(self, surface_set: set, prefix: str) -> List[str]:
+        """Validate a surface set against open services"""
+        violations = []
+        for surface in surface_set:
+            port_str = surface.split(":")[0]
             try:
                 port = int(port_str)
                 if port not in self.open_services:
-                    violations.append(f"Tested surface {tested} not in open services")
+                    violations.append(f"{prefix} surface {surface} not in open services")
             except ValueError:
-                violations.append(f"Invalid tested surface format: {tested}")
-
-        # Invariant 5: Remaining surface must be subset of open services
-        for remaining in self.remaining_attack_surface:
-            port_str = remaining.split(":")[0]
-            try:
-                port = int(port_str)
-                if port not in self.open_services:
-                    violations.append(f"Remaining surface {remaining} not in open services")
-            except ValueError:
-                violations.append(f"Invalid remaining surface format: {remaining}")
-
-        # Invariant 6: Exploit without vulnerability is forbidden
-        if self.phase == AttackPhase.EXPLOIT and len(self.vulnerabilities) == 0:
-            has_exploitable = any(
-                svc.vulnerable for svc in self.open_services.values()
-            )
-            if not has_exploitable:
-                violations.append(
-                    "Exploit phase without any vulnerabilities or exploitable services"
-                )
-
-        # Invariant 7: Hallucination limit
+                violations.append(f"Invalid {prefix.lower()} surface format: {surface}")
+        return violations
+    
+    def _check_limits_invariants(self) -> List[str]:
+        """Check limit-related invariants"""
+        violations = []
+        MAX_HALLUCINATIONS_THRESHOLD = 5
+        
         if len(self.hallucination_flags) >= MAX_HALLUCINATIONS_THRESHOLD:
             violations.append(
                 f"Too many hallucinations detected ({len(self.hallucination_flags)})"
             )
-
-        # Invariant 8: Tool repetition limit
+        
         if self.consecutive_same_tool >= self.max_consecutive_same_tool:
             violations.append(
                 f"Same tool called {self.consecutive_same_tool} times consecutively"
             )
-
-        if violations:
-            self.invariant_violations.extend(violations)
-            return False
-
-        return True
+        
+        return violations
 
     def _record_change(self, change_type: str, data) -> None:
         """

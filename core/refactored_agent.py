@@ -561,49 +561,74 @@ class RefactoredDrakbenAgent:
         2. Fall back to deterministic decision
         3. Return None only if all options exhausted
         """
+        llm_result = self._try_llm_with_retry(context)
+        if llm_result:
+            return llm_result
+        
+        return self._get_deterministic_fallback()
+    
+    def _try_llm_with_retry(self, context: Dict) -> Optional[Dict]:
+        """Try LLM decision with retry mechanism"""
         MAX_LLM_RETRIES = 2
-        llm_error = None
         
-        # Try LLM first (with retry)
         for attempt in range(MAX_LLM_RETRIES):
-            try:
-                # Simplified LLM call - brain should return just tool selection
-                result = self.brain.select_next_tool(context)
-
-                if isinstance(result, dict) and "tool" in result:
-                    return result
-                    
-                # If result is error response, try again
-                if isinstance(result, dict) and result.get("error"):
-                    llm_error = result.get("error")
-                    if attempt < MAX_LLM_RETRIES - 1:
-                        self.console.print(f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{MAX_LLM_RETRIES})", style="yellow")
-                        time.sleep(1)  # Brief pause before retry
-                        continue
-                    break
-                    
-            except Exception as e:
-                llm_error = str(e)
-                if attempt < MAX_LLM_RETRIES - 1:
-                    self.console.print(f"⚠️  LLM error, retrying... ({attempt + 1}/{MAX_LLM_RETRIES}): {e}", style="yellow")
-                    time.sleep(1)
-                    continue
-                break
+            result = self._attempt_llm_query(context, attempt, MAX_LLM_RETRIES)
+            if result is not None:
+                return result
+        return None
+    
+    def _attempt_llm_query(self, context: Dict, attempt: int, max_retries: int) -> Optional[Dict]:
+        """Attempt a single LLM query"""
+        try:
+            result = self.brain.select_next_tool(context)
+            if self._is_valid_llm_result(result):
+                return result
+            
+            llm_error = self._extract_llm_error(result)
+            if llm_error and self._should_retry(attempt, max_retries):
+                self._handle_llm_retry(attempt, max_retries, llm_error)
+            return None
+        except Exception as e:
+            if self._should_retry(attempt, max_retries):
+                self._handle_llm_retry(attempt, max_retries, str(e))
+            return None
+    
+    def _should_retry(self, attempt: int, max_retries: int) -> bool:
+        """Check if we should retry based on attempt number"""
+        return attempt < max_retries - 1
         
-        # Log LLM failure
         if llm_error:
-            self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
-            self.console.print("🔄 Deterministik karar mekanizmasına geçiliyor...", style="dim")
-            logger.warning(f"LLM decision failed after {MAX_LLM_RETRIES} attempts: {llm_error}")
-
-        # Fallback to deterministic decision
+            self._log_llm_failure(llm_error, MAX_LLM_RETRIES)
+        return None
+    
+    def _is_valid_llm_result(self, result: Any) -> bool:
+        """Check if LLM result is valid"""
+        return isinstance(result, dict) and "tool" in result
+    
+    def _extract_llm_error(self, result: Any) -> Optional[str]:
+        """Extract error message from LLM result"""
+        if isinstance(result, dict) and result.get("error"):
+            return result.get("error")
+        return None
+    
+    def _handle_llm_retry(self, attempt: int, max_retries: int, error: str) -> None:
+        """Handle LLM retry with user feedback"""
+        self.console.print(f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{max_retries})", style="yellow")
+        time.sleep(1)
+    
+    def _log_llm_failure(self, llm_error: str, max_retries: int) -> None:
+        """Log LLM failure and switch to fallback"""
+        self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
+        self.console.print("🔄 Deterministik karar mekanizmasına geçiliyor...", style="dim")
+        logger.warning(f"LLM decision failed after {max_retries} attempts: {llm_error}")
+    
+    def _get_deterministic_fallback(self) -> Optional[Dict]:
+        """Get deterministic decision as fallback"""
         deterministic_decision = self.tool_selector.recommend_next_action(self.state)
-
         if deterministic_decision:
             action_type, tool_name, args = deterministic_decision
             self.console.print(f"✅ Deterministik karar: {tool_name}", style="dim")
             return {"tool": tool_name, "args": args}
-
         return None
 
     def _install_tool(self, tool_name: str) -> bool:
@@ -1028,227 +1053,246 @@ class RefactoredDrakbenAgent:
         
         Returns diagnosis with type, description, and suggested fix.
         """
-        import re
         output_lower = output.lower()
+        diagnosis = self._run_error_checks(output_lower, exit_code, output)
         
-        # ═══════════════════════════════════════════════════════════════
-        # 1. MISSING TOOL / COMMAND NOT FOUND
-        # ═══════════════════════════════════════════════════════════════
-        missing_tool_patterns = [
-            "not found", "not recognized", "bulunamadı", "command not found",
-            "komut bulunamadı", "keine berechtigung", "befehl nicht gefunden",
-            "no such command", "unknown command", "bilinmeyen komut",
-            "is not recognized as", "nie rozpoznano", "non trouvé",
-            "comando non trovato", "não encontrado", "'\\w+' is not",
-            "bash:", "sh:", "zsh:", "cmd:", "powershell:"
+        if diagnosis:
+            return diagnosis
+        
+        self._log_unknown_error(output, exit_code)
+        return {"type": "unknown", "type_tr": "Tanımlanamayan hata", "raw_output": output[:500]}
+    
+    def _run_error_checks(self, output_lower: str, exit_code: int, output: str) -> Optional[Dict]:
+        """Run all error checks in priority order"""
+        checkers = [
+            self._check_missing_tool,
+            self._check_permission_error,
+            self._check_python_module_error,
+            self._check_library_error,
+            self._check_network_error,
+            self._check_timeout_error,
+            self._check_syntax_error,
+            self._check_file_error,
+            self._check_memory_error,
+            self._check_disk_error,
+            self._check_auth_error,
+            self._check_port_error,
+            self._check_database_error,
+            self._check_parse_error,
+            self._check_version_error,
+            self._check_rate_limit_error,
+            self._check_firewall_error,
+            self._check_resource_error,
         ]
-        if any(x in output_lower for x in missing_tool_patterns):
-            # Try to extract tool name
+        
+        for checker in checkers:
+            result = checker(output_lower)
+            if result:
+                return result
+        
+        return self._check_exit_code_error(exit_code, output)
+    
+    def _check_missing_tool(self, output_lower: str) -> Optional[Dict]:
+        """Check for missing tool/command errors"""
+        import re
+        patterns = [
+            "not found", "not recognized", "bulunamadı", "command not found",
+            "komut bulunamadı", "no such command", "unknown command",
+            "is not recognized as", "bash:", "sh:", "zsh:", "cmd:", "powershell:"
+        ]
+        if any(x in output_lower for x in patterns):
             match = re.search(r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower)
             tool = match.group(1) if match else None
             return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 2. PERMISSION / ACCESS DENIED
-        # ═══════════════════════════════════════════════════════════════
-        permission_patterns = [
+        return None
+    
+    def _check_permission_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for permission/access denied errors"""
+        patterns = [
             "permission denied", "access denied", "izin reddedildi",
-            "erişim engellendi", "operation not permitted", "access is denied",
-            "zugriff verweigert", "accès refusé", "permiso denegado",
-            "root privileges required", "must be root", "run as administrator",
-            "yönetici olarak çalıştır", "sudo required", "insufficient permissions",
-            "eacces", "eperm", "not privileged", "requires elevation"
+            "operation not permitted", "root privileges required",
+            "sudo required", "eacces", "eperm", "requires elevation"
         ]
-        if any(x in output_lower for x in permission_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "permission_denied", "type_tr": "İzin hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 3. PYTHON MODULE MISSING
-        # ═══════════════════════════════════════════════════════════════
-        python_module_patterns = [
+        return None
+    
+    def _check_python_module_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for Python module missing errors"""
+        import re
+        patterns = [
             "no module named", "modulenotfounderror", "importerror",
-            "cannot import name", "modül bulunamadı", "import error"
+            "cannot import name", "modül bulunamadı"
         ]
-        if any(x in output_lower for x in python_module_patterns):
+        if any(x in output_lower for x in patterns):
             match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
             if not match:
                 match = re.search(r"cannot import name ['\"]?(\w+)", output_lower)
             module = match.group(1) if match else None
             return {"type": "python_module_missing", "type_tr": "Python modülü eksik", "module": module}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 4. LIBRARY / SHARED OBJECT MISSING
-        # ═══════════════════════════════════════════════════════════════
-        library_patterns = [
+        return None
+    
+    def _check_library_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for missing library/shared object errors"""
+        import re
+        patterns = [
             "cannot open shared object", "library not found", ".so:", ".dll",
-            "libssl", "libcrypto", "libpython", "libc.so", "ld.so",
-            "kütüphane bulunamadı", "dynamic library", "dylib"
+            "libssl", "libcrypto", "libpython", "kütüphane bulunamadı"
         ]
-        if any(x in output_lower for x in library_patterns):
+        if any(x in output_lower for x in patterns):
             match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
             library = match.group(1) if match else None
             return {"type": "library_missing", "type_tr": "Sistem kütüphanesi eksik", "library": library}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 5. CONNECTION / NETWORK ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        connection_patterns = [
+        return None
+    
+    def _check_network_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for connection/network errors"""
+        patterns = [
             "connection refused", "connection reset", "network unreachable",
-            "host unreachable", "bağlantı reddedildi", "no route to host",
-            "name or service not known", "temporary failure in name resolution",
-            "could not resolve host", "dns", "econnrefused", "econnreset",
-            "enetunreach", "ehostunreach", "connection timed out",
-            "ssl: certificate", "ssl handshake", "ssl error", "tls",
-            "sunucu yanıt vermiyor", "bağlantı kurulamadı"
+            "no route to host", "econnrefused", "ssl error", "tls"
         ]
-        if any(x in output_lower for x in connection_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 6. TIMEOUT
-        # ═══════════════════════════════════════════════════════════════
-        timeout_patterns = [
-            "timed out", "timeout", "zaman aşımı", "operation timed out",
-            "read timed out", "connect timed out", "etimedout",
-            "deadline exceeded", "request timeout", "gateway timeout"
+        return None
+    
+    def _check_timeout_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for timeout errors"""
+        patterns = [
+            "timed out", "timeout", "zaman aşımı", "etimedout",
+            "deadline exceeded", "request timeout"
         ]
-        if any(x in output_lower for x in timeout_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "timeout", "type_tr": "Zaman aşımı"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 7. SYNTAX / ARGUMENT ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        syntax_patterns = [
+        return None
+    
+    def _check_syntax_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for syntax/argument errors"""
+        patterns = [
             "invalid argument", "invalid option", "unrecognized option",
-            "geçersiz argüman", "syntax error", "bad argument", "illegal option",
-            "unknown option", "missing argument", "unexpected argument",
-            "usage:", "try '--help'", "bilinmeyen seçenek", "hatalı sözdizimi"
+            "syntax error", "bad argument", "usage:", "try '--help'"
         ]
-        if any(x in output_lower for x in syntax_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "invalid_argument", "type_tr": "Geçersiz argüman/sözdizimi"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 8. FILE NOT FOUND
-        # ═══════════════════════════════════════════════════════════════
-        file_patterns = [
+        return None
+    
+    def _check_file_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for file not found errors"""
+        import re
+        patterns = [
             "no such file", "file not found", "dosya bulunamadı",
-            "enoent", "path not found", "cannot find", "does not exist",
-            "yol bulunamadı", "datei nicht gefunden", "fichier non trouvé"
+            "enoent", "path not found", "cannot find"
         ]
-        if any(x in output_lower for x in file_patterns):
+        if any(x in output_lower for x in patterns):
             match = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
             filepath = match.group(1) if match else None
             return {"type": "file_not_found", "type_tr": "Dosya bulunamadı", "file": filepath}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 9. MEMORY ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        memory_patterns = [
-            "out of memory", "memory error", "bellek hatası", "enomem",
-            "cannot allocate", "memory allocation failed", "oom",
-            "killed", "segmentation fault", "segfault", "sigsegv",
-            "core dumped", "stack overflow", "heap overflow"
+        return None
+    
+    def _check_memory_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for memory errors"""
+        patterns = [
+            "out of memory", "memory error", "enomem", "oom",
+            "segmentation fault", "segfault", "core dumped"
         ]
-        if any(x in output_lower for x in memory_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "memory_error", "type_tr": "Bellek hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 10. DISK SPACE
-        # ═══════════════════════════════════════════════════════════════
-        disk_patterns = [
+        return None
+    
+    def _check_disk_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for disk space errors"""
+        patterns = [
             "no space left", "disk full", "disk quota", "enospc",
-            "out of disk", "insufficient disk", "yetersiz disk alanı"
+            "yetersiz disk alanı"
         ]
-        if any(x in output_lower for x in disk_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 11. AUTHENTICATION ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        auth_patterns = [
-            "authentication failed", "invalid credentials", "wrong password",
-            "unauthorized", "401", "403 forbidden", "login failed",
-            "kimlik doğrulama başarısız", "geçersiz şifre", "access token"
+        return None
+    
+    def _check_auth_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for authentication errors"""
+        patterns = [
+            "authentication failed", "invalid credentials", "unauthorized",
+            "401", "403 forbidden", "login failed"
         ]
-        if any(x in output_lower for x in auth_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 12. PORT IN USE
-        # ═══════════════════════════════════════════════════════════════
-        port_patterns = [
+        return None
+    
+    def _check_port_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for port in use errors"""
+        import re
+        patterns = [
             "address already in use", "port already in use", "eaddrinuse",
-            "bind failed", "port is busy", "port kullanımda"
+            "bind failed", "port kullanımda"
         ]
-        if any(x in output_lower for x in port_patterns):
+        if any(x in output_lower for x in patterns):
             match = re.search(r"port[:\s]*(\d+)", output_lower)
             port = match.group(1) if match else None
             return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 13. DATABASE ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        db_patterns = [
-            "database", "sqlite", "mysql", "postgresql", "mongodb",
-            "connection to .* failed", "db error", "veritabanı hatası",
-            "locked", "deadlock", "constraint violation"
+        return None
+    
+    def _check_database_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for database errors"""
+        patterns = [
+            "database", "sqlite", "mysql", "postgresql",
+            "db error", "veritabanı hatası", "locked", "deadlock"
         ]
-        if any(x in output_lower for x in db_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "database_error", "type_tr": "Veritabanı hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 14. JSON/XML PARSING ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        parse_patterns = [
-            "json", "xml", "parsing error", "decode error", "invalid json",
-            "unexpected token", "malformed", "ayrıştırma hatası"
+        return None
+    
+    def _check_parse_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for JSON/XML parsing errors"""
+        patterns = [
+            "json", "xml", "parsing error", "decode error",
+            "invalid json", "malformed"
         ]
-        if any(x in output_lower for x in parse_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 15. VERSION/COMPATIBILITY ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        version_patterns = [
+        return None
+    
+    def _check_version_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for version/compatibility errors"""
+        patterns = [
             "version", "incompatible", "requires python", "unsupported",
-            "deprecated", "sürüm uyumsuz", "eski sürüm"
+            "deprecated", "sürüm uyumsuz"
         ]
-        if any(x in output_lower for x in version_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 16. RATE LIMITING
-        # ═══════════════════════════════════════════════════════════════
-        rate_patterns = [
+        return None
+    
+    def _check_rate_limit_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for rate limiting errors"""
+        patterns = [
             "rate limit", "too many requests", "429", "throttled",
-            "quota exceeded", "istek limiti", "çok fazla istek"
+            "quota exceeded", "istek limiti"
         ]
-        if any(x in output_lower for x in rate_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 17. FIREWALL / WAF BLOCKED
-        # ═══════════════════════════════════════════════════════════════
-        firewall_patterns = [
+        return None
+    
+    def _check_firewall_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for firewall/WAF blocked errors"""
+        patterns = [
             "blocked", "firewall", "waf", "forbidden", "filtered",
-            "connection reset by peer", "engellenmiş", "güvenlik duvarı"
+            "connection reset by peer", "güvenlik duvarı"
         ]
-        if any(x in output_lower for x in firewall_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 18. PROCESS/RESOURCE ERRORS
-        # ═══════════════════════════════════════════════════════════════
-        process_patterns = [
+        return None
+    
+    def _check_resource_error(self, output_lower: str) -> Optional[Dict]:
+        """Check for process/resource errors"""
+        patterns = [
             "too many open files", "resource temporarily unavailable",
-            "eagain", "emfile", "enfile", "process limit", "fork failed"
+            "eagain", "emfile", "process limit"
         ]
-        if any(x in output_lower for x in process_patterns):
+        if any(x in output_lower for x in patterns):
             return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 19. EXIT CODE BASED DIAGNOSIS (when no text match)
-        # ═══════════════════════════════════════════════════════════════
+        return None
+    
+    def _check_exit_code_error(self, exit_code: int, output: str) -> Optional[Dict]:
+        """Check for exit code based errors"""
         if exit_code != 0 and not output.strip():
             exit_code_map = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},
@@ -1266,13 +1310,7 @@ class RefactoredDrakbenAgent:
             if exit_code > 128:
                 signal_num = exit_code - 128
                 return {"type": "signal_killed", "type_tr": f"Sinyal {signal_num} ile sonlandırıldı"}
-        
-        # ═══════════════════════════════════════════════════════════════
-        # 20. UNKNOWN - Will be handled by LLM
-        # ═══════════════════════════════════════════════════════════════
-        # Log unknown error for future pattern learning
-        self._log_unknown_error(output, exit_code)
-        return {"type": "unknown", "type_tr": "Tanımlanamayan hata", "raw_output": output[:500]}
+        return None
     
     def _log_unknown_error(self, output: str, exit_code: int):
         """Log unknown errors for future pattern learning"""

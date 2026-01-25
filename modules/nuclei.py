@@ -180,121 +180,38 @@ class NucleiScanner:
             return []
         
         config = config or NucleiScanConfig()
-        results = []
-        
-        # Create temp file for targets asynchronously
-        def _write_temp_file():
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-                f.write('\n'.join(targets))
-                return f.name
-
-        try:
-            targets_file = await asyncio.get_event_loop().run_in_executor(None, _write_temp_file)
-        except Exception as e:
-            logger.error(f"Failed to create temp targets file: {e}")
+        targets_file = await _create_nuclei_targets_file(targets)
+        if not targets_file:
             return []
         
         try:
-            # Build command
-            cmd = [
-                self.nuclei_path,
-                "-l", targets_file,
-                "-json",
-                "-silent",
-                "-rate-limit", str(config.rate_limit),
-                "-bulk-size", str(config.bulk_size),
-                "-c", str(config.concurrency),
-                "-timeout", str(config.timeout),
-                "-retries", str(config.retries),
-                "-max-host-error", str(config.max_host_errors)
-            ]
-            
-            # Add templates
-            if config.templates:
-                for template in config.templates:
-                    cmd.extend(["-t", template])
-            
-            # Add template types
-            if config.template_types:
-                for ttype in config.template_types:
-                    cmd.extend(["-t", ttype.value])
-            
-            # Add severity filter
-            if config.severity:
-                severities = ",".join(s.value for s in config.severity)
-                cmd.extend(["-severity", severities])
-            
-            # Add tags
-            if config.tags:
-                cmd.extend(["-tags", ",".join(config.tags)])
-            
-            # Add exclude tags
-            if config.exclude_tags:
-                cmd.extend(["-exclude-tags", ",".join(config.exclude_tags)])
-            
-            # Add headers
-            for key, value in config.headers.items():
-                cmd.extend(["-H", f"{key}: {value}"])
-            
-            # Follow redirects
-            if config.follow_redirects:
-                cmd.append("-follow-redirects")
-            
-            # Output file
-            if output_file:
-                cmd.extend(["-o", output_file])
-            
-            logger.info(f"Running Nuclei scan on {len(targets)} targets")
-            
-            # Run nuclei
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            # Process output in real-time
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                
-                line_str = line.decode('utf-8').strip()
-                if line_str:
-                    result = self._parse_result(line_str)
-                    if result:
-                        results.append(result)
-                        logger.info(f"Found: {result.template_id} on {result.host} ({result.severity.value})")
-            
-            await process.wait()
-            
-            logger.info(f"Nuclei scan complete: {len(results)} findings")
-            
+            cmd = self._build_nuclei_command(targets_file, config, output_file)
+            results = await self._execute_nuclei_scan(cmd, output_file)
+            return results
         finally:
-            # Cleanup temp file
-            try:
-                os.unlink(targets_file)
-            except (OSError, FileNotFoundError):
-                pass
-        
-        return results
-    
-    async def scan_single(
-        self,
-        target: str,
-        config: Optional[NucleiScanConfig] = None
-    ) -> List[NucleiResult]:
-        """
-        Scan a single target.
-        
-        Args:
-            target: Target URL/host
-            config: Scan configuration
-            
-        Returns:
-            List of NucleiResult objects
-        """
-        return await self.scan([target], config)
+            _cleanup_nuclei_temp_file(targets_file)
+
+async def _create_nuclei_targets_file(targets: List[str]) -> Optional[str]:
+    """Create temporary file with targets"""
+    import tempfile
+    def _write_temp_file():
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('\n'.join(targets))
+            return f.name
+
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, _write_temp_file)
+    except Exception as e:
+        logger.error(f"Failed to create temp targets file: {e}")
+        return None
+
+def _cleanup_nuclei_temp_file(targets_file: str) -> None:
+    """Clean up temporary targets file"""
+    import os
+    try:
+        os.unlink(targets_file)
+    except (OSError, FileNotFoundError):
+        pass
     
     async def scan_cves(
         self,

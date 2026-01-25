@@ -154,55 +154,11 @@ class CVEDatabase:
         try:
             cve_data = item.get("cve", {})
             cve_id = cve_data.get("id", "")
-            
-            # Get description (prefer English)
-            descriptions = cve_data.get("descriptions", [])
-            description = ""
-            for desc in descriptions:
-                if desc.get("lang") == "en":
-                    description = desc.get("value", "")
-                    break
-            if not description and descriptions:
-                description = descriptions[0].get("value", "")
-            
-            # Get CVSS score (prefer v3.1, then v3.0, then v2.0)
-            cvss_score = 0.0
-            cvss_vector = ""
-            metrics = cve_data.get("metrics", {})
-            
-            if "cvssMetricV31" in metrics:
-                cvss_data = metrics["cvssMetricV31"][0].get("cvssData", {})
-                cvss_score = cvss_data.get("baseScore", 0.0)
-                cvss_vector = cvss_data.get("vectorString", "")
-            elif "cvssMetricV30" in metrics:
-                cvss_data = metrics["cvssMetricV30"][0].get("cvssData", {})
-                cvss_score = cvss_data.get("baseScore", 0.0)
-                cvss_vector = cvss_data.get("vectorString", "")
-            elif "cvssMetricV2" in metrics:
-                cvss_data = metrics["cvssMetricV2"][0].get("cvssData", {})
-                cvss_score = cvss_data.get("baseScore", 0.0)
-                cvss_vector = cvss_data.get("vectorString", "")
-            
-            # Get references
-            references = []
-            for ref in cve_data.get("references", []):
-                references.append(ref.get("url", ""))
-            
-            # Get CPE matches
-            cpe_matches = []
-            configurations = cve_data.get("configurations", [])
-            for config in configurations:
-                for node in config.get("nodes", []):
-                    for match in node.get("cpeMatch", []):
-                        if match.get("vulnerable", False):
-                            cpe_matches.append(match.get("criteria", ""))
-            
-            # Get weaknesses (CWE)
-            weaknesses = []
-            for weakness in cve_data.get("weaknesses", []):
-                for desc in weakness.get("description", []):
-                    if desc.get("lang") == "en":
-                        weaknesses.append(desc.get("value", ""))
+            description = self._extract_cve_description(cve_data)
+            cvss_score, cvss_vector = self._extract_cvss_metrics(cve_data)
+            references = self._extract_cve_references(cve_data)
+            cpe_matches = self._extract_cpe_matches(cve_data)
+            weaknesses = self._extract_cwe_weaknesses(cve_data)
             
             return CVEEntry(
                 cve_id=cve_id,
@@ -212,13 +168,60 @@ class CVEDatabase:
                 severity=self._get_severity(cvss_score),
                 published_date=cve_data.get("published", ""),
                 last_modified=cve_data.get("lastModified", ""),
-                references=references[:10],  # Limit to 10
-                cpe_matches=cpe_matches[:20],  # Limit to 20
-                weaknesses=weaknesses[:5]  # Limit to 5
+                references=references[:10],
+                cpe_matches=cpe_matches[:20],
+                weaknesses=weaknesses[:5]
             )
         except Exception as e:
             logger.error(f"Error parsing NVD response: {e}")
             return None
+    
+    def _extract_cve_description(self, cve_data: Dict) -> str:
+        """Extract CVE description (prefer English)"""
+        descriptions = cve_data.get("descriptions", [])
+        for desc in descriptions:
+            if desc.get("lang") == "en":
+                return desc.get("value", "")
+        return descriptions[0].get("value", "") if descriptions else ""
+    
+    def _extract_cvss_metrics(self, cve_data: Dict) -> Tuple[float, str]:
+        """Extract CVSS score and vector (prefer v3.1, then v3.0, then v2.0)"""
+        metrics = cve_data.get("metrics", {})
+        if "cvssMetricV31" in metrics:
+            return self._get_cvss_from_metric(metrics["cvssMetricV31"][0])
+        elif "cvssMetricV30" in metrics:
+            return self._get_cvss_from_metric(metrics["cvssMetricV30"][0])
+        elif "cvssMetricV2" in metrics:
+            return self._get_cvss_from_metric(metrics["cvssMetricV2"][0])
+        return 0.0, ""
+    
+    def _get_cvss_from_metric(self, metric: Dict) -> Tuple[float, str]:
+        """Extract CVSS score and vector from metric"""
+        cvss_data = metric.get("cvssData", {})
+        return cvss_data.get("baseScore", 0.0), cvss_data.get("vectorString", "")
+    
+    def _extract_cve_references(self, cve_data: Dict) -> List[str]:
+        """Extract CVE references"""
+        return [ref.get("url", "") for ref in cve_data.get("references", [])]
+    
+    def _extract_cpe_matches(self, cve_data: Dict) -> List[str]:
+        """Extract CPE matches from configurations"""
+        cpe_matches = []
+        for config in cve_data.get("configurations", []):
+            for node in config.get("nodes", []):
+                for match in node.get("cpeMatch", []):
+                    if match.get("vulnerable", False):
+                        cpe_matches.append(match.get("criteria", ""))
+        return cpe_matches
+    
+    def _extract_cwe_weaknesses(self, cve_data: Dict) -> List[str]:
+        """Extract CWE weaknesses"""
+        weaknesses = []
+        for weakness in cve_data.get("weaknesses", []):
+            for desc in weakness.get("description", []):
+                if desc.get("lang") == "en":
+                    weaknesses.append(desc.get("value", ""))
+        return weaknesses
     
     async def fetch_cve(self, cve_id: str) -> Optional[CVEEntry]:
         """

@@ -106,15 +106,17 @@ class SubdomainEnumerator:
         Returns:
             List of SubdomainResult objects
         """
-        # Ensure domain is clean
         domain = self._clean_domain(domain)
-        
         logger.info(f"Starting subdomain enumeration for: {domain}")
         
-        subdomains: Set[str] = set()
-        results: List[SubdomainResult] = []
+        tasks = self._build_enumeration_tasks(domain, use_bruteforce, timeout)
+        source_results = await self._gather_enumeration_results(tasks, timeout)
+        results = await self._process_enumeration_results(source_results, resolve)
         
-        # Run all sources concurrently
+        return sorted(results, key=lambda x: x.subdomain)
+    
+    def _build_enumeration_tasks(self, domain: str, use_bruteforce: bool, timeout: int) -> List:
+        """Build list of enumeration tasks"""
         tasks = [
             self._crtsh_enum(domain),
             self._web_archive_enum(domain),
@@ -132,11 +134,38 @@ class SubdomainEnumerator:
         if use_bruteforce:
             tasks.append(self._bruteforce_enum(domain))
         
-        # Wait for all sources
+        return tasks
+    
+    async def _gather_enumeration_results(self, tasks: List, timeout: int) -> List:
+        """Gather results from all enumeration tasks"""
         try:
-            source_results = await asyncio.wait_for(
+            return await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
                 timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Subdomain enumeration timed out")
+            return []
+    
+    async def _process_enumeration_results(self, source_results: List, resolve: bool) -> List[SubdomainResult]:
+        """Process and combine enumeration results"""
+        subdomains: Set[str] = set()
+        results: List[SubdomainResult] = []
+        
+        for result in source_results:
+            if isinstance(result, list):
+                for r in result:
+                    if r.subdomain not in subdomains:
+                        subdomains.add(r.subdomain)
+                        results.append(r)
+            elif isinstance(result, Exception):
+                logger.error(f"Source error: {result}")
+        
+        logger.info(f"Found {len(results)} unique subdomains")
+        
+        if resolve:
+            results = await self._resolve_subdomains(results)
+        return results
             )
         except asyncio.TimeoutError:
             logger.warning("Subdomain enumeration timed out")

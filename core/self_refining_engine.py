@@ -998,27 +998,31 @@ class SelfRefiningEngine:
     def _condition_matches(self, condition: Dict, context: Dict) -> bool:
         """Check if a condition matches a context"""
         for key, value in condition.items():
-            if key not in context:
+            if not self._check_condition_key(key, value, context):
                 return False
-            
-            ctx_value = context[key]
-            
-            # Handle different match types
-            if isinstance(value, list):
-                if ctx_value not in value:
-                    return False
-            elif isinstance(value, dict):
-                if "contains" in value:
-                    if value["contains"] not in str(ctx_value):
-                        return False
-                elif "not" in value:
-                    if ctx_value == value["not"]:
-                        return False
-            else:
-                if ctx_value != value:
-                    return False
-        
         return True
+    
+    def _check_condition_key(self, key: str, value: Any, context: Dict) -> bool:
+        """Check if a single condition key matches context"""
+        if key not in context:
+            return False
+        
+        ctx_value = context[key]
+        
+        if isinstance(value, list):
+            return ctx_value in value
+        elif isinstance(value, dict):
+            return self._check_dict_condition(value, ctx_value)
+        else:
+            return ctx_value == value
+    
+    def _check_dict_condition(self, value: Dict, ctx_value: Any) -> bool:
+        """Check dictionary-based condition (contains/not)"""
+        if "contains" in value:
+            return value["contains"] in str(ctx_value)
+        elif "not" in value:
+            return ctx_value != value["not"]
+        return False
     
     def resolve_policy_conflicts(self, policies: List[Policy]) -> List[Dict]:
         """

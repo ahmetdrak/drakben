@@ -631,7 +631,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
         try:
             if hasattr(self, 'temp_db') and os.path.exists(self.temp_db.name):
                 os.unlink(self.temp_db.name)
-        except:
+        except (OSError, PermissionError) as e:
+            # Ignore cleanup errors in tests
             pass
     
     def test_initialization(self):

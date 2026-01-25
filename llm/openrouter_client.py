@@ -400,51 +400,11 @@ class OpenRouterClient:
     ):
         """Query Ollama with streaming response"""
         try:
-            payload = {
-                "model": self.model,
-                "prompt": f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:",
-                "stream": True,
-            }
-            
-            response = self._session.post(
-                self.base_url,
-                json=payload,
-                timeout=timeout,
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                yield f"[Ollama Error] {response.status_code}"
+            response = self._make_ollama_request(prompt, system_prompt, timeout)
+            if not response:
                 return
             
-            import json
-            
-            # Set timeout for iter_lines to prevent infinite wait
-            # Cap at 5 minutes absolute maximum for safety
-            start_time = time.time()
-            max_stream_time = min(timeout * 2, 300)  # Allow 2x timeout but cap at 5 min
-            
-            for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
-                # Check overall timeout
-                if time.time() - start_time > max_stream_time:
-                    logger.warning(f"Streaming timeout after {max_stream_time}s")
-                    yield "[Timeout] Streaming response took too long."
-                    break
-                
-                if line:
-                    try:
-                        data = json.loads(line)
-                        chunk = data.get("response", "")
-                        if chunk:
-                            if callback:
-                                callback(chunk)
-                            yield chunk
-                        
-                        # Check if done
-                        if data.get("done", False):
-                            break
-                    except json.JSONDecodeError:
-                        continue
+            yield from self._process_ollama_stream(response, callback, timeout)
                         
         except requests.exceptions.Timeout:
             logger.warning("Ollama request timeout")
@@ -539,29 +499,48 @@ class OpenRouterClient:
         """Process streaming response lines"""
         import json
         start_time = time.time()
-        # Cap maximum streaming time to 5 minutes for safety
         max_stream_time = min(timeout * 2, 300)
         
         for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
-            if time.time() - start_time > max_stream_time:
-                logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
+            if self._check_stream_timeout(start_time, max_stream_time):
                 yield "[Timeout] Streaming response took too long (possible WAF blocking)."
                 break
             
             if line:
-                if line.startswith("data: "):
-                    line = line[6:]
-                if line == "[DONE]":
+                processed_line = self._preprocess_stream_line(line)
+                if processed_line == "[DONE]":
                     break
-                try:
-                    data = json.loads(line)
-                    chunk = self._extract_chunk(data)
-                    if chunk:
-                        if callback:
-                            callback(chunk)
-                        yield chunk
-                except json.JSONDecodeError:
-                    continue
+                
+                chunk = self._extract_chunk_from_line(processed_line, callback)
+                if chunk:
+                    yield chunk
+    
+    def _check_stream_timeout(self, start_time: float, max_stream_time: float) -> bool:
+        """Check if streaming has exceeded timeout"""
+        if time.time() - start_time > max_stream_time:
+            logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
+            return True
+        return False
+    
+    def _preprocess_stream_line(self, line: str) -> str:
+        """Preprocess stream line (remove data: prefix, check for DONE)"""
+        if line.startswith("data: "):
+            line = line[6:]
+        return line
+    
+    def _extract_chunk_from_line(self, line: str, callback: Optional[callable]) -> Optional[str]:
+        """Extract chunk from processed line"""
+        import json
+        try:
+            data = json.loads(line)
+            chunk = self._extract_chunk(data)
+            if chunk:
+                if callback:
+                    callback(chunk)
+                return chunk
+        except json.JSONDecodeError:
+            pass
+        return None
 
     def _extract_chunk(self, data: Dict) -> str:
         """Extract content chunk from response data"""
@@ -575,127 +554,169 @@ class OpenRouterClient:
         """Query local Ollama instance with retry logic"""
         for attempt in range(self.max_retries):
             try:
-                payload = {
-                    "model": self.model,
-                    "prompt": f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:",
-                    "stream": False,
-                }
-                response = self._session.post(self.base_url, json=payload, timeout=timeout)
-                
-                if response.status_code == 200:
-                    return response.json().get("response", "")
-                elif response.status_code == 429:
-                    # Rate limited - wait and retry
-                    retry_after = int(response.headers.get("Retry-After", 5))
-                    self._rate_limiter.set_retry_after(retry_after)
-                    if attempt < self.max_retries - 1:
-                        time.sleep(retry_after)
-                        continue
-                    return "[Rate Limit] Ollama rate limited. Please wait."
-                else:
-                    if attempt < self.max_retries - 1:
-                        time.sleep(2 ** attempt)  # Exponential backoff
-                        continue
-                    return f"[Ollama Error] {response.status_code}: {response.text[:100]}"
-                    
+                response = self._make_ollama_non_streaming_request(prompt, system_prompt, timeout)
+                result = self._handle_ollama_response(response, attempt)
+                if result is not None:
+                    return result
             except requests.exceptions.ConnectionError:
-                if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
-                    continue
-                return "[Offline] Ollama baglantisi yok. 'ollama serve' calistirin."
+                return self._handle_ollama_connection_error(attempt)
             except requests.exceptions.Timeout:
-                if attempt < self.max_retries - 1:
-                    continue
-                return "[Timeout] Ollama did not respond in time."
+                return self._handle_ollama_timeout(attempt)
             except Exception as e:
                 logger.error(f"Ollama query error: {e}")
                 return f"[Ollama Error] {str(e)}"
         
         return "[Error] Max retries exceeded"
+    
+    def _make_ollama_non_streaming_request(self, prompt: str, system_prompt: str, timeout: int):
+        """Make non-streaming Ollama request"""
+        payload = {
+            "model": self.model,
+            "prompt": f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:",
+            "stream": False,
+        }
+        return self._session.post(self.base_url, json=payload, timeout=timeout)
+    
+    def _handle_ollama_response(self, response, attempt: int) -> Optional[str]:
+        """Handle Ollama response with retry logic"""
+        if response.status_code == 200:
+            return response.json().get("response", "")
+        elif response.status_code == 429:
+            return self._handle_ollama_rate_limit(response, attempt)
+        else:
+            return self._handle_ollama_error(response, attempt)
+    
+    def _handle_ollama_rate_limit(self, response, attempt: int) -> Optional[str]:
+        """Handle Ollama rate limiting"""
+        retry_after = int(response.headers.get("Retry-After", 5))
+        self._rate_limiter.set_retry_after(retry_after)
+        if attempt < self.max_retries - 1:
+            time.sleep(retry_after)
+            return None
+        return "[Rate Limit] Ollama rate limited. Please wait."
+    
+    def _handle_ollama_error(self, response, attempt: int) -> Optional[str]:
+        """Handle Ollama error responses"""
+        if attempt < self.max_retries - 1:
+            time.sleep(2 ** attempt)
+            return None
+        return f"[Ollama Error] {response.status_code}: {response.text[:100]}"
+    
+    def _handle_ollama_connection_error(self, attempt: int) -> str:
+        """Handle Ollama connection errors"""
+        if attempt < self.max_retries - 1:
+            time.sleep(2 ** attempt)
+            return ""  # Continue retry
+        return "[Offline] Ollama baglantisi yok. 'ollama serve' calistirin."
+    
+    def _handle_ollama_timeout(self, attempt: int) -> str:
+        """Handle Ollama timeout errors"""
+        if attempt < self.max_retries - 1:
+            return ""  # Continue retry
+        return "[Timeout] Ollama did not respond in time."
 
     def _query_openai_compatible(self, prompt: str, system_prompt: str, timeout: int) -> str:
         """Query OpenAI-compatible API with retry logic and rate limit handling"""
         if not self.api_key:
             return "[Offline Mode] No API key configured."
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        # Add OpenRouter-specific headers
-        if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
-            headers["X-Title"] = "DRAKBEN Pentest AI"
-
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-        }
+        headers = self._build_api_headers()
+        payload = self._build_api_payload(system_prompt, prompt)
 
         for attempt in range(self.max_retries):
             try:
                 response = self._session.post(
                     self.base_url, headers=headers, json=payload, timeout=timeout
                 )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"]
-                    
-                elif response.status_code == 401:
-                    return "[Auth Error] Invalid API key. Check config/api.env"
-                    
-                elif response.status_code == 429:
-                    # Rate limited - extract retry-after and wait
-                    retry_after = int(response.headers.get("Retry-After", 5))
-                    self._rate_limiter.set_retry_after(retry_after)
-                    
-                    if attempt < self.max_retries - 1:
-                        logger.warning(f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{self.max_retries})")
-                        time.sleep(retry_after)
-                        continue
-                    return "[Rate Limit] Too many requests. Please wait and retry."
-                    
-                elif response.status_code >= 500:
-                    # Server error - retry with exponential backoff
-                    if attempt < self.max_retries - 1:
-                        wait_time = min(2 ** attempt, 5)  # Cap exponential backoff at 5s
-                        logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
-                        time.sleep(wait_time)
-                        continue
-                    return f"[Server Error] {response.status_code}: Service unavailable"
-                    
-                else:
-                    return f"[API Error] {response.status_code}: {response.text[:100]}"
-                    
+                result = self._handle_api_response(response, attempt)
+                if result is not None:
+                    return result
             except requests.exceptions.Timeout:
-                logger.warning(f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking")
-                # Don't retry on timeout - likely WAF blocking or network issue
-                return "[Timeout] API did not respond in time (possible WAF blocking)."
-                
+                return self._handle_api_timeout(timeout, attempt)
             except requests.exceptions.ConnectionError as e:
-                logger.warning(f"Connection error: {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(min(2 ** attempt, 5))  # Cap wait time
-                    continue
-                return "[Offline] No internet connection or connection refused."
-                
+                return self._handle_api_connection_error(e, attempt)
             except requests.exceptions.RequestException as e:
-                logger.error(f"Request error: {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(1)
-                    continue
-                return f"[Request Error] {str(e)}"
-                
+                return self._handle_api_request_error(e, attempt)
             except Exception as e:
                 logger.exception(f"API query error: {e}")
                 return f"[Error] {str(e)}"
         
         return "[Error] Max retries exceeded"
+    
+    def _build_api_headers(self) -> Dict[str, str]:
+        """Build API request headers"""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        if self.provider == "openrouter":
+            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
+            headers["X-Title"] = "DRAKBEN Pentest AI"
+        return headers
+    
+    def _build_api_payload(self, system_prompt: str, prompt: str) -> Dict:
+        """Build API request payload"""
+        return {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+        }
+    
+    def _handle_api_response(self, response, attempt: int) -> Optional[str]:
+        """Handle API response with status code logic"""
+        if response.status_code == 200:
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        elif response.status_code == 401:
+            return "[Auth Error] Invalid API key. Check config/api.env"
+        elif response.status_code == 429:
+            return self._handle_api_rate_limit(response, attempt)
+        elif response.status_code >= 500:
+            return self._handle_api_server_error(response, attempt)
+        else:
+            return f"[API Error] {response.status_code}: {response.text[:100]}"
+    
+    def _handle_api_rate_limit(self, response, attempt: int) -> Optional[str]:
+        """Handle API rate limiting"""
+        retry_after = int(response.headers.get("Retry-After", 5))
+        self._rate_limiter.set_retry_after(retry_after)
+        if attempt < self.max_retries - 1:
+            logger.warning(f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{self.max_retries})")
+            time.sleep(retry_after)
+            return None
+        return "[Rate Limit] Too many requests. Please wait and retry."
+    
+    def _handle_api_server_error(self, response, attempt: int) -> Optional[str]:
+        """Handle API server errors (5xx)"""
+        if attempt < self.max_retries - 1:
+            wait_time = min(2 ** attempt, 5)
+            logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+            time.sleep(wait_time)
+            return None
+        return f"[Server Error] {response.status_code}: Service unavailable"
+    
+    def _handle_api_timeout(self, timeout: int, attempt: int) -> str:
+        """Handle API timeout errors"""
+        logger.warning(f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking")
+        return "[Timeout] API did not respond in time (possible WAF blocking)."
+    
+    def _handle_api_connection_error(self, e: Exception, attempt: int) -> str:
+        """Handle API connection errors"""
+        logger.warning(f"Connection error: {e}")
+        if attempt < self.max_retries - 1:
+            time.sleep(min(2 ** attempt, 5))
+            return ""  # Continue retry
+        return "[Offline] No internet connection or connection refused."
+    
+    def _handle_api_request_error(self, e: Exception, attempt: int) -> str:
+        """Handle API request errors"""
+        logger.error(f"Request error: {e}")
+        if attempt < self.max_retries - 1:
+            time.sleep(1)
+            return ""  # Continue retry
+        return f"[Request Error] {str(e)}"
 
     def get_provider_info(self) -> dict:
         """Return current provider configuration"""

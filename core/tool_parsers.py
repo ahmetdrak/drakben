@@ -76,80 +76,88 @@ def parse_sqlmap_output(output: str, llm_client=None) -> List[Dict]:
     Returns:
         List of dicts with keys: parameter, type, title, payload
     """
-    results = []
+    if not _has_sqlmap_vulnerability(output):
+        return _try_llm_parse_sqlmap(output, llm_client)
     
-    # Patterns for sqlmap output
-    vuln_patterns = [
-        # Parameter X is vulnerable
-        re.compile(r"Parameter:\s*(\S+)\s*\(.*?(GET|POST|COOKIE)", re.IGNORECASE),
-        # Type: boolean-based blind
-        re.compile(r"Type:\s*(.+)", re.IGNORECASE),
-        # Title: AND boolean-based blind
-        re.compile(r"Title:\s*(.+)", re.IGNORECASE),
-        # Payload: id=1 AND ...
-        re.compile(r"Payload:\s*(.+)", re.IGNORECASE),
-    ]
-    
-    # Look for vulnerability blocks
-    if "is vulnerable" in output.lower() or "sqlmap identified" in output.lower():
-        current_vuln = {}
-        
-        for line in output.split("\n"):
-            line = line.strip()
-            
-            # Parameter line
-            param_match = re.search(r"Parameter:\s*[#]?(\S+)", line)
-            if param_match:
-                if current_vuln:
-                    results.append(current_vuln)
-                current_vuln = {"parameter": param_match.group(1)}
-            
-            # Type line
-            type_match = re.search(r"Type:\s*(.+)", line)
-            if type_match and current_vuln:
-                current_vuln["type"] = type_match.group(1).strip()
-            
-            # Title line
-            title_match = re.search(r"Title:\s*(.+)", line)
-            if title_match and current_vuln:
-                current_vuln["title"] = title_match.group(1).strip()
-            
-            # Payload line
-            payload_match = re.search(r"Payload:\s*(.+)", line)
-            if payload_match and current_vuln:
-                current_vuln["payload"] = payload_match.group(1).strip()
-        
-        # Don't forget the last one
-        if current_vuln:
-            results.append(current_vuln)
-    
+    results = _parse_sqlmap_vulnerabilities(output)
     if results:
         logger.debug(f"Parsed {len(results)} SQLi vulnerabilities")
         return results
     
-    # LLM fallback
-    if llm_client and "vulnerable" in output.lower():
-        logger.info("Falling back to LLM for sqlmap parsing")
-        try:
-            prompt = f"""Parse this sqlmap output and extract SQL injection vulnerabilities.
+    return _try_llm_parse_sqlmap(output, llm_client)
+
+def _has_sqlmap_vulnerability(output: str) -> bool:
+    """Check if output contains vulnerability indicators"""
+    output_lower = output.lower()
+    return "is vulnerable" in output_lower or "sqlmap identified" in output_lower
+
+def _parse_sqlmap_vulnerabilities(output: str) -> List[Dict]:
+    """Parse vulnerability blocks from sqlmap output"""
+    results = []
+    current_vuln = {}
+    
+    for line in output.split("\n"):
+        line = line.strip()
+        current_vuln = _process_sqlmap_line(line, current_vuln, results)
+    
+    if current_vuln:
+        results.append(current_vuln)
+    return results
+
+def _process_sqlmap_line(line: str, current_vuln: Dict, results: List[Dict]) -> Dict:
+    """Process a single line of sqlmap output"""
+    param_match = re.search(r"Parameter:\s*[#]?(\S+)", line)
+    if param_match:
+        if current_vuln:
+            results.append(current_vuln)
+        return {"parameter": param_match.group(1)}
+    
+    if not current_vuln:
+        return current_vuln
+    
+    type_match = re.search(r"Type:\s*(.+)", line)
+    if type_match:
+        current_vuln["type"] = type_match.group(1).strip()
+    
+    title_match = re.search(r"Title:\s*(.+)", line)
+    if title_match:
+        current_vuln["title"] = title_match.group(1).strip()
+    
+    payload_match = re.search(r"Payload:\s*(.+)", line)
+    if payload_match:
+        current_vuln["payload"] = payload_match.group(1).strip()
+    
+    return current_vuln
+
+def _try_llm_parse_sqlmap(output: str, llm_client) -> List[Dict]:
+    """Try LLM fallback for sqlmap parsing"""
+    if not llm_client or "vulnerable" not in output.lower():
+        return []
+    
+    logger.info("Falling back to LLM for sqlmap parsing")
+    try:
+        prompt = f"""Parse this sqlmap output and extract SQL injection vulnerabilities.
 Return JSON array with objects having: parameter, type, title, payload
 
 Output:
 {output[:3000]}
 
 Response (JSON only):"""
-            
-            response = llm_client.query(prompt, timeout=15)
-            
-            import json
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
-            if json_match:
-                parsed = json.loads(json_match.group())
-                if isinstance(parsed, list):
-                    return parsed
-        except Exception as e:
-            logger.warning(f"LLM parsing failed: {e}")
-    
+        
+        response = llm_client.query(prompt, timeout=15)
+        return _extract_json_from_llm_response(response)
+    except Exception as e:
+        logger.warning(f"LLM parsing failed: {e}")
+        return []
+
+def _extract_json_from_llm_response(response: str) -> List[Dict]:
+    """Extract JSON array from LLM response"""
+    import json
+    json_match = re.search(r'\[.*\]', response, re.DOTALL)
+    if json_match:
+        parsed = json.loads(json_match.group())
+        if isinstance(parsed, list):
+            return parsed
     return []
 
 
@@ -161,45 +169,46 @@ def parse_nikto_output(output: str, llm_client=None) -> List[Dict]:
         List of dicts with keys: vulnerability, path, method, description
     """
     results = []
-    
-    # Nikto output patterns
-    # + OSVDB-XXXX: /path: Description
-    # + /path: Description
-    vuln_pattern = re.compile(
-        r"\+\s*(OSVDB-\d+)?:?\s*(/\S*)?\s*:?\s*(.+)"
-    )
+    vuln_pattern = re.compile(r"\+\s*(OSVDB-\d+)?:?\s*(/\S*)?\s*:?\s*(.+)")
     
     for line in output.split("\n"):
         line = line.strip()
-        
-        # Skip info lines
-        if line.startswith("- Nikto") or line.startswith("+ Target") or not line.startswith("+"):
+        if _should_skip_nikto_line(line):
             continue
         
         match = vuln_pattern.search(line)
         if match:
-            vuln = {
-                "vulnerability": match.group(1) or "Unknown",
-                "path": match.group(2) or "/",
-                "description": match.group(3).strip() if match.group(3) else ""
-            }
-            
-            # Determine severity based on keywords
-            desc_lower = vuln["description"].lower()
-            if any(x in desc_lower for x in ["remote", "execute", "injection", "xss", "sqli"]):
-                vuln["severity"] = "HIGH"
-            elif any(x in desc_lower for x in ["disclosure", "directory", "listing"]):
-                vuln["severity"] = "MEDIUM"
-            else:
-                vuln["severity"] = "LOW"
-            
+            vuln = _build_nikto_vulnerability(match)
             results.append(vuln)
     
     if results:
         logger.debug(f"Parsed {len(results)} web vulnerabilities from nikto")
-        return results
-    
-    return []
+    return results
+
+def _should_skip_nikto_line(line: str) -> bool:
+    """Check if nikto line should be skipped"""
+    return (line.startswith("- Nikto") or 
+            line.startswith("+ Target") or 
+            not line.startswith("+"))
+
+def _build_nikto_vulnerability(match: re.Match) -> Dict:
+    """Build vulnerability dict from nikto match"""
+    vuln = {
+        "vulnerability": match.group(1) or "Unknown",
+        "path": match.group(2) or "/",
+        "description": match.group(3).strip() if match.group(3) else ""
+    }
+    vuln["severity"] = _determine_nikto_severity(vuln["description"])
+    return vuln
+
+def _determine_nikto_severity(description: str) -> str:
+    """Determine severity based on description keywords"""
+    desc_lower = description.lower()
+    if any(x in desc_lower for x in ["remote", "execute", "injection", "xss", "sqli"]):
+        return "HIGH"
+    elif any(x in desc_lower for x in ["disclosure", "directory", "listing"]):
+        return "MEDIUM"
+    return "LOW"
 
 
 def parse_gobuster_output(output: str, llm_client=None) -> List[Dict]:
@@ -265,9 +274,21 @@ def normalize_error_message(stdout: str, stderr: str, exit_code: int) -> str:
     combined = f"{stdout}\n{stderr}".strip()
     combined_lower = combined.lower()
     
-    # Check for common error patterns and return normalized message
-    
-    # Connection errors
+    # Check error categories in priority order
+    result = (
+        _normalize_connection_error(combined_lower) or
+        _normalize_permission_error(combined_lower) or
+        _normalize_tool_error(combined_lower) or
+        _normalize_timeout_error(combined_lower) or
+        _normalize_rate_limit_error(combined_lower) or
+        _normalize_firewall_error(combined_lower) or
+        _normalize_generic_error(combined, exit_code) or
+        ""
+    )
+    return result
+
+def _normalize_connection_error(combined_lower: str) -> Optional[str]:
+    """Normalize connection-related errors"""
     if "connection refused" in combined_lower:
         return "Connection refused - target may be down or port closed"
     if "connection reset" in combined_lower:
@@ -276,40 +297,49 @@ def normalize_error_message(stdout: str, stderr: str, exit_code: int) -> str:
         return "No route to host - network unreachable"
     if "name or service not known" in combined_lower:
         return "DNS resolution failed - hostname not found"
-    
-    # Permission errors
+    return None
+
+def _normalize_permission_error(combined_lower: str) -> Optional[str]:
+    """Normalize permission-related errors"""
     if "permission denied" in combined_lower:
         return "Permission denied - try running with sudo"
     if "operation not permitted" in combined_lower:
         return "Operation not permitted - insufficient privileges"
-    
-    # Tool errors
+    return None
+
+def _normalize_tool_error(combined_lower: str) -> Optional[str]:
+    """Normalize tool/command errors"""
     if "command not found" in combined_lower or "not recognized" in combined_lower:
         return "Command not found - tool may not be installed"
-    
-    # Timeout
+    return None
+
+def _normalize_timeout_error(combined_lower: str) -> Optional[str]:
+    """Normalize timeout errors"""
     if "timed out" in combined_lower or "timeout" in combined_lower:
         return "Operation timed out - target may be slow or unreachable"
-    
-    # Rate limiting
+    return None
+
+def _normalize_rate_limit_error(combined_lower: str) -> Optional[str]:
+    """Normalize rate limiting errors"""
     if "too many" in combined_lower or "rate limit" in combined_lower:
         return "Rate limited - too many requests"
-    
-    # WAF/Firewall
+    return None
+
+def _normalize_firewall_error(combined_lower: str) -> Optional[str]:
+    """Normalize firewall/WAF errors"""
     if "blocked" in combined_lower or "forbidden" in combined_lower:
         return "Request blocked - possible WAF or firewall"
-    
-    # Generic error based on exit code
+    return None
+
+def _normalize_generic_error(combined: str, exit_code: int) -> Optional[str]:
+    """Normalize generic errors based on exit code"""
     if exit_code != 0:
-        # Try to extract first meaningful error line
         for line in combined.split("\n"):
             line = line.strip()
             if line and ("error" in line.lower() or "fail" in line.lower()):
-                return line[:200]  # Limit length
-        
+                return line[:200]
         return f"Command failed with exit code {exit_code}"
-    
-    return ""
+    return None
 
 
 def parse_tool_output(tool_name: str, output: str, llm_client=None) -> List[Dict]:

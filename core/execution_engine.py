@@ -840,33 +840,45 @@ class StreamingMonitor:
         stdout_lines: List[str], stderr_lines: List[str], callback: Optional[Callable]
     ) -> Tuple[threading.Thread, threading.Thread]:
         """Start monitoring threads for stdout and stderr"""
-        def read_stdout():
-            try:
-                for line in process.stdout:
-                    if stop_event.is_set():
-                        break
-                    stdout_lines.append(line)
-                    if callback:
-                        callback("stdout", line)
-            except Exception as e:
-                logger.debug(f"Stdout reader exception: {e}")
-
-        def read_stderr():
-            try:
-                for line in process.stderr:
-                    if stop_event.is_set():
-                        break
-                    stderr_lines.append(line)
-                    if callback:
-                        callback("stderr", line)
-            except Exception as e:
-                logger.debug(f"Stderr reader exception: {e}")
-
-        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
-        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stdout_thread = threading.Thread(
+            target=self._read_stdout,
+            args=(process, stop_event, stdout_lines, callback),
+            daemon=True
+        )
+        stderr_thread = threading.Thread(
+            target=self._read_stderr,
+            args=(process, stop_event, stderr_lines, callback),
+            daemon=True
+        )
         stdout_thread.start()
         stderr_thread.start()
         return stdout_thread, stderr_thread
+    
+    def _read_stdout(self, process: subprocess.Popen, stop_event: threading.Event,
+                     stdout_lines: List[str], callback: Optional[Callable]) -> None:
+        """Read stdout from process"""
+        try:
+            for line in process.stdout:
+                if stop_event.is_set():
+                    break
+                stdout_lines.append(line)
+                if callback:
+                    callback("stdout", line)
+        except Exception as e:
+            logger.debug(f"Stdout reader exception: {e}")
+
+    def _read_stderr(self, process: subprocess.Popen, stop_event: threading.Event,
+                     stderr_lines: List[str], callback: Optional[Callable]) -> None:
+        """Read stderr from process"""
+        try:
+            for line in process.stderr:
+                if stop_event.is_set():
+                    break
+                stderr_lines.append(line)
+                if callback:
+                    callback("stderr", line)
+        except Exception as e:
+            logger.debug(f"Stderr reader exception: {e}")
     
     def _wait_for_process_with_timeout(
         self, process: subprocess.Popen, timeout: float, stop_event: threading.Event

@@ -6,7 +6,7 @@
 import asyncio
 import base64
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Tuple
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -855,45 +855,9 @@ def obfuscate_payload(
     applied = []
     
     for technique in techniques:
-        if technique == "base64":
-            if language == "bash":
-                result = BashObfuscator.eval_base64(result)
-            elif language == "powershell":
-                result = PowerShellObfuscator.invoke_expression_encode(result)
-            else:
-                result = PayloadObfuscator.base64_encode(result)
-            applied.append("base64")
-        
-        elif technique == "hex":
-            if language == "bash":
-                result = BashObfuscator.hex_printf(result)
-            else:
-                result = PayloadObfuscator.hex_encode(result)
-            applied.append("hex")
-        
-        elif technique == "xor":
-            encoded, key = PayloadObfuscator.xor_encode(result)
-            result = f"XOR_KEY={key}\nENCODED={encoded}"
-            applied.append(f"xor_key_{key}")
-        
-        elif technique == "variable":
-            result = PayloadObfuscator.variable_substitution(result)
-            applied.append("variable_substitution")
-        
-        elif technique == "dead_code":
-            result = PayloadObfuscator.dead_code_injection(result, language)
-            applied.append("dead_code")
-        
-        elif technique == "concat":
-            if language == "powershell":
-                result = PowerShellObfuscator.concat_strings(result)
-            else:
-                result = PayloadObfuscator.string_concat(result)
-            applied.append("string_concat")
-        
-        elif technique == "tick" and language == "powershell":
-            result = PowerShellObfuscator.tick_obfuscation(result)
-            applied.append("tick_obfuscation")
+        result, technique_name = _apply_obfuscation_technique(result, technique, language)
+        if technique_name:
+            applied.append(technique_name)
     
     return {
         "original_length": len(payload),
@@ -902,6 +866,45 @@ def obfuscate_payload(
         "techniques_applied": applied,
         "payload": result
     }
+
+def _apply_obfuscation_technique(payload: str, technique: str, language: str) -> Tuple[str, Optional[str]]:
+    """Apply a single obfuscation technique"""
+    if technique == "base64":
+        return _apply_base64_obfuscation(payload, language), "base64"
+    elif technique == "hex":
+        return _apply_hex_obfuscation(payload, language), "hex"
+    elif technique == "xor":
+        encoded, key = PayloadObfuscator.xor_encode(payload)
+        return f"XOR_KEY={key}\nENCODED={encoded}", f"xor_key_{key}"
+    elif technique == "variable":
+        return PayloadObfuscator.variable_substitution(payload), "variable_substitution"
+    elif technique == "dead_code":
+        return PayloadObfuscator.dead_code_injection(payload, language), "dead_code"
+    elif technique == "concat":
+        return _apply_concat_obfuscation(payload, language), "string_concat"
+    elif technique == "tick" and language == "powershell":
+        return PowerShellObfuscator.tick_obfuscation(payload), "tick_obfuscation"
+    return payload, None
+
+def _apply_base64_obfuscation(payload: str, language: str) -> str:
+    """Apply base64 obfuscation based on language"""
+    if language == "bash":
+        return BashObfuscator.eval_base64(payload)
+    elif language == "powershell":
+        return PowerShellObfuscator.invoke_expression_encode(payload)
+    return PayloadObfuscator.base64_encode(payload)
+
+def _apply_hex_obfuscation(payload: str, language: str) -> str:
+    """Apply hex obfuscation based on language"""
+    if language == "bash":
+        return BashObfuscator.hex_printf(payload)
+    return PayloadObfuscator.hex_encode(payload)
+
+def _apply_concat_obfuscation(payload: str, language: str) -> str:
+    """Apply string concatenation obfuscation"""
+    if language == "powershell":
+        return PowerShellObfuscator.concat_strings(payload)
+    return PayloadObfuscator.string_concat(payload)
 
 
 def generate_staged_payload(
