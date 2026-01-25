@@ -25,6 +25,8 @@ from core.self_refining_engine import (
     PolicyTier
 )
 from core.tool_selector import ToolSelector
+from core.tool_parsers import normalize_error_message
+from core.structured_logger import DrakbenLogger
 from modules import exploit as exploit_module
 from modules import payload as payload_module
 
@@ -44,6 +46,7 @@ class RefactoredDrakbenAgent:
     def __init__(self, config_manager: ConfigManager):
         self.config = config_manager
         self.console = Console()
+        self.logger = DrakbenLogger()  # NEW: Structured Logging
 
         # Core Components
         self.brain = DrakbenBrain(llm_client=config_manager.llm_client)
@@ -668,24 +671,38 @@ class RefactoredDrakbenAgent:
         return self._format_tool_result(result, args)
 
     def _format_tool_result(self, result, args: Dict) -> Dict:
-        """Format execution result dictionary"""
+        """Format execution result dictionary with standardized errors"""
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
+        exit_code = result.exit_code
         
-        # Some tools output errors to stdout (like nmap sometimes)
-        if result.exit_code != 0 and not stderr_str.strip():
-            if stdout_str.strip():
-                stderr_str = f"Tool Error (in stdout): {stdout_str[-500:]}"
-            else:
-                stderr_str = f"Command failed with exit code {result.exit_code} (No output captured)"
+        # New: Standardize error
+        error_msg = normalize_error_message(stdout_str, stderr_str, exit_code)
+        
+        # Fallback raw error if normalize returns nothing but exit code non-zero
+        if exit_code != 0 and not error_msg:
+             if stderr_str.strip():
+                 error_msg = f"Tool Error: {stderr_str.strip()[:200]}"
+             else:
+                 error_msg = f"Command failed with exit code {exit_code}"
 
-        return {
+        final_result = {
             "success": result.status.value == "success",
             "stdout": stdout_str,
             "stderr": stderr_str,
-            "exit_code": result.exit_code,
+            "error_summary": error_msg, # New standardized field
+            "exit_code": exit_code,
             "args": args,
         }
+        
+        # Log to structured log
+        self.logger.log_action(
+            tool = args.get("tool_name", "unknown"), # args might need to contain tool name?
+            args = args,
+            result = final_result
+        )
+        
+        return final_result
 
     def _run_async(self, coro, timeout: int = 60):
         """
@@ -761,74 +778,87 @@ class RefactoredDrakbenAgent:
 
     def _update_state_from_result(self, tool_name: str, result: Dict, observation: str):
         """
-        Tool sonucuna göre state'i güncelle
-
-        IMPROVED: Gerçek tool output parsing ile
+        Update state based on tool result.
         """
         # Set observation
         self.state.set_observation(observation)
+        
+        # 1. Record Result Execution (Success/Failure)
+        self._record_execution_outcome(tool_name, result)
 
-        # Tool failure tracking
         if not result.get("success"):
-            self.tool_selector.record_tool_failure(tool_name)
-            # Observe failure too
-            self.brain.observe(
-                tool=tool_name, 
-                output=result.get("stdout", "") + "\n" + result.get("stderr", ""), 
-                success=False
-            )
             return
 
-        # Observe success
-        self.brain.observe(
-            tool=tool_name, 
-            output=result.get("stdout", "") + "\n" + result.get("stderr", ""), 
-            success=True
+        # 2. Update State Specifics based on Tool
+        self._dispatch_state_update(tool_name, result)
+
+    def _record_execution_outcome(self, tool_name: str, result: Dict):
+        """Record success or failure to brain and tool selector"""
+        output = result.get("stdout", "") + "\n" + result.get("stderr", "")
+        success = result.get("success", False)
+        
+        if not success:
+            self.tool_selector.record_tool_failure(tool_name)
+        
+        self.brain.observe(tool=tool_name, output=output, success=success)
+
+    def _dispatch_state_update(self, tool_name: str, result: Dict):
+        """Dispatch state update based on tool type"""
+        if "nmap_port_scan" in tool_name:
+            self._update_state_nmap_port_scan(result)
+        elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
+            self._update_state_service_completion(tool_name, result)
+        elif "vuln" in tool_name or "sqlmap" in tool_name:
+            # Placeholder for vuln update logic if needed
+            pass
+
+    def _update_state_nmap_port_scan(self, result: Dict):
+        """Update state from Nmap port scan results"""
+        from core.tool_parsers import parse_nmap_output
+
+        stdout = result.get("stdout", "")
+        # Hybrid parsing with LLM fallback
+        parsed_services = parse_nmap_output(
+            stdout, llm_client=self.brain.llm_client
         )
 
-        # Success - update state based on tool
-        if "nmap_port_scan" in tool_name:
-            # Parse real nmap output
-            from core.tool_parsers import parse_nmap_output
-
-            stdout = result.get("stdout", "")
-            # Hybrid parsing with LLM fallback
-            parsed_services = parse_nmap_output(
-                stdout, llm_client=self.brain.llm_client
-            )
-
-            if parsed_services:
-                # Convert to ServiceInfo objects
-                services = []
-                for svc_dict in parsed_services:
-                    services.append(
-                        ServiceInfo(
-                            port=svc_dict["port"],
-                            protocol=svc_dict["proto"],
-                            service=svc_dict["service"],
-                        )
+        if parsed_services:
+            services = []
+            for svc_dict in parsed_services:
+                services.append(
+                    ServiceInfo(
+                        port=svc_dict["port"],
+                        protocol=svc_dict["proto"],
+                        service=svc_dict["service"],
                     )
-                self.state.update_services(services)
-            else:
-                # Fallback to mock if parsing failed (for testing)
-                services = [
-                    ServiceInfo(port=80, protocol="tcp", service="http"),
-                    ServiceInfo(port=443, protocol="tcp", service="https"),
-                    ServiceInfo(port=22, protocol="tcp", service="ssh"),
-                ]
-                self.state.update_services(services)
-
-        elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
-            # Mark surface as tested - requires args
-            args_port = result.get("args", {}).get("port")
-            if not args_port:
-                self.state.set_observation(
-                    "Missing port in tool args; state not updated"
                 )
-                return
-            if args_port in self.state.open_services:
-                service_info = self.state.open_services[args_port]
-                self.state.mark_surface_tested(args_port, service_info.service)
+            self.state.update_services(services)
+        else:
+            # Fallback to mock if parsing failed (for testing)
+            self._apply_mock_services()
+
+    def _apply_mock_services(self):
+        """Apply mock services for testing or fallback"""
+        services = [
+            ServiceInfo(port=80, protocol="tcp", service="http"),
+            ServiceInfo(port=443, protocol="tcp", service="https"),
+            ServiceInfo(port=22, protocol="tcp", service="ssh"),
+        ]
+        self.state.update_services(services)
+
+    def _update_state_service_completion(self, tool_name: str, result: Dict):
+        """Mark service as tested"""
+        args_port = result.get("args", {}).get("port")
+        if not args_port:
+            self.state.set_observation(
+                "Missing port in tool args; state not updated"
+            )
+            return
+            
+        if args_port in self.state.open_services:
+            service_info = self.state.open_services[args_port]
+            self.state.mark_surface_tested(args_port, service_info.service)
+
 
         elif "vuln" in tool_name or "sqlmap" in tool_name:
             # Check if vulnerability found

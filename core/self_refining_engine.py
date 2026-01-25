@@ -254,91 +254,87 @@ class SelfRefiningEngine:
         return conn
     
     def _init_database(self):
-        """Initialize database schema with migration support
-        
-        Includes timeout protection to prevent hangs during initialization.
-        """
-        import time
-        start_time = time.time()
-        max_duration = 5  # Maximum 5 seconds for database init
-        
-        # Use non-blocking lock acquisition with retry
-        lock_acquired = False
-        max_retries = 3
-        retry_delay = 0.5
-        
-        for attempt in range(max_retries):
-            try:
-                if self._lock.acquire(timeout=1.0):
-                    lock_acquired = True
-                    break
-                else:
-                    logger.warning(f"Lock acquisition attempt {attempt + 1}/{max_retries} failed, retrying...")
-                    time.sleep(retry_delay)
-            except Exception as e:
-                logger.error(f"Lock acquisition error in _init_database: {e}")
-                if attempt == max_retries - 1:
-                    raise RuntimeError(f"Failed to acquire lock after {max_retries} attempts: {e}")
-                time.sleep(retry_delay)
-        
+        """Initialize database schema with migration support"""
+        # 1. Acquire Lock
+        lock_acquired = self._acquire_db_lock()
         if not lock_acquired:
-            logger.error("Failed to acquire lock for database init after all retries")
+            logger.error("Failed to acquire lock for database init")
             raise RuntimeError("Lock acquisition timeout - possible deadlock")
         
         conn = None
         try:
-            try:
-                conn = self._get_conn()
-            except sqlite3.OperationalError as e:
-                logger.error(f"Database connection failed during init: {e}")
-                raise  # This is critical, so we should raise
+            # 2. Connect and Migrate
+            conn = self._get_conn()
+            self._handle_schema_migration(conn)
             
-            # Check if we need to migrate (old schema detection)
-            try:
-                cursor = conn.execute("SELECT priority_tier FROM policies LIMIT 1")
-            except sqlite3.OperationalError:
-                # Old schema detected - need to recreate
-                if time.time() - start_time > max_duration:
-                    logger.warning("Database migration timeout")
-                    return
-                
-                logger.info("Migrating database to new schema...")
-                conn.executescript("""
-                    DROP TABLE IF EXISTS policies;
-                    DROP TABLE IF EXISTS failure_contexts;
-                    DROP TABLE IF EXISTS strategy_profiles;
-                    DROP TABLE IF EXISTS strategies;
-                    DROP INDEX IF EXISTS idx_profiles_strategy;
-                    DROP INDEX IF EXISTS idx_profiles_retired;
-                    DROP INDEX IF EXISTS idx_policies_tier;
-                    DROP INDEX IF EXISTS idx_failures_signature;
-                """)
-                conn.commit()
-            
-            if time.time() - start_time > max_duration:
-                logger.warning("Schema creation timeout")
-                return
-            
+            # 3. Create Schema
             conn.executescript(SCHEMA_SQL)
             conn.commit()
+            
         except sqlite3.OperationalError as e:
-            logger.error(f"Database operation failed: {e}")
-            # Check if it's a lock error
-            if "locked" in str(e).lower() or "database is locked" in str(e).lower():
-                logger.error("Database is locked by another process. Please close other instances.")
-                raise
-            raise
+            self._handle_db_error(e)
         finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            if lock_acquired:
-                try:
-                    self._lock.release()
-                except:
-                    pass
+            self._cleanup_conn_and_lock(conn, lock_acquired)
+
+    def _acquire_db_lock(self, max_retries: int = 3) -> bool:
+        """Attempt to acquire database lock with retries"""
+        for attempt in range(max_retries):
+            try:
+                if self._lock.acquire(timeout=1.0):
+                    return True
+                logger.warning(f"Lock wait attempt {attempt + 1}/{max_retries}")
+                import time
+                time.sleep(0.5)
+            except Exception as e:
+                logger.error(f"Lock error: {e}")
+        return False
+
+    def _handle_schema_migration(self, conn: sqlite3.Connection):
+        """Check and migrate old schema if needed"""
+        import time
+        start_time = time.time()
+        
+        if self._needs_migration(conn):
+            logger.info("Migrating database to new schema...")
+            conn.executescript("""
+                DROP TABLE IF EXISTS policies;
+                DROP TABLE IF EXISTS failure_contexts;
+                DROP TABLE IF EXISTS strategy_profiles;
+                DROP TABLE IF EXISTS strategies;
+                DROP INDEX IF EXISTS idx_profiles_strategy;
+                DROP INDEX IF EXISTS idx_profiles_retired;
+                DROP INDEX IF EXISTS idx_policies_tier;
+                DROP INDEX IF EXISTS idx_failures_signature;
+            """)
+            conn.commit()
+
+    def _needs_migration(self, conn: sqlite3.Connection) -> bool:
+        """Check if migration is needed based on schema"""
+        try:
+            conn.execute("SELECT priority_tier FROM policies LIMIT 1")
+            return False # Schema matches
+        except sqlite3.OperationalError:
+            return True # Column missing, old schema
+
+    def _handle_db_error(self, e):
+        """Handle database specific errors"""
+        logger.error(f"Database operation failed: {e}")
+        if "locked" in str(e).lower():
+            logger.error("Database is locked by another process.")
+        raise
+
+    def _cleanup_conn_and_lock(self, conn, lock_acquired):
+        """Cleanup connection and release lock"""
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        if lock_acquired:
+            try:
+                self._lock.release()
+            except:
+                pass
     
     def _generate_id(self, prefix: str = "") -> str:
         """Generate unique ID"""
