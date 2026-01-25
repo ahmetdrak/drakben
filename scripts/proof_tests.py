@@ -160,7 +160,7 @@ def proof_profile_mutation():
     lineage = engine.get_profile_lineage(mutated_profile.profile_id)
     print(f"\nMutation Lineage: {' → '.join([pid[:8] + '...' for pid in lineage])}")
     
-    print(f"\n✅ PROOF COMPLETE: Profile mutation creates measurably different profiles")
+    print("\n✅ PROOF COMPLETE: Profile mutation creates measurably different profiles")
     print(f"   - {len(differences)} measurable differences detected")
     print(f"   - Mutation generation: {mutated_profile.mutation_generation}")
     
@@ -208,7 +208,7 @@ def proof_policy_conflict_resolution():
         weight=0.9,
         source="test"
     )
-    print(f"  Policy B: Tier 3 (TOOL_SELECTION), weight=0.9 → prefer sqlmap (CONFLICT!)")
+    print("  Policy B: Tier 3 (TOOL_SELECTION), weight=0.9 → prefer sqlmap (CONFLICT!)")
     time.sleep(0.01)
     
     # Policy C: Tier 1 (HARD_AVOIDANCE), weight=0.5, block sqlmap
@@ -230,7 +230,7 @@ def proof_policy_conflict_resolution():
         weight=0.8,
         source="test"
     )
-    print(f"  Policy D: Tier 2 (STRATEGY_OVERRIDE), weight=0.8 → prefer web_stealth")
+    print("  Policy D: Tier 2 (STRATEGY_OVERRIDE), weight=0.8 → prefer web_stealth")
     
     # Get applicable policies
     context = {"target_type": "web_app"}
@@ -253,7 +253,7 @@ def proof_policy_conflict_resolution():
     # VERIFY DETERMINISM: Run multiple times
     print("\n[VERIFICATION] Running conflict resolution 10 times to verify determinism...")
     results = []
-    for i in range(10):
+    for _ in range(10):
         res = engine.resolve_policy_conflicts(applicable)
         results.append(json.dumps(res, sort_keys=True))
     
@@ -281,9 +281,9 @@ def proof_policy_conflict_resolution():
         safe_remove(db_path)
         return False
     
-    print(f"\n✅ PROOF COMPLETE: Policy conflict resolution is deterministic")
-    print(f"   - Tier 1 (HARD_AVOIDANCE) correctly overrides Tier 3 (TOOL_SELECTION)")
-    print(f"   - Resolution is deterministic (10 identical runs)")
+    print("\n✅ PROOF COMPLETE: Policy conflict resolution is deterministic")
+    print("   - Tier 1 (HARD_AVOIDANCE) correctly overrides Tier 3 (TOOL_SELECTION)")
+    print("   - Resolution is deterministic (10 identical runs)")
     
     safe_remove(db_path)
     return True
@@ -421,7 +421,7 @@ def proof_restart_behavior_change():
     for pol in applicable_policies:
         print(f"  - Tier {pol.priority_tier}: {pol.action}")
     
-    print(f"\n✅ PROOF COMPLETE: Restart behavior change is measurable")
+    print("\n✅ PROOF COMPLETE: Restart behavior change is measurable")
     print(f"   - {len(behavior_changes)} behavior changes detected after restart")
     print(f"   - Evolution data persisted: {status2['total_failures']} failures, {status2['active_policies']} policies")
     

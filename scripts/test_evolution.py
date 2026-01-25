@@ -246,9 +246,9 @@ def test_restart_persistence():
     print(f"  Run 2 - Policies: {status2['active_policies']}")
     
     if status2['active_policies'] >= status1['active_policies']:
-        print(f"  ✅ Policies persist across restarts")
+        print("  ✅ Policies persist across restarts")
     else:
-        print(f"  ❌ Policies did not persist")
+        print("  ❌ Policies did not persist")
         return False
     
     del engine2

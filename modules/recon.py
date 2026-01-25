@@ -77,32 +77,33 @@ class AsyncRetry:
         return wrapper
 
 
-async def fetch_url(session: aiohttp.ClientSession, url: str, timeout: int = 10) -> Dict[str, Any]:
+async def fetch_url(session: aiohttp.ClientSession, url: str) -> Dict[str, Any]:
     """
     Fetch URL with proper error handling and logging.
     
     Args:
         session: aiohttp ClientSession
         url: URL to fetch
-        timeout: Request timeout in seconds
         
     Returns:
         Dict with 'status', 'headers', 'text', 'error' keys
     """
+    timeout_seconds = 10  # Fixed timeout value
     try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-            return {
-                "status": resp.status,
-                "headers": dict(resp.headers),
-                "text": await resp.text(),
-                "error": None
-            }
+        async with asyncio.timeout(timeout_seconds):
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout_seconds)) as resp:
+                return {
+                    "status": resp.status,
+                    "headers": dict(resp.headers),
+                    "text": await resp.text(),
+                    "error": None
+                }
+    except TimeoutError:
+        logger.error(f"Timeout fetching {url}")
+        return {"status": 0, "headers": {}, "text": "", "error": "Timeout"}
     except aiohttp.ClientError as e:
         logger.error(f"HTTP error fetching {url}: {e}")
         return {"status": 0, "headers": {}, "text": "", "error": str(e)}
-    except asyncio.TimeoutError:
-        logger.error(f"Timeout fetching {url}")
-        return {"status": 0, "headers": {}, "text": "", "error": "Timeout"}
 
 
 def extract_domain(url: str) -> str:

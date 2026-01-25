@@ -761,7 +761,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
         status_before = engine.get_evolution_status()
         
         # Record more failures to trigger learning
-        for i in range(3):
+        for _ in range(3):
             engine.record_failure(
                 target_signature="web_app:evolution_test",
                 strategy_name="web_aggressive",
@@ -885,7 +885,7 @@ def task4_persistence_restart() -> Dict[str, Any]:
     
     # Now select for same target - should get DIFFERENT behavior
     strategy2, profile2 = engine2.select_strategy_and_profile(PERSIST_TEST_URL)
-    print(f"\n  New selection:")
+    print("\n  New selection:")
     print(f"  Strategy: {strategy2.name}")
     print(f"  Profile: {profile2.profile_id[:12]}...")
     print(f"  Aggressiveness: {profile2.aggressiveness}")
