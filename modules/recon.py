@@ -244,14 +244,14 @@ async def _fetch_additional_resources(session: aiohttp.ClientSession, target: st
     
     # Robots.txt
     robots_url = f"{base_url}/robots.txt"
-    resp = await fetch_url(session, robots_url, timeout=5)
+    resp = await fetch_url(session, robots_url)
     if not resp["error"] and resp["status"] == 200:
         result["robots"] = resp["text"].splitlines()[:50]
         logger.debug("Found robots.txt")
 
     # Sitemap.xml
     sitemap_url = f"{base_url}/sitemap.xml"
-    resp = await fetch_url(session, sitemap_url, timeout=5)
+    resp = await fetch_url(session, sitemap_url)
     if not resp["error"] and resp["status"] == 200:
         result["sitemap"] = resp["text"][:1000]
         logger.debug("Found sitemap.xml")
