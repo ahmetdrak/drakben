@@ -64,9 +64,15 @@ python drakben.py
 
 # Slash komutları:
 /target 192.168.1.100   # Hedef belirle
-/scan                    # Hedefi tara
+/scan                    # Hedefi tara (otonom mod)
+/scan stealth            # Sessiz/stealth tarama
+/scan aggressive         # Hızlı/agresif tarama
+/shell                   # İnteraktif kabuk
 /status                  # Sistem durumu
-/stats                   # Hafıza istatistikleri
+/llm                     # LLM/API ayarları
+/clear                   # Ekranı temizle
+/tr                      # Türkçe mod
+/en                      # English mode
 /help                    # Yardım
 /exit                    # Çıkış
 ```
@@ -76,16 +82,17 @@ python drakben.py
 ## ✨ Özellikler
 
 ### 🧠 Kalıcı Hafıza Sistemi
-- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
-- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
-- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
-- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
+- **Evolution Memory**: Strateji profilleri ve öğrenilen patternler SQLite'da saklanır
+- **Self-Refining Engine**: Başarılı stratejiler öğrenilir, başarısızlar retry edilmez
+- **Sistem tanıma**: Kali Linux otomatik algılanır, mevcut araçlar tespit edilir
+- **Oturum geçmişi**: Önceki oturumlar ve hedefler `evolution.db`'de saklanır
 
 ### 🤖 Otonom Çalışma
-- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
-- **Auto-healing**: Hatalar otomatik düzeltilir
-- **Araç yükleme**: Eksik araçlar otomatik yüklenir
-- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
+- **Self-evolving agent**: Strateji profilleri ile otomatik evrim
+- **Policy engine**: Çakışan kurallar için öncelik sistemi
+- **Meta-learning**: Araçların performansını değerlendirip otomatik iyileştirme
+- **Akıllı retry**: Başarısız komutlar alternatif stratejilerle denenir
+- **Non-repetition**: Başarısız profiller tekrar kullanılmaz
 
 ### 🛡️ Güvenlik
 - **Safety checks**: Tehlikeli komutlar engellenir
@@ -104,11 +111,16 @@ python drakben.py
 | Komut | Açıklama |
 |-------|----------|
 | `/target <IP>` | Hedef belirle |
-| `/scan` | Mevcut hedefi tara |
+| `/scan` | Otonom tarama başlat (AI modu seçer) |
+| `/scan stealth` | Sessiz/stealth tarama (yavaş, dikkatli) |
+| `/scan aggressive` | Hızlı/agresif tarama (hızlı, gürültülü) |
+| `/shell` | İnteraktif kabuk modu |
 | `/status` | Sistem durumunu göster |
-| `/stats` | Hafıza ve AI istatistikleri |
-| `/help` | Detaylı yardım |
+| `/llm` | LLM/API ayarlarını yapılandır |
 | `/clear` | Ekranı temizle |
+| `/tr` | Türkçe moda geç |
+| `/en` | English mode |
+| `/help` | Detaylı yardım |
 | `/exit` | Çıkış |
 | Doğal dil | AI'a herhangi bir pentest görevi söyle |
 
@@ -120,27 +132,42 @@ python drakben.py
 drakben/
 ├── drakben.py              # Ana giriş noktası
 ├── core/
-│   ├── agent.py            # Ana agent orchestrator
+│   ├── refactored_agent.py # Ana agent orchestrator (self-evolving)
 │   ├── brain.py            # AI reasoning ve planlama
-│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
-│   ├── system_intelligence.py  # Sistem tanıma
+│   ├── evolution_memory.py # Kalıcı hafıza sistemi (SQLite)
+│   ├── self_refining_engine.py  # Self-evolving strateji motoru
+│   ├── kali_detector.py    # Sistem tanıma (Kali Linux detection)
 │   ├── execution_engine.py # Komut çalıştırma
-│   ├── autonomous_solver.py    # Auto-healing
-│   ├── security_toolkit.py # Güvenlik kontrolleri
+│   ├── security_utils.py   # Güvenlik kontrolleri
 │   ├── config.py           # Konfigürasyon yönetimi
-│   └── i18n.py             # Çoklu dil desteği
+│   ├── menu.py             # İnteraktif menü sistemi
+│   ├── planner.py          # Saldırı planlama
+│   ├── coder.py            # AI kod üretici
+│   ├── computer.py         # Bilgisayar kontrolü (Open Interpreter)
+│   ├── interpreter.py      # Komut yorumlayıcı
+│   ├── interactive_shell.py # İnteraktif kabuk
+│   ├── i18n.py             # Çoklu dil desteği
+│   └── ...                 # Diğer yardımcı modüller
 ├── llm/
-│   ├── brain.py            # LLM entegrasyonu
-│   └── openrouter_client.py    # Multi-provider client
+│   └── openrouter_client.py # Multi-provider LLM client
 ├── modules/
 │   ├── recon.py            # Keşif modülü
 │   ├── exploit.py          # Exploit modülü
 │   ├── payload.py          # Payload üretimi
-│   └── report.py           # Raporlama
+│   ├── metasploit.py       # Metasploit entegrasyonu
+│   ├── nuclei.py           # Nuclei tarayıcı
+│   ├── subdomain.py        # Subdomain enumeration
+│   ├── cve_database.py     # CVE veritabanı
+│   └── report_generator.py # Raporlama
 ├── config/
-│   ├── api.env             # API anahtarları
+│   ├── api.env             # API anahtarları (oluşturulur)
+│   ├── settings.json       # Ayarlar
 │   └── plugins.json        # Plugin registry
-└── drakben_memory.db       # Kalıcı hafıza veritabanı
+├── scripts/                # Yardımcı scriptler
+├── tests/                  # Test dosyaları
+├── sessions/               # Oturum dosyaları
+├── reports/                # Raporlar
+└── evolution.db            # Kalıcı hafıza veritabanı (otomatik oluşturulur)
 ```
 
 ---
@@ -152,15 +179,16 @@ drakben/
 | `ModuleNotFoundError` | `pip install -r requirements.txt` |
 | API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
 | Permission denied | Linux'ta `sudo` ile çalıştır |
+| Database lock hatası | `evolution.db-wal` ve `evolution.db-shm` dosyalarını sil |
+| Python 3.8+ gerekli | `python3 --version` kontrol et, 3.10+ önerilir |
 
 ---
 
 ## 📚 Dokümantasyon
 
-- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
-- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
-- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum rehberi
+- [MONITORING.md](MONITORING.md) - Sistem izleme ve debug
+- [ANALIZ_RAPORU.md](ANALIZ_RAPORU.md) - Proje analiz raporu
 
 ---
 
