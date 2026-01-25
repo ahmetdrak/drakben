@@ -545,10 +545,8 @@ def get_evolution_memory(db_path: Optional[str] = None) -> EvolutionMemory:
         if current_path != db_path:
             _evolution_memory = EvolutionMemory(db_path)
             return _evolution_memory
-    else:
+    elif not _evolution_memory._is_memory and not Path(current_path).exists():
         # If the backing file was removed, re-initialize to restore tables
-        if not _evolution_memory._is_memory:
-            if not Path(current_path).exists():
-                _evolution_memory = EvolutionMemory(current_path)
+        _evolution_memory = EvolutionMemory(current_path)
 
     return _evolution_memory

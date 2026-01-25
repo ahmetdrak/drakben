@@ -266,7 +266,7 @@ class RefactoredDrakbenAgent:
         Refactored to reduce Cognitive Complexity.
         """
         self.console.print(
-            f"\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
+            "\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
         )
 
         max_iterations = self.state.max_iterations
@@ -408,7 +408,7 @@ class RefactoredDrakbenAgent:
     def _handle_step_success(self, step: PlanStep, execution_result: Dict[str, Any]) -> None:
         """Handle successful step execution."""
         self.planner.mark_step_success(step.step_id, execution_result.get("stdout", "")[:200])
-        self.console.print(f"✅ Step succeeded", style="green")
+        self.console.print("✅ Step succeeded", style="green")
         self.stagnation_counter = 0
         
         # Update profile outcome on success
@@ -482,7 +482,7 @@ class RefactoredDrakbenAgent:
         
         if not replan_success:
             self.console.print(
-                f"📝 Replan failed - will select different profile next time",
+                "📝 Replan failed - will select different profile next time",
                 style="yellow"
             )
         
@@ -1038,7 +1038,7 @@ class RefactoredDrakbenAgent:
     ) -> Dict[str, Any]:
         """Finalize healing result and return formatted output"""
         if healed and retry_result:
-            self.console.print(f"✅ Hata otomatik olarak düzeltildi!", style="green")
+            self.console.print("✅ Hata otomatik olarak düzeltildi!", style="green")
             return self._format_tool_result(retry_result, args)
         
         if result.exit_code != 0:

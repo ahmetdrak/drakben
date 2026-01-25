@@ -234,7 +234,7 @@ class Planner:
         step.error = f"{reason}Switched {context['original_tool']} -> {alternative}"
         
         self._persist_steps()
-        self._penalize_tool(context["original_tool"])
+        self._penalize_tool()
         
         return True
 
@@ -251,7 +251,7 @@ class Planner:
         if context["is_missing"]: return "Adaptive Replan: Tool missing. "
         return "Adaptive Replan: "
 
-    def _penalize_tool(self, tool_name: str):
+    def _penalize_tool(self):
         """Increase penalty for a failed tool"""
         current = self.memory.get_heuristic("penalty_increment")
         self.memory.set_heuristic("penalty_increment", min(20.0, current + 1.0))

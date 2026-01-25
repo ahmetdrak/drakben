@@ -81,7 +81,7 @@ class UniversalInterpreter:
             if mode in ('w', 'a', 'wb', 'ab') and any(
                 path_str.startswith(p) for p in ['/etc', '/usr', '/bin', '/sbin', 'C:\\Windows']
             ):
-                raise PermissionError(f"Write access to system directories is blocked")
+                raise PermissionError("Write access to system directories is blocked")
             return open(path, mode, *args, **kwargs)
         
         self.locals = {

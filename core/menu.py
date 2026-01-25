@@ -217,8 +217,8 @@ class DrakbenMenu:
                 )
             else:
                 prompt_text = HTML(
-                    f'<style fg="#8BE9FD" bg="" bold="true">drakben</style>'
-                    f'<style fg="#F8F8F2">&gt; </style>'
+                    '<style fg="#8BE9FD" bg="" bold="true">drakben</style>'
+                    '<style fg="#F8F8F2">&gt; </style>'
                 )
             try:
                 return pt_prompt(prompt_text)
@@ -702,7 +702,7 @@ class DrakbenMenu:
         
         llm_title = "🧠 LLM" 
         self.console.print(Panel(
-            self._create_llm_content(lang),
+            self._create_llm_content(),
             title=f"[bold {self.COLORS['green']}]{llm_title}[/]",
             border_style=self.COLORS["green"],
             padding=(0, 1)

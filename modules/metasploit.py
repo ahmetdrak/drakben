@@ -173,7 +173,7 @@ class MetasploitRPC:
             
             # Fallback: try msgpack RPC
             if MSGPACK_AVAILABLE:
-                return await self._connect_msgpack(host, port, username, password)
+                return self._connect_msgpack(host, port, username, password)
             
             logger.warning("Could not connect to Metasploit RPC")
             return False
@@ -182,7 +182,7 @@ class MetasploitRPC:
             logger.error(f"Connection error: {e}")
             return False
 
-    async def _connect_msgpack(
+    def _connect_msgpack(
         self, 
         host: str, 
         port: int, 
@@ -630,7 +630,7 @@ VULN_TO_EXPLOIT = {
 }
 
 
-async def suggest_exploit_for_vuln(vuln_type: str) -> Optional[str]:
+def suggest_exploit_for_vuln(vuln_type: str) -> Optional[str]:
     """
     Suggest Metasploit exploit for vulnerability type.
     
@@ -671,7 +671,7 @@ async def auto_exploit(
     results = []
     
     for vuln in state.vulnerabilities:
-        exploit = await suggest_exploit_for_vuln(vuln.vuln_id)
+        exploit = suggest_exploit_for_vuln(vuln.vuln_id)
         
         if exploit:
             logger.info(f"Attempting {exploit} for {vuln.vuln_id}")

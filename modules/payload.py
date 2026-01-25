@@ -271,7 +271,7 @@ def execute_command(state: "AgentState", cmd: str = "id"):
 # -------------------------
 # AI-Powered Payload Recommendation
 # -------------------------
-async def ai_payload_advice(state: "AgentState", exploit_output: Dict) -> Dict[str, Any]:
+def ai_payload_advice(state: "AgentState", exploit_output: Dict) -> Dict[str, Any]:
     """
     AI-powered payload recommendation.
     
