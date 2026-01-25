@@ -251,7 +251,11 @@ class SmartTerminal:
                 )
             self.current_process = process
 
-            # Wait with timeout
+            # Wait with timeout (with proper cleanup)
+            stdout, stderr = "", ""
+            exit_code = -1
+            status = ExecutionStatus.FAILED
+            
             try:
                 stdout, stderr = process.communicate(timeout=timeout)
                 exit_code = process.returncode
@@ -261,8 +265,24 @@ class SmartTerminal:
                     else ExecutionStatus.FAILED
                 )
             except subprocess.TimeoutExpired:
-                process.kill()
-                stdout, stderr = process.communicate()
+                # Force kill and cleanup
+                try:
+                    process.kill()
+                    process.wait(timeout=5)  # Wait for kill to complete
+                except subprocess.TimeoutExpired:
+                    # Force terminate if kill didn't work
+                    process.terminate()
+                    try:
+                        process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        pass  # Process is stuck, continue anyway
+                
+                # Get any partial output
+                try:
+                    stdout, stderr = process.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    stdout, stderr = "", "Command timed out and could not be cleaned up"
+                
                 exit_code = -1
                 status = ExecutionStatus.TIMEOUT
                 logger.warning(f"Command timed out after {timeout}s: {command[:50]}...")
@@ -639,44 +659,64 @@ class ExecutionValidator:
         """Validate execution result against expectations"""
         validation = {"valid": True, "checks": [], "failures": []}
 
-        # Check exit code
-        if expected.get("exit_code") is not None:
-            if result.exit_code == expected["exit_code"]:
-                validation["checks"].append("Exit code matches")
-            else:
-                validation["valid"] = False
-                validation["failures"].append(
-                    f"Exit code {result.exit_code} != {expected['exit_code']}"
-                )
-
-        # Check output contains
-        if expected.get("output_contains"):
-            for pattern in expected["output_contains"]:
-                if pattern in result.stdout:
-                    validation["checks"].append(f"Output contains '{pattern}'")
-                else:
-                    validation["valid"] = False
-                    validation["failures"].append(f"Output missing '{pattern}'")
-
-        # Check no errors
-        if expected.get("no_errors", False):
-            if not result.stderr:
-                validation["checks"].append("No errors in stderr")
-            else:
-                validation["valid"] = False
-                validation["failures"].append("Stderr contains errors")
-
-        # Check duration
-        if expected.get("max_duration"):
-            if result.duration <= expected["max_duration"]:
-                validation["checks"].append("Duration within limit")
-            else:
-                validation["valid"] = False
-                validation["failures"].append(
-                    f"Duration {result.duration}s > {expected['max_duration']}s"
-                )
+        # Validate each expected criterion
+        self._validate_exit_code(result, expected, validation)
+        self._validate_output_contains(result, expected, validation)
+        self._validate_no_errors(result, expected, validation)
+        self._validate_duration(result, expected, validation)
 
         return validation
+
+    def _validate_exit_code(self, result: ExecutionResult, expected: Dict, validation: Dict) -> None:
+        """Validate exit code matches expected value"""
+        if expected.get("exit_code") is None:
+            return
+        
+        if result.exit_code == expected["exit_code"]:
+            validation["checks"].append("Exit code matches")
+        else:
+            validation["valid"] = False
+            validation["failures"].append(
+                f"Exit code {result.exit_code} != {expected['exit_code']}"
+            )
+
+    def _validate_output_contains(self, result: ExecutionResult, expected: Dict, validation: Dict) -> None:
+        """Validate output contains expected patterns"""
+        output_patterns = expected.get("output_contains")
+        if not output_patterns:
+            return
+        
+        for pattern in output_patterns:
+            if pattern in result.stdout:
+                validation["checks"].append(f"Output contains '{pattern}'")
+            else:
+                validation["valid"] = False
+                validation["failures"].append(f"Output missing '{pattern}'")
+
+    def _validate_no_errors(self, result: ExecutionResult, expected: Dict, validation: Dict) -> None:
+        """Validate no errors in stderr"""
+        if not expected.get("no_errors", False):
+            return
+        
+        if not result.stderr:
+            validation["checks"].append("No errors in stderr")
+        else:
+            validation["valid"] = False
+            validation["failures"].append("Stderr contains errors")
+
+    def _validate_duration(self, result: ExecutionResult, expected: Dict, validation: Dict) -> None:
+        """Validate execution duration within limit"""
+        max_duration = expected.get("max_duration")
+        if not max_duration:
+            return
+        
+        if result.duration <= max_duration:
+            validation["checks"].append("Duration within limit")
+        else:
+            validation["valid"] = False
+            validation["failures"].append(
+                f"Duration {result.duration}s > {max_duration}s"
+            )
 
     def is_successful(self, result: ExecutionResult) -> bool:
         """Quick check if execution was successful"""

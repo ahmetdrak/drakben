@@ -109,7 +109,12 @@ class RefactoredDrakbenAgent:
         )
 
         # 3. SELECT STRATEGY AND PROFILE (enforced order)
-        self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
+        try:
+            self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
+        except Exception as e:
+            self.console.print(f"❌ Strategy selection failed: {e}", style="red")
+            logger.exception("Strategy selection error")
+            return
         
         if not self.current_strategy or not self.current_profile:
             self.console.print("❌ No strategy/profile available", style="red")
@@ -190,13 +195,21 @@ class RefactoredDrakbenAgent:
             f"\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
         )
 
-        while self.running:
+        max_iterations = self.state.max_iterations
+        iteration = 0
+        
+        while self.running and iteration < max_iterations:
             iteration = self.state.iteration_count + 1
             self.console.print(f"\n{'='*60}", style="dim")
             self.console.print(
-                f"⚡ Iteration {iteration}/{self.state.max_iterations}",
+                f"⚡ Iteration {iteration}/{max_iterations}",
                 style=self.STYLE_CYAN,
             )
+            
+            # Safety: Prevent infinite loops
+            if iteration > max_iterations:
+                self.console.print("🛑 Maximum iterations reached, stopping", style=self.STYLE_RED)
+                break
 
             # 1. Stagnation Check
             if self._check_stagnation():
@@ -565,21 +578,43 @@ class RefactoredDrakbenAgent:
             )
             self.console.print(f"Args: {args}", style="red")
 
-            # Interactive confirmation (Input loop)
-            while True:
-                response = (
-                    input("🛑 Do you authorize this action? (YES/NO): ").strip().upper()
-                )
-                if response == "YES":
-                    self.console.print("✅ Action authorized by user.", style="green")
-                    break
-                elif response == "NO":
-                    self.console.print("🚫 Action blocked by user.", style=self.STYLE_RED)
+            # Interactive confirmation (Input loop with timeout protection)
+            max_attempts = 3
+            attempts = 0
+            while attempts < max_attempts:
+                try:
+                    response = (
+                        input("🛑 Do you authorize this action? (YES/NO): ").strip().upper()
+                    )
+                    if response == "YES":
+                        self.console.print("✅ Action authorized by user.", style="green")
+                        break
+                    elif response == "NO":
+                        self.console.print("🚫 Action blocked by user.", style=self.STYLE_RED)
+                        return {
+                            "success": False,
+                            "error": "User denied authorization",
+                            "blocked": True,
+                        }
+                    else:
+                        attempts += 1
+                        if attempts < max_attempts:
+                            self.console.print("⚠️  Please enter YES or NO", style="yellow")
+                except (EOFError, KeyboardInterrupt):
+                    self.console.print("\n🚫 Action cancelled by user", style=self.STYLE_RED)
                     return {
                         "success": False,
-                        "error": "User denied authorization",
+                        "error": "User cancelled authorization",
                         "blocked": True,
                     }
+            
+            if attempts >= max_attempts:
+                self.console.print("🚫 Too many invalid responses, blocking action", style=self.STYLE_RED)
+                return {
+                    "success": False,
+                    "error": "Authorization failed after max attempts",
+                    "blocked": True,
+                }
 
         if tool_name in ["sqlmap_exploit", "sqlmap_scan"]:
             target = args.get("target") or f"http://{self.state.target}"
@@ -833,6 +868,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
     def _run_async(self, coro, timeout: int = 60):
         """
         Run async coroutine deterministically from sync context.
+        Includes proper timeout and error handling to prevent hangs.
 
         Args:
             coro: Async coroutine to run
@@ -856,7 +892,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
             }
 
         try:
-            # Run with timeout
+            # Run with timeout - this prevents infinite hangs
             return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
         except asyncio.TimeoutError:
             self.console.print(
@@ -864,6 +900,7 @@ Output the FULL modified file content in ```python``` block. Ensure valid syntax
             )
             return {"success": False, "error": f"Async task timed out after {timeout}s"}
         except Exception as e:
+            logger.exception(f"Async execution error: {e}")
             self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
             return {"success": False, "error": f"Async execution failed: {str(e)}"}
 

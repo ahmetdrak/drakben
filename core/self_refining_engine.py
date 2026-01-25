@@ -198,25 +198,53 @@ class SelfRefiningEngine:
     def __init__(self, db_path: str = "evolution.db"):
         self.db_path = db_path
         self._lock = threading.RLock()
-        self._init_database()
-        self._seed_default_strategies()
+        try:
+            self._init_database()
+            self._seed_default_strategies()
+        except Exception as e:
+            logger.error(f"Failed to initialize SelfRefiningEngine: {e}")
+            logger.exception("Initialization error details")
+            # Continue anyway - will retry on first use
+            raise
     
     def _get_conn(self) -> sqlite3.Connection:
-        """Get thread-local database connection"""
-        conn = sqlite3.connect(self.db_path)
+        """Get thread-local database connection with timeout protection"""
+        # Set timeout to prevent indefinite blocking (5 seconds)
+        conn = sqlite3.connect(self.db_path, timeout=5.0)
         conn.row_factory = sqlite3.Row
+        # Enable WAL mode for better concurrency (reduces lock contention)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            pass  # WAL might not be available, continue anyway
         return conn
     
     def _init_database(self):
-        """Initialize database schema with migration support"""
+        """Initialize database schema with migration support
+        
+        Includes timeout protection to prevent hangs during initialization.
+        """
+        import time
+        start_time = time.time()
+        max_duration = 5  # Maximum 5 seconds for database init
+        
         with self._lock:
-            conn = self._get_conn()
+            try:
+                conn = self._get_conn()
+            except sqlite3.OperationalError as e:
+                logger.error(f"Database connection failed during init: {e}")
+                raise  # This is critical, so we should raise
+            
             try:
                 # Check if we need to migrate (old schema detection)
                 try:
                     cursor = conn.execute("SELECT priority_tier FROM policies LIMIT 1")
                 except sqlite3.OperationalError:
                     # Old schema detected - need to recreate
+                    if time.time() - start_time > max_duration:
+                        logger.warning("Database migration timeout")
+                        return
+                    
                     logger.info("Migrating database to new schema...")
                     conn.executescript("""
                         DROP TABLE IF EXISTS policies;
@@ -230,10 +258,24 @@ class SelfRefiningEngine:
                     """)
                     conn.commit()
                 
+                if time.time() - start_time > max_duration:
+                    logger.warning("Schema creation timeout")
+                    return
+                
                 conn.executescript(SCHEMA_SQL)
                 conn.commit()
+            except sqlite3.OperationalError as e:
+                logger.error(f"Database operation failed: {e}")
+                # Check if it's a lock error
+                if "locked" in str(e).lower() or "database is locked" in str(e).lower():
+                    logger.error("Database is locked by another process. Please close other instances.")
+                    raise
+                raise
             finally:
-                conn.close()
+                try:
+                    conn.close()
+                except:
+                    pass
     
     def _generate_id(self, prefix: str = "") -> str:
         """Generate unique ID"""
@@ -246,13 +288,29 @@ class SelfRefiningEngine:
     # =========================================================================
     
     def _seed_default_strategies(self):
-        """Seed default strategies if none exist"""
+        """Seed default strategies if none exist
+        
+        Includes timeout protection and batch operations for performance.
+        """
+        import time
+        start_time = time.time()
+        max_duration = 10  # Maximum 10 seconds for seeding
+        
         with self._lock:
-            conn = self._get_conn()
+            try:
+                conn = self._get_conn()
+            except sqlite3.OperationalError as e:
+                logger.error(f"Database connection failed during seeding: {e}")
+                return  # Skip seeding if database is locked
+            
             try:
                 cursor = conn.execute("SELECT COUNT(*) FROM strategies")
                 if cursor.fetchone()[0] > 0:
                     return  # Already seeded
+                
+                if time.time() - start_time > max_duration:
+                    logger.warning("Seeding timeout before starting")
+                    return
                 
                 default_strategies = [
                     {
@@ -322,12 +380,16 @@ class SelfRefiningEngine:
                 ]
                 
                 now = datetime.now().isoformat()
+                
+                # Batch insert strategies for better performance
+                strategy_inserts = []
                 for strat in default_strategies:
+                    if time.time() - start_time > max_duration:
+                        logger.warning(f"Seeding timeout after {len(strategy_inserts)} strategies")
+                        break
+                    
                     strategy_id = self._generate_id("strat_")
-                    conn.execute("""
-                        INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (
+                    strategy_inserts.append((
                         strategy_id,
                         strat["name"],
                         strat["target_type"],
@@ -335,13 +397,37 @@ class SelfRefiningEngine:
                         json.dumps(strat["base_parameters"]),
                         now
                     ))
-                    
-                    # Create initial profiles for each strategy
-                    self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
+                
+                # Batch insert all strategies at once
+                if strategy_inserts:
+                    conn.executemany("""
+                        INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, strategy_inserts)
+                    conn.commit()
+                
+                # Create profiles for each strategy (with timeout check)
+                for strat in default_strategies:
+                    if time.time() - start_time > max_duration:
+                        logger.warning("Seeding timeout during profile creation")
+                        break
+                    try:
+                        self._create_initial_profiles(conn, strat["name"], strat["base_parameters"], now)
+                    except Exception as e:
+                        logger.error(f"Failed to create profiles for {strat['name']}: {e}")
+                        continue
                 
                 conn.commit()
+            except sqlite3.OperationalError as e:
+                logger.error(f"Database error during seeding: {e}")
+                # Don't raise - allow application to continue
+            except Exception as e:
+                logger.exception(f"Unexpected error during seeding: {e}")
             finally:
-                conn.close()
+                try:
+                    conn.close()
+                except:
+                    pass
     
     def _create_initial_profiles(self, conn: sqlite3.Connection, strategy_name: str, 
                                   base_params: Dict, created_at: str):
@@ -1146,48 +1232,81 @@ class SelfRefiningEngine:
         3. Select best strategy_profile (not retired, not failed)
         
         Returns (strategy, profile) tuple
+        
+        Includes timeout protection to prevent hangs.
         """
-        # Step 1: Classify target
-        target_type = self.classify_target(target)
-        target_signature = self.get_target_signature(target)
+        import time
+        start_time = time.time()
+        max_duration = 30  # Maximum 30 seconds for selection
         
-        # Step 2: Get strategies for this target type
-        strategies = self.get_strategies_for_target_type(target_type)
-        if not strategies:
+        try:
+            # Step 1: Classify target
+            target_type = self.classify_target(target)
+            target_signature = self.get_target_signature(target)
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Strategy selection timeout during classification")
+                return None, None
+            
+            # Step 2: Get strategies for this target type
+            strategies = self.get_strategies_for_target_type(target_type)
+            if not strategies:
+                return None, None
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Strategy selection timeout during strategy retrieval")
+                return None, None
+            
+            # Apply policies to strategies
+            context = {
+                "target_type": target_type,
+                "target_signature": target_signature
+            }
+            strategies = self.apply_policies_to_strategies(strategies, context)
+            if not strategies:
+                return None, None
+            
+            # Sort by historical success (would need strategy-level metrics in production)
+            # For now, just pick first one
+            selected_strategy = strategies[0]
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Strategy selection timeout during policy application")
+                return None, None
+            
+            # Step 3: Get profiles for selected strategy
+            profiles = self.get_profiles_for_strategy(selected_strategy.name, include_retired=False)
+            
+            # Apply policies to profiles
+            profiles = self.apply_policies_to_profiles(profiles, context)
+            
+            # Exclude profiles that have failed for this target
+            failed_profiles = self.get_failed_profiles_for_target(target_signature)
+            profiles = [p for p in profiles if p.profile_id not in failed_profiles]
+            
+            if time.time() - start_time > max_duration:
+                logger.warning("Strategy selection timeout during profile filtering")
+                # Return first available profile if any, otherwise None
+                if profiles:
+                    return selected_strategy, profiles[0]
+                return None, None
+            
+            if not profiles:
+                # All profiles failed or retired - need mutation (with timeout check)
+                try:
+                    profile = self.select_best_profile(selected_strategy.name, failed_profiles)
+                except Exception as e:
+                    logger.error(f"Profile selection/mutation failed: {e}")
+                    return None, None
+            else:
+                # Sort by success rate and pick best
+                profiles.sort(key=lambda p: p.success_rate, reverse=True)
+                profile = profiles[0]
+            
+            return selected_strategy, profile
+        except Exception as e:
+            logger.exception(f"Error in select_strategy_and_profile: {e}")
             return None, None
-        
-        # Apply policies to strategies
-        context = {
-            "target_type": target_type,
-            "target_signature": target_signature
-        }
-        strategies = self.apply_policies_to_strategies(strategies, context)
-        if not strategies:
-            return None, None
-        
-        # Sort by historical success (would need strategy-level metrics in production)
-        # For now, just pick first one
-        selected_strategy = strategies[0]
-        
-        # Step 3: Get profiles for selected strategy
-        profiles = self.get_profiles_for_strategy(selected_strategy.name, include_retired=False)
-        
-        # Apply policies to profiles
-        profiles = self.apply_policies_to_profiles(profiles, context)
-        
-        # Exclude profiles that have failed for this target
-        failed_profiles = self.get_failed_profiles_for_target(target_signature)
-        profiles = [p for p in profiles if p.profile_id not in failed_profiles]
-        
-        if not profiles:
-            # All profiles failed or retired - need mutation
-            profile = self.select_best_profile(selected_strategy.name, failed_profiles)
-        else:
-            # Sort by success rate and pick best
-            profiles.sort(key=lambda p: p.success_rate, reverse=True)
-            profile = profiles[0]
-        
-        return selected_strategy, profile
     
     # =========================================================================
     # EVOLUTION STATUS & DEBUG
@@ -1238,14 +1357,20 @@ class SelfRefiningEngine:
                 conn.close()
     
     def get_profile_lineage(self, profile_id: str) -> List[str]:
-        """Get the mutation lineage of a profile"""
+        """Get the mutation lineage of a profile
+        
+        Includes protection against circular references to prevent infinite loops.
+        """
         lineage = [profile_id]
         current_id = profile_id
+        visited = {profile_id}  # Track visited IDs to prevent cycles
+        max_depth = 100  # Maximum lineage depth to prevent infinite loops
         
         with self._lock:
             conn = self._get_conn()
             try:
-                while True:
+                depth = 0
+                while depth < max_depth:
                     cursor = conn.execute(
                         "SELECT parent_profile_id FROM strategy_profiles WHERE profile_id = ?",
                         (current_id,)
@@ -1253,8 +1378,21 @@ class SelfRefiningEngine:
                     row = cursor.fetchone()
                     if not row or not row[0]:
                         break
-                    lineage.append(row[0])
-                    current_id = row[0]
+                    
+                    parent_id = row[0]
+                    
+                    # Check for circular reference
+                    if parent_id in visited:
+                        logger.warning(f"Circular reference detected in profile lineage: {parent_id}")
+                        break
+                    
+                    lineage.append(parent_id)
+                    visited.add(parent_id)
+                    current_id = parent_id
+                    depth += 1
+                
+                if depth >= max_depth:
+                    logger.warning(f"Profile lineage exceeded max depth ({max_depth}), truncating")
                 
                 return lineage[::-1]  # Return from oldest to newest
             finally:
