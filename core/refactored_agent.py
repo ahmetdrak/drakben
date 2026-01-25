@@ -140,7 +140,7 @@ class RefactoredDrakbenAgent:
             f"🔄 Initializing agent for target: {target} [{mode_label}]", 
             style=self.STYLE_BLUE
         )
-    
+
     def _reset_and_evolve_state(self, target: str) -> None:
         """Reset state and evolve tool priorities"""
         self.state = reset_state(target)
@@ -149,7 +149,7 @@ class RefactoredDrakbenAgent:
             self.tool_selector.evolve_strategies(self.evolution)
         except Exception as e:
             self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
-    
+
     def _classify_target(self, target: str) -> str:
         """Classify target and set signature"""
         target_type = self.refining_engine.classify_target(target)
@@ -235,7 +235,7 @@ class RefactoredDrakbenAgent:
             )
         except Exception as e:
             logger.warning(f"Could not get evolution status: {e}")
-        
+
         try:
             context = {"target_type": target_type}
             policies = self.refining_engine.get_applicable_policies(context)
@@ -251,8 +251,8 @@ class RefactoredDrakbenAgent:
             logger.exception(f"Critical initialization error: {e}")
             self.console.print(f"❌ Critical error during initialization: {e}", style=self.STYLE_RED)
             # Still allow basic operation
-            self.state = reset_state(target)
-            self.state.phase = AttackPhase.INIT
+            if self.state:
+                self.state.phase = AttackPhase.INIT
             self.running = True
             self.stagnation_counter = 0
 
@@ -672,7 +672,7 @@ class RefactoredDrakbenAgent:
         if not pkg:
             # Try using tool_name directly as package name
             pkg = tool_name.split("_")[0]  # nmap_port_scan -> nmap
-        
+            
         system = platform.system().lower()
         self.console.print(f"🛠️ Attempting to auto-install '{pkg}'...", style="yellow")
         
@@ -809,7 +809,7 @@ class RefactoredDrakbenAgent:
     # Track self-healing attempts to prevent infinite loops
     _self_heal_attempts: Dict[str, int] = {}
     MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
-    
+
     def _handle_tool_failure(self, tool_name: str, command: str, result, args: Dict) -> Dict:
         """
         Handle tool failure with comprehensive self-healing.
@@ -1036,7 +1036,8 @@ class RefactoredDrakbenAgent:
         if result.exit_code != 0:
             self.tool_selector.record_tool_failure(tool_name)
         
-        return self._finalize_healing_result(healed, retry_result, result, tool_name, args)
+        # FIX: Return formatted result instead of recursive call
+        return self._format_tool_result(result, args)
     
     def _diagnose_error(self, output: str, exit_code: int) -> Dict:
         """

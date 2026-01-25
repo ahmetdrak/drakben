@@ -6,7 +6,7 @@
 import asyncio
 import base64
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Setup logger
 logger = logging.getLogger(__name__)
