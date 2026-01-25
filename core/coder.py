@@ -160,42 +160,42 @@ class ASTSecurityChecker(ast.NodeVisitor):
         func_name = self._get_call_name(node)
         
         if func_name:
-            self._check_dangerous_call(node, func_name)
-            self._check_module_function_call(node, func_name)
+            if func_name in self.DANGEROUS_FUNCTIONS:
+                self._handle_dangerous_function(node, func_name)
+            elif '.' in func_name:
+                self._handle_module_function(node, func_name)
         
         self.generic_visit(node)
 
-    def _check_dangerous_call(self, node, func_name):
-        """Check if call is in dangerous functions list"""
-        if func_name in self.DANGEROUS_FUNCTIONS:
-            if func_name == 'open':
-                # open() is allowed with safe paths
-                self._check_open_call(node)
-            else:
-                self.violations.append(f"Dangerous function call: {func_name}")
+    def _handle_dangerous_function(self, node: ast.Call, func_name: str):
+        """Handle calls to known dangerous functions"""
+        if func_name == 'open':
+            # open() is allowed with safe paths
+            self._check_open_call(node)
+        else:
+            self.violations.append(f"Dangerous function call: {func_name}")
 
-    def _check_module_function_call(self, node, func_name):
-        """Check if call is a restricted module function"""
-        if '.' in func_name:
-            parts = func_name.split('.')
-            if len(parts) >= 2:
-                module_alias = parts[0]
-                func = parts[1]
-                
-                # Resolve module alias
-                module_name = self.imported_modules.get(module_alias, module_alias)
-                
-                if (module_name, func) in self.RESTRICTED_CALLS:
-                    # Allow subprocess for specific security tools
-                    if module_name == 'subprocess' and self.allow_subprocess_tools:
-                        if not self._is_allowed_subprocess_call(node):
-                            self.violations.append(
-                                f"Subprocess call with non-whitelisted command"
-                            )
-                    else:
-                        self.violations.append(
-                            f"Restricted call: {module_name}.{func}"
-                        )
+    def _handle_module_function(self, node: ast.Call, func_name: str):
+        """Handle calls to module functions"""
+        parts = func_name.split('.')
+        if len(parts) >= 2:
+            module_alias = parts[0]
+            func = parts[1]
+            
+            # Resolve module alias
+            module_name = self.imported_modules.get(module_alias, module_alias)
+            
+            if (module_name, func) in self.RESTRICTED_CALLS:
+                self._check_restricted_call(node, module_name, func)
+
+    def _check_restricted_call(self, node: ast.Call, module_name: str, func: str):
+        """Check if a restricted call is allowed under specific conditions"""
+        # Allow subprocess for specific security tools
+        if module_name == 'subprocess' and self.allow_subprocess_tools:
+            if not self._is_allowed_subprocess_call(node):
+                self.violations.append("Subprocess call with non-whitelisted command")
+        else:
+            self.violations.append(f"Restricted call: {module_name}.{func}")
     
     def visit_Attribute(self, node: ast.Attribute):
         """Check attribute access for dangerous patterns"""
