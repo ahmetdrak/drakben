@@ -1,43 +1,54 @@
 # 🦇 DRAKBEN - Autonomous AI Pentest Agent
 
-**Drakben**, Yeni nesil, kendi kendini yöneten, evrimleşen ve kendi kendini iyileştiren (Self-Healing) bir Otonom Sızma Testi Ajanıdır.
+<div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Beta-orange)
-![Platform](https://img.shields.io/badge/Platform-Kali%20Linux%20%7C%20Windows-black)
+![DRAKBEN Banner](https://capsule-render.vercel.app/api?type=waving&color=auto&height=200&section=header&text=DRAKBEN&fontSize=90&animation=fadeIn&fontAlignY=38&desc=Autonomous%20Self-Refining%20AI%20Hacker&descAlignY=51&descAlign=62)
 
-## 🚀 Özellikler
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Kali Linux](https://img.shields.io/badge/Kali-Linux-557C94?style=for-the-badge&logo=kalilinux&logoColor=white)](https://www.kali.org/)
+[![Status](https://img.shields.io/badge/Status-Stable-success?style=for-the-badge)](https://github.com/ahmetdrak/drakben)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-Drakben, sıradan bir otomasyon aracı değildir. Biyolojik bir organizma gibi tasarlanmıştır:
+*Yeni nesil, kendi kendini yöneten, evrimleşen ve iyileştiren Otonom Sızma Testi Ajanı.*
 
-*   **🧠 Beyin (Brain):** Gelişmiş LLM entegrasyonu (OpenAI, Anthropic, Local LLM) ile karmaşık karar verme ve planlama.
-*   **❤️ Kalp (Heart):** Ajanın yaşam döngüsünü, sağlık durumunu ve enerji yönetimini sağlar.
-*   **🩸 Kan (Blood/State):** Tüm sistem durumunu, keşfedilen zafiyetleri ve kazanımları taşıyan merkezi veri yapısı.
-*   **💪 Kas (Muscle/Executor):** Komutları güvenli bir şekilde çalıştıran, sandbox destekli yürütme motoru.
+[🇬🇧 English](README_EN.md) | [🇹🇷 Türkçe](README.md)
 
-### 🌟 Temel Yetenekler
+</div>
 
-*   **🧬 Evrimsel Öğrenme:** Başarısız stratejilerden ders çıkarır ve kendini optimize eder. (Evolution Engine)
-*   **🩹 Kendi Kendini İyileştirme (Self-Healing):** Hata alan araçları analiz eder, parametreleri düzeltir ve tekrar dener.
-*   **🕵️‍♂️ Otonom Keşif & İstismar:**
-    *   Akıllı Port Tarama (Nmap entegrasyonu)
-    *   Web Zafiyet Taraması
-    *   Active Directory Saldırıları (Kerberoasting, vb.)
-    *   Payload Üretimi (Obfuscation & AV Bypass)
-*   **🛡️ Güvenlik:**
-    *   Komutlar `shell=False` ile güvenli çalıştırılır.
-    *   Tehlikeli komutlar (rm -rf / vb.) engellenir.
-    *   Durum takibi (State Persistence) ile veri kaybı önlenir.
+---
+
+## 🚀 Nedir?
+
+**Drakben**, sıradan bir otomasyon aracı değildir. Otonom bir yapay zeka ajanıdır.
+
+Geleneksel araçlar (Nmap, Metasploit) birer "çekiç" ise, Drakben o çekici tutan "usta"dır. Hedefi analiz eder, hangi aracı kullanacağına karar verir, hata alırsan stratejisini değiştirir ve sonucu raporlar.
+
+### 🔥 Öne Çıkan Özellikler
+
+*   **🧠 Otonom Zeka (Brain):** LLM (GPT-4o, Claude 3.5, Local Llama) desteği ile karmaşık karar verme yeteneği.
+*   **🧬 Evrimsel Öğrenme (Evolution):** Başarısız stratejilerden ders çıkarır. Aynı hatayı iki kez yapmaz.
+*   **🩹 Self-Healing (Kendi Kendini Onarma):** Bir araç hata verirse (örn: parametre hatası), ajan bunu fark eder, düzeltir ve tekrar çalıştırır.
+*   **🦠 Polimorfik Payload:** Antivirüsleri atlatmak için her seferinde farklı (randomize edilmiş) exploit kodları üretir.
+*   **�️ Güvenli Sandbox:** Komutları izole bir ortamda, güvenlik filtrelerinden geçirerek çalıştırır (`shell=False`).
+
+## 🛠️ Yetenekler (Modules)
+
+| Modül | Açıklama |
+| :--- | :--- |
+| **🔍 Recon** | Akıllı Port Tarama, Subdomain Keşfi (Nmap, Sublist3r entegrasyonu) |
+| **💥 Exploit** | Metasploit, SQLMap ve Hydra kullanarak zafiyet sömürme |
+| **🔑 Password** | Brute-force saldırıları (SSH, FTP, RDP) için Hydra otomasyonu |
+| **🎁 Payload** | Base64, Hex, ve Custom Encoder ile AV Bypass payload üretimi |
+| **📄 Rapor** | Bulguları JSON, HTML ve PDF formatında profesyonelce raporlar |
 
 ## 📦 Kurulum
 
-### Gereksinimler
-*   Python 3.8 veya üzeri
-*   Nmap, Metasploit (Opsiyonel ama önerilir)
-*   Kali Linux (Önerilen İşletim Sistemi) veya Windows
+### Ön Gereksinimler
+*   Python 3.8+
+*   Git
+*   Kali Linux (Önerilir) veya Windows
 
-### Adım Adım Kurulum
+### Hızlı Başlangıç
 
 1.  **Depoyu Klonlayın:**
     ```bash
@@ -45,13 +56,15 @@ Drakben, sıradan bir otomasyon aracı değildir. Biyolojik bir organizma gibi t
     cd drakben
     ```
 
-2.  **Sanal Ortam Oluşturun (Önerilir):**
+2.  **Sanal Ortam Kurun (Tavsiye Edilir):**
     ```bash
-    python -m venv .venv
-    # Windows:
-    .venv\Scripts\activate
-    # Linux/Mac:
+    # Linux / Mac
+    python3 -m venv .venv
     source .venv/bin/activate
+
+    # Windows
+    python -m venv .venv
+    .venv\Scripts\activate
     ```
 
 3.  **Bağımlılıkları Yükleyin:**
@@ -59,9 +72,8 @@ Drakben, sıradan bir otomasyon aracı değildir. Biyolojik bir organizma gibi t
     pip install -r requirements.txt
     ```
 
-4.  **Yapılandırma:**
-    `config/api.env` dosyasını düzenleyerek API anahtarlarınızı girin (OpenRouter, OpenAI vb.).
-    *Not: API anahtarı olmadan da "Offline Mod"da çalışabilir.*
+4.  **Ayarları Yapın:**
+    `config/api.env` dosyasını düzenleyin ve API anahtarınızı (OpenRouter, OpenAI vb.) girin.
 
 ## 🎮 Kullanım
 
@@ -71,31 +83,33 @@ Ajanı başlatmak için:
 python drakben.py
 ```
 
-veya Windows için:
+**(Windows Kullanıcıları için `start.bat` dosyasına çift tıklamak yeterlidir.)**
 
-```cmd
-start.bat
-```
+### 💻 Komutlar
 
-### Komutlar
+Arayüz açıldığında:
 
-Arayüz açıldığında şu komutları kullanabilirsiniz:
-
-*   `/target <IP>` : Hedef sistemi belirler.
-*   `/scan` : Otonom taramayı başlatır.
-*   `/scan stealth` : Gizli (yavaş) tarama modu.
-*   `/scan aggressive` : Hızlı (gürültülü) tarama modu.
-*   `/help` : Tüm komutları listeler.
-*   `/tr` : Türkçe diline geçer.
+*   `/target <IP>` : 🎯 Hedefi belirler (Örn: `/target 192.168.1.10`)
+*   `/scan` : 🕵️‍♂️ Otonom taramayı başlatır (Ajan kontrolü ele alır)
+*   `/mode stealth` : 🥷 Gizli (sessiz) modda çalışır
+*   `/help` : ❓ Tüm komutları listeler
 
 ## ⚠️ Yasal Uyarı
 
-Bu yazılım **sadece eğitim ve yasal güvenlik testleri** amacıyla geliştirilmiştir. Sahibi olmadığınız veya yazılı izniniz olmayan sistemlerde kullanmak **YASAKTIR**. Geliştiriciler, bu aracın kötüye kullanımından doğacak zararlardan sorumlu tutulamaz.
+> 🚨 **DİKKAT:** Bu yazılım **sadece eğitim ve yasal güvenlik testleri (Pentest)** amacıyla geliştirilmiştir.
+> Sahibi olmadığınız veya yazılı izniniz (Authorized) olmayan sistemlerde kullanmak **YASAKTIR**.
+> Geliştirici (@ahmetdrak), bu aracın kötü niyetli kullanımından doğacak hiçbir zarardan sorumlu tutulamaz.
 
 ## 🤝 Katkıda Bulunma
 
-Pull Request'ler kabul edilir. Büyük değişiklikler için önce bir Issue açarak tartışmanızı öneririz.
+Pull Request'leriniz memnuniyetle karşılanır. Büyük değişiklikler için lütfen önce Issue açarak tartışınız.
 
-## 📜 Lisans
+## 👨‍� Geliştirici
 
-Bu proje MIT Lisansı ile lisanslanmıştır. Detaylar için `LICENSE` dosyasına bakınız.
+**Ahmet Drak**
+*   GitHub: [@ahmetdrak](https://github.com/ahmetdrak)
+
+---
+<div align="center">
+Made with ❤️ & ☕ by Drakben Team
+</div>
