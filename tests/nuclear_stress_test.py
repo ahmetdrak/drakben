@@ -82,11 +82,11 @@ class NuclearTest:
         planner.load_plan(plan_id)
 
         # 1. Execute step 1 success
-        s1 = planner.get_next_step()
+        planner.get_next_step()
         planner.mark_step_success("step_1", "ok")
 
         # 2. Execute step 2 failure (no more retries)
-        s2 = planner.get_next_step()
+        planner.get_next_step()
         planner.mark_step_failed("step_2", "CRITICAL ERROR") # Trigger failure
 
         # 3. Check if planner allows step 3
