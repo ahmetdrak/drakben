@@ -50,7 +50,7 @@ except ImportError:
 
 class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
     """Custom completer for DRAKBEN commands"""
-    
+
     def __init__(self):
         self.commands = {
             "/help": "Show help menu",
@@ -68,30 +68,30 @@ class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
             "/exploit": "Run exploit",
             "/payload": "Generate payload",
         }
-        
+
         self.tool_commands = [
             "nmap", "nikto", "gobuster", "sqlmap", "hydra",
             "nuclei", "subfinder", "amass", "dirb", "wfuzz"
         ]
-        
+
         self.targets_history = []
-    
+
     def get_completions(self, document, complete_event):
         """Generate completions"""
         if not PROMPT_TOOLKIT_AVAILABLE:
             return
-        
+
         text = document.text_before_cursor
         word = document.get_word_before_cursor()
-        
+
         # Command completions
         if text.startswith('/'):
             yield from self._get_command_completions(text)
-        
+
         # Tool completions
         elif any(text.startswith(t) for t in ['scan', 'run', 'use']):
             yield from self._get_tool_completions(word)
-        
+
         # Target completions from history
         elif text.startswith('/target '):
             yield from self._get_target_completions(word)
@@ -117,7 +117,7 @@ class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
         for target in self.targets_history:
             if target.startswith(word):
                 yield Completion(target, start_position=-len(word))
-    
+
     def add_target(self, target: str):
         """Add target to history for completion"""
         if target and target not in self.targets_history:
@@ -131,14 +131,14 @@ class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
 class EnhancedPrompt:
     """
     Enhanced prompt with auto-complete and history.
-    
+
     Features:
     - Command auto-completion
     - History with file persistence
     - Syntax highlighting
     - Auto-suggestions
     """
-    
+
     def __init__(
         self,
         history_file: str = ".drakben_history",
@@ -147,14 +147,14 @@ class EnhancedPrompt:
         self.history_file = Path(history_file)
         self.enable_history = enable_history
         self.completer = DrakbenCompleter() if PROMPT_TOOLKIT_AVAILABLE else None
-        
+
         if PROMPT_TOOLKIT_AVAILABLE:
             self._init_prompt_toolkit()
         else:
             self.session = None
-        
+
         logger.info("EnhancedPrompt initialized")
-    
+
     def _init_prompt_toolkit(self):
         """Initialize prompt_toolkit session"""
         # Style
@@ -163,13 +163,13 @@ class EnhancedPrompt:
             'command': '#50fa7b',
             'path': '#8be9fd',
         })
-        
+
         # History
         if self.enable_history:
             history = FileHistory(str(self.history_file))
         else:
             history = InMemoryHistory()
-        
+
         # Session
         self.session = PromptSession(
             completer=self.completer,
@@ -179,7 +179,7 @@ class EnhancedPrompt:
             complete_while_typing=True,
             enable_history_search=True,
         )
-    
+
     def prompt(
         self,
         message: str = "DRAKBEN> ",
@@ -187,11 +187,11 @@ class EnhancedPrompt:
     ) -> str:
         """
         Get input with enhanced features.
-        
+
         Args:
             message: Prompt message
             default: Default value
-            
+
         Returns:
             User input
         """
@@ -209,7 +209,7 @@ class EnhancedPrompt:
                 return input(message) or default
             except (EOFError, KeyboardInterrupt):
                 return EXIT_COMMAND
-    
+
     def add_target_to_history(self, target: str):
         """Add target for completion suggestions"""
         if self.completer:
@@ -223,17 +223,17 @@ class EnhancedPrompt:
 class DrakbenProgress:
     """
     Progress indicators for long-running operations.
-    
+
     Provides:
     - Spinner for indeterminate tasks
     - Progress bar for determinate tasks
     - Multi-task progress
     - Status updates
     """
-    
+
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
-    
+
     def spinner(
         self,
         description: str = PROCESSING_TEXT,
@@ -241,7 +241,7 @@ class DrakbenProgress:
     ):
         """
         Create a spinner context manager.
-        
+
         Usage:
             with progress.spinner("Scanning..."):
                 do_scan()
@@ -252,13 +252,13 @@ class DrakbenProgress:
             console=self.console,
             transient=True
         )
-    
+
     def bar(
         self
     ):
         """
         Create a progress bar context manager.
-        
+
         Usage:
             with progress.bar() as p:
                 task = p.add_task("download", total=100)
@@ -275,7 +275,7 @@ class DrakbenProgress:
             console=self.console,
             transient=True
         )
-    
+
     async def async_spinner(
         self,
         coro,
@@ -283,11 +283,11 @@ class DrakbenProgress:
     ):
         """
         Run async coroutine with spinner.
-        
+
         Args:
             coro: Async coroutine to run
             description: Spinner description
-            
+
         Returns:
             Coroutine result
         """
@@ -296,7 +296,7 @@ class DrakbenProgress:
             result = await coro
             progress.update(task, completed=True)
         return result
-    
+
     def scan_progress(
         self,
         targets: List[str],
@@ -305,28 +305,28 @@ class DrakbenProgress:
     ):
         """
         Show progress for scanning multiple targets.
-        
+
         Args:
             targets: List of targets
             scan_func: Function to call for each target
             description: Progress description
-            
+
         Returns:
             List of scan results
         """
         results = []
-        
+
         with self.bar() as progress:
             task = progress.add_task(description, total=len(targets))
-            
+
             for target in targets:
                 progress.update(task, description=f"[cyan]Scanning {target}")
                 result = scan_func(target)
                 results.append(result)
                 progress.update(task, advance=1)
-        
+
         return results
-    
+
     async def async_scan_progress(
         self,
         targets: List[str],
@@ -336,57 +336,57 @@ class DrakbenProgress:
     ):
         """
         Show progress for async scanning.
-        
+
         Args:
             targets: List of targets
             scan_func: Async function to call
             description: Progress description
             concurrency: Max concurrent scans
-            
+
         Returns:
             List of scan results
         """
         results = []
         semaphore = asyncio.Semaphore(concurrency)
-        
+
         async def limited_scan(target):
             async with semaphore:
                 return await scan_func(target)
-        
+
         with self.bar() as progress:
             task = progress.add_task(description, total=len(targets))
-            
+
             tasks = []
             for target in targets:
                 tasks.append(limited_scan(target))
-            
+
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
                 progress.update(task, advance=1)
-        
+
         return results
 
 
 class StatusDisplay:
     """Real-time status display using Rich Live"""
-    
+
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
         self.status_data = {}
         self._live = None
-    
+
     def _generate_table(self) -> Table:
         """Generate status table"""
         table = Table(title="DRAKBEN Status", show_header=True)
         table.add_column("Component", style="cyan")
         table.add_column("Status", style="green")
         table.add_column("Details", style="dim")
-        
+
         for component, data in self.status_data.items():
             status = data.get("status", "Unknown")
             details = data.get("details", "")
-            
+
             if status == "OK":
                 status_style = "green"
             elif status == "Running":
@@ -394,9 +394,9 @@ class StatusDisplay:
             else:
                 status_style = "red"
             table.add_row(component, f"[{status_style}]{status}[/]", details)
-        
+
         return table
-    
+
     def start(self):
         """Start live display"""
         self._live = Live(
@@ -405,13 +405,13 @@ class StatusDisplay:
             refresh_per_second=4
         )
         self._live.start()
-    
+
     def stop(self):
         """Stop live display"""
         if self._live:
             self._live.stop()
             self._live = None
-    
+
     def update(self, component: str, status: str, details: str = ""):
         """Update component status"""
         self.status_data[component] = {
@@ -419,14 +419,14 @@ class StatusDisplay:
             "details": details,
             "updated": time.time()
         }
-        
+
         if self._live:
             self._live.update(self._generate_table())
-    
+
     def __enter__(self):
         self.start()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
@@ -439,7 +439,7 @@ class CommandHistory:
     """
     Command history manager with file persistence.
     """
-    
+
     def __init__(
         self,
         history_file: str = ".drakben_history",
@@ -449,7 +449,7 @@ class CommandHistory:
         self.max_entries = max_entries
         self.entries: List[Dict[str, Any]] = []
         self._load()
-    
+
     def _load(self):
         """Load history from file"""
         if self.history_file.exists():
@@ -464,7 +464,7 @@ class CommandHistory:
                             })
             except Exception as e:
                 logger.error(f"Failed to load history: {e}")
-    
+
     def _save(self):
         """Save history to file"""
         try:
@@ -473,7 +473,7 @@ class CommandHistory:
                     f.write(entry["command"] + "\n")
         except Exception as e:
             logger.error(f"Failed to save history: {e}")
-    
+
     def add(self, command: str):
         """Add command to history"""
         if command and not command.startswith('#'):
@@ -482,18 +482,18 @@ class CommandHistory:
                 "timestamp": time.time()
             })
             self._save()
-    
+
     def search(self, prefix: str) -> List[str]:
         """Search history by prefix"""
         return [
             e["command"] for e in self.entries
             if e["command"].startswith(prefix)
         ]
-    
+
     def get_recent(self, count: int = 10) -> List[str]:
         """Get recent commands"""
         return [e["command"] for e in self.entries[-count:]]
-    
+
     def clear(self):
         """Clear history"""
         self.entries.clear()

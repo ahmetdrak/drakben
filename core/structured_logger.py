@@ -7,28 +7,30 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 
+
 class DrakbenLogger:
     """
     Structured Logger for Drakben Agent decisions and actions.
     Saves logs in JSONL format for easy parsing and analysis.
     """
-    
+
     def __init__(self, log_dir: str = "logs"):
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Current session log file
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = self.log_dir / f"drakben_session_{self.session_id}.jsonl"
-        
+        self.log_file = self.log_dir / \
+            f"drakben_session_{self.session_id}.jsonl"
+
         self.logger = logging.getLogger("DrakbenStructured")
-        
+
     def log_decision(
-        self, 
-        step_id: str, 
-        phase: str, 
-        context: Dict[str, Any], 
-        decision: Dict[str, Any], 
+        self,
+        step_id: str,
+        phase: str,
+        context: Dict[str, Any],
+        decision: Dict[str, Any],
         reasoning: str = ""
     ):
         """Log an AI decision point"""
@@ -53,10 +55,12 @@ class DrakbenLogger:
         # Clean result to avoid storing massive outputs
         cleaned_result = result.copy()
         if "stdout" in cleaned_result:
-             cleaned_result["stdout"] = cleaned_result["stdout"][:500] + "... (truncated)"
+            cleaned_result["stdout"] = cleaned_result["stdout"][:500] + \
+                "... (truncated)"
         if "stderr" in cleaned_result:
-             cleaned_result["stderr"] = cleaned_result["stderr"][:500] + "... (truncated)"
-             
+            cleaned_result["stderr"] = cleaned_result["stderr"][:500] + \
+                "... (truncated)"
+
         entry = {
             "timestamp": datetime.fromtimestamp(time.time()).isoformat(),
             "type": "ACTION",
@@ -65,7 +69,7 @@ class DrakbenLogger:
             "result": cleaned_result
         }
         self._write(entry)
-        
+
     def log_error(self, message: str, traceback: str = ""):
         """Log a critical error"""
         entry = {

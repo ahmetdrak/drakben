@@ -31,7 +31,8 @@ def parse_llm_json_response(response: str) -> Optional[Dict]:
 
     # Strategy 2: Extract from markdown code blocks
     # Pattern: ```json\n{...}\n```
-    code_block_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", response)
+    code_block_match = re.search(
+        r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", response)
     if code_block_match:
         try:
             return json.loads(code_block_match.group(1))
@@ -51,8 +52,10 @@ def parse_llm_json_response(response: str) -> Optional[Dict]:
 
 
 def format_llm_prompt(
-    system_msg: str, user_msg: str, json_response: bool = False, language: str = "en"
-) -> str:
+        system_msg: str,
+        user_msg: str,
+        json_response: bool = False,
+        language: str = "en") -> str:
     """
     Format a standardized LLM prompt with language instructions.
 

@@ -2,6 +2,7 @@
 # DRAKBEN Nuclei Scanner Integration
 # Fast vulnerability scanning with Nuclei templates
 
+from __future__ import annotations
 import asyncio
 import json
 import logging
@@ -11,11 +12,15 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from enum import Enum
 from urllib.parse import urlparse
 
+if TYPE_CHECKING:
+    from core.state import AgentState
+
 logger = logging.getLogger(__name__)
+
 
 def _get_default_port(scheme: Optional[str]) -> int:
     """Get default port for scheme"""
@@ -60,7 +65,7 @@ class NucleiResult:
     description: str = ""
     reference: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "template_id": self.template_id,
@@ -97,7 +102,7 @@ class NucleiScanConfig:
 class NucleiScanner:
     """
     Nuclei Scanner Integration.
-    
+
     Features:
     - Template-based scanning
     - Severity filtering
@@ -105,27 +110,27 @@ class NucleiScanner:
     - Async execution
     - Result parsing
     """
-    
+
     def __init__(self, nuclei_path: str = "nuclei"):
         """
         Initialize Nuclei scanner.
-        
+
         Args:
             nuclei_path: Path to nuclei binary
         """
         self.nuclei_path = nuclei_path
         self.templates_path: Optional[str] = None
         self.available = self._check_nuclei()
-        
+
         if self.available:
             logger.info("Nuclei scanner initialized")
         else:
             logger.warning("Nuclei not found - scanner disabled")
-    
+
     def _check_nuclei(self) -> bool:
         """Check if nuclei is available"""
         return shutil.which(self.nuclei_path) is not None
-    
+
     def _parse_severity(self, severity_str: str) -> NucleiSeverity:
         """Parse severity string to enum"""
         severity_map = {
@@ -136,14 +141,14 @@ class NucleiScanner:
             "critical": NucleiSeverity.CRITICAL
         }
         return severity_map.get(severity_str.lower(), NucleiSeverity.UNKNOWN)
-    
+
     def _parse_result(self, line: str) -> Optional[NucleiResult]:
         """Parse nuclei JSON output line"""
         try:
             data = json.loads(line)
-            
+
             info = data.get("info", {})
-            
+
             return NucleiResult(
                 template_id=data.get("template-id", ""),
                 template_name=info.get("name", ""),
@@ -161,7 +166,7 @@ class NucleiScanner:
         except Exception as e:
             logger.error(f"Error parsing nuclei result: {e}")
             return None
-    
+
     async def scan(
         self,
         targets: List[str],
@@ -170,24 +175,24 @@ class NucleiScanner:
     ) -> List[NucleiResult]:
         """
         Run Nuclei scan.
-        
+
         Args:
             targets: List of target URLs/hosts
             config: Scan configuration
             output_file: Optional output file path
-            
+
         Returns:
             List of NucleiResult objects
         """
         if not self.available:
             logger.error("Nuclei not available")
             return []
-        
+
         config = config or NucleiScanConfig()
         targets_file = await _create_nuclei_targets_file(targets)
         if not targets_file:
             return []
-        
+
         try:
             cmd = self._build_nuclei_command(targets_file, config, output_file)
             results = await self._execute_nuclei_scan(cmd, output_file)
@@ -195,9 +200,11 @@ class NucleiScanner:
         finally:
             _cleanup_nuclei_temp_file(targets_file)
 
+
 async def _create_nuclei_targets_file(targets: List[str]) -> Optional[str]:
     """Create temporary file with targets"""
     import tempfile
+
     def _write_temp_file():
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             f.write('\n'.join(targets))
@@ -209,6 +216,7 @@ async def _create_nuclei_targets_file(targets: List[str]) -> Optional[str]:
         logger.error(f"Failed to create temp targets file: {e}")
         return None
 
+
 def _cleanup_nuclei_temp_file(targets_file: str) -> None:
     """Clean up temporary targets file"""
     import os
@@ -218,35 +226,36 @@ def _cleanup_nuclei_temp_file(targets_file: str) -> None:
         pass
 
 
-def nuclei_results_to_findings(results: List[NucleiResult]) -> List[Dict[str, Any]]:
+def nuclei_results_to_findings(
+        results: List[NucleiResult]) -> List[Dict[str, Any]]:
     """
     Convert Nuclei results to finding dictionaries for report generation.
-    
+
     Args:
         results: List of NucleiResult objects
-        
+
     Returns:
         List of finding dictionaries
     """
     findings = []
-    
+
     for result in results:
         finding = {
             "title": result.template_name or result.template_id,
             "severity": result.severity.value,
-            "description": result.description or f"Detected by template: {result.template_id}",
+            "description": result.description or f"Detected by template: {
+                result.template_id}",
             "affected_asset": result.host,
             "evidence": result.matched_at,
             "references": result.reference,
-            "tags": result.tags
-        }
-        
+            "tags": result.tags}
+
         # Add CVE if in template ID
         if result.template_id.upper().startswith("CVE-"):
             finding["cve_id"] = result.template_id.upper()
-        
+
         findings.append(finding)
-    
+
     return findings
 
 
@@ -258,45 +267,52 @@ async def nuclei_scan_state_target(
 ) -> List[NucleiResult]:
     """
     Run Nuclei scan on state target.
-    
+
     Args:
         state: AgentState instance
         scanner: Optional NucleiScanner instance
         severity_filter: Optional severity filter
-        
+
     Returns:
         List of NucleiResult objects
     """
     if not state.target:
         logger.warning("No target set in state")
         return []
-    
+
     scanner = scanner or NucleiScanner()
-    
+
     if not scanner.available:
         logger.warning("Nuclei not available")
         return []
-    
+
     config = NucleiScanConfig()
     if severity_filter:
         config.severity = severity_filter
-    
+
     # Add http/https if not present
     target = state.target
     if not target.startswith(('http://', 'https://')):
         targets = [f"http://{target}", f"https://{target}"]
     else:
         targets = [target]
-    
+
     results = await scanner.scan(targets, config)
-    
+
     # Update state with vulnerabilities
     from core.state import VulnerabilityInfo
-    
+
     for result in results:
-        if result.severity in [NucleiSeverity.CRITICAL, NucleiSeverity.HIGH, NucleiSeverity.MEDIUM]:
+        if result.severity in [
+                NucleiSeverity.CRITICAL,
+                NucleiSeverity.HIGH,
+                NucleiSeverity.MEDIUM]:
             # Extract port and service from result URL
-            parsed_url = urlparse(result.url) if hasattr(result, 'url') and result.url else urlparse(state.target)
+            parsed_url = urlparse(
+                result.url) if hasattr(
+                result,
+                'url') and result.url else urlparse(
+                state.target)
             port = parsed_url.port or _get_default_port(parsed_url.scheme)
             service = parsed_url.scheme or "http"
             vuln = VulnerabilityInfo(
@@ -307,5 +323,5 @@ async def nuclei_scan_state_target(
                 exploitable=True
             )
             state.add_vulnerability(vuln)
-    
+
     return results

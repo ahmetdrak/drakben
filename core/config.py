@@ -22,31 +22,33 @@ API_ENV_PATH = "config/api.env"
 # CENTRALIZED TIMEOUT CONFIGURATION
 # All modules should use these values for consistency
 # ===========================================
+
+
 class TimeoutConfig:
     """Centralized timeout settings for consistency across modules"""
-    
+
     # Database timeouts
     SQLITE_CONNECT_TIMEOUT = 10.0  # seconds
     SQLITE_BUSY_TIMEOUT = 10000    # milliseconds
-    
+
     # Network timeouts
     HTTP_REQUEST_TIMEOUT = 30      # seconds
     SOCKET_TIMEOUT = 10            # seconds
-    
+
     # LLM timeouts
     LLM_QUERY_TIMEOUT = 30         # seconds
     LLM_STREAMING_TIMEOUT = 60     # seconds
     LLM_MAX_STREAM_TIME = 300      # 5 minutes max
-    
+
     # Tool execution timeouts
     TOOL_DEFAULT_TIMEOUT = 300     # 5 minutes
     TOOL_FAST_TIMEOUT = 60         # 1 minute for fast tools
     TOOL_SLOW_TIMEOUT = 600        # 10 minutes for slow tools
-    
+
     # Thread timeouts
     THREAD_JOIN_TIMEOUT = 5.0      # seconds
     LOCK_ACQUIRE_TIMEOUT = 5.0     # seconds
-    
+
     # Process timeouts
     PROCESS_TERMINATE_TIMEOUT = 5  # seconds before kill
     PROCESS_CLEANUP_TIMEOUT = 2    # seconds for cleanup
@@ -159,14 +161,32 @@ class ConfigManager:
         lines = [
             "# LLM Configuration",
             "",
-            f"OPENROUTER_API_KEY={values.get('OPENROUTER_API_KEY', '')}",
-            f"OPENROUTER_MODEL={values.get('OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free')}",
+            f"OPENROUTER_API_KEY={
+                values.get(
+                    'OPENROUTER_API_KEY',
+                    '')}",
+            f"OPENROUTER_MODEL={
+                values.get(
+                    'OPENROUTER_MODEL',
+                    'meta-llama/llama-3.1-8b-instruct:free')}",
             "",
-            f"OPENAI_API_KEY={values.get('OPENAI_API_KEY', '')}",
-            f"OPENAI_MODEL={values.get('OPENAI_MODEL', 'gpt-4o-mini')}",
+            f"OPENAI_API_KEY={
+                values.get(
+                    'OPENAI_API_KEY',
+                    '')}",
+            f"OPENAI_MODEL={
+                values.get(
+                    'OPENAI_MODEL',
+                    'gpt-4o-mini')}",
             "",
-            f"LOCAL_LLM_URL={values.get('LOCAL_LLM_URL', 'http://localhost:11434')}",
-            f"LOCAL_LLM_MODEL={values.get('LOCAL_LLM_MODEL', 'llama3.1')}",
+            f"LOCAL_LLM_URL={
+                values.get(
+                    'LOCAL_LLM_URL',
+                    'http://localhost:11434')}",
+            f"LOCAL_LLM_MODEL={
+                values.get(
+                    'LOCAL_LLM_MODEL',
+                    'llama3.1')}",
             "",
             "# Leave keys empty to stay in offline mode",
         ]
@@ -207,13 +227,14 @@ class ConfigManager:
         # Interactive LLM setup prompt
         from rich.console import Console
         console = Console()
-        
+
         if not self._prompt_user_consent(console):
             self.config.llm_setup_complete = True
             self.save_config()
             return
 
-        console.print("\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip")
+        console.print(
+            "\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip")
         provider_choice = input("> ").strip()
 
         env_values = existing.copy()
@@ -233,7 +254,8 @@ class ConfigManager:
         choice = input("> ").strip().lower()
         return choice in ["e", "y", "evet", "yes"]
 
-    def _configure_provider(self, choice: str, env_values: Dict[str, str]) -> bool:
+    def _configure_provider(
+            self, choice: str, env_values: Dict[str, str]) -> bool:
         """Configure specific provider based on user choice"""
         if choice == "1":
             self.config.llm_provider = "openrouter"
@@ -261,7 +283,8 @@ class ConfigManager:
 
         elif choice == "3":
             self.config.llm_provider = "ollama"
-            url = input("Ollama URL (leave empty: http://localhost:11434): ").strip()
+            url = input(
+                "Ollama URL (leave empty: http://localhost:11434): ").strip()
             model = input("Ollama model (leave empty: llama3.1): ").strip()
             env_values["LOCAL_LLM_URL"] = url or env_values.get(
                 "LOCAL_LLM_URL", "http://localhost:11434"
@@ -272,7 +295,7 @@ class ConfigManager:
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
             return True
-        
+
         return False
 
     @property
@@ -309,7 +332,7 @@ class ConfigManager:
 
     def save_config(self):
         """Save configuration to file (thread-safe)
-        
+
         Raises:
             PermissionError: If file cannot be written due to permissions
             OSError: If file system error occurs
@@ -318,7 +341,12 @@ class ConfigManager:
             try:
                 self.config_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(self.config_file, "w", encoding="utf-8") as f:
-                    json.dump(asdict(self.config), f, indent=2, ensure_ascii=False)
+                    json.dump(
+                        asdict(
+                            self.config),
+                        f,
+                        indent=2,
+                        ensure_ascii=False)
             except PermissionError as e:
                 logger.error(f"Config save error (permission denied): {e}")
                 raise  # Re-raise to allow caller to handle
@@ -392,11 +420,18 @@ class SessionManager:
                 import time
 
                 timestamp = int(time.time())
-                filename = f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
+                filename = f"{
+                    target.replace(
+                        '.', '_').replace(
+                        ':', '_')}_{timestamp}.json"
                 filepath = self.session_dir / filename
 
                 with open(filepath, "w", encoding="utf-8") as f:
-                    json.dump(self.current_session, f, indent=2, ensure_ascii=False)
+                    json.dump(
+                        self.current_session,
+                        f,
+                        indent=2,
+                        ensure_ascii=False)
 
                 return filepath
             except Exception as e:
@@ -429,7 +464,8 @@ class SessionManager:
             commands = self.current_session.get("commands")
             if commands is not None:
                 commands.append(
-                    {"command": command, "output": output[:500]}  # Limit output size
+                    # Limit output size
+                    {"command": command, "output": output[:500]}
                 )
 
     def add_finding(self, finding: str):
@@ -445,4 +481,3 @@ class SessionManager:
             notes = self.current_session.get("notes")
             if notes is not None:
                 notes.append(note)
-

@@ -1,203 +1,101 @@
-# 🩸 DRAKBEN - Autonomous Pentest AI
+# 🦇 DRAKBEN - Autonomous AI Pentest Agent
 
-Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
+**Drakben**, Yeni nesil, kendi kendini yöneten, evrimleşen ve kendi kendini iyileştiren (Self-Healing) bir Otonom Sızma Testi Ajanıdır.
 
-![Python](https://img.shields.io/badge/Python-3.10+-green)
-![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Status](https://img.shields.io/badge/Status-Beta-orange)
+![Platform](https://img.shields.io/badge/Platform-Kali%20Linux%20%7C%20Windows-black)
 
-⭐ **Star this repo if it helps you!**
+## 🚀 Özellikler
 
----
+Drakben, sıradan bir otomasyon aracı değildir. Biyolojik bir organizma gibi tasarlanmıştır:
 
-## 🚀 Kurulum
+*   **🧠 Beyin (Brain):** Gelişmiş LLM entegrasyonu (OpenAI, Anthropic, Local LLM) ile karmaşık karar verme ve planlama.
+*   **❤️ Kalp (Heart):** Ajanın yaşam döngüsünü, sağlık durumunu ve enerji yönetimini sağlar.
+*   **🩸 Kan (Blood/State):** Tüm sistem durumunu, keşfedilen zafiyetleri ve kazanımları taşıyan merkezi veri yapısı.
+*   **💪 Kas (Muscle/Executor):** Komutları güvenli bir şekilde çalıştıran, sandbox destekli yürütme motoru.
 
-### Linux (Kali / Ubuntu / Debian)
+### 🌟 Temel Yetenekler
+
+*   **🧬 Evrimsel Öğrenme:** Başarısız stratejilerden ders çıkarır ve kendini optimize eder. (Evolution Engine)
+*   **🩹 Kendi Kendini İyileştirme (Self-Healing):** Hata alan araçları analiz eder, parametreleri düzeltir ve tekrar dener.
+*   **🕵️‍♂️ Otonom Keşif & İstismar:**
+    *   Akıllı Port Tarama (Nmap entegrasyonu)
+    *   Web Zafiyet Taraması
+    *   Active Directory Saldırıları (Kerberoasting, vb.)
+    *   Payload Üretimi (Obfuscation & AV Bypass)
+*   **🛡️ Güvenlik:**
+    *   Komutlar `shell=False` ile güvenli çalıştırılır.
+    *   Tehlikeli komutlar (rm -rf / vb.) engellenir.
+    *   Durum takibi (State Persistence) ile veri kaybı önlenir.
+
+## 📦 Kurulum
+
+### Gereksinimler
+*   Python 3.8 veya üzeri
+*   Nmap, Metasploit (Opsiyonel ama önerilir)
+*   Kali Linux (Önerilen İşletim Sistemi) veya Windows
+
+### Adım Adım Kurulum
+
+1.  **Depoyu Klonlayın:**
+    ```bash
+    git clone https://github.com/username/drakben.git
+    cd drakben
+    ```
+
+2.  **Sanal Ortam Oluşturun (Önerilir):**
+    ```bash
+    python -m venv .venv
+    # Windows:
+    .venv\Scripts\activate
+    # Linux/Mac:
+    source .venv/bin/activate
+    ```
+
+3.  **Bağımlılıkları Yükleyin:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Yapılandırma:**
+    `config/api.env` dosyasını düzenleyerek API anahtarlarınızı girin (OpenRouter, OpenAI vb.).
+    *Not: API anahtarı olmadan da "Offline Mod"da çalışabilir.*
+
+## 🎮 Kullanım
+
+Ajanı başlatmak için:
+
 ```bash
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 drakben.py
-```
-
-### Windows
-```powershell
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 python drakben.py
 ```
 
----
+veya Windows için:
 
-## 🤖 AI/LLM Kurulumu (Opsiyonel)
-
-Framework **%100 offline** çalışır. AI özellikleri için:
-
-| Provider | Kurulum | Not |
-|----------|---------|-----|
-| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
-| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
-| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
-
-```bash
-# İlk çalıştırmada interaktif setup yapılır
-python drakben.py
-# veya manuel: cp .env.example config/api.env && nano config/api.env
+```cmd
+start.bat
 ```
 
----
+### Komutlar
 
-## 🎯 Kullanım
+Arayüz açıldığında şu komutları kullanabilirsiniz:
 
-```bash
-python drakben.py
+*   `/target <IP>` : Hedef sistemi belirler.
+*   `/scan` : Otonom taramayı başlatır.
+*   `/scan stealth` : Gizli (yavaş) tarama modu.
+*   `/scan aggressive` : Hızlı (gürültülü) tarama modu.
+*   `/help` : Tüm komutları listeler.
+*   `/tr` : Türkçe diline geçer.
 
-# Doğal dil ile konuş:
-💬 "10.0.0.1 portlarını tara"
-💬 "example.com sql injection test et"
-💬 "192.168.1.1'e shell at"
+## ⚠️ Yasal Uyarı
 
-# Slash komutları:
-/target 192.168.1.100   # Hedef belirle
-/scan                    # Hedefi tara (otonom mod)
-/scan stealth            # Sessiz/stealth tarama
-/scan aggressive         # Hızlı/agresif tarama
-/shell                   # İnteraktif kabuk
-/status                  # Sistem durumu
-/llm                     # LLM/API ayarları
-/clear                   # Ekranı temizle
-/tr                      # Türkçe mod
-/en                      # English mode
-/help                    # Yardım
-/exit                    # Çıkış
-```
+Bu yazılım **sadece eğitim ve yasal güvenlik testleri** amacıyla geliştirilmiştir. Sahibi olmadığınız veya yazılı izniniz olmayan sistemlerde kullanmak **YASAKTIR**. Geliştiriciler, bu aracın kötüye kullanımından doğacak zararlardan sorumlu tutulamaz.
 
----
+## 🤝 Katkıda Bulunma
 
-## ✨ Özellikler
+Pull Request'ler kabul edilir. Büyük değişiklikler için önce bir Issue açarak tartışmanızı öneririz.
 
-### 🧠 Kalıcı Hafıza Sistemi
-- **Evolution Memory**: Strateji profilleri ve öğrenilen patternler SQLite'da saklanır
-- **Self-Refining Engine**: Başarılı stratejiler öğrenilir, başarısızlar retry edilmez
-- **Sistem tanıma**: Kali Linux otomatik algılanır, mevcut araçlar tespit edilir
-- **Oturum geçmişi**: Önceki oturumlar ve hedefler `evolution.db`'de saklanır
+## 📜 Lisans
 
-### 🤖 Otonom Çalışma
-- **Self-evolving agent**: Strateji profilleri ile otomatik evrim
-- **Policy engine**: Çakışan kurallar için öncelik sistemi
-- **Meta-learning**: Araçların performansını değerlendirip otomatik iyileştirme
-- **Akıllı retry**: Başarısız komutlar alternatif stratejilerle denenir
-- **Non-repetition**: Başarısız profiller tekrar kullanılmaz
-
-### 🛡️ Güvenlik
-- **Safety checks**: Tehlikeli komutlar engellenir
-- **Risk analizi**: Her komut için risk değerlendirmesi
-- **Approval sistemi**: Kritik işlemler için onay
-
-### 🎨 Arayüz
-- **Dracula teması**: Mor/pembe/kırmızı terminal UI
-- **Türkçe/İngilizce**: Tam çoklu dil desteği
-- **Minimal**: Temiz, odaklanmış arayüz
-
----
-
-## 📋 Komutlar
-
-| Komut | Açıklama |
-|-------|----------|
-| `/target <IP>` | Hedef belirle |
-| `/scan` | Otonom tarama başlat (AI modu seçer) |
-| `/scan stealth` | Sessiz/stealth tarama (yavaş, dikkatli) |
-| `/scan aggressive` | Hızlı/agresif tarama (hızlı, gürültülü) |
-| `/shell` | İnteraktif kabuk modu |
-| `/status` | Sistem durumunu göster |
-| `/llm` | LLM/API ayarlarını yapılandır |
-| `/clear` | Ekranı temizle |
-| `/tr` | Türkçe moda geç |
-| `/en` | English mode |
-| `/help` | Detaylı yardım |
-| `/exit` | Çıkış |
-| Doğal dil | AI'a herhangi bir pentest görevi söyle |
-
----
-
-## 📁 Proje Yapısı
-
-```
-drakben/
-├── drakben.py              # Ana giriş noktası
-├── core/
-│   ├── refactored_agent.py # Ana agent orchestrator (self-evolving)
-│   ├── brain.py            # AI reasoning ve planlama
-│   ├── evolution_memory.py # Kalıcı hafıza sistemi (SQLite)
-│   ├── self_refining_engine.py  # Self-evolving strateji motoru
-│   ├── kali_detector.py    # Sistem tanıma (Kali Linux detection)
-│   ├── execution_engine.py # Komut çalıştırma
-│   ├── security_utils.py   # Güvenlik kontrolleri
-│   ├── config.py           # Konfigürasyon yönetimi
-│   ├── menu.py             # İnteraktif menü sistemi
-│   ├── planner.py          # Saldırı planlama
-│   ├── coder.py            # AI kod üretici
-│   ├── computer.py         # Bilgisayar kontrolü (Open Interpreter)
-│   ├── interpreter.py      # Komut yorumlayıcı
-│   ├── interactive_shell.py # İnteraktif kabuk
-│   ├── i18n.py             # Çoklu dil desteği
-│   └── ...                 # Diğer yardımcı modüller
-├── llm/
-│   └── openrouter_client.py # Multi-provider LLM client
-├── modules/
-│   ├── recon.py            # Keşif modülü
-│   ├── exploit.py          # Exploit modülü
-│   ├── payload.py          # Payload üretimi
-│   ├── metasploit.py       # Metasploit entegrasyonu
-│   ├── nuclei.py           # Nuclei tarayıcı
-│   ├── subdomain.py        # Subdomain enumeration
-│   ├── cve_database.py     # CVE veritabanı
-│   └── report_generator.py # Raporlama
-├── config/
-│   ├── api.env             # API anahtarları (oluşturulur)
-│   ├── settings.json       # Ayarlar
-│   └── plugins.json        # Plugin registry
-├── scripts/                # Yardımcı scriptler
-├── tests/                  # Test dosyaları
-├── sessions/               # Oturum dosyaları
-├── reports/                # Raporlar
-└── evolution.db            # Kalıcı hafıza veritabanı (otomatik oluşturulur)
-```
-
----
-
-## 🔧 Sorun Giderme
-
-| Problem | Çözüm |
-|---------|-------|
-| `ModuleNotFoundError` | `pip install -r requirements.txt` |
-| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
-| Permission denied | Linux'ta `sudo` ile çalıştır |
-| Database lock hatası | `evolution.db-wal` ve `evolution.db-shm` dosyalarını sil |
-| Python 3.8+ gerekli | `python3 --version` kontrol et, 3.10+ önerilir |
-
----
-
-## 📚 Dokümantasyon
-
-- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum rehberi
-- [MONITORING.md](MONITORING.md) - Sistem izleme ve debug
-- [ANALIZ_RAPORU.md](ANALIZ_RAPORU.md) - Proje analiz raporu
-
----
-
-## 📄 Lisans
-
-MIT License - [LICENSE](LICENSE)
-
----
-
-**Made with ❤️ for the security community**
-
-⚠️ **Sadece yetkili hedeflerde kullanın.**
+Bu proje MIT Lisansı ile lisanslanmıştır. Detaylar için `LICENSE` dosyasına bakınız.
