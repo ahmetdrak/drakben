@@ -237,57 +237,8 @@ class ContinuousReasoning:
             # Direct chat mode - no JSON, just conversation
             return self._chat_with_llm(user_input, user_lang, context)
 
-        # Pentest mode - structured JSON response
-        if user_lang == "tr":
-            language_instruction = """
-IMPORTANT: You MUST think and reason in English internally for better accuracy.
-However, you MUST respond to the user in TURKISH (Türkçe).
-All your explanations, response text, and suggestions should be in Turkish.
-Only technical terms (tool names, commands) can remain in English.
-"""
-        else:
-            language_instruction = """
-Respond to the user in English.
-"""
-
-
         # Context Construction
-        context_str = ""
-        if context.system_info.get("last_tool"):
-            context_str += f"\n\n[PREVIOUS TOOL EXECUTION]\nTool: {context.system_info.get('last_tool')}\nStatus: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput:\n{context.system_info.get('last_output', '')[:5000]}\n[END PREVIOUS OUTPUT]\n"
-
-        system_prompt = f"""You are DRAKBEN, an AI penetration testing assistant.
-{language_instruction}
-{context_str}
-
-Analyze the user's PENTEST request and respond in JSON format:
-{{
-    "intent": "scan|find_vulnerability|exploit|get_shell|generate_payload",
-    "confidence": 0.0-1.0,
-    "response": "Your direct answer to the user in {'Turkish' if user_lang == 'tr' else 'English'}",
-    "steps": [{{"action": "step_name", "tool": "tool_name", "description": "what to do"}}],
-    "reasoning": "brief technical explanation",
-    "risks": ["risk1", "risk2"],
-    "command": "suggested shell command if applicable"
-}}
-
-CRITICAL: The "response" field is what the user will see. Make it helpful and direct!
-If there is previous tool output, ANALYZE IT in your reasoning and explain it to the user.
-
-Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
-Special Commands (Use these in 'command' field for automation):
-- /scan : Starts autonomous scan (auto mode - agent decides)
-- /scan stealth : Silent/stealth scan (slow, careful, less detectable)
-- /scan aggressive : Fast aggressive scan (noisy but thorough)
-- /target <IP> : Sets the target
-- /target clear : Clears the target
-
-IMPORTANT MODE DETECTION:
-- If user says "sessizce", "gizlice", "silently", "quietly", "stealth" → use "/scan stealth"
-- If user says "hızlı", "agresif", "quickly", "fast", "aggressive" → use "/scan aggressive"
-- Otherwise → use "/scan" (auto mode)
-
-Target: """ + (context.target or "Not set")
+        system_prompt = self._construct_system_prompt(user_lang, context)
 
         try:
             # 1. Check Cache First
@@ -472,8 +423,58 @@ IMPORTANT:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _parse_llm_response(self, response: str) -> Optional[Dict]:
-        """Parse JSON from LLM response - delegates to shared utility"""
+
+    def _construct_system_prompt(self, user_lang: str, context: ExecutionContext) -> str:
+        """Helper to construct the system prompt for pentest analysis"""
+        if user_lang == "tr":
+            language_instruction = """
+IMPORTANT: You MUST think and reason in English internally for better accuracy.
+However, you MUST respond to the user in TURKISH (Türkçe).
+All your explanations, response text, and suggestions should be in Turkish.
+Only technical terms (tool names, commands) can remain in English.
+"""
+        else:
+            language_instruction = """
+Respond to the user in English.
+"""
+
+        context_str = ""
+        if context.system_info.get("last_tool"):
+            context_str += f"\n\n[PREVIOUS TOOL EXECUTION]\nTool: {context.system_info.get('last_tool')}\nStatus: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput:\n{context.system_info.get('last_output', '')[:5000]}\n[END PREVIOUS OUTPUT]\n"
+
+        return f"""You are DRAKBEN, an AI penetration testing assistant.
+{language_instruction}
+{context_str}
+
+Analyze the user's PENTEST request and respond in JSON format:
+{{
+    "intent": "scan|find_vulnerability|exploit|get_shell|generate_payload",
+    "confidence": 0.0-1.0,
+    "response": "Your direct answer to the user in {'Turkish' if user_lang == 'tr' else 'English'}",
+    "steps": [{{"action": "step_name", "tool": "tool_name", "description": "what to do"}}],
+    "reasoning": "brief technical explanation",
+    "risks": ["risk1", "risk2"],
+    "command": "suggested shell command if applicable"
+}}
+
+CRITICAL: The "response" field is what the user will see. Make it helpful and direct!
+If there is previous tool output, ANALYZE IT in your reasoning and explain it to the user.
+
+Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
+Special Commands (Use these in 'command' field for automation):
+- /scan : Starts autonomous scan (auto mode - agent decides)
+- /scan stealth : Silent/stealth scan (slow, careful, less detectable)
+- /scan aggressive : Fast aggressive scan (noisy but thorough)
+- /target <IP> : Sets the target
+- /target clear : Clears the target
+
+IMPORTANT MODE DETECTION:
+- If user says "sessizce", "gizlice", "silently", "quietly", "stealth" → use "/scan stealth"
+- If user says "hızlı", "agresif", "quickly", "fast", "aggressive" → use "/scan aggressive"
+- Otherwise → use "/scan" (auto mode)
+
+Target: """ + (context.target or "Not set")
+
         from core.llm_utils import parse_llm_json_response
 
         return parse_llm_json_response(response)
