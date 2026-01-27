@@ -178,6 +178,43 @@ class DrakbenMenu:
                 style=self.COLORS["green"],
             )
 
+        # PLUGINS: Register external tools
+        try:
+            from core.plugin_loader import PluginLoader
+            # Instantiate safely with existing selector reference or create new one if needed, 
+            # but here we rely on agent initialization or pass it. 
+            # Actually, ToolSelector is used by Agent and Brain. 
+            # We should load plugins into a global registry or when initializing components.
+            # Best approach: Load now, pass to components later. 
+            # For simplicity in this architecture where ToolSelector is instantiated by modules:
+            # We will rely on modules checking the registry, OR simpler:
+            # Just print the count for now to confirm loading works in this context.
+            loader = PluginLoader()
+            plugins = loader.load_plugins()
+            if plugins:
+                msg = f"🔌 {len(plugins)} Plugin Yüklendi" if lang == "tr" else f"🔌 {len(plugins)} Plugins Loaded"
+                self.console.print(f"[dim green]{msg}[/dim]")
+                
+                # IMPORTANT: We need to inject these into the actual tools list used by the agent.
+                # Since Agent assumes fresh ToolSelector, we must patch ToolSelector class or instance.
+                # For this implementation, we will patch the CLASS default tools (runtime patch) 
+                # OR update the global instance if one exists.
+                # Let's import ToolSelector and patch the prototype for new instances:
+                from core.tool_selector import ToolSelector
+                
+                # Hack: Update the class-level 'tools' if it were static, but it's instance based.
+                # So we must monkey-patch the __init__ to include our plugins.
+                original_init = ToolSelector.__init__
+                
+                def patched_init(ts_self, *args, **kwargs):
+                    original_init(ts_self, *args, **kwargs)
+                    ts_self.register_plugin_tools(plugins)
+                    
+                ToolSelector.__init__ = patched_init
+                
+        except Exception as e:
+            self.console.print(f"[dim red]Plugin Load Error: {e}[/dim]")
+
         # MAIN LOOP
         while self.running:
             try:

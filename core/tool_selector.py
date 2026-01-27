@@ -125,6 +125,22 @@ class ToolSelector:
             priority=80,  # Priority testing since newly created
         )
 
+    def register_plugin_tools(self, new_tools: Dict[str, ToolSpec]):
+        """
+        PLUGIN INTEGRATION: Register tools loaded from external plugins.
+        Overrides existing tools if names collide (user overriding system defaults).
+        """
+        if not new_tools:
+            return
+
+        count = 0
+        for name, spec in new_tools.items():
+            self.tools[name] = spec
+            count += 1
+        
+        if count > 0:
+            logger.info(f"Registered {count} external plugin tools.")
+
     def __init__(self):
         # Kali tool check
         self.kali_detector = KaliDetector() if KALI_AVAILABLE else None

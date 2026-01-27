@@ -141,6 +141,12 @@ def main():
         console = Console()
         logger.info("DRAKBEN initialized successfully")
 
+        # Initialize Plugins
+        from core.plugin_loader import PluginLoader
+        plugin_loader = PluginLoader("plugins")
+        console.print(f"[dim]Plugins directory: {plugin_loader.plugin_dir.absolute()}[/dim]")
+
+
         # Start interactive menu system
         from core.menu import DrakbenMenu
 
