@@ -10,6 +10,7 @@ DB_PATH = "test_concurrency.db"
 
 async def worker(worker_id: int, memory: EvolutionMemory):
     """Simulates a module writing to the DB"""
+    await asyncio.sleep(0) # Satisfy async and yield for concurrency
     try:
         # Simulate work
         strategy_id = f"strat_{worker_id}_{random.randint(1, 100)}"

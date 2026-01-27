@@ -8,7 +8,7 @@ from core.brain import DrakbenBrain, OpenRouterClient
 # Setup Logging
 logging.basicConfig(level=logging.ERROR)
 
-async def test_llm_resilience():
+def test_llm_resilience():
     print("Starting LLM Resilience Tests (Hallucination & Bad Format)...")
     
     # 1. Mocking the LLM Client
@@ -78,4 +78,4 @@ async def test_llm_resilience():
     print(f"\nResult: {score}/{total} tests passed.")
 
 if __name__ == "__main__":
-    asyncio.run(test_llm_resilience())
+    test_llm_resilience()

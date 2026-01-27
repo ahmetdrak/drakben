@@ -133,6 +133,19 @@ class ToolSelector:
         # Load tools from JSON or use default
         self.tools: Dict[str, ToolSpec] = self._load_tools()
 
+        # Fallback map for when primary tools fail
+        # "failed_tool" -> ["alternative1", "alternative2"]
+        self.fallback_map: Dict[str, List[str]] = {
+            "nmap_port_scan": [],
+            "nmap_service_scan": [],
+            "nikto_web_scan": [],
+            "sqlmap_scan": [],
+            "metasploit_exploit": [],
+        }
+
+        # Tool failure tracking (tool selector internal state)
+        self.failed_tools: Dict[str, int] = {}
+
     def _load_tools(self) -> Dict[str, ToolSpec]:
         """Load tools from JSON file or return defaults"""
         import json
@@ -287,19 +300,6 @@ class ToolSelector:
                 description="Modify system code or create new tools. Args: action='create_tool'|'modify_file', target='name/path', instruction='...'",
             ),
         }
-
-        # Fallback map for when primary tools fail
-        # "failed_tool" -> ["alternative1", "alternative2"]
-        self.fallback_map: Dict[str, List[str]] = {
-            "nmap_port_scan": [],
-            "nmap_service_scan": [],
-            "nikto_web_scan": [],
-            "sqlmap_scan": [],
-            "metasploit_exploit": [],
-        }
-
-        # Tool failure tracking (tool selector internal state)
-        self.failed_tools: Dict[str, int] = {}
 
     def get_allowed_tools(self, state: AgentState) -> List[str]:
         """

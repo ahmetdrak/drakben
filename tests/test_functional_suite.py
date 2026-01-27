@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.ERROR)
 
 @pytest.mark.asyncio
 class TestFunctionalSuite:
-    async def setup(self):
+    def setup(self):
         """Initialize the agent with mocked components"""
         # Relaxed mock without spec
         self.mock_config = MagicMock()
@@ -65,7 +65,7 @@ class TestFunctionalSuite:
              # Mock executor
              self.agent.executor.execute_tool = AsyncMock(return_value={"success": True, "output": "Mock Output"})
 
-    async def test_1_full_system(self):
+    def test_1_full_system(self):
         """Test 1: Full System Initialization & Planning"""
         print("Test 1: Full System Test...", end=" ")
         try:
@@ -83,7 +83,7 @@ class TestFunctionalSuite:
             print(f"❌ FAIL ({e})")
             return False
 
-    async def test_2_tool_routing(self):
+    def test_2_tool_routing(self):
         """Test 2: Tool Routing"""
         print("Test 2: Tool Routing Test...", end=" ")
         try:
@@ -103,7 +103,7 @@ class TestFunctionalSuite:
             print(f"❌ FAIL ({e})")
             return False
 
-    async def test_3_self_healing(self):
+    def test_3_self_healing(self):
         """Test 3: Self-Healing (Simulation)"""
         print("Test 3: Self-Healing Test...", end=" ")
         try:
@@ -170,12 +170,12 @@ class TestFunctionalSuite:
 
 async def run_suite():
     suite = TestFunctionalSuite()
-    await suite.setup()
+    suite.setup()
     
     results = [
-        await suite.test_1_full_system(),
-        await suite.test_2_tool_routing(),
-        await suite.test_3_self_healing(),
+        suite.test_1_full_system(),
+        suite.test_2_tool_routing(),
+        suite.test_3_self_healing(),
         await suite.test_4_error_propagation()
     ]
     
