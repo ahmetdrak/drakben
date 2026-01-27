@@ -89,7 +89,7 @@ class FormalAuditTest(unittest.TestCase):
         term = SmartTerminal()
         
         # We'll mock process creation to verify the overlap.
-        with patch.object(term, '_create_process') as mock_create:
+        with patch.object(term, '_create_process'):
             mock_proc1 = MagicMock()
             mock_proc1.pid = 123
             mock_proc2 = MagicMock()
