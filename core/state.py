@@ -727,7 +727,29 @@ class AgentState:
         self.target = data.get("target")
         self.phase = AttackPhase(data.get("phase", "init"))
         self.iteration_count = data.get("iteration_count", 0)
-        # Other fields as needed for future session recovery
+        
+        # Restore services
+        self.open_services = {}
+        for port_str, svc_data in data.get("open_services", {}).items():
+            self.open_services[int(port_str)] = ServiceInfo(**svc_data)
+            
+        self.tested_attack_surface = set(data.get("tested_attack_surface", []))
+        self.remaining_attack_surface = set(data.get("remaining_attack_surface", []))
+        
+        # Restore vulnerabilities
+        self.vulnerabilities = [VulnerabilityInfo(**v) for v in data.get("vulnerabilities", [])]
+        
+        # Restore credentials
+        self.credentials = [CredentialInfo(**c) for c in data.get("credentials", [])]
+        
+        # Restore foothold
+        self.has_foothold = data.get("has_foothold", False)
+        self.foothold_method = data.get("foothold_method")
+        self.post_exploit_completed = set(data.get("post_exploit_completed", []))
+        
+        # History
+        self.state_changes_history = data.get("state_changes_history", [])
+        self.invariant_violations = data.get("invariant_violations", [])
 
 
     def save(self) -> None:

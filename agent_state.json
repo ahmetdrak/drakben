@@ -1,0 +1,72 @@
+{
+  "target": "10.0.0.5",
+  "phase": "recon",
+  "iteration_count": 0,
+  "open_services": {
+    "80": {
+      "port": 80,
+      "protocol": "tcp",
+      "service": "http",
+      "version": "Apache 2.4",
+      "tested": true,
+      "vulnerable": true,
+      "exploit_attempted": false
+    },
+    "22": {
+      "port": 22,
+      "protocol": "tcp",
+      "service": "ssh",
+      "version": "OpenSSH 8.0",
+      "tested": true,
+      "vulnerable": false,
+      "exploit_attempted": false
+    }
+  },
+  "tested_attack_surface": [
+    "22:ssh",
+    "80:http"
+  ],
+  "remaining_attack_surface": [],
+  "vulnerabilities": [
+    {
+      "vuln_id": "CVE-2023-1234",
+      "service": "http",
+      "port": 80,
+      "severity": "CRITICAL",
+      "exploitable": true,
+      "exploit_attempted": false,
+      "exploit_success": false
+    }
+  ],
+  "credentials": [],
+  "has_foothold": false,
+  "foothold_method": null,
+  "post_exploit_completed": [],
+  "state_changes_history": [
+    {
+      "type": "services_discovered",
+      "data": 2,
+      "iteration": 0,
+      "timestamp": 1769538362.0989714
+    },
+    {
+      "type": "surface_tested",
+      "data": "80:http",
+      "iteration": 0,
+      "timestamp": 1769538362.1010828
+    },
+    {
+      "type": "vulnerability_found",
+      "data": "CVE-2023-1234",
+      "iteration": 0,
+      "timestamp": 1769538362.1024323
+    },
+    {
+      "type": "surface_tested",
+      "data": "22:ssh",
+      "iteration": 0,
+      "timestamp": 1769538362.1061795
+    }
+  ],
+  "invariant_violations": []
+}

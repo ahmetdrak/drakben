@@ -165,9 +165,23 @@ class RefactoredDrakbenAgent:
         )
 
     def _reset_and_evolve_state(self, target: str) -> None:
-        """Reset state and evolve tool priorities"""
+        """Reset state or load existing session, then evolve tool priorities"""
         self.state = reset_state(target)
-        self.state.phase = AttackPhase.INIT
+        
+        # Attempt to load persistent state for session recovery
+        try:
+            if self.state.load() and self.state.target == target:
+                self.console.print(
+                    f"♻️  Existing session recovered for {target} (Phase: {self.state.phase.value})",
+                    style="green"
+                )
+            else:
+                self.state.phase = AttackPhase.INIT
+                self.console.print(f"🆕 Fresh session started for {target}", style="dim")
+        except Exception as e:
+            logger.warning(f"Session recovery failed: {e}")
+            self.state.phase = AttackPhase.INIT
+
         try:
             self.tool_selector.evolve_strategies(self.evolution)
         except Exception as e:
@@ -1250,11 +1264,8 @@ class RefactoredDrakbenAgent:
 
     def _update_state_service_completion(self, result: Dict):
         """Mark service as tested"""
-        args_port = result.get("args", {}).get("port")
+        args_port = self._extract_port_from_result(result)
         if not args_port:
-            self.state.set_observation(
-                "Missing port in tool args; state not updated"
-            )
             return
 
         if args_port in self.state.open_services:

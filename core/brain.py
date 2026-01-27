@@ -369,14 +369,15 @@ Respond to the user in English.
 {language_instruction} {context_str}
 
 Analyze the user's PENTEST request and respond in JSON format:
-{"intent": "scan|find_vulnerability|exploit|get_shell|generate_payload",
+{{
+    "intent": "scan|find_vulnerability|exploit|get_shell|generate_payload",
     "confidence": 0.0-1.0,
     "response": "Your direct answer to the user in {'Turkish' if user_lang == 'tr' else 'English'}",
-    "steps": [{"action": "step_name", "tool": "tool_name", "description": "what to do"} ],
+    "steps": [{{ "action": "step_name", "tool": "tool_name", "description": "what to do" }} ],
     "reasoning": "brief technical explanation",
     "risks": ["risk1", "risk2"],
     "command": "suggested shell command if applicable"
-}
+}}
 
 CRITICAL: The "response" field is what the user will see. Make it helpful and direct!
 If there is previous tool output, ANALYZE IT in your reasoning and explain it to the user.
