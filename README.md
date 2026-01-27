@@ -102,7 +102,7 @@ Arayüz açıldığında:
 
 ## 🤝 Katkıda Bulunma
 
-Pull Request'leriniz memnuniyetle karşılanır. Büyük değişiklikler için lütfen önce Issue açarak tartışınız.
+Pull Request'leriniz memnuniyetle karşılanır. Büyük değişiklikler için lütfen önce Issue açarak tartışınız..
 
 ## 👨‍� Geliştirici
 
