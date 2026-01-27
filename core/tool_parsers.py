@@ -390,30 +390,35 @@ def _smart_truncate(content: str, keywords_or_len: Any = None, max_length: int =
     
     # Logic for keyword-based filtering
     if keywords:
-        kept_lines = []
-        # Keep context header
-        kept_lines.extend(lines[:5])
-        
-        # Scan for keywords in middle
-        count = 0
-        for line in lines[5:-5]:
-            if any(k in line for k in keywords):
-                kept_lines.append(line)
-                count += 1
-                if count > 50: # Safety cap
-                    break
-        
-        # Keep context footer
-        if len(lines) > 10:
-            kept_lines.extend(lines[-5:])
-            
-        result = "\n".join(kept_lines)
+        result = _filter_lines_by_keywords(lines, keywords, limit)
         if len(result) > limit:
             return result[:limit] + "\n...[Truncated]"
         return result
         
     # Standard length truncation
     return content[:limit].rsplit(' ', 1)[0] + "..."
+
+
+def _filter_lines_by_keywords(lines: List[str], keywords: List[str], max_lines: int = 50) -> str:
+    """Helper for _smart_truncate to filter lines based on keywords"""
+    kept_lines = []
+    # Keep context header
+    kept_lines.extend(lines[:5])
+    
+    # Scan for keywords in middle
+    count = 0
+    for line in lines[5:-5]:
+        if any(k in line for k in keywords):
+            kept_lines.append(line)
+            count += 1
+            if count > max_lines: # Safety cap
+                break
+    
+    # Keep context footer
+    if len(lines) > 10:
+        kept_lines.extend(lines[-5:])
+        
+    return "\n".join(kept_lines)
 
 
 

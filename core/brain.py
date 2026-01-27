@@ -475,10 +475,6 @@ IMPORTANT MODE DETECTION:
 
 Target: """ + (context.target or "Not set")
 
-        from core.llm_utils import parse_llm_json_response
-
-        return parse_llm_json_response(response)
-
     def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> Dict:
         """Rule-based analysis (fallback when LLM unavailable)"""
         # Intent detection
