@@ -4,7 +4,7 @@ import os
 import json
 import time
 import threading
-import asyncio
+import math
 from unittest.mock import MagicMock, patch
 from core.state import AgentState, AttackPhase, ServiceInfo, VulnerabilityInfo, reset_state
 from core.evolution_memory import EvolutionMemory, get_evolution_memory
@@ -75,9 +75,9 @@ class FormalAuditTest(unittest.TestCase):
             penalty = ev.get_tool_penalty("test_tool")
             
             # It SHOULD be 50.0 if it uses the heuristic, but 10.0 if hardcoded
-            if penalty == 10.0:
-                print(f"❌ LOGIC ERROR 10: update_penalty used hardcoded increment (10.0) instead of DB heuristic (50.0)!")
-            elif penalty == 0.0:
+            if math.isclose(penalty, 10.0):
+                print("❌ LOGIC ERROR 10: update_penalty used hardcoded increment (10.0) instead of DB heuristic (50.0)!")
+            elif math.isclose(penalty, 0.0):
                 print("❌ Something went wrong, penalty is 0")
             else:
                 print(f"✅ Penalty system uses heuristic: {penalty}")
@@ -88,10 +88,6 @@ class FormalAuditTest(unittest.TestCase):
         """Audit: Does SmartTerminal handle concurrent execution process tracking?"""
         term = SmartTerminal()
         
-        # Simulate long running commands
-        def run_slow(cmd, duration):
-            term.execute(cmd) # This uses a blocking wait_for_process
-
         # Since .execute is blocking, we check what happens if two threads call it.
         # The issue is the shared 'self.current_process' variable.
         # We'll mock process creation to verify the overlap.
@@ -152,7 +148,7 @@ class FormalAuditTest(unittest.TestCase):
         else:
              print("✅ Foothold detection resisted the simple 'shell' keyword check (or was lucky).")
 
-    async def run_audit(self):
+    def execute_audit(self):
         print("\n🔍 DRAKBEN FORMAL LOGIC AUDIT - ZERO ASSUMPTIONS 🔍\n")
         self.setUp()
         
@@ -176,4 +172,4 @@ class FormalAuditTest(unittest.TestCase):
 
 if __name__ == "__main__":
     audit = FormalAuditTest()
-    asyncio.run(audit.run_audit())
+    audit.execute_audit()

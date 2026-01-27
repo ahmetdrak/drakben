@@ -247,6 +247,41 @@ class EvolutionMemory:
 
     # ==================== PENALTY SYSTEM ====================
 
+    def _handle_new_tool_penalty(self, cursor, tool: str, success: bool):
+        """Helper to initialize penalty for a new tool"""
+        p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
+        penalty = 0.0 if success else p_inc
+        cursor.execute("""
+            INSERT INTO tool_penalties (tool, penalty_score, success_count, failure_count, last_used, blocked)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (tool, penalty, 1 if success else 0, 0 if success else 1, time.time(), 0))
+
+    def _handle_existing_tool_penalty(self, cursor, row, tool: str, success: bool):
+        """Helper to update penalty for an existing tool"""
+        current_penalty = row["penalty_score"]
+        success_count = row["success_count"]
+        failure_count = row["failure_count"]
+
+        # Use dynamic heuristics instead of hardcoded constants
+        p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
+        p_dec = self.get_heuristic("penalty_decrement") or self.PENALTY_DECREMENT
+        b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
+
+        if success:
+            new_penalty = max(0.0, current_penalty - p_dec)
+            success_count += 1
+        else:
+            new_penalty = current_penalty + p_inc
+            failure_count += 1
+
+        blocked = 1 if new_penalty >= b_thresh else 0
+
+        cursor.execute("""
+            UPDATE tool_penalties
+            SET penalty_score = ?, success_count = ?, failure_count = ?, last_used = ?, blocked = ?
+            WHERE tool = ?
+        """, (new_penalty, success_count, failure_count, time.time(), blocked, tool))
+
     def update_penalty(self, tool: str, success: bool):
         """
         Update tool penalty score.
@@ -260,38 +295,11 @@ class EvolutionMemory:
             cursor.execute(
                 "SELECT * FROM tool_penalties WHERE tool = ?", (tool,))
             row = cursor.fetchone()
+
             if row is None:
-                # New tool - use heuristics
-                p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
-                penalty = 0.0 if success else p_inc
-                cursor.execute("""
-                    INSERT INTO tool_penalties (tool, penalty_score, success_count, failure_count, last_used, blocked)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (tool, penalty, 1 if success else 0, 0 if success else 1, time.time(), 0))
+                self._handle_new_tool_penalty(cursor, tool, success)
             else:
-                current_penalty = row["penalty_score"]
-                success_count = row["success_count"]
-                failure_count = row["failure_count"]
-
-                # Use dynamic heuristics instead of hardcoded constants
-                p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
-                p_dec = self.get_heuristic("penalty_decrement") or self.PENALTY_DECREMENT
-                b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
-
-                if success:
-                    new_penalty = max(0.0, current_penalty - p_dec)
-                    success_count += 1
-                else:
-                    new_penalty = current_penalty + p_inc
-                    failure_count += 1
-
-                blocked = 1 if new_penalty >= b_thresh else 0
-
-                cursor.execute("""
-                    UPDATE tool_penalties
-                    SET penalty_score = ?, success_count = ?, failure_count = ?, last_used = ?, blocked = ?
-                    WHERE tool = ?
-                """, (new_penalty, success_count, failure_count, time.time(), blocked, tool))
+                self._handle_existing_tool_penalty(cursor, row, tool, success)
 
             conn.commit()
             self._close_conn(conn)

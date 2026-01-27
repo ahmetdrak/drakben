@@ -95,7 +95,6 @@ class RefactoredDrakbenAgent:
     STYLE_CYAN = "bold cyan"
     STYLE_YELLOW = "bold yellow"
     STYLE_MAGENTA = "bold magenta"
-    STYLE_MAGENTA_BLINK = "bold magenta blink"
     STYLE_BLUE = "bold blue"
 
     def initialize(self, target: str, mode: str = "auto") -> None:
@@ -1239,9 +1238,8 @@ class RefactoredDrakbenAgent:
         
         if result.get("success") and has_shell:
             self.state.set_foothold(tool_name)
-        else:
             self.state.set_observation(
-                f"Exploit execution finished but no strong shell signature found in output")
+                "Exploit execution finished but no strong shell signature found in output")
 
     def _update_state_nmap_port_scan(self, result: Dict):
         """Update state from Nmap port scan results"""

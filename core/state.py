@@ -409,7 +409,8 @@ class AgentState:
                 f"{len(self.tested_attack_surface)}|{len(self.remaining_attack_surface)}|"
                 f"{len(self.vulnerabilities)}|{self.has_foothold}"
             )
-            return hashlib.md5(state_str.encode()).hexdigest()[:8]
+            # Use SHA256 for state fingerprinting to satisfy security scanners (MD5 is weak)
+            return hashlib.sha256(state_str.encode()).hexdigest()[:8]
 
     def check_state_changed(self) -> bool:
         """

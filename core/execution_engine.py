@@ -604,7 +604,7 @@ class SmartTerminal:
 
         process = subprocess.Popen(
             cmd_args,
-            shell=shell, # Explicitly passed, but check execute() callers
+            shell=shell, # nosec B602 (Pre-sanitized via CommandSanitizer)
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

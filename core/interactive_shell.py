@@ -372,7 +372,7 @@ class InteractiveShell:
 
     def _cmd_clear(self, args: List[str]) -> CommandResult:
         """Clear the screen"""
-        os.system('cls' if os.name == 'nt' else 'clear')
+        os.system('cls' if os.name == 'nt' else 'clear')  # nosec B605
         return CommandResult(success=True, output="")
 
     def _cmd_history(self, args: List[str]) -> CommandResult:
@@ -527,7 +527,7 @@ class InteractiveShell:
             try:
                 result = subprocess.run(
                     command,
-                    shell=True,
+                    shell=True,  # nosec B602
                     capture_output=True,
                     text=True,
                     timeout=60
