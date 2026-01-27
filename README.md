@@ -41,7 +41,7 @@ Drakben, sıradan bir otomasyon aracı değildir. Biyolojik bir organizma gibi t
 
 1.  **Depoyu Klonlayın:**
     ```bash
-    git clone https://github.com/username/drakben.git
+    git clone https://github.com/ahmetdrak/drakben.git
     cd drakben
     ```
 
