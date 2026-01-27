@@ -7,6 +7,9 @@ from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+# Regex pattern to extract JSON arrays from text
+JSON_ARRAY_PATTERN = re.compile(r'\[.*\]', re.DOTALL)
+
 
 def _smart_truncate(
         content: str,
@@ -35,7 +38,7 @@ def _smart_truncate(
         # If no keywords found, return head and tail
         return "\n".join(lines[:20] + ["... [TRUNCATED] ..."] + lines[-20:])
 
-    sorted_indices = sorted(list(kept_indices))
+    sorted_indices = sorted(kept_indices)
     result = []
     last_idx = -1
 
@@ -100,7 +103,7 @@ Response (JSON only):"""
 
             # Try to extract JSON from response
             import json
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            json_match = JSON_ARRAY_PATTERN.search(response)
             if json_match:
                 parsed = json.loads(json_match.group())
                 if isinstance(parsed, list):
@@ -207,7 +210,7 @@ Response (JSON only):"""
 def _extract_json_from_llm_response(response: str) -> List[Dict]:
     """Extract JSON array from LLM response"""
     import json
-    json_match = re.search(r'\[.*\]', response, re.DOTALL)
+    json_match = JSON_ARRAY_PATTERN.search(response)
     if json_match:
         parsed = json.loads(json_match.group())
         if isinstance(parsed, list):
@@ -254,7 +257,7 @@ Output:
 Response (JSON only):"""
             response = llm_client.query(prompt, timeout=15)
             import json
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            json_match = JSON_ARRAY_PATTERN.search(response)
             if json_match:
                 parsed = json.loads(json_match.group())
                 return parsed if isinstance(parsed, list) else []
@@ -335,7 +338,7 @@ Output:
 Response (JSON only):"""
             response = llm_client.query(prompt, timeout=15)
             import json
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            json_match = JSON_ARRAY_PATTERN.search(response)
             if json_match:
                 parsed = json.loads(json_match.group())
                 return parsed if isinstance(parsed, list) else []
@@ -386,7 +389,7 @@ Output:
 Response (JSON only):"""
             response = llm_client.query(prompt, timeout=15)
             import json
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            json_match = JSON_ARRAY_PATTERN.search(response)
             if json_match:
                 parsed = json.loads(json_match.group())
                 return parsed if isinstance(parsed, list) else []

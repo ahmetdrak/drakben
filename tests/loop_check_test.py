@@ -9,6 +9,8 @@ from modules.subdomain import SubdomainEnumerator
 # Set global timeout for all tests in this file
 pytestmark = pytest.mark.timeout(5)  # 5 seconds timeout
 
+EXAMPLE_DOMAIN = "example.com"
+
 @pytest.fixture
 def mock_llm():
     llm = MagicMock()
@@ -28,7 +30,7 @@ def test_brain_analyze_loop(brain):
     """Test for infinite loops in Brain.analyze"""
     context = MagicMock(spec=ExecutionContext)
     context.system_info = {}
-    context.target = "example.com"
+    context.target = EXAMPLE_DOMAIN
     context.language = "en"
     
     # This should return instantly (ms)
@@ -39,7 +41,7 @@ def test_brain_analyze_loop(brain):
 def test_planner_create_plan_loop(planner):
     """Test for infinite loops in Planner.create_plan"""
     # This should be fast
-    plan_id = planner.create_plan_for_target("example.com", "scan")
+    plan_id = planner.create_plan_for_target(EXAMPLE_DOMAIN, "scan")
     assert isinstance(plan_id, str)
     assert len(planner.steps) > 0
 
@@ -56,7 +58,7 @@ async def test_subdomain_enum_loop():
     enumerator._bruteforce_enum = AsyncMock(return_value=[])
     enumerator._resolve_subdomains = AsyncMock(side_effect=lambda x: x) # Return input as is
     
-    results = await enumerator.enumerate("example.com", use_bruteforce=True)
+    results = await enumerator.enumerate(EXAMPLE_DOMAIN, use_bruteforce=True)
     assert isinstance(results, list)
 
 def test_fibonacci_stress_check():

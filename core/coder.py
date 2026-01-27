@@ -186,11 +186,10 @@ class ASTSecurityChecker(ast.NodeVisitor):
             module_name = self.imported_modules.get(module_alias, module_alias)
 
             if (module_name, func) in self.RESTRICTED_CALLS:
-                self._check_restricted_call(node, module_name, func)
+                self._check_restricted_call(module_name, func)
 
     def _check_restricted_call(
             self,
-            node: ast.Call,
             module_name: str,
             func: str):
         """Check if a restricted call is allowed under specific conditions"""

@@ -67,14 +67,14 @@ async def stress_test_db():
     success_count = sum(results)
     failure_count = len(results) - success_count
     
-    print(f"\nStats:")
+    print("\nStats:")
     print(f"Successful Writes: {success_count}")
     print(f"Failed (Locks/Errors): {failure_count}")
     
     # Cleanup
     try:
         os.remove(DB_PATH)
-    except:
+    except OSError:
         pass
         
     if failure_count > 0:
