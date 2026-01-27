@@ -469,7 +469,7 @@ class OpenRouterClient:
             "Content-Type": "application/json",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
+            headers["HTTP-Referer"] = "https://github.com/drakben/drakben" # updated to generic
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
 
@@ -650,7 +650,7 @@ class OpenRouterClient:
             "Content-Type": "application/json",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/ahmetdrak/drakben"
+            headers["HTTP-Referer"] = "https://github.com/drakben/drakben" # updated to generic
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
     

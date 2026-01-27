@@ -125,5 +125,5 @@ Bu yazılım **sadece izinli testlerde** ve **eğitim amaçlı** kullanılmak ü
 
 ---
 
-**Made with ❤️ by AhmetDrak & AntiGravity**
+**Made with ❤️ by Drakben Team**
 
