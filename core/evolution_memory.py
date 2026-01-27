@@ -42,18 +42,18 @@ class PlanRecord:
 class EvolutionMemory:
     """
     REAL PERSISTENT EVOLUTION MEMORY
-
+    
     GUARANTEES:
     1. All data survives process restart (SQLite)
     2. Penalty scores affect tool selection BEFORE execution
     3. Failed tools are blocked after threshold
     4. Plans are persisted and support replanning
     """
-
+    
     PENALTY_INCREMENT = 10.0
     PENALTY_DECREMENT = 5.0
     BLOCK_THRESHOLD = 50.0  # Tool blocked after this penalty
-
+    
     def __init__(self, db_path: str = "drakben_evolution.db"):
         # Handle in-memory databases specially
         if db_path == ":memory:":
@@ -64,13 +64,13 @@ class EvolutionMemory:
             self.db_path = Path(db_path)
             self._is_memory = False
             self._persistent_conn = None
-        self._lock = threading.RLock() # Use Re-entrant lock to prevent deadlocks
+        self._lock = threading.Lock()
         self._init_database()
-
+    
     def _init_database(self):
         """
         Create tables if not exist.
-
+        
         Improvements:
         - Timeout protection on connection
         - WAL mode for concurrency
@@ -78,33 +78,30 @@ class EvolutionMemory:
         """
         import logging
         logger = logging.getLogger(__name__)
-
+        
         with self._lock:
-            db_path_str = self.db_path if isinstance(
-                self.db_path, str) else str(self.db_path)
-
+            db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
+            
             try:
-                conn = sqlite3.connect(
-                    db_path_str, timeout=10.0, check_same_thread=False)
+                conn = sqlite3.connect(db_path_str, timeout=10.0, check_same_thread=False)
                 conn.row_factory = sqlite3.Row
-
+                
                 # Enable WAL mode for better concurrency
                 try:
                     conn.execute("PRAGMA journal_mode=WAL")
                     conn.execute("PRAGMA busy_timeout=10000")
                 except sqlite3.OperationalError:
                     pass  # WAL might not be available
-
+                
                 # For in-memory databases, keep the connection open
                 if self._is_memory:
                     self._persistent_conn = conn
-
+                
                 cursor = conn.cursor()
             except sqlite3.OperationalError as e:
                 logger.error(f"Database initialization failed: {e}")
-                raise RuntimeError(
-                    f"Could not initialize evolution database: {e}")
-
+                raise RuntimeError(f"Could not initialize evolution database: {e}")
+            
             # ACTION HISTORY TABLE - stores every action with outcome
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS action_history (
@@ -121,7 +118,7 @@ class EvolutionMemory:
                     error_message TEXT DEFAULT ''
                 )
             """)
-
+            
             # TOOL PENALTIES TABLE - cumulative penalty per tool
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tool_penalties (
@@ -133,7 +130,7 @@ class EvolutionMemory:
                     blocked INTEGER DEFAULT 0
                 )
             """)
-
+            
             # PLANS TABLE - persistent plan state
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS plans (
@@ -146,7 +143,7 @@ class EvolutionMemory:
                     attempt_count INTEGER DEFAULT 1
                 )
             """)
-
+            
             # HEURISTICS TABLE - self-modifying parameters
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS heuristics (
@@ -155,7 +152,7 @@ class EvolutionMemory:
                     updated_at REAL NOT NULL
                 )
             """)
-
+            
             # Initialize default heuristics if not exist
             defaults = [
                 ("max_retries", 3.0),
@@ -169,16 +166,16 @@ class EvolutionMemory:
                     "INSERT OR IGNORE INTO heuristics (key, value, updated_at) VALUES (?, ?, ?)",
                     (key, val, time.time())
                 )
-
+            
             conn.commit()
             # Don't close the connection for in-memory databases
             if not self._is_memory:
                 self._close_conn(conn)
-
+    
     def _get_conn(self) -> sqlite3.Connection:
         """
         Get database connection with timeout protection and WAL mode.
-
+        
         Improvements:
         - timeout=10.0 to prevent indefinite blocking
         - WAL mode for better concurrency
@@ -188,46 +185,41 @@ class EvolutionMemory:
         # For in-memory databases, return the persistent connection
         if self._is_memory and self._persistent_conn:
             return self._persistent_conn
-
-        db_path_str = self.db_path if isinstance(
-            self.db_path, str) else str(self.db_path)
-
+        
+        db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
+        
         try:
-            conn = sqlite3.connect(
-                db_path_str,
-                timeout=10.0,
-                check_same_thread=False)
+            conn = sqlite3.connect(db_path_str, timeout=10.0, check_same_thread=False)
             conn.row_factory = sqlite3.Row
-
+            
             # Enable WAL mode for better concurrency (reduces lock contention)
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
-                # 10 second busy timeout
-                conn.execute("PRAGMA busy_timeout=10000")
+                conn.execute("PRAGMA busy_timeout=10000")  # 10 second busy timeout
             except sqlite3.OperationalError:
                 pass  # WAL might not be available, continue anyway
-
+            
             return conn
         except sqlite3.OperationalError as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Database connection failed: {e}")
             raise
-
+    
     def _close_conn(self, conn: sqlite3.Connection):
         """Close connection, unless it's an in-memory persistent connection"""
         if not self._is_memory:
             conn.close()
-
+    
     # ==================== ACTION RECORDING ====================
-
+    
     def record_action(self, record: ActionRecord):
         """Record action outcome - PERSISTENT"""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO action_history
+                INSERT INTO action_history 
                 (goal, plan_id, step_id, action_name, tool, parameters, outcome, timestamp, penalty_score, error_message)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -244,44 +236,9 @@ class EvolutionMemory:
             ))
             conn.commit()
             self._close_conn(conn)
-
+    
     # ==================== PENALTY SYSTEM ====================
-
-    def _handle_new_tool_penalty(self, cursor, tool: str, success: bool):
-        """Helper to initialize penalty for a new tool"""
-        p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
-        penalty = 0.0 if success else p_inc
-        cursor.execute("""
-            INSERT INTO tool_penalties (tool, penalty_score, success_count, failure_count, last_used, blocked)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (tool, penalty, 1 if success else 0, 0 if success else 1, time.time(), 0))
-
-    def _handle_existing_tool_penalty(self, cursor, row, tool: str, success: bool):
-        """Helper to update penalty for an existing tool"""
-        current_penalty = row["penalty_score"]
-        success_count = row["success_count"]
-        failure_count = row["failure_count"]
-
-        # Use dynamic heuristics instead of hardcoded constants
-        p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
-        p_dec = self.get_heuristic("penalty_decrement") or self.PENALTY_DECREMENT
-        b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
-
-        if success:
-            new_penalty = max(0.0, current_penalty - p_dec)
-            success_count += 1
-        else:
-            new_penalty = current_penalty + p_inc
-            failure_count += 1
-
-        blocked = 1 if new_penalty >= b_thresh else 0
-
-        cursor.execute("""
-            UPDATE tool_penalties
-            SET penalty_score = ?, success_count = ?, failure_count = ?, last_used = ?, blocked = ?
-            WHERE tool = ?
-        """, (new_penalty, success_count, failure_count, time.time(), blocked, tool))
-
+    
     def update_penalty(self, tool: str, success: bool):
         """
         Update tool penalty score.
@@ -290,35 +247,55 @@ class EvolutionMemory:
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
-
+            
             # Get current state
-            cursor.execute(
-                "SELECT * FROM tool_penalties WHERE tool = ?", (tool,))
+            cursor.execute("SELECT * FROM tool_penalties WHERE tool = ?", (tool,))
             row = cursor.fetchone()
-
+            
             if row is None:
-                self._handle_new_tool_penalty(cursor, tool, success)
+                # New tool
+                penalty = 0.0 if success else self.PENALTY_INCREMENT
+                cursor.execute("""
+                    INSERT INTO tool_penalties (tool, penalty_score, success_count, failure_count, last_used, blocked)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (tool, penalty, 1 if success else 0, 0 if success else 1, time.time(), 0))
             else:
-                self._handle_existing_tool_penalty(cursor, row, tool, success)
-
+                current_penalty = row["penalty_score"]
+                success_count = row["success_count"]
+                failure_count = row["failure_count"]
+                
+                if success:
+                    new_penalty = max(0.0, current_penalty - self.PENALTY_DECREMENT)
+                    success_count += 1
+                else:
+                    new_penalty = current_penalty + self.PENALTY_INCREMENT
+                    failure_count += 1
+                
+                blocked = 1 if new_penalty >= self.BLOCK_THRESHOLD else 0
+                
+                cursor.execute("""
+                    UPDATE tool_penalties 
+                    SET penalty_score = ?, success_count = ?, failure_count = ?, last_used = ?, blocked = ?
+                    WHERE tool = ?
+                """, (new_penalty, success_count, failure_count, time.time(), blocked, tool))
+            
             conn.commit()
             self._close_conn(conn)
-
+    
     def get_tool_penalty(self, tool: str) -> float:
         """Get current penalty for tool"""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT penalty_score FROM tool_penalties WHERE tool = ?", (tool,))
+            cursor.execute("SELECT penalty_score FROM tool_penalties WHERE tool = ?", (tool,))
             row = cursor.fetchone()
             self._close_conn(conn)
             return row["penalty_score"] if row else 0.0
-
+    
     def get_penalty(self, tool: str) -> float:
         """Alias for get_tool_penalty - compatibility with tool_selector.py"""
         return self.get_tool_penalty(tool)
-
+    
     def is_tool_blocked(self, tool: str) -> bool:
         """
         Check if tool is blocked due to high penalty.
@@ -327,16 +304,13 @@ class EvolutionMemory:
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT blocked, penalty_score FROM tool_penalties WHERE tool = ?", (tool,))
+            cursor.execute("SELECT blocked, penalty_score FROM tool_penalties WHERE tool = ?", (tool,))
             row = cursor.fetchone()
             self._close_conn(conn)
             if row is None:
                 return False
-            
-            b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
-            return row["blocked"] == 1 or row["penalty_score"] >= b_thresh
-
+            return row["blocked"] == 1 or row["penalty_score"] >= self.BLOCK_THRESHOLD
+    
     def get_allowed_tools(self, tool_list: List[str]) -> List[str]:
         """
         Filter tool list by penalty.
@@ -344,16 +318,16 @@ class EvolutionMemory:
         """
         result = []
         penalties = []
-
+        
         for tool in tool_list:
             if not self.is_tool_blocked(tool):
                 result.append(tool)
                 penalties.append((tool, self.get_tool_penalty(tool)))
-
+        
         # Sort by penalty ascending (prefer low-penalty tools)
         penalties.sort(key=lambda x: x[1])
         return [t[0] for t in penalties]
-
+    
     def get_all_penalties(self) -> Dict[str, Dict]:
         """Get all tool penalties for debugging"""
         with self._lock:
@@ -363,18 +337,14 @@ class EvolutionMemory:
             rows = cursor.fetchall()
             self._close_conn(conn)
             return {row["tool"]: dict(row) for row in rows}
-
+    
     # ==================== PLAN MANAGEMENT ====================
-
-    def create_plan(
-            self,
-            goal: str,
-            steps: List[Dict],
-            plan_id: Optional[str] = None) -> str:
+    
+    def create_plan(self, goal: str, steps: List[Dict], plan_id: Optional[str] = None) -> str:
         """Create new plan - PERSISTENT"""
         plan_id = plan_id or f"plan_{int(time.time() * 1000)}"
         now = time.time()
-
+        
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -384,9 +354,9 @@ class EvolutionMemory:
             """, (plan_id, goal, json.dumps(steps), "pending", now, now, 1))
             conn.commit()
             self._close_conn(conn)
-
+        
         return plan_id
-
+    
     def get_plan(self, plan_id: str) -> Optional[PlanRecord]:
         """Get plan by ID"""
         with self._lock:
@@ -395,10 +365,10 @@ class EvolutionMemory:
             cursor.execute("SELECT * FROM plans WHERE plan_id = ?", (plan_id,))
             row = cursor.fetchone()
             self._close_conn(conn)
-
+            
             if row is None:
                 return None
-
+            
             return PlanRecord(
                 plan_id=row["plan_id"],
                 goal=row["goal"],
@@ -408,7 +378,7 @@ class EvolutionMemory:
                 updated_at=row["updated_at"],
                 attempt_count=row["attempt_count"]
             )
-
+    
     def update_plan_status(self, plan_id: str, status: str):
         """Update plan status"""
         with self._lock:
@@ -419,7 +389,7 @@ class EvolutionMemory:
             """, (status, time.time(), plan_id))
             conn.commit()
             self._close_conn(conn)
-
+    
     def update_plan_steps(self, plan_id: str, steps: List[Dict]):
         """Update plan steps (for replanning)"""
         with self._lock:
@@ -431,23 +401,23 @@ class EvolutionMemory:
             """, (json.dumps(steps), time.time(), plan_id))
             conn.commit()
             self._close_conn(conn)
-
+    
     def get_active_plan(self, goal: str) -> Optional[PlanRecord]:
         """Get most recent non-completed plan for goal"""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM plans
+                SELECT * FROM plans 
                 WHERE goal = ? AND status NOT IN ('completed', 'failed')
                 ORDER BY created_at DESC LIMIT 1
             """, (goal,))
             row = cursor.fetchone()
             self._close_conn(conn)
-
+            
             if row is None:
                 return None
-
+            
             return PlanRecord(
                 plan_id=row["plan_id"],
                 goal=row["goal"],
@@ -457,20 +427,19 @@ class EvolutionMemory:
                 updated_at=row["updated_at"],
                 attempt_count=row["attempt_count"]
             )
-
+    
     # ==================== HEURISTICS (SELF-MODIFICATION) ====================
-
+    
     def get_heuristic(self, key: str) -> float:
         """Get heuristic value"""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT value FROM heuristics WHERE key = ?", (key,))
+            cursor.execute("SELECT value FROM heuristics WHERE key = ?", (key,))
             row = cursor.fetchone()
             self._close_conn(conn)
             return row["value"] if row else 0.0
-
+    
     def set_heuristic(self, key: str, value: float):
         """Set heuristic value - THIS IS SELF-MODIFICATION"""
         with self._lock:
@@ -482,12 +451,12 @@ class EvolutionMemory:
             """, (key, value, time.time()))
             conn.commit()
             self._close_conn(conn)
-
+    
     def adjust_heuristic(self, key: str, delta: float):
         """Adjust heuristic by delta - SELF-MODIFICATION"""
         current = self.get_heuristic(key)
         self.set_heuristic(key, current + delta)
-
+    
     def get_all_heuristics(self) -> Dict[str, float]:
         """Get all heuristics"""
         with self._lock:
@@ -497,9 +466,9 @@ class EvolutionMemory:
             rows = cursor.fetchall()
             self._close_conn(conn)
             return {row["key"]: row["value"] for row in rows}
-
+    
     # ==================== STAGNATION DETECTION ====================
-
+    
     def get_recent_actions(self, count: int = 5) -> List[ActionRecord]:
         """Get last N actions"""
         with self._lock:
@@ -510,7 +479,7 @@ class EvolutionMemory:
             """, (count,))
             rows = cursor.fetchall()
             self._close_conn(conn)
-
+            
             return [ActionRecord(
                 goal=row["goal"],
                 plan_id=row["plan_id"],
@@ -523,7 +492,7 @@ class EvolutionMemory:
                 penalty_score=row["penalty_score"],
                 error_message=row["error_message"]
             ) for row in rows]
-
+    
     def detect_stagnation(self) -> bool:
         """
         Detect if agent is stuck:
@@ -533,25 +502,25 @@ class EvolutionMemory:
         recent = self.get_recent_actions(5)
         if len(recent) < 3:
             return False
-
+        
         # Check same tool repeated
         tools = [a.tool for a in recent[:3]]
         if len(set(tools)) == 1:
             return True
-
+        
         # Check all failures
         outcomes = [a.outcome for a in recent]
         if all(o == "failure" for o in outcomes):
             return True
-
+        
         return False
-
+    
     def detect_tool_abuse(self, tool: str, threshold: int = 3) -> bool:
         """Detect if specific tool is being abused"""
         recent = self.get_recent_actions(threshold)
         if len(recent) < threshold:
             return False
-
+        
         return all(a.tool == tool for a in recent[:threshold])
 
 

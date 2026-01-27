@@ -37,7 +37,7 @@ except ImportError:
 class CommandResult:
     """Result of an interactive command"""
     success: bool
-    output: str
+    output: str = ""
     error: Optional[str] = None
     data: Optional[Dict] = None
 

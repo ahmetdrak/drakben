@@ -3,7 +3,6 @@
 # REQUIRED: LLM tool selection limited to state.remaining_attack_surface
 # NEW: KaliDetector integration - only available tools
 
-from .state import AgentState, AttackPhase
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -11,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+from .state import AgentState, AttackPhase
 
 # Kali entegrasyonu
 try:
@@ -70,34 +70,29 @@ class ToolSelector:
             # Get penalty from new evolution memory system
             penalty = evolution_memory.get_penalty(tool_name)
             is_blocked = evolution_memory.is_tool_blocked(tool_name)
-
+            
             original_priority = self.tools[tool_name].priority
             new_priority = original_priority
 
             # Block tool if it's blocked in evolution memory
             if is_blocked:
                 new_priority = 0
-                logger.warning(
-                    f"Tool blocked - {tool_name}: Too many failures")
+                logger.warning(f"Tool blocked - {tool_name}: Too many failures")
             # Evolution Logic based on penalty
             elif penalty == 0:
-                new_priority = min(
-                    100, original_priority + 20)  # Boost - no failures
+                new_priority = min(100, original_priority + 20)  # Boost - no failures
             elif penalty >= 5:
-                new_priority = max(
-                    10, original_priority - 20)  # Nerf - many failures
+                new_priority = max(10, original_priority - 20)  # Nerf - many failures
             elif penalty >= 2:
                 new_priority = max(30, original_priority - 10)  # Slight nerf
 
             if new_priority != original_priority:
                 self.tools[tool_name].priority = new_priority
-                logger.info(
-                    f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})")
+                logger.info(f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})")
                 evolved_count += 1
 
         if evolved_count > 0:
-            logger.info(
-                f"Evolution: Strategies updated for {evolved_count} tools")
+            logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
         else:
             logger.debug("Evolution: No changes needed")
 
@@ -130,56 +125,8 @@ class ToolSelector:
         if self.kali_detector:
             self.available_system_tools = self.kali_detector.get_available_tools()
 
-        # Load tools from JSON or use default
-        self.tools: Dict[str, ToolSpec] = self._load_tools()
-
-        # Fallback map for when primary tools fail
-        # "failed_tool" -> ["alternative1", "alternative2"]
-        self.fallback_map: Dict[str, List[str]] = {
-            "nmap_port_scan": [],
-            "nmap_service_scan": [],
-            "nikto_web_scan": [],
-            "sqlmap_scan": [],
-            "metasploit_exploit": [],
-        }
-
-        # Tool failure tracking (tool selector internal state)
-        self.failed_tools: Dict[str, int] = {}
-
-    def _load_tools(self) -> Dict[str, ToolSpec]:
-        """Load tools from JSON file or return defaults"""
-        import json
-        import os
-        
-        tools_file = "tools.json"
-        
-        if os.path.exists(tools_file):
-            try:
-                with open(tools_file, "r") as f:
-                    tool_data = json.load(f)
-                    return {
-                        name: ToolSpec(
-                            name=data["name"],
-                            category=ToolCategory[data["category"]],
-                            command_template=data["command_template"],
-                            phase_allowed=[AttackPhase[p] for p in data["phase_allowed"]],
-                            requires_foothold=data.get("requires_foothold", False),
-                            risk_level=data.get("risk_level", "low"),
-                            max_failures=data.get("max_failures", 2),
-                            system_tool=data.get("system_tool", ""),
-                            priority=data.get("priority", 50),
-                            description=data.get("description", "")
-                        )
-                        for name, data in tool_data.items()
-                    }
-            except Exception as e:
-                logger.error(f"Failed to load tools.json: {e}, using defaults")
-        
-        return self._get_default_tools()
-
-    def _get_default_tools(self) -> Dict[str, ToolSpec]:
-        """Return the default hardcoded toolset"""
-        return {
+        # Tool registry - PREDEFINED
+        self.tools: Dict[str, ToolSpec] = {
             # RECON tools
             "nmap_port_scan": ToolSpec(
                 name="nmap_port_scan",
@@ -301,6 +248,19 @@ class ToolSelector:
             ),
         }
 
+        # Fallback map for when primary tools fail
+        # "failed_tool" -> ["alternative1", "alternative2"]
+        self.fallback_map: Dict[str, List[str]] = {
+            "nmap_port_scan": [],
+            "nmap_service_scan": [],
+            "nikto_web_scan": [],
+            "sqlmap_scan": [],
+            "metasploit_exploit": [],
+        }
+
+        # Tool failure tracking (tool selector internal state)
+        self.failed_tools: Dict[str, int] = {}
+
     def get_allowed_tools(self, state: AgentState) -> List[str]:
         """
         Return allowed tools based on state
@@ -335,19 +295,18 @@ class ToolSelector:
 
     def filter_for_system_tools(self) -> List[str]:
         """List tools that should be installed on system"""
-        return [spec.system_tool for spec in self.tools.values()
-                if spec.system_tool]
+        return [spec.system_tool for spec in self.tools.values() if spec.system_tool]
 
     def select_tool_for_surface(
         self, state: AgentState, surface: str
     ) -> Optional[Tuple[str, Dict[str, Any]]]:
         """
         Select appropriate tool for a specific attack surface.
-
+        
         Args:
             state: Current agent state
             surface: Attack surface string (format: "port:service")
-
+            
         Returns:
             Tuple of (tool_name, params_dict) or None if no suitable tool
         """
@@ -365,24 +324,16 @@ class ToolSelector:
         if state.phase == AttackPhase.RECON:
             # Service version detection
             if "nmap_service_scan" in allowed_tools:
-                return (
-                    "nmap_service_scan", {
-                        "target": state.target, "ports": port})
+                return ("nmap_service_scan", {"target": state.target, "ports": port})
 
         elif state.phase == AttackPhase.VULN_SCAN:
             # Web service - use web scanner
-            if service in [
-                "http",
-                    "https"] and "nikto_web_scan" in allowed_tools:
-                return (
-                    "nikto_web_scan", {
-                        "target": state.target, "port": port})
+            if service in ["http", "https"] and "nikto_web_scan" in allowed_tools:
+                return ("nikto_web_scan", {"target": state.target, "port": port})
 
             # Generic vuln scan
             if "nmap_vuln_scan" in allowed_tools:
-                return (
-                    "nmap_vuln_scan", {
-                        "target": state.target, "port": port})
+                return ("nmap_vuln_scan", {"target": state.target, "port": port})
 
         elif state.phase == AttackPhase.EXPLOIT:
             # SQL injection possible
@@ -390,15 +341,11 @@ class ToolSelector:
                 service in ["http", "https", "mysql", "postgres"]
                 and "sqlmap_scan" in allowed_tools
             ):
-                return ("sqlmap_scan",
-                        {"target": f"http://{state.target}:{port}"})
+                return ("sqlmap_scan", {"target": f"http://{state.target}:{port}"})
 
         return None
 
-    def get_fallback_tool(
-            self,
-            failed_tool: str,
-            state: AgentState) -> Optional[str]:
+    def get_fallback_tool(self, failed_tool: str, state: AgentState) -> Optional[str]:
         """
         Get fallback tool for failed tool - DETERMINISTIC
 
@@ -439,8 +386,7 @@ class ToolSelector:
 
         # Phase check
         if state.phase not in spec.phase_allowed:
-            return False, f"Tool {tool_name} not allowed in phase {
-                state.phase.value}"
+            return False, f"Tool {tool_name} not allowed in phase {state.phase.value}"
 
         # Foothold check
         if spec.requires_foothold and not state.has_foothold:
@@ -470,19 +416,10 @@ class ToolSelector:
         phase_tools = {
             AttackPhase.INIT: ["nmap_port_scan"],
             AttackPhase.RECON: ["nmap_service_scan"],
-            AttackPhase.VULN_SCAN: [
-                "nmap_vuln_scan",
-                "nikto_web_scan",
-                "sqlmap_scan"],
-            AttackPhase.EXPLOIT: [
-                "sqlmap_exploit",
-                "metasploit_exploit"],
-            AttackPhase.FOOTHOLD: [
-                "msfvenom_payload",
-                "reverse_shell"],
-            AttackPhase.POST_EXPLOIT: [
-                "privilege_escalation",
-                "lateral_movement"],
+            AttackPhase.VULN_SCAN: ["nmap_vuln_scan", "nikto_web_scan", "sqlmap_scan"],
+            AttackPhase.EXPLOIT: ["sqlmap_exploit", "metasploit_exploit"],
+            AttackPhase.FOOTHOLD: ["msfvenom_payload", "reverse_shell"],
+            AttackPhase.POST_EXPLOIT: ["privilege_escalation", "lateral_movement"],
         }
 
         return phase_tools.get(state.phase, [])
@@ -500,8 +437,7 @@ class ToolSelector:
         remaining = state.get_available_attack_surface()
 
         # 1. Try to scan remaining surfaces
-        if remaining and state.phase in [
-                AttackPhase.RECON, AttackPhase.VULN_SCAN]:
+        if remaining and state.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN]:
             scan_action = self._recommend_surface_scan(state, remaining[0])
             if scan_action:
                 return scan_action
@@ -518,8 +454,7 @@ class ToolSelector:
 
         return None
 
-    def _recommend_surface_scan(
-            self, state: AgentState, surface: str) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_surface_scan(self, state: AgentState, surface: str) -> Optional[Tuple[str, str, Dict]]:
         """Recommend a scan action for a specific surface"""
         tool_result = self.select_tool_for_surface(state, surface)
         if tool_result:
@@ -527,8 +462,7 @@ class ToolSelector:
             return ("scan_surface", tool_name, args)
         return None
 
-    def _recommend_phase_transition(
-            self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_phase_transition(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
         """Recommend a phase transition if applicable"""
         # No more surfaces to test in current phase
         if state.phase == AttackPhase.RECON and state.open_services:
@@ -548,17 +482,14 @@ class ToolSelector:
             )
         return None
 
-    def _recommend_exploit(
-            self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_exploit(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
         """Recommend an exploit action"""
         for vuln in state.vulnerabilities:
             if vuln.exploitable and not vuln.exploit_attempted:
                 # Try to exploit
                 tool_name = self._get_exploit_tool_for_vuln(vuln)
                 if tool_name:
-                    return (
-                        "exploit_vuln", tool_name, {
-                            "vuln_id": vuln.vuln_id})
+                    return ("exploit_vuln", tool_name, {"vuln_id": vuln.vuln_id})
         return None
 
     def _get_exploit_tool_for_vuln(self, vuln) -> Optional[str]:

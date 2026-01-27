@@ -29,7 +29,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
     AST-based security checker for generated code.
     Analyzes the Abstract Syntax Tree to detect dangerous patterns.
     """
-
+    
     # Dangerous function names that should never be called
     DANGEROUS_FUNCTIONS = {
         'eval', 'exec', 'compile', '__import__',
@@ -37,7 +37,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
         'globals', 'locals',  # Scope manipulation
         'open',  # File operations (checked separately with context)
     }
-
+    
     # Dangerous module imports
     DANGEROUS_IMPORTS = {
         'ctypes',  # Low-level memory manipulation
@@ -46,7 +46,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
         'code',  # Code object manipulation
         'codeop',  # Code compilation
     }
-
+    
     # Restricted module.function combinations
     RESTRICTED_CALLS = {
         ('os', 'system'),
@@ -83,88 +83,88 @@ class ASTSecurityChecker(ast.NodeVisitor):
         ('builtins', 'eval'),
         ('builtins', 'exec'),
     }
-
+    
     # Allowed subprocess calls for security tools (with strict conditions)
     ALLOWED_SUBPROCESS_FOR_TOOLS = {
         'nmap', 'nikto', 'gobuster', 'sqlmap', 'whatweb', 'curl', 'wget'
     }
-
-    # Dangerous file paths
+    
     # Dangerous file paths
     DANGEROUS_PATHS = {
         '/etc/passwd', '/etc/shadow', '/etc/sudoers',
-        '/root/', '/boot/', '/proc/', '/sys/', '/dev/',
-        '/bin/', '/sbin/', '/usr/bin/', '/usr/sbin/'
+        '/root/', '/home/', '~/',
+        'C:\\Windows\\System32',
+        'C:\\Windows\\System',
     }
-
+    
     def __init__(self, allow_subprocess_tools: bool = False):
         self.violations: List[str] = []
         self.imported_modules: Dict[str, str] = {}  # alias -> module name
         self.allow_subprocess_tools = allow_subprocess_tools
-
+    
     def check(self, code: str) -> List[str]:
         """
         Check code for security violations.
-
+        
         Args:
             code: Python source code
-
+            
         Returns:
             List of violation descriptions
         """
         self.violations = []
         self.imported_modules = {}
-
+        
         try:
             tree = ast.parse(code)
             self.visit(tree)
         except SyntaxError as e:
             self.violations.append(f"Syntax error: {e}")
-
+        
         return self.violations
-
+    
     def visit_Import(self, node: ast.Import):
         """Check import statements"""
         for alias in node.names:
             module_name = alias.name.split('.')[0]
             import_alias = alias.asname or alias.name
             self.imported_modules[import_alias] = module_name
-
+            
             if module_name in self.DANGEROUS_IMPORTS:
                 self.violations.append(f"Dangerous import: {module_name}")
-
+        
         self.generic_visit(node)
-
+    
     def visit_ImportFrom(self, node: ast.ImportFrom):
         """Check from ... import statements"""
         if node.module:
             module_name = node.module.split('.')[0]
-
+            
             if module_name in self.DANGEROUS_IMPORTS:
                 self.violations.append(f"Dangerous import from: {module_name}")
-
+            
             for alias in node.names:
                 import_alias = alias.asname or alias.name
                 self.imported_modules[import_alias] = module_name
-
+                
                 # Check specific function imports
                 if (module_name, alias.name) in self.RESTRICTED_CALLS:
                     self.violations.append(
-                        f"Restricted function import: {module_name}.{
-                            alias.name}")
-
+                        f"Restricted function import: {module_name}.{alias.name}"
+                    )
+        
         self.generic_visit(node)
-
+    
     def visit_Call(self, node: ast.Call):
         """Check function calls"""
         func_name = self._get_call_name(node)
-
+        
         if func_name:
             if func_name in self.DANGEROUS_FUNCTIONS:
                 self._handle_dangerous_function(node, func_name)
             elif '.' in func_name:
-                self._handle_module_function(func_name)
-
+                self._handle_module_function(node, func_name)
+        
         self.generic_visit(node)
 
     def _handle_dangerous_function(self, node: ast.Call, func_name: str):
@@ -175,57 +175,46 @@ class ASTSecurityChecker(ast.NodeVisitor):
         else:
             self.violations.append(f"Dangerous function call: {func_name}")
 
-    def _handle_module_function(self, func_name: str):
+    def _handle_module_function(self, node: ast.Call, func_name: str):
         """Handle calls to module functions"""
         parts = func_name.split('.')
         if len(parts) >= 2:
             module_alias = parts[0]
             func = parts[1]
-
+            
             # Resolve module alias
             module_name = self.imported_modules.get(module_alias, module_alias)
-
+            
             if (module_name, func) in self.RESTRICTED_CALLS:
-                self._check_restricted_call(module_name, func)
+                self._check_restricted_call(node, module_name, func)
 
-    def _check_restricted_call(
-            self,
-            module_name: str,
-            func: str):
+    def _check_restricted_call(self, node: ast.Call, module_name: str, func: str):
         """Check if a restricted call is allowed under specific conditions"""
         # Allow subprocess for specific security tools
         if module_name == 'subprocess' and self.allow_subprocess_tools:
-            # We trust the self-generated code enough to allow subprocess calls
-            # if explicitly enabled for tool creation tasks.
-            return
+            if not self._is_allowed_subprocess_call(node):
+                self.violations.append("Subprocess call with non-whitelisted command")
         else:
             self.violations.append(f"Restricted call: {module_name}.{func}")
-
+    
     def visit_Attribute(self, node: ast.Attribute):
         """Check attribute access for dangerous patterns"""
         # Check for __class__, __bases__, __mro__ etc.
         if node.attr.startswith('__') and node.attr.endswith('__'):
-            if node.attr not in (
-                '__init__',
-                '__name__',
-                '__doc__',
-                '__str__',
-                    '__repr__'):
-                self.violations.append(
-                    f"Suspicious dunder access: {
-                        node.attr}")
-
+            if node.attr not in ('__init__', '__name__', '__doc__', '__str__', '__repr__'):
+                self.violations.append(f"Suspicious dunder access: {node.attr}")
+        
         self.generic_visit(node)
-
+    
     # NOTE: visit_Str removed - was deprecated in Python 3.8, removed in 3.14
     # All string literals are now handled by visit_Constant (Python 3.8+)
-
+    
     def visit_Constant(self, node: ast.Constant):
         """Check constant values for dangerous paths (Python 3.8+)"""
         if isinstance(node.value, str):
             self._check_dangerous_path(node.value)
         self.generic_visit(node)
-
+    
     def _get_call_name(self, node: ast.Call) -> Optional[str]:
         """Extract function name from Call node"""
         if isinstance(node.func, ast.Name):
@@ -240,21 +229,17 @@ class ASTSecurityChecker(ast.NodeVisitor):
                 parts.append(current.id)
             return '.'.join(reversed(parts))
         return None
-
+    
     def _check_open_call(self, node: ast.Call):
         """Check if open() call is safe"""
         if node.args:
             first_arg = node.args[0]
-            if isinstance(
-                    first_arg,
-                    ast.Constant) and isinstance(
-                    first_arg.value,
-                    str):
+            if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
                 path = first_arg.value
                 self._check_dangerous_path(path)
             elif isinstance(first_arg, ast.Str):
                 self._check_dangerous_path(first_arg.s)
-
+    
     def _check_dangerous_path(self, path: str):
         """Check if path is dangerous"""
         path_lower = path.lower()
@@ -262,47 +247,39 @@ class ASTSecurityChecker(ast.NodeVisitor):
             if dangerous.lower() in path_lower:
                 self.violations.append(f"Access to sensitive path: {path}")
                 return
-
+    
     def _is_allowed_subprocess_call(self, node: ast.Call) -> bool:
         """Check if subprocess call uses whitelisted tool"""
         if not node.args:
             return False
-
+        
         first_arg = node.args[0]
-
+        
         # Check if it's a list like ['nmap', '-p', ...]
         if isinstance(first_arg, ast.List) and first_arg.elts:
             first_element = first_arg.elts[0]
             if isinstance(first_element, ast.Constant):
                 cmd = str(first_element.value).lower()
-                return any(
-                    tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+                return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
             elif isinstance(first_element, ast.Str):
                 cmd = first_element.s.lower()
-                return any(
-                    tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
-
+                return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+        
         # Check if it's a string like "nmap -p ..."
-        if isinstance(
-                first_arg,
-                ast.Constant) and isinstance(
-                first_arg.value,
-                str):
+        if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
             cmd = first_arg.value.lower()
-            return any(
-                tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+            return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
         elif isinstance(first_arg, ast.Str):
             cmd = first_arg.s.lower()
-            return any(
-                tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
-
+            return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+        
         return False
 
 
 class AICoder:
     """
     AI Self-Coding Module
-
+    
     Ajan şu durumlarda yeni tool yazar:
     1. Mevcut tool'lar 3+ kez başarısız olduğunda
     2. İstenen işlev için tool bulunamadığında
@@ -318,26 +295,21 @@ class AICoder:
         self.brain = brain
         self.created_tools: List[str] = []
         self.security_checker = ASTSecurityChecker(allow_subprocess_tools=True)
-
+        
         # Create directory if not exists
         if not DYNAMIC_MODULES_PATH.exists():
             DYNAMIC_MODULES_PATH.mkdir(parents=True)
-            logger.info(
-                f"Created dynamic modules directory: {DYNAMIC_MODULES_PATH}")
-
+            logger.info(f"Created dynamic modules directory: {DYNAMIC_MODULES_PATH}")
+        
         # Create __init__.py if not exists
         init_file = DYNAMIC_MODULES_PATH / self.INIT_PY
         if not init_file.exists():
             init_file.write_text("# Dynamic tools generated by AI\n")
-
-    def should_create_tool(
-            self,
-            failed_tool: str,
-            failure_count: int,
-            action: str) -> bool:
+    
+    def should_create_tool(self, failed_tool: str, failure_count: int, action: str) -> bool:
         """
         Should a new tool be created?
-
+        
         Conditions:
         - Tool failed 3+ times
         - No alternative tool found
@@ -346,46 +318,43 @@ class AICoder:
         """
         if failure_count < 3:
             return False
-
+        
         # Max tool limit
         if len(self.created_tools) >= self.MAX_CREATED_TOOLS:
-            logger.warning(
-                f"Max created tools limit reached ({
-                    self.MAX_CREATED_TOOLS})")
+            logger.warning(f"Max created tools limit reached ({self.MAX_CREATED_TOOLS})")
             return False
-
+        
         # Did we already create a tool for this action?
         generated_name = f"auto_{action}_{failed_tool.replace('_', '')}"
         if generated_name in self.created_tools:
             return False
-
+        
         logger.info(f"Tool creation approved for action: {action}")
         return True
-
+    
     def create_alternative_tool(
-        self,
-        failed_tool: str,
-        action: str,
+        self, 
+        failed_tool: str, 
+        action: str, 
         target: str,
         error_message: str
     ) -> Dict:
         """
         Write alternative for failed tool.
-
+        
         Args:
             failed_tool: Başarısız olan tool adı
             action: Yapılmak istenen aksiyon (scan, exploit, etc.)
             target: Hedef
             error_message: Önceki hata mesajı
-
+        
         Returns:
             {"success": bool, "tool_name": str, "file_path": str} veya {"success": False, "error": str}
         """
-        logger.info(
-            f"Creating alternative tool for failed: {failed_tool}, action: {action}")
-
+        logger.info(f"Creating alternative tool for failed: {failed_tool}, action: {action}")
+        
         tool_name = f"auto_{action}_{int(time.time()) % 10000}"
-
+        
         # LLM'den kod iste
         system_msg = """You are an expert Python security tool developer.
 Write a COMPLETE, WORKING Python script for the requested task.
@@ -420,11 +389,9 @@ def run(target, args=None):
     try:
         # Your implementation
         result = "..."
-        return {
-            "success": True, "output": result, "error": None}
+        return {{"success": True, "output": result, "error": None}}
     except Exception as e:
-        return {
-            "success": False, "output": "", "error": str(e)}
+        return {{"success": False, "output": "", "error": str(e)}}
 ```
 """
 
@@ -433,7 +400,7 @@ def run(target, args=None):
             if not self.brain or not self.brain.llm_client:
                 logger.warning(self.ERR_NO_LLM)
                 return {"success": False, "error": self.ERR_NO_LLM}
-
+            
             prompt = format_llm_prompt(system_msg, user_msg)
             response = self.brain.llm_client.query(prompt)
             code = self._extract_code(response)
@@ -450,14 +417,11 @@ def run(target, args=None):
             # AST-based security check
             security_result = self._security_check_ast(code)
             if not security_result["safe"]:
-                logger.warning(
-                    f"Security check failed: {
-                        security_result['violations']}")
+                logger.warning(f"Security check failed: {security_result['violations']}")
                 return {
-                    "success": False,
-                    "error": f"Security check failed: {
-                        ', '.join(
-                            security_result['violations'])}"}
+                    "success": False, 
+                    "error": f"Security check failed: {', '.join(security_result['violations'])}"
+                }
 
             # Save to file
             file_path = DYNAMIC_MODULES_PATH / f"{tool_name}.py"
@@ -469,7 +433,7 @@ def run(target, args=None):
 
             self.created_tools.append(tool_name)
             logger.info(f"Successfully created tool: {tool_name}")
-
+            
             return {
                 "success": True,
                 "tool_name": tool_name,
@@ -481,16 +445,12 @@ def run(target, args=None):
             logger.exception(f"Tool creation failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def create_tool(
-            self,
-            tool_name: str,
-            description: str,
-            requirements: str) -> Dict:
+    def create_tool(self, tool_name: str, description: str, requirements: str) -> Dict:
         """
         Manual tool creation (legacy method, for backward compatibility)
         """
         logger.info(f"Creating tool: {tool_name}")
-
+        
         system_msg = """You are an expert Python Security Tool Developer.
 You must write a complete, standalone Python script that performs the requested security task.
 The script must function as a standalone module with a main function named 'run(target, args)'.
@@ -518,7 +478,7 @@ def run(target, args=None):
             if not self.brain or not self.brain.llm_client:
                 logger.warning(self.ERR_NO_LLM)
                 return {"success": False, "error": self.ERR_NO_LLM}
-
+            
             prompt = format_llm_prompt(system_msg, user_msg)
             response = self.brain.llm_client.query(prompt)
             code = self._extract_code(response)
@@ -533,9 +493,8 @@ def run(target, args=None):
             if not security_result["safe"]:
                 return {
                     "success": False,
-                    "error": f"Security check failed: {
-                        ', '.join(
-                            security_result['violations'])}"}
+                    "error": f"Security check failed: {', '.join(security_result['violations'])}"
+                }
 
             file_path = DYNAMIC_MODULES_PATH / f"{tool_name}.py"
             with open(file_path, "w", encoding="utf-8") as f:
@@ -543,7 +502,7 @@ def run(target, args=None):
 
             self.created_tools.append(tool_name)
             logger.info(f"Successfully created tool: {tool_name}")
-
+            
             return {
                 "success": True,
                 "file_path": str(file_path),
@@ -579,12 +538,12 @@ def run(target, args=None):
         """
         AST-based güvenlik kontrolü.
         Pattern matching yerine AST analizi yapar.
-
+        
         Returns:
             {"safe": bool, "violations": List[str]}
         """
         violations = self.security_checker.check(code)
-
+        
         return {
             "safe": len(violations) == 0,
             "violations": violations
@@ -601,7 +560,7 @@ def run(target, args=None):
     def load_dynamic_tool(self, module_name: str) -> Optional[Any]:
         """Dinamik modülü yükle ve çalıştırmaya hazır hale getir"""
         logger.debug(f"Loading dynamic tool: {module_name}")
-
+        
         try:
             # modules.dynamic.tool_name -> modules/dynamic/tool_name.py
             parts = module_name.split(".")
@@ -609,57 +568,42 @@ def run(target, args=None):
                 file_path = DYNAMIC_MODULES_PATH / f"{parts[-1]}.py"
             else:
                 file_path = DYNAMIC_MODULES_PATH / f"{module_name}.py"
-
+            
             if not file_path.exists():
                 logger.warning(f"Dynamic module not found: {file_path}")
                 return None
-
-            spec = importlib.util.spec_from_file_location(
-                module_name, file_path)
+            
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
             if spec is None or spec.loader is None:
-                logger.warning(
-                    f"Could not create spec for module: {module_name}")
+                logger.warning(f"Could not create spec for module: {module_name}")
                 return None
-
+            
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             logger.info(f"Successfully loaded dynamic tool: {module_name}")
             return module
-
+            
         except Exception as e:
-            logger.exception(
-                f"Error loading dynamic module {module_name}: {e}")
+            logger.exception(f"Error loading dynamic module {module_name}: {e}")
             return None
 
-    def execute_dynamic_tool(
-            self,
-            tool_name: str,
-            target: str,
-            args: Dict = None) -> Dict:
+    def execute_dynamic_tool(self, tool_name: str, target: str, args: Dict = None) -> Dict:
         """Dinamik tool'u çalıştır"""
         logger.info(f"Executing dynamic tool: {tool_name} on {target}")
-
+        
         module_name = f"modules.dynamic.{tool_name}"
         module = self.load_dynamic_tool(module_name)
-
+        
         if module is None:
-            return {
-                "success": False,
-                "output": "",
-                "error": f"Could not load module {tool_name}"}
-
+            return {"success": False, "output": "", "error": f"Could not load module {tool_name}"}
+        
         if not hasattr(module, "run"):
             logger.error(f"Module {tool_name} has no 'run' function")
-            return {
-                "success": False,
-                "output": "",
-                "error": f"Module {tool_name} has no 'run' function"}
-
+            return {"success": False, "output": "", "error": f"Module {tool_name} has no 'run' function"}
+        
         try:
             result = module.run(target, args)
-            logger.info(
-                f"Dynamic tool {tool_name} completed: success={
-                    result.get('success')}")
+            logger.info(f"Dynamic tool {tool_name} completed: success={result.get('success')}")
             return result
         except Exception as e:
             logger.exception(f"Dynamic tool execution failed: {e}")
@@ -678,22 +622,22 @@ def run(target, args=None):
     def cleanup_old_tools(self, max_age_hours: int = 24):
         """
         Eski dinamik tool'ları temizle.
-
+        
         Args:
             max_age_hours: Maximum age in hours before deletion
         """
         logger.info(f"Cleaning up tools older than {max_age_hours} hours")
-
+        
         if not DYNAMIC_MODULES_PATH.exists():
             return
-
+        
         current_time = time.time()
         max_age_seconds = max_age_hours * 3600
-
+        
         for f in DYNAMIC_MODULES_PATH.glob("*.py"):
             if f.name == self.INIT_PY:
                 continue
-
+            
             file_age = current_time - f.stat().st_mtime
             if file_age > max_age_seconds:
                 try:
