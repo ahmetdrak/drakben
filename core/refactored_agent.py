@@ -565,11 +565,17 @@ class RefactoredDrakbenAgent:
             error_type = "permission_denied"
         elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
             self.console.print(
-                f"🛑 CRITICAL: Tool '{
-                    step.tool}' not found! Please install it.",
-                style=self.STYLE_RED)
-            self.running = False
-            return False
+                f"🛠️  Tool '{step.tool}' not found - attempting auto-install...",
+                style="yellow")
+            if self._install_tool(step.tool):
+                self.console.print(f"✅ Tool {step.tool} installed, retrying step...", style="green")
+                step.status = StepStatus.PENDING
+                step.retry_count = 0
+                return True
+            else:
+                self.console.print(f"🛑 CRITICAL: Could not auto-install '{step.tool}'.", style=self.STYLE_RED)
+                self.running = False
+                return False
 
         # Record failure to database
         if self.current_profile:
@@ -1218,15 +1224,24 @@ class RefactoredDrakbenAgent:
 
     def _process_exploit_result(self, tool_name: str, result: Dict):
         """Helper to process exploit results"""
-        observation = result.get("stdout", "") + "\n" + \
-            result.get("stderr", "")
-        # Check if exploit succeeded
-        if "success" in observation.lower(
-        ) or "shell" in observation.lower() or result.get("success"):
+        observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
+        observation_lower = observation.lower()
+        
+        # Stricter foothold detection:
+        # 1. LLM explicitly flagged success (result.get("success") is True and verified)
+        # 2. Output contains strong shell signatures (meterpreter, /bin/sh, uid=0, etc)
+        shell_signatures = [
+            "session opened", "shell opened", "meterpreter session", 
+            "connected to", "uid=0", "gid=0", "root@", "/bin/bash", "/bin/sh"
+        ]
+        
+        has_shell = any(sig in observation_lower for sig in shell_signatures)
+        
+        if result.get("success") and has_shell:
             self.state.set_foothold(tool_name)
         else:
             self.state.set_observation(
-                "Exploit did not succeed; foothold not set")
+                f"Exploit execution finished but no strong shell signature found in output")
 
     def _update_state_nmap_port_scan(self, result: Dict):
         """Update state from Nmap port scan results"""

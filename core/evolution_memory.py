@@ -64,7 +64,7 @@ class EvolutionMemory:
             self.db_path = Path(db_path)
             self._is_memory = False
             self._persistent_conn = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock() # Use Re-entrant lock to prevent deadlocks
         self._init_database()
 
     def _init_database(self):
@@ -260,10 +260,10 @@ class EvolutionMemory:
             cursor.execute(
                 "SELECT * FROM tool_penalties WHERE tool = ?", (tool,))
             row = cursor.fetchone()
-
             if row is None:
-                # New tool
-                penalty = 0.0 if success else self.PENALTY_INCREMENT
+                # New tool - use heuristics
+                p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
+                penalty = 0.0 if success else p_inc
                 cursor.execute("""
                     INSERT INTO tool_penalties (tool, penalty_score, success_count, failure_count, last_used, blocked)
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -273,15 +273,19 @@ class EvolutionMemory:
                 success_count = row["success_count"]
                 failure_count = row["failure_count"]
 
+                # Use dynamic heuristics instead of hardcoded constants
+                p_inc = self.get_heuristic("penalty_increment") or self.PENALTY_INCREMENT
+                p_dec = self.get_heuristic("penalty_decrement") or self.PENALTY_DECREMENT
+                b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
+
                 if success:
-                    new_penalty = max(
-                        0.0, current_penalty - self.PENALTY_DECREMENT)
+                    new_penalty = max(0.0, current_penalty - p_dec)
                     success_count += 1
                 else:
-                    new_penalty = current_penalty + self.PENALTY_INCREMENT
+                    new_penalty = current_penalty + p_inc
                     failure_count += 1
 
-                blocked = 1 if new_penalty >= self.BLOCK_THRESHOLD else 0
+                blocked = 1 if new_penalty >= b_thresh else 0
 
                 cursor.execute("""
                     UPDATE tool_penalties
@@ -321,7 +325,9 @@ class EvolutionMemory:
             self._close_conn(conn)
             if row is None:
                 return False
-            return row["blocked"] == 1 or row["penalty_score"] >= self.BLOCK_THRESHOLD
+            
+            b_thresh = self.get_heuristic("block_threshold") or self.BLOCK_THRESHOLD
+            return row["blocked"] == 1 or row["penalty_score"] >= b_thresh
 
     def get_allowed_tools(self, tool_list: List[str]) -> List[str]:
         """

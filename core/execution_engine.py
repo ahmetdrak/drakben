@@ -268,6 +268,7 @@ class SmartTerminal:
         self.current_process: Optional[subprocess.Popen] = None
         self.sanitizer = CommandSanitizer()
         self._history_lock = threading.Lock()  # Thread safety for history
+        self._process_lock = threading.Lock()  # Thread safety for process tracking
         self._confirmation_callback = confirmation_callback
         # Set True to skip confirmations (dangerous!)
         self._auto_approve = False
@@ -392,7 +393,8 @@ class SmartTerminal:
 
             # 3. Execute process
             process = self._create_process(cmd_args, shell, capture_output)
-            self.current_process = process
+            with self._process_lock:
+                self.current_process = process
 
             # 3. Wait for result
             stdout, stderr, exit_code, status = self._wait_for_process(
@@ -418,7 +420,8 @@ class SmartTerminal:
         except Exception as e:
             return self._handle_execution_error(command, e, start_time)
         finally:
-            self.current_process = None
+            with self._process_lock:
+                self.current_process = None
 
     def _prepare_command(self, command: str, shell: bool,
                          skip_sanitization: bool) -> Tuple[str, List[str]]:
@@ -613,9 +616,10 @@ class SmartTerminal:
 
     def cancel_current(self) -> bool:
         """Cancel currently running command"""
-        if self.current_process:
-            self.current_process.kill()
-            return True
+        with self._process_lock:
+            if self.current_process:
+                self._terminate_process_group(self.current_process)
+                return True
         return False
 
     def get_last_result(self) -> Optional[ExecutionResult]:

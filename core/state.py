@@ -114,8 +114,8 @@ class AgentState:
         Args:
             target: Target IP or domain (optional)
         """
-        # Prevent re-initialization
-        if getattr(self, "_initialized", False) and target is None:
+        # Prevent re-initialization if already initialized with the same target
+        if getattr(self, "_initialized", False) and (target is None or target == self.target):
             return
 
         # Thread safety lock
@@ -658,8 +658,6 @@ class AgentState:
     def _check_limits_invariants(self) -> List[str]:
         """Check limit-related invariants"""
         violations = []
-        MAX_HALLUCINATIONS_THRESHOLD = 5
-
         if len(self.hallucination_flags) >= MAX_HALLUCINATIONS_THRESHOLD:
             violations.append(
                 f"Too many hallucinations detected ({len(self.hallucination_flags)})"
@@ -715,6 +713,10 @@ class AgentState:
             "post_exploit_completed": list(self.post_exploit_completed),
             "state_changes_history": self.state_changes_history[-MAX_STATE_CHANGES_HISTORY:],
             "invariant_violations": self.invariant_violations,
+            "tool_call_history": self.tool_call_history,
+            "consecutive_same_tool": self.consecutive_same_tool,
+            "hallucination_flags": self.hallucination_flags,
+            "last_observation": self.last_observation,
         }
 
     def from_dict(self, data: Dict) -> None:
@@ -750,6 +752,10 @@ class AgentState:
         # History
         self.state_changes_history = data.get("state_changes_history", [])
         self.invariant_violations = data.get("invariant_violations", [])
+        self.tool_call_history = data.get("tool_call_history", [])
+        self.consecutive_same_tool = data.get("consecutive_same_tool", 0)
+        self.hallucination_flags = data.get("hallucination_flags", [])
+        self.last_observation = data.get("last_observation", "")
 
 
     def save(self) -> None:
