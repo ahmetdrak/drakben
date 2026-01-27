@@ -88,38 +88,50 @@ class FormalAuditTest(unittest.TestCase):
         """Audit: Does SmartTerminal handle concurrent execution process tracking?"""
         term = SmartTerminal()
         
-        # Since .execute is blocking, we check what happens if two threads call it.
-        # The issue is the shared 'self.current_process' variable.
         # We'll mock process creation to verify the overlap.
-        
         with patch.object(term, '_create_process') as mock_create:
             mock_proc1 = MagicMock()
             mock_proc1.pid = 123
             mock_proc2 = MagicMock()
             mock_proc2.pid = 456
             
-            mock_create.side_effect = [mock_proc1, mock_proc2]
+            # Thread 1 starts proc1
+            def thread1_work():
+                term.current_process = mock_proc1
+                # Wait for signal to cancel
+                time.sleep(0.5)
+                term.cancel_current()
+
+            # Thread 2 starts proc2
+            def thread2_work():
+                term.current_process = mock_proc2
+                # thread 2 does NOT cancel, just exists
             
-            # We can't easily wait on blocking calls in threads for this test 
-            # without complex timing, but the code shows:
-            # self.current_process = process (Line 395)
-            # self._wait_for_process(...) (Line 398)
-            # If two threads are here, thread A sets it, thread B sets it, 
-            # then A calls cancel_current(), it kills B's process!
+            t1 = threading.Thread(target=thread1_work)
+            t2 = threading.Thread(target=thread2_work)
             
-            term.current_process = mock_proc1
-            # thread B starts...
-            term.current_process = mock_proc2
+            t1.start()
+            time.sleep(0.1) # Ensure t1 sets current_process
+            t2.start()
+            t1.join()
+            t2.join()
             
-            # A wants to cancel ITS process:
-            term.cancel_current()
-            
-            # Did it kill proc1?
-            if mock_proc1.kill.called:
-                print("✅ (Unexpectedly) thread safe?")
+            # Did t1.cancel_current() kill proc1?
+            if mock_proc1.kill.called or mock_proc1.terminate.called:
+                print("✅ Thread safe: cancelled own process.")
             else:
-                print("❌ LOGIC ERROR 7: SmartTerminal.cancel_current() killed B's process instead of A's (pid mismatch)!")
-                # Technically it killed the ONE stored in singleton/instance var.
+                # On Windows _terminate_process_group calls taskkill but we mocked .kill/.terminate too?
+                # Actually _terminate_process_group calls process.kill() if taskkill fails/windows
+                # In mock, we check if it was called.
+                print("❌ LOGIC ERROR 7: SmartTerminal.cancel_current() failed to kill own process!")
+                self.fail("Thread safety failure")
+            
+            # Did it kill proc2?
+            if mock_proc2.kill.called or mock_proc2.terminate.called:
+                print("❌ LOGIC ERROR 7: SmartTerminal killed another thread's process!")
+                self.fail("Cross-thread process killing")
+            else:
+                 print("✅ Thread safe: did not kill other thread's process.")
 
     def test_logic_05_foothold_false_positive(self):
         """Audit: Can deceptive output trigger a foothold?"""
@@ -148,7 +160,8 @@ class FormalAuditTest(unittest.TestCase):
         else:
              print("✅ Foothold detection resisted the simple 'shell' keyword check (or was lucky).")
 
-    def execute_audit(self):
+    def test_all_logic_audit(self):
+        """Manual execution of the test suite (CLI helper)"""
         print("\n🔍 DRAKBEN FORMAL LOGIC AUDIT - ZERO ASSUMPTIONS 🔍\n")
         self.setUp()
         
@@ -172,4 +185,4 @@ class FormalAuditTest(unittest.TestCase):
 
 if __name__ == "__main__":
     audit = FormalAuditTest()
-    audit.execute_audit()
+    audit.test_all_logic_audit()
