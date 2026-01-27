@@ -165,55 +165,10 @@ class DrakbenMenu:
         self.show_banner()
         self.show_status_line()
 
-        # Welcome message
-        lang = self.config.language
-        if lang == "tr":
-            self.console.print(
-                "💬 Merhaba! Benimle doğal dilde konuşabilirsin.\n",
-                style=self.COLORS["green"],
-            )
-        else:
-            self.console.print(
-                "💬 Hello! You can talk to me in natural language.\n",
-                style=self.COLORS["green"],
-            )
+        self._show_welcome_message(lang)
 
         # PLUGINS: Register external tools
-        try:
-            from core.plugin_loader import PluginLoader
-            # Instantiate safely with existing selector reference or create new one if needed, 
-            # but here we rely on agent initialization or pass it. 
-            # Actually, ToolSelector is used by Agent and Brain. 
-            # We should load plugins into a global registry or when initializing components.
-            # Best approach: Load now, pass to components later. 
-            # For simplicity in this architecture where ToolSelector is instantiated by modules:
-            # We will rely on modules checking the registry, OR simpler:
-            # Just print the count for now to confirm loading works in this context.
-            loader = PluginLoader()
-            plugins = loader.load_plugins()
-            if plugins:
-                msg = f"🔌 {len(plugins)} Plugin Yüklendi" if lang == "tr" else f"🔌 {len(plugins)} Plugins Loaded"
-                self.console.print(f"[dim green]{msg}[/dim]")
-                
-                # IMPORTANT: We need to inject these into the actual tools list used by the agent.
-                # Since Agent assumes fresh ToolSelector, we must patch ToolSelector class or instance.
-                # For this implementation, we will patch the CLASS default tools (runtime patch) 
-                # OR update the global instance if one exists.
-                # Let's import ToolSelector and patch the prototype for new instances:
-                from core.tool_selector import ToolSelector
-                
-                # Hack: Update the class-level 'tools' if it were static, but it's instance based.
-                # So we must monkey-patch the __init__ to include our plugins.
-                original_init = ToolSelector.__init__
-                
-                def patched_init(ts_self, *args, **kwargs):
-                    original_init(ts_self, *args, **kwargs)
-                    ts_self.register_plugin_tools(plugins)
-                    
-                ToolSelector.__init__ = patched_init
-                
-        except Exception as e:
-            self.console.print(f"[dim red]Plugin Load Error: {e}[/dim]")
+        self._load_plugins_at_startup(lang)
 
         # MAIN LOOP
         while self.running:
@@ -241,6 +196,45 @@ class DrakbenMenu:
         # Exit
         msg = "Görüşürüz!" if lang == "tr" else "Goodbye!"
         self.console.print(f"👋 {msg}", style=self.COLORS["purple"])
+
+    def _show_welcome_message(self, lang):
+        """Helper to show welcome message"""
+        if lang == "tr":
+            self.console.print(
+                "💬 Merhaba! Benimle doğal dilde konuşabilirsin.\n",
+                style=self.COLORS["green"],
+            )
+        else:
+            self.console.print(
+                "💬 Hello! You can talk to me in natural language.\n",
+                style=self.COLORS["green"],
+            )
+
+    def _load_plugins_at_startup(self, lang):
+        """Helper to safely load plugins without polluting run() method"""
+        try:
+            from core.plugin_loader import PluginLoader
+            
+            loader = PluginLoader()
+            plugins = loader.load_plugins()
+            
+            if plugins:
+                msg = f"🔌 {len(plugins)} Plugin Yüklendi" if lang == "tr" else f"🔌 {len(plugins)} Plugins Loaded"
+                self.console.print(f"[dim green]{msg}[/dim]")
+                
+                # Dynamic ToolSelector update (Monkey Patching)
+                from core.tool_selector import ToolSelector
+                
+                original_init = ToolSelector.__init__
+                
+                def patched_init(ts_self, *args, **kwargs):
+                    original_init(ts_self, *args, **kwargs)
+                    ts_self.register_plugin_tools(plugins)
+                    
+                ToolSelector.__init__ = patched_init
+                
+        except Exception as e:
+            self.console.print(f"[dim red]Plugin Load Error: {e}[/dim]")
 
     def _get_input(self) -> str:
         """Get user input with protected prompt that can't be deleted"""
