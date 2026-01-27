@@ -114,7 +114,7 @@ class StabilityAudit:
         mem_kb = sys.getsizeof(state.vulnerabilities) / 1024
         self.log_result("State Memory Footprint", mem_kb < 1000, f"Size: {mem_kb:.2f}KB")
 
-    async def run_all_async(self):
+    def run_all(self):
         print("=== DRAKBEN GRAND STABILITY AUDIT ===")
         self.test_llm_fuzzing()
         self.test_token_and_memory_stress()
@@ -126,5 +126,5 @@ class StabilityAudit:
 
 if __name__ == "__main__":
     audit = StabilityAudit()
-    success = asyncio.run(audit.run_all_async())
+    success = audit.run_all()
     sys.exit(0 if success else 1)

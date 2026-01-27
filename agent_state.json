@@ -23,8 +23,8 @@
     }
   },
   "tested_attack_surface": [
-    "22:ssh",
-    "80:http"
+    "80:http",
+    "22:ssh"
   ],
   "remaining_attack_surface": [],
   "vulnerabilities": [
@@ -47,25 +47,25 @@
       "type": "services_discovered",
       "data": 2,
       "iteration": 0,
-      "timestamp": 1769538362.0989714
+      "timestamp": 1769539035.3102655
     },
     {
       "type": "surface_tested",
       "data": "80:http",
       "iteration": 0,
-      "timestamp": 1769538362.1010828
+      "timestamp": 1769539035.3112342
     },
     {
       "type": "vulnerability_found",
       "data": "CVE-2023-1234",
       "iteration": 0,
-      "timestamp": 1769538362.1024323
+      "timestamp": 1769539035.3121681
     },
     {
       "type": "surface_tested",
       "data": "22:ssh",
       "iteration": 0,
-      "timestamp": 1769538362.1061795
+      "timestamp": 1769539035.3163166
     }
   ],
   "invariant_violations": []

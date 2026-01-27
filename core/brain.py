@@ -9,6 +9,21 @@ from typing import Any, Dict, List, Optional
 # Setup logger
 logger = logging.getLogger(__name__)
 
+# --- CONSTANTS FOR SONARQUBE / CLEAN CODE ---
+SIMPLE_CHAT_PATTERNS = [
+    "merhaba", "selam", "hello", "hi", "hey", "nasılsın", "naber",
+    "tamam", "ok", "teşekkür", "sağol", "güzel"
+]
+
+FAST_CHAT_RESPONSES = {
+    "merhaba": "Merhaba! Size nasıl yardımcı olabilirim?",
+    "selam": "Selam! Pentest için hazırım.",
+    "nasılsın": "Ben bir yapay zeka ajanıyım, her zaman hazırım.",
+    "tamam": "Anlaşıldı, bir sonraki emrinizi bekliyorum.",
+    "teşekkür": "Rica ederim.",
+}
+# ---------------------------------------------
+
 # LLM Client import
 OpenRouterClient: Any = None  # Type placeholder
 LLM_AVAILABLE = False
@@ -261,31 +276,17 @@ class ContinuousReasoning:
 
         user_lower = user_input.lower().strip()
 
-        # Extremely simple patterns
-        simple_patterns = [
-            "merhaba", "selam", "hello", "hi", "hey", "nasılsın", "naber",
-            "tamam", "ok", "teşekkür", "sağol", "güzel"
-        ]
-
         # If very short and matches simple pattern
-        if len(user_lower.split()) < 3 and user_lower in simple_patterns:
+        if len(user_lower.split()) < 3 and user_lower in SIMPLE_CHAT_PATTERNS:
             return True
 
         return False
 
     def _fast_chat_response(self, user_input: str) -> Dict:
         """Generate instant response without LLM"""
-        responses = {
-            "merhaba": "Merhaba! Size nasıl yardımcı olabilirim?",
-            "selam": "Selam! Pentest için hazırım.",
-            "nasılsın": "Ben bir yapay zeka ajanıyım, her zaman hazırım.",
-            "tamam": "Anlaşıldı, bir sonraki emrinizi bekliyorum.",
-            "teşekkür": "Rica ederim.",
-        }
-
         # Simple match
         found_resp = "Anlaşıldı."
-        for key, resp in responses.items():
+        for key, resp in FAST_CHAT_RESPONSES.items():
             if key in user_input.lower():
                 found_resp = resp
                 break
@@ -305,68 +306,85 @@ class ContinuousReasoning:
                           context: ExecutionContext) -> Dict[str, Any]:
         """
         LLM-powered analysis with language-aware response.
-
-        Args:
-            user_input: User's natural language request
-            context: Execution context with target, language, system info
-
-        Returns:
-            Dict with keys:
-                - success: bool - Whether analysis succeeded
-                - intent: str - Detected intent (scan, exploit, etc.)
-                - confidence: float - Confidence score 0.0-1.0
-                - response: str - User-facing response in their language
-                - steps: List[Dict] - Suggested action steps
-                - reasoning: str - Technical explanation
-                - risks: List[str] - Identified risks
-                - command: Optional[str] - Suggested command
-                - error: Optional[str] - Error message if failed
         """
-
         # LANGUAGE LOGIC: Think in English, speak in user's language
         user_lang = getattr(context, "language", "tr")
 
         # Detect if this is a chat/conversation request (not pentest)
-        is_chat = self._is_chat_request(user_input)
-
-        if is_chat:
-            # Direct chat mode - no JSON, just conversation
+        if self._is_chat_request(user_input):
             return self._chat_with_llm(user_input, user_lang, context)
 
         # Pentest mode - structured JSON response
+        language_instruction = self._get_language_instruction(user_lang)
+        context_str = self._get_context_summary(context)
+        system_prompt = self._construct_system_prompt(language_instruction, context_str, user_lang, context.target)
+
+        try:
+            # Add timeout to prevent hanging
+            response = self.llm_client.query(user_input, system_prompt, timeout=20)
+
+            if response.startswith("[") and any(x in response for x in ["Error", "Offline", "Timeout"]):
+                return {"success": False, "error": response}
+
+            parsed = self._parse_llm_response(response)
+            if parsed:
+                parsed["success"] = True
+                if "response" not in parsed:
+                    parsed["response"] = parsed.get("reasoning", response)
+                parsed["llm_response"] = parsed.get("response", response)
+                self._add_to_history(parsed)
+                return parsed
+
+            # Fallback as chat
+            return {
+                "success": True,
+                "intent": "chat",
+                "confidence": 0.9,
+                "steps": [{"action": "respond", "type": "chat"}],
+                "reasoning": response,
+                "response": response,
+                "risks": [],
+                "llm_response": response,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _get_language_instruction(self, user_lang: str) -> str:
+        """Helper to get language instruction for prompt"""
         if user_lang == "tr":
-            language_instruction = """
+            return """
 IMPORTANT: You MUST think and reason in English internally for better accuracy.
 However, you MUST respond to the user in TURKISH (Türkçe).
 All your explanations, response text, and suggestions should be in Turkish.
 Only technical terms (tool names, commands) can remain in English.
 """
-        else:
-            language_instruction = """
-Respond to the user in English.
-"""
+        return "Respond to the user in English."
 
-        # Context Construction
+    def _get_context_summary(self, context: ExecutionContext) -> str:
+        """Helper to construct context summary string for prompt"""
         context_str = ""
         if context.system_info.get("last_tool"):
             last_output = context.system_info.get('last_output', '')
-            # TRUNCATE output intelligently if too long
             if len(last_output) > 5000:
                 last_output = last_output[:2000] + "\n...[SNIP]...\n" + last_output[-2000:]
             
-            context_str += f"\n\n[PREVIOUS TOOL EXECUTION]\nTool: {context.system_info.get('last_tool')}\nStatus: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput:\n{last_output}\n[END PREVIOUS OUTPUT]\n"
+            context_str += (
+                f"\n\n[PREVIOUS TOOL EXECUTION]\n"
+                f"Tool: {context.system_info.get('last_tool')}\n"
+                f"Status: {'Success' if context.system_info.get('last_success') else 'Failed'}\n"
+                f"Output:\n{last_output}\n[END PREVIOUS OUTPUT]\n"
+            )
 
-        # SUMMARIZATION: Add recent history reasoning
         if hasattr(self, 'reasoning_history') and self.reasoning_history:
             recent_steps = self.reasoning_history[-3:]
-            summary = "\n[RECENT THOUGHTS]\n"
-            for item in recent_steps:
-                if 'reasoning' in item:
-                    summary += f"- {item['reasoning']}\n"
-            context_str += summary
+            context_str += "\n[RECENT THOUGHTS]\n" + "".join([f"- {item['reasoning']}\n" for item in recent_steps if 'reasoning' in item])
+            
+        return context_str
 
-        system_prompt = f"""You are DRAKBEN, an AI penetration testing assistant.
-{language_instruction} {context_str}
+    def _construct_system_prompt(self, lang_instr: str, context_str: str, user_lang: str, target: str) -> str:
+        """Helper to build full system prompt for PENTEST mode"""
+        return f"""You are DRAKBEN, an AI penetration testing assistant.
+{lang_instr} {context_str}
 
 Analyze the user's PENTEST request and respond in JSON format:
 {{
@@ -384,56 +402,12 @@ If there is previous tool output, ANALYZE IT in your reasoning and explain it to
 
 Available tools: nmap, sqlmap, nikto, gobuster, hydra, msfconsole, msfvenom, netcat
 Special Commands (Use these in 'command' field for automation):
-- /scan : Starts autonomous scan (auto mode - agent decides)
-- /scan stealth : Silent/stealth scan (slow, careful, less detectable)
-- /scan aggressive : Fast aggressive scan (noisy but thorough)
+- /scan : Starts autonomous scan (auto mode)
+- /scan stealth : Silent/stealth scan
+- /scan aggressive : Fast aggressive scan
 - /target <IP> : Sets the target
-- /target clear : Clears the target
 
-IMPORTANT MODE DETECTION:
-- If user says "sessizce", "gizlice", "silently", "quietly", "stealth" → use "/scan stealth"
-- If user says "hızlı", "agresif", "quickly", "fast", "aggressive" → use "/scan aggressive"
-- Otherwise → use "/scan" (auto mode)
-
-Target: """ + (context.target or "Not set")
-
-        try:
-            # Add timeout to prevent hanging on Cloudflare WAF blocking
-            response = self.llm_client.query(
-                user_input, system_prompt, timeout=20)
-
-            # Check for error responses
-            if response.startswith("[") and any(
-                x in response for x in ["Error", "Offline", "Timeout"]
-            ):
-                return {"success": False, "error": response}
-
-            # Try to parse JSON from response
-            parsed = self._parse_llm_response(response)
-            if parsed:
-                parsed["success"] = True
-                # Use "response" field if available, otherwise use raw response
-                if "response" not in parsed:
-                    parsed["response"] = parsed.get("reasoning", response)
-                parsed["llm_response"] = parsed.get("response", response)
-                self._add_to_history(parsed)
-                # Cache logic moved to analyze method
-                # self._cache[cache_key] = parsed
-                return parsed
-
-            # If not JSON, use as chat response
-            return {
-                "success": True,
-                "intent": "chat",
-                "confidence": 0.9,
-                "steps": [{"action": "respond", "type": "chat"}],
-                "reasoning": response,
-                "response": response,
-                "risks": [],
-                "llm_response": response,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+Target: {target or "Not set"}"""
 
     def _is_chat_request(self, user_input: Any) -> bool:
         """Detect if user input is a chat/conversation request (not pentest)"""

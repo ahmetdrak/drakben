@@ -15,7 +15,7 @@ from core.state import AgentState, AttackPhase, ServiceInfo, VulnerabilityInfo, 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ResurrectionTest")
 
-async def run_resurrection_test():
+def run_resurrection_test():
     print("\n=== 🛡️ DRAKBEN RESURRECTION (PERSISTENCE) TEST ===\n")
     
     STATE_FILE = "agent_state.json"
@@ -102,5 +102,5 @@ async def run_resurrection_test():
     return all_passed
 
 if __name__ == "__main__":
-    passed = asyncio.run(run_resurrection_test())
+    passed = run_resurrection_test()
     sys.exit(0 if passed else 1)
