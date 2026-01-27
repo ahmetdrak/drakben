@@ -163,7 +163,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
             if func_name in self.DANGEROUS_FUNCTIONS:
                 self._handle_dangerous_function(node, func_name)
             elif '.' in func_name:
-                self._handle_module_function(node, func_name)
+                self._handle_module_function(func_name)
 
         self.generic_visit(node)
 
@@ -175,7 +175,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
         else:
             self.violations.append(f"Dangerous function call: {func_name}")
 
-    def _handle_module_function(self, node: ast.Call, func_name: str):
+    def _handle_module_function(self, func_name: str):
         """Handle calls to module functions"""
         parts = func_name.split('.')
         if len(parts) >= 2:

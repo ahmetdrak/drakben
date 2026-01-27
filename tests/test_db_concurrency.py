@@ -12,20 +12,7 @@ async def worker(worker_id: int, memory: EvolutionMemory):
     """Simulates a module writing to the DB"""
     await asyncio.sleep(0) # Satisfy async and yield for concurrency
     try:
-        # Simulate work
-        strategy_id = f"strat_{worker_id}_{random.randint(1, 100)}"
-        success = random.choice([True, False])
-        
-        # Write to DB (Assuming record_outcome is a method)
-        # If not, we test internal DB methods or custom queries
-        # EvolutionMemory has 'update_strategy_score' or similar
-        
-        # Let's use raw execution via _get_conn if specific methods aren't exposed easily
-        # But better to use public API: record_outcome(profile_id, success, score)
-        
-        # Mocking a profile update
-        # We need to insert a profile first or just test raw concurrent writes
-        
+        # Simulate work writing to database
         with memory._get_conn() as conn:
             cursor = conn.cursor()
             # Use 'tool_penalties' which exists

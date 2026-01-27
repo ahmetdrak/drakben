@@ -869,52 +869,7 @@ class RefactoredDrakbenAgent:
 
         # 1.5 AD Module Routing
         if tool_name in ["kerbrute", "impacket", "crackmapexec", "netexec"]:
-            self.console.print(
-                f"🏢 Routing {tool_name} to Active Directory Module...",
-                style="cyan")
-            domain = args.get("target") or args.get("domain")
-            dc_ip = args.get("dc_ip")
-
-            # Handle nested params if strictly passed that way
-            if not dc_ip and "params" in args and isinstance(
-                    args["params"], dict):
-                dc_ip = args["params"].get("dc_ip")
-
-            if not domain:
-                return {
-                    "success": False,
-                    "error": "Missing target domain for AD attack",
-                    "args": args}
-
-            if tool_name == "kerbrute":
-                if not dc_ip:
-                    return {
-                        "success": False,
-                        "error": "Missing DC IP for Kerbrute",
-                        "args": args}
-                return self.ad_attacker.run_kerbrute_userenum(
-                    domain, dc_ip, args.get("user_list", "users.txt"))
-
-            elif tool_name == "impacket":
-                if args.get("action") == "ad_asreproast":
-                    if not dc_ip:
-                        return {
-                            "success": False,
-                            "error": "Missing DC IP for AS-REP Roast",
-                            "args": args}
-                    return self.ad_attacker.run_asreproast(domain, dc_ip)
-                return {
-                    "success": False,
-                    "error": f"Unknown Impacket action: {
-                        args.get('action')}",
-                    "args": args}
-
-            elif tool_name in ["crackmapexec", "netexec"]:
-                return self.ad_attacker.run_smb_spray(
-                    domain, args.get(
-                        "target_ip", dc_ip), args.get(
-                        "user_file", ""), args.get(
-                        "password", ""))
+            return self._handle_ad_tool(tool_name, args)
 
         # 2. SYSTEM EVOLUTION (Meta-tool)
         if tool_name == "system_evolution":
@@ -935,6 +890,57 @@ class RefactoredDrakbenAgent:
 
         # 5. Execute system tool
         return self._run_system_tool(tool_name, tool_spec, args)
+
+    def _handle_ad_tool(self, tool_name: str, args: Dict) -> Dict:
+        """Handle execution of AD-related tools"""
+        self.console.print(
+            f"🏢 Routing {tool_name} to Active Directory Module...",
+            style="cyan")
+        domain = args.get("target") or args.get("domain")
+        dc_ip = args.get("dc_ip")
+
+        # Handle nested params if strictly passed that way
+        if not dc_ip and "params" in args and isinstance(
+                args["params"], dict):
+            dc_ip = args["params"].get("dc_ip")
+
+        if not domain:
+            return {
+                "success": False,
+                "error": "Missing target domain for AD attack",
+                "args": args}
+
+        if tool_name == "kerbrute":
+            if not dc_ip:
+                return {
+                    "success": False,
+                    "error": "Missing DC IP for Kerbrute",
+                    "args": args}
+            return self.ad_attacker.run_kerbrute_userenum(
+                domain, dc_ip, args.get("user_list", "users.txt"))
+
+        elif tool_name == "impacket":
+            if args.get("action") == "ad_asreproast":
+                if not dc_ip:
+                    return {
+                        "success": False,
+                        "error": "Missing DC IP for AS-REP Roast",
+                        "args": args}
+                return self.ad_attacker.run_asreproast(domain, dc_ip)
+            return {
+                "success": False,
+                "error": f"Unknown Impacket action: {
+                    args.get('action')}",
+                "args": args}
+
+        elif tool_name in ["crackmapexec", "netexec"]:
+            return self.ad_attacker.run_smb_spray(
+                domain, args.get(
+                    "target_ip", dc_ip), args.get(
+                    "user_file", ""), args.get(
+                    "password", ""))
+        
+        return {"success": False, "error": f"Unsupported AD tool: {tool_name}", "args": args}
 
     def _handle_system_evolution(self, args: Dict) -> Dict:
         """Handle the system_evolution meta-tool"""

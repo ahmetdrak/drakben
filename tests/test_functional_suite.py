@@ -25,7 +25,7 @@ class TestFunctionalSuite:
         self.mock_config.llm_client = MagicMock() 
         
         # Prevent real LLM init
-        with patch('core.brain.OpenRouterClient') as mock_llm_cls:
+        with patch('core.brain.OpenRouterClient'):
              self.agent = RefactoredDrakbenAgent(self.mock_config)
              # Mock persistence components
              self.agent.evolution = MagicMock()

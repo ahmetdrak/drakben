@@ -42,7 +42,7 @@ class TestDrakbenSystem(unittest.TestCase):
         result = self.brain.analyze("merhaba", self.context)
         
         self.assertEqual(result["intent"], "chat")
-        self.assertTrue("Fast-path" in result["reasoning"])
+        self.assertIn("Fast-path", result["reasoning"])
         self.mock_llm.query.assert_not_called()
         print("✅ Fast path worked for 'merhaba' (No LLM call)")
 
@@ -62,7 +62,7 @@ class TestDrakbenSystem(unittest.TestCase):
         # Test fallback plan creation
         plan_id = planner.create_plan_for_target("127.0.0.1")
         self.assertTrue(plan_id.startswith("plan_"))
-        self.assertTrue(len(planner.steps) > 0)
+        self.assertGreater(len(planner.steps), 0)
         self.assertEqual(planner.steps[0].tool, "nmap_port_scan")
         print("✅ Default plan created successfully when no profile exists")
 
@@ -76,10 +76,10 @@ class TestDrakbenSystem(unittest.TestCase):
         # Truncate
         truncated = _smart_truncate(huge_output, ["open"])
         
-        self.assertTrue(len(truncated) < len(huge_output))
+        self.assertLess(len(truncated), len(huge_output))
         self.assertIn("80/tcp open http", truncated)
         # Context lines mean some useless lines WILL remain, so we check if count is drastically reduced
-        self.assertTrue(truncated.count("Useless Line") < 50) 
+        self.assertLess(truncated.count("Useless Line"), 50) 
         print(f"✅ Truncation reduced {len(huge_output)} chars to {len(truncated)} chars")
 
     def test_04_self_healing_diagnosis(self):

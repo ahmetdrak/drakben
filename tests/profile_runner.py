@@ -23,7 +23,7 @@ def profile_target():
     
     # 2. Profile Plan Creation
     start = time.time()
-    plan_id = agent.planner.create_plan_for_target("example.com")
+    agent.planner.create_plan_for_target("example.com")
     plan_time = time.time() - start
     print(f"Plan Creation took: {plan_time:.4f}s")
     
