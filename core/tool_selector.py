@@ -56,6 +56,7 @@ class ToolSelector:
     - Deterministic: Rule-based selection
     """
 
+
     def evolve_strategies(self, evolution_memory):
         """
         EVOLUTION MODULE: Update strategy based on success rates in memory.
@@ -67,34 +68,40 @@ class ToolSelector:
         evolved_count = 0
 
         for tool_name in self.tools:
-            # Get penalty from new evolution memory system
-            penalty = evolution_memory.get_penalty(tool_name)
-            is_blocked = evolution_memory.is_tool_blocked(tool_name)
-            
-            original_priority = self.tools[tool_name].priority
-            new_priority = original_priority
-
-            # Block tool if it's blocked in evolution memory
-            if is_blocked:
-                new_priority = 0
-                logger.warning(f"Tool blocked - {tool_name}: Too many failures")
-            # Evolution Logic based on penalty
-            elif penalty == 0:
-                new_priority = min(100, original_priority + 20)  # Boost - no failures
-            elif penalty >= 5:
-                new_priority = max(10, original_priority - 20)  # Nerf - many failures
-            elif penalty >= 2:
-                new_priority = max(30, original_priority - 10)  # Slight nerf
-
-            if new_priority != original_priority:
-                self.tools[tool_name].priority = new_priority
-                logger.info(f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})")
+            if self._update_tool_priority_from_memory(tool_name, evolution_memory):
                 evolved_count += 1
 
         if evolved_count > 0:
             logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
         else:
             logger.debug("Evolution: No changes needed")
+
+    def _update_tool_priority_from_memory(self, tool_name: str, evolution_memory) -> bool:
+        """Update single tool priority based on evolution memory. Returns True if changed."""
+        penalty = evolution_memory.get_penalty(tool_name)
+        is_blocked = evolution_memory.is_tool_blocked(tool_name)
+        
+        original_priority = self.tools[tool_name].priority
+        new_priority = original_priority
+
+        # Block tool if it's blocked in evolution memory
+        if is_blocked:
+            new_priority = 0
+            logger.warning(f"Tool blocked - {tool_name}: Too many failures")
+        # Evolution Logic based on penalty
+        elif penalty == 0:
+            new_priority = min(100, original_priority + 20)  # Boost - no failures
+        elif penalty >= 5:
+            new_priority = max(10, original_priority - 20)  # Nerf - many failures
+        elif penalty >= 2:
+            new_priority = max(30, original_priority - 10)  # Slight nerf
+
+        if new_priority != original_priority:
+            self.tools[tool_name].priority = new_priority
+            logger.info(f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})")
+            return True
+        return False
+
 
     def update_tool_priority(self, tool_name: str, delta: int):
         """Update priority for a single tool"""
