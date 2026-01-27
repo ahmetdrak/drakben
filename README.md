@@ -1,129 +1,79 @@
-# 🩸 DRAKBEN - Autonomous Evolving Pentest Agent
+# 🩸 DRAKBEN - Next-Gen Autonomous Pentest Agent
 
-**Dünyanın İlk "Self-Refining" (Kendi Kendini Geliştiren) Siber Güvenlik Ajanı**
+**The World's First "Self-Refining" Cyber Security Intelligence**
 
 ![Status](https://img.shields.io/badge/Status-Zero%20Defect-brightgreen)
 ![Security](https://img.shields.io/badge/Security-Nuclear%20Tested-red)
-![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Modular%20plugin%20System-blueviolet)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-Drakben, sıradan bir otomasyon aracı değildir. Hatalarından ders çıkaran, internetten yeni saldırı teknikleri öğrenip `plugins/` klasörüne atıldığında bunu otomatik olarak yeteneklerine ekleyen **biyo-mekanik** bir yapay zekadır.
+Drakben is not just an automation tool; it is a **bio-mechanical artificial intelligence** designed for offensive security operations. Unlike traditional scanners, it possesses **cognitive capabilities** that allow it to learn from failures, adapt strategies in real-time, and store experiences in a persistent memory.
 
 ---
 
-## 🚀 Devrimsel Özellikler
+## 🚀 Core Capabilities
 
-### 🧬 1. Self-Refining Engine (Kendi Kendini Eğitme)
-Sıradan araçlar hata yaptığında durur. Drakben:
-- Hatanın nedenini analiz eder (LLM Reasoning).
-- Stratejisini değiştirir ve tekrar dener.
-- **Evolution Memory** veritabanına bu tecrübeyi kaydeder. Bir daha asla aynı hatayı yapmaz.
+### 🧬 1. Self-Refining Engine (Auto-Correction)
+Most tools stop when they encounter an error. Drakben evolves.
+- **Root Cause Analysis:** It uses LLM-based reasoning to understand *why* a command failed.
+- **Dynamic Strategy Generation:** Automatically attempts alternative methods/payloads without user intervention.
+- **Evolution Memory:** It "remembers" successful techniques for specific targets, becoming smarter with every operation.
 
-### 🔌 2. Dinamik Plugin Sistemi (Tak-Çıkar Silahlar)
-Ajanın yetenekleri kodlarına hapsolmuş değildir.
-- Yeni bir Python scripti mi buldun? -> Sürükle `plugins/` klasörüne bırak.
-- Ajan açıldığında **otomatik tanır** ve kullanmaya başlar.
-- Core dosyalara dokunmana gerek yok. Sıfır risk.
+### 🛡️ 2. Zero-Defect Architecture
+Built with **Enterprise-Grade** engineering standards.
+- **Nuclear Stress Tested:** Validated under 1000+ concurrent threads with zero crashes.
+- **Memory Safety:** Leak-proof design ensures stability during long-term red team engagements.
+- **Thread-Safe Core:** Asynchronous non-blocking I/O for maximum performance.
 
-### 🧠 3. Hibrit Zeka (Hybrid Intelligence)
-- **Local Brain:** Hızlı kararlar, offline çalışabilme.
-- **Cloud Reasoning:** Karmaşık analizler için opsiyonel LLM desteği.
-- **Execution Context:** Ajan ne yaptığını asla unutmaz (State Tracking).
+### 🔌 3. Extensible Ecosystem (Universal Adapter)
+Designed for limitless expansion.
+- **Hot-Swappable Plugins:** New capabilities can be added dynamically without restarting the core.
+- **Hybrid Tooling:** Seamlessly integrates standard industry tools (Nmap, Nikto, etc.) with custom AI-generated scripts.
+- **Future-Ready:** Ready for "Model Context Protocol (MCP)" integration to connect with external intelligence feeds.
 
-### 🛡️ 4. Zero-Defect & Nuclear Tested
-Bu proje **SonarQube** standartlarına göre "A Grade" kaliteye sahiptir.
-- **Nuclear Stress Test:** 1000+ thread altında test edildi.
-- **Thread Safety:** %100 güvenli asenkron yapı.
-- **Memory Leak Proof:** Uzun süreli operasyonlarda şişme yapmaz.
+### 🧠 4. Persistent Intelligence (The Brain)
+- **Context Awareness:** Maintains a deep understanding of the target environment (Topology, Services, OS).
+- **Campaign Logic:** Capable of executing multi-stage attacks rather than isolated commands.
+- **Offline Reasoning:** Operates effectively even without internet access using local heuristics.
 
 ---
 
-## 🚀 Hızlı Kurulum
+## ⚡ Quick Start
 
-### Linux (Kali / Ubuntu)
+### Installation
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 drakben.py
-```
-
-### Windows
-```powershell
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python drakben.py
 ```
 
----
-
-## 🎮 Kullanım
-
-Ajanı başlattıktan sonra doğal dilde emir verebilirsin:
+### Usage
+Drakben understands **Natural Language**. You don't need to memorize flags.
 
 ```
-> 10.0.0.5 hedefindeki açık portları bul ve versiyonları tespit et.
-> example.com üzerinde SQL Injection taraması yap.
-> Bana yeni bir Nmap stratejisi geliştir.
-```
-
-### Slash Komutları
-- `/scan` -> Otonom tarama başlatır (Ajan modu kendi seçer).
-- `/scan stealth` -> Sessiz mod (Yakalanmadan sızar).
-- `/scan aggressive` -> Hızlı mod (Gürültülü ama çabuk).
-- `/target <IP>` -> Hedef belirler.
-- `/status` -> Ajanın o anki durumunu ve bulgularını gösterir.
-
----
-
-## 🧩 Plugin Geliştirme (Yeni!)
-
-Ajanın yeteneklerini artırmak için `plugins/` klasörüne bir `.py` dosyası atman yeterli.
-
-**Örnek Plugin Şablonu:**
-```python
-# plugins/my_tool.py
-from core.tool_selector import ToolSpec
-
-def register():
-    return ToolSpec(
-        name="my_super_tool",
-        description="Özel geliştirdiğim süper tarama aracı",
-        usage_template="python my_tool.py {target}",
-        category="recon",
-        risk_level="low"
-    )
+> Scan the target 10.0.0.5 for high-risk vulnerabilities.
+> Analyze example.com and suggest an SQL Injection strategy.
+> Perform a stealth reconnaissance on the internal network.
 ```
 
 ---
 
-## 📂 Proje Yapısı
+## 📂 Architecture Overview
 
-```
-drakben/
-├── core/                   # Ajannın Beyni (Dokunma Yanarsın)
-│   ├── brain.py            # Mantık ve Akıl Yürütme
-│   ├── self_refining.py    # Kendi Kendini Düzeltme Motoru
-│   ├── plugin_loader.py    # Dinamik Eklenti Yöneticisi
-│   └── ...
-├── plugins/                # <--- SENİN OYUN ALANIN (Buraya script at)
-├── modules/                # Dahili Araçlar (Nmap, Nuclei vs.)
-├── sessions/               # Hafıza Kayıtları
-└── drakben.py              # Başlatıcı
-```
+The system is composed of four main pillars:
+
+1.  **The Brain (Cortex):** High-level decision making and planning.
+2.  **The Spine (Execution Engine):** Safe and robust command execution.
+3.  **The Memory (Hippocampus):** SQLite-based long term experience storage.
+4.  **The Limbs (Plugins & Modules):** Dynamic capability layer.
 
 ---
 
-## ⚠️ Yasal Uyarı
+## ⚠️ Legal Disclaimer
 
-Bu yazılım **sadece izinli testlerde** ve **eğitim amaçlı** kullanılmak üzere tasarlanmıştır. Yetkisiz sistemlere saldırmak suçtur. Geliştirici, kötüye kullanımdan sorumlu tutulamaz.
+This software is designed for **defensive and educational purposes only**. Using it on systems without explicit permission is illegal. The developers assume no liability for misuse.
 
 ---
 
 **Made with ❤️ by Drakben Team**
-
