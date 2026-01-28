@@ -6,7 +6,26 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 
 ---
 
-## 🏗️ Faz 1: GHOST PROTOCOL (Gizlilik ve Görünmezlik)
+## 🏗️ Faz 0: REFACTORING & ARCHITECTURAL OVERHAUL (Motor Rektifiye)
+*Mevcut Durum: %60 (Tekilleştirme)*
+*Hedef: %100 (Mikro-Servis Benzeri Modüler Yapı)*
+
+> *"1500 satırlık dosya = Gelecekteki Kanser."*
+
+- [ ] **Agent Parçalanması (De-Monolithization):**
+    - [ ] `refactored_agent.py` (şu an 1700+ satır) dosyasını sorumluluklarına göre bölmek:
+        - [ ] `AgentCore.py`: Ana döngü ve orkestrasyon.
+        - [ ] `AgentState.py`: Hafıza yönetimi ve durum takibi.
+        - [ ] `AgentEvolution.py`: Strateji seçimi ve öğrenme mantığı.
+        - [ ] `AgentStealth.py`: WAF atlatma ve gizlilik profilleri.
+    - [ ] Bu sayede yeni bir özellik eklemek için tüm ajanı bozma riski ortadan kalkacak.
+
+- [ ] **Dependency Injection:**
+    - [ ] `Brain`, `Planner` ve `ToolSelector` modüllerini sıkı bağlı (tight coupling) yapıdan kurtarıp, config üzerinden enjekte edilebilir hale getirmek.
+
+---
+
+## 👻 Faz 1: GHOST PROTOCOL (Gizlilik ve Görünmezlik)
 *Mevcut Durum: %10 (Temel Log Temizleme)*
 *Hedef: %100 (EDR/AV Atlatma ve Dijital İz Bırakmama)*
 
@@ -74,6 +93,43 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
     - [ ] "Nmap yok mu? İndir ve kur." "Go yüklü değil mi? Kur."
     - [ ] Araçları `tools/` klasörüne izole bir şekilde kuran paket yöneticisi.
     - [ ] Sistem bağımlılıklarını (apt, pacman, yum) otomatik yönetme.
+
+---
+
+## 🎭 Faz 5: SOCIAL ENGINEERING (İnsan Avcısı - Villager Killer)
+*Mevcut Durum: %0 (Konsept)*
+*Hedef: %100 (Psikolojik Harp ve Oltalama)*
+
+> *"Makineyi hackleyemiyorsan, insanı hackle."*
+
+- [ ] **OSINT Spider (Dijital Ayak İzi):**
+    - [ ] LinkedIn, Twitter, Instagram ve Şirket sitelerinden hedef organizasyonun kilit personelini (IT Admin, HR, Finance) çıkarma.
+    - [ ] E-posta formatı tahmini (`ad.soyad@sirket.com`).
+
+- [ ] **Psycho-Profiler (Kişilik Analizi):**
+    - [ ] Hedefin sosyal medya paylaşımlarından psikolojik profilini çıkarma (Öfkeli, Dikkatsiz, Yardımsever).
+    - [ ] Buna uygun "Spear Phishing" senaryosu üretme.
+
+- [ ] **Phishing Generator:**
+    - [ ] Kişiye özel, inandırıcı e-posta ve sahte login sayfaları (Clone) oluşturma.
+    - [ ] MFA (2FA) bypass teknikleri (Evilginx2 entegrasyonu).
+
+---
+
+## 🔮 Faz 6: SINGULARITY (Tam Otonom Kodlama)
+*Mevcut Durum: %10 (Code Review)*
+*Hedef: %100 (Kendi Silahını Üreten AI)*
+
+> *"Kopyala-yapıştır yapma, üret."*
+
+- [ ] **Code Interpreter (Runtime Coding):**
+    - [ ] Drakben, bir tool bulamadığında "Pes ettim" demez. Python/Bash/Go ile o toolu yazar.
+    - [ ] Yazdığı toolu sandbox ortamında test eder ve hataları düzeltir.
+    - [ ] Onaylanırsa saldırıda kullanır ve `custom_tools/` altına kaydeder.
+
+- [ ] **WAF/AV Bypass (Mutation):**
+    - [ ] Gönderilen payload engellenirse, kodu analiz edip tespit edilen imzayı (signature) değiştirir.
+    - [ ] Obfuscation tekniklerini dinamik olarak uygular.
 
 ---
 
