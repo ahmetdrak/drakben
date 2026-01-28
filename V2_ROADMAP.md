@@ -94,6 +94,13 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
     - [ ] Araçları `tools/` klasörüne izole bir şekilde kuran paket yöneticisi.
     - [ ] Sistem bağımlılıklarını (apt, pacman, yum) otomatik yönetme.
 
+- [ ] **API & Headless Mode:**
+    - [ ] Drakben'i bir arka plan servisi (Daemon) olarak çalıştırma.
+    - [ ] REST API üzerinden emir alma ("Scan this IP") ve sonuç döndürme.
+    - [ ] Bu sayede başka yazılımlar (örn: SOC Dashboard) Drakben'i tetikleyebilir.
+
+---
+
 ---
 
 ## 🎭 Faz 5: SOCIAL ENGINEERING (İnsan Avcısı - Villager Killer)
@@ -133,7 +140,20 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 
 ---
 
-## 📊 Kıyaslama Tablosu (Hedeflenen)
+## � Faz 7: THE STRATEGIST (Kurumsal Raporlama)
+*Mevcut Durum: %30 (Ham Loglama)*
+*Hedef: %100 (C-Level Yönetici Raporları)*
+
+> *"Hacklemek yetmez, anlatabilmek gerekir."*
+
+- [ ] **Dinamik Rapor Motoru:**
+    - [ ] Teknik verileri (Nmap XML, Exploit logs) analiz edip, doğal dille (LLM) yönetici özeti yazma.
+    - [ ] Şablon Desteği: HTML, PDF, Markdown, JSON formatlarında çıktı.
+    - [ ] **Risk Skorlaması:** Bulunan açıkların CVSS skoruna göre işletmeye vereceği zararı hesaplama ("Düşük", "Orta", "Kritik").
+
+---
+
+## �📊 Kıyaslama Tablosu (Hedeflenen)
 
 | Özellik | Villager | DRAKBEN V2.0 (Hedef) |
 | :--- | :---: | :---: |
@@ -143,5 +163,7 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 | **Genişleme** | Kod Güncellemesi | **Hot-Swap Plugin Sistemi + MCP** |
 | **Kod Kalitesi** | Bilinmiyor | **Zero-Defect / Nuclear Tested / Thread Safe** |
 | **Kalıcılık** | Basit Persistence | **WMI, Registry, Scheduled Task (Gizli)** |
+| **Raporlama** | Teknik PDF | **Executive Summary (C-Level Language)** |
+| **Sosyal Müh.** | YOK | **OSINT + Phishing + Profiling** |
 
 > **Motto:** "Villager köylüleri yönetir, Drakben kralları devirir."
