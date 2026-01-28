@@ -1,41 +1,28 @@
 # DRAKBEN Dockerfile
 # Multi-stage build for optimized image size
 
-# ==================== BUILD STAGE ====================
-FROM python:3.11-slim AS builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# ==================== RUNTIME STAGE ====================
+# ==================== DRAKBEN RUNTIME ====================
 FROM kalilinux/kali-rolling:2024.4
 
 LABEL maintainer="DRAKBEN Team"
 LABEL description="DRAKBEN - Autonomous Pentest AI Framework"
-LABEL version="1.0.0"
+LABEL version="2.0.0"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
 ENV TERM=xterm-256color
 
 WORKDIR /app
 
-# Install Kali tools and Python
+# Install Kali tools, Python, and build deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    python3-dev \
+    gcc \
+    libffi-dev \
     # Network tools
     nmap \
     netcat-openbsd \
@@ -61,8 +48,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python packages from builder
-COPY --from=builder /root/.local/lib/python3.11/site-packages /usr/local/lib/python3.11/dist-packages
+# Install Python dependencies
+# We use --break-system-packages because Kali manages python externally
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application code
 COPY . .
