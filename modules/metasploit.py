@@ -162,7 +162,7 @@ class MetasploitRPC:
                         "method": "auth.login",
                         "params": [username, password]
                     },
-                    timeout=10
+                    timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -235,7 +235,7 @@ class MetasploitRPC:
         self.token = ""
         logger.info("Disconnected from Metasploit RPC")
 
-    async def _call(self, method: str, params: List[Any] = None) -> Dict[str, Any]:
+    async def _call(self, method: str, params: Optional[List[Any]] = None) -> Dict[str, Any]:
         """
         Call RPC method.
         
@@ -264,7 +264,7 @@ class MetasploitRPC:
                         "token": self.token,
                         "params": params
                     },
-                    timeout=60
+                    timeout=aiohttp.ClientTimeout(total=60)
                 ) as response:
                     return await response.json()
             
@@ -347,7 +347,7 @@ class MetasploitRPC:
         payload: str = "generic/shell_reverse_tcp",
         lhost: str = "",
         lport: int = 4444,
-        options: Dict[str, Any] = None
+        options: Optional[Dict[str, Any]] = None
     ) -> ExploitResult:
         """
         Run an exploit against a target.
@@ -571,7 +571,7 @@ class MetasploitRPC:
         self,
         session_id: int,
         module_name: str,
-        options: Dict[str, Any] = None
+        options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Run post-exploitation module.
@@ -683,7 +683,7 @@ async def auto_exploit(
             
             # Update state if successful
             if result.status == ExploitStatus.SUCCESS:
-                state.mark_foothold_established()
+                state.set_foothold(exploit)
                 break
             
             lport += 1  # Increment port for next attempt

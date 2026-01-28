@@ -207,11 +207,11 @@ class ReportGenerator:
         elif format == ReportFormat.JSON:
             content = self._generate_json()
         elif format == ReportFormat.PDF:
-            content = self._generate_pdf()
+            pdf_content = self._generate_pdf()
             # PDF is binary, handle separately
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'wb') as f:
-                f.write(content)
+                f.write(pdf_content)
             logger.info(f"Report saved: {output_path}")
             return output_path
         else:
@@ -784,13 +784,23 @@ def generate_report_from_state(
     generator.set_target(state.target or "Unknown")
     
     # Convert state vulnerabilities to findings
+    # Convert state vulnerabilities to findings
     for vuln in state.vulnerabilities:
+        severity_val = FindingSeverity.HIGH if getattr(vuln, 'exploit_success', False) else FindingSeverity.MEDIUM
+        
+        # Determine strict severity from vuln.severity string if possible
+        if hasattr(vuln, 'severity') and isinstance(vuln.severity, str):
+             try:
+                 severity_val = FindingSeverity(vuln.severity.lower())
+             except ValueError:
+                 pass
+
         finding = Finding(
             title=vuln.vuln_id,
-            severity=FindingSeverity.HIGH if vuln.confirmed else FindingSeverity.MEDIUM,
-            description=vuln.description,
-            affected_asset=state.target or "",
-            evidence=vuln.proof if hasattr(vuln, 'proof') else "",
+            severity=severity_val,
+            description=getattr(vuln, 'description', f"Vulnerability detected on service {vuln.service} port {vuln.port}"),
+            affected_asset=f"{state.target}:{vuln.port}" if state.target else "unknown",
+            evidence=f"Exploitable: {vuln.exploitable}",
             cve_id=getattr(vuln, 'cve_id', None),
             cvss_score=getattr(vuln, 'cvss_score', None)
         )

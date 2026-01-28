@@ -213,8 +213,10 @@ def _parse_html_content(html: str, result: Dict[str, Any]):
         logger.debug(f"Found title: {result['title']}")
     
     meta_desc = soup.find("meta", attrs={"name": "description"})
-    if meta_desc and meta_desc.get("content"):
-        result["description"] = meta_desc["content"].strip()
+    if meta_desc:
+        content = meta_desc.get("content")
+        if isinstance(content, str):
+            result["description"] = content.strip()
     
     # Forms
     for form in soup.find_all("form"):
@@ -367,7 +369,7 @@ def get_dns_records(domain: str) -> Dict[str, Any]:
     Returns:
         Dict with DNS records
     """
-    records = {}
+    records: Dict[str, Any] = {}
     
     record_types = ["A", "AAAA", "MX", "TXT", "NS", "CNAME"]
     
@@ -399,12 +401,16 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
     """
     try:
         w = whois.whois(domain)
+        ns = w.name_servers
+        if isinstance(ns, str):
+             ns = [ns]
+             
         return {
             "registrar": w.registrar,
             "creation_date": str(w.creation_date) if w.creation_date else None,
             "expiration_date": str(w.expiration_date) if w.expiration_date else None,
-            "name_servers": w.name_servers if w.name_servers else [],
-            "status": w.status if hasattr(w, 'status') else None,
+            "name_servers": ns if ns else [],
+            "status": getattr(w, 'status', None),
         }
     except Exception as e:
         logger.warning(f"WHOIS lookup failed for {domain}: {e}")

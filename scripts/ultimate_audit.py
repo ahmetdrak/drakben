@@ -12,8 +12,10 @@ from unittest.mock import MagicMock, patch
 # Path Setup
 sys.path.append(os.getcwd())
 
+from typing import Dict, Any
+
 # Report Data
-REPORT = {
+REPORT: Dict[str, Any] = {
     "functional": {},
     "security": {},
     "performance": {},

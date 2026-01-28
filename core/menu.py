@@ -61,10 +61,10 @@ class DrakbenMenu:
         self.config = config_manager.config
         self.console = Console(color_system="truecolor")
         self.kali = KaliDetector()
-        self.agent = None
-        self.brain = None
+        self.agent: Optional['RefactoredDrakbenAgent'] = None
+        self.brain: Optional['DrakbenBrain'] = None
         self.running = True
-        self.system_info = {}
+        self.system_info: Dict[str, Any] = {}
 
         # Menu commands
         self._commands = {
@@ -303,6 +303,7 @@ class DrakbenMenu:
         thinking = "Düşünüyor..." if lang == "tr" else "Thinking..."
 
         with self.console.status(f"[bold {self.COLORS['purple']}]🧠 {thinking}"):
+            assert self.brain is not None
             result = self.brain.think(user_input, self.config.target)
 
         self._handle_ai_response_text(result, lang)
@@ -376,11 +377,14 @@ class DrakbenMenu:
             from core.refactored_agent import RefactoredDrakbenAgent
 
             self.agent = RefactoredDrakbenAgent(self.config_manager)
+            assert self.agent is not None
             self.agent.initialize(target=self.config.target or "")
 
         msg = "Çalıştırılıyor..." if lang == "tr" else "Executing..."
         self.console.print(f"⚡ {msg}", style=self.COLORS["yellow"])
 
+        assert self.agent is not None
+        assert self.agent.executor is not None
         result = self.agent.executor.terminal.execute(command, timeout=300)
 
         if result.status.value == "success":
@@ -638,6 +642,7 @@ class DrakbenMenu:
         try:
             self._ensure_agent_initialized()
             self._initialize_agent_with_retry(scan_mode, lang)
+            assert self.agent is not None
             self.agent.run_autonomous_loop()
         except KeyboardInterrupt:
             interrupt_msg = "Tarama kullanıcı tarafından durduruldu." if lang == "tr" else "Scan stopped by user."
@@ -660,6 +665,7 @@ class DrakbenMenu:
         from rich.panel import Panel
         
         try:
+            assert self.agent is not None
             self.agent.initialize(target=self.config.target, mode=scan_mode)
         except Exception as init_error:
             error_msg = (
