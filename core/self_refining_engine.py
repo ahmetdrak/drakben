@@ -198,7 +198,7 @@ class SelfRefiningEngine:
     MIN_USAGE_FOR_RETIRE = 3         # Minimum uses before retirement
     MUTATION_PARAM_CHANGE = 0.2      # How much to change params on mutation
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         # Use consistent database naming with EvolutionMemory
         if db_path is None:
             # Check if drakben_evolution.db exists (for compatibility)
@@ -720,7 +720,7 @@ class SelfRefiningEngine:
                 conn.close()
     
     def select_best_profile(self, strategy_name: str, 
-                            excluded_profile_ids: List[str] = None) -> Optional[StrategyProfile]:
+                            excluded_profile_ids: Optional[List[str]] = None) -> Optional[StrategyProfile]:
         """
         Select best non-retired profile for a strategy.
         If all profiles are retired, trigger mutation and return new profile.
@@ -1162,7 +1162,7 @@ class SelfRefiningEngine:
     
     def record_failure(self, target_signature: str, strategy_name: str,
                        profile_id: str, error_type: str, error_message: str = "",
-                       tool_name: str = None, context_data: Dict = None) -> str:
+                       tool_name: Optional[str] = None, context_data: Optional[Dict[Any, Any]] = None) -> str:
         """Record a failure context"""
         with self._lock:
             conn = self._get_conn()

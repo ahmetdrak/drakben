@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from rich.console import Console
 from rich.panel import Panel
@@ -161,7 +161,7 @@ class CodeAnalyzer:
         """
         Perform AST-based safety check.
         """
-        issues = []
+        issues: List[str] = []
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
@@ -503,7 +503,7 @@ class CodeReview:
     
     def get_pending_summary(self) -> Dict:
         """Get summary of pending changes"""
-        by_risk = {level: [] for level in RiskLevel}
+        by_risk: Dict[RiskLevel, List[CodeChange]] = {level: [] for level in RiskLevel}
         
         for change in self.pending_changes:
             if change.status == ReviewStatus.PENDING:
@@ -556,9 +556,9 @@ class CodeReviewMiddleware:
     def wrap_code_execution(
         self,
         code: str,
-        executor: Callable[[str], any],
+        executor: Callable[[str], Any],
         description: str = ""
-    ) -> Tuple[bool, any]:
+    ) -> Tuple[bool, Any]:
         """
         Wrap code execution with review.
         

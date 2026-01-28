@@ -1,13 +1,9 @@
-# core/menu.py
-# DRAKBEN - Minimal Interactive Menu System
-# Optimized for Kali Linux - Fixed Menu
-
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Callable
 import os
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.refactored_agent import RefactoredDrakbenAgent
+    from core.brain import DrakbenBrain
     from core.brain import DrakbenBrain
 
 from rich.console import Console
@@ -65,15 +61,13 @@ class DrakbenMenu:
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
         self.config = config_manager.config
-        self.console = Console(color_system="truecolor")
+        self.console: Console = Console(color_system="truecolor")
         self.kali = KaliDetector()
         self.agent: Optional['RefactoredDrakbenAgent'] = None
         self.brain: Optional['DrakbenBrain'] = None
         self.running = True
         self.system_info: Dict[str, Any] = {}
-
-        # Menu commands
-        self._commands = {
+        self._commands: Dict[str, Callable[[str], Any]] = {
             "/help": self._cmd_help,
             "/target": self._cmd_target,
             "/scan": self._cmd_scan,
@@ -672,7 +666,8 @@ class DrakbenMenu:
         
         try:
             assert self.agent is not None
-            self.agent.initialize(target=self.config.target, mode=scan_mode)
+            target = self.config.target or "localhost"
+            self.agent.initialize(target=target, mode=scan_mode)
         except Exception as init_error:
             error_msg = (
                 f"Agent başlatma hatası: {init_error}" if lang == "tr" 
@@ -686,8 +681,9 @@ class DrakbenMenu:
             ))
             # Retry with fresh agent
             from core.refactored_agent import RefactoredDrakbenAgent
+            target = self.config.target or "localhost"
             self.agent = RefactoredDrakbenAgent(self.config_manager)
-            self.agent.initialize(target=self.config.target, mode=scan_mode)
+            self.agent.initialize(target=target, mode=scan_mode)
 
     def _cmd_clear(self, args: str = ""):
         """Clear screen - banner and menu remain"""

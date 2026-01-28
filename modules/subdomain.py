@@ -342,7 +342,7 @@ class SubdomainEnumerator:
     
     async def _amass_enum(self, domain: str) -> List[SubdomainResult]:
         """Enumerate using amass"""
-        results = []
+        results: List[SubdomainResult] = []
         timeout_seconds = 120  # Fixed timeout value
         
         if not self.amass_available:

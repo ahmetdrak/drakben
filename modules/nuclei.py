@@ -11,9 +11,12 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from enum import Enum
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -137,13 +140,46 @@ class NucleiScanner:
         }
         return severity_map.get(severity_str.lower(), NucleiSeverity.UNKNOWN)
     
+    def _build_nuclei_command(self, targets_file: str, config: NucleiScanConfig, output_file: Optional[str] = None) -> List[str]:
+        """Build nuclei command line"""
+        cmd = [self.nuclei_path, "-list", targets_file, "-json"]
+        
+        if config.templates:
+            for t in config.templates: cmd.extend(["-t", t])
+        
+        if config.severity:
+            cmd.extend(["-severity", ",".join(s.value for s in config.severity)])
+            
+        if output_file:
+            cmd.extend(["-o", output_file])
+            
+        return cmd
+
+    async def _execute_nuclei_scan(self, cmd: List[str], output_file: Optional[str] = None) -> List[NucleiResult]:
+        """Execute nuclei scan and parse output"""
+        results = []
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            
+            for line in stdout.decode().splitlines():
+                res = self._parse_result(line)
+                if res: results.append(res)
+                
+        except Exception as e:
+            logger.error(f"Nuclei scan failed: {e}")
+            
+        return results
+    
     def _parse_result(self, line: str) -> Optional[NucleiResult]:
         """Parse nuclei JSON output line"""
         try:
             data = json.loads(line)
-            
             info = data.get("info", {})
-            
             return NucleiResult(
                 template_id=data.get("template-id", ""),
                 template_name=info.get("name", ""),
@@ -161,7 +197,7 @@ class NucleiScanner:
         except Exception as e:
             logger.error(f"Error parsing nuclei result: {e}")
             return None
-    
+
     async def scan(
         self,
         targets: List[str],

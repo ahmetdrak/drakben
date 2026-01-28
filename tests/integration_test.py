@@ -111,8 +111,8 @@ if __name__ == "__main__":
 
     if errors:
         print(f'Failed: {len(errors)}')
-        for e in errors:
-            print(f'  [FAIL] {e}')
+        for err in errors:
+            print(f'  [FAIL] {err}')
         sys.exit(1)
     else:
         print('All tests passed!')

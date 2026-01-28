@@ -292,25 +292,6 @@ class ContinuousReasoning:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _chat_with_llm(self, user_input: str, user_lang: str, context: ExecutionContext) -> Dict[str, Any]:
-        """Direct chat mode - no JSON overhead"""
-        prompt = f"User: {user_input}\n(Answer in {user_lang})"
-        # Protective check for llm_client
-        if not self.llm_client:
-             return {"success": False, "error": "LLM client not available"}
-             
-        response = self.llm_client.query(prompt, "You are a helpful cybersecurity assistant.")
-        return {
-            "success": True,
-            "intent": "chat",
-            "confidence": 1.0,
-            "response": response,
-            "llm_response": response,
-            "steps": [],
-            "reasoning": "Direct chat request",
-            "risks": []
-        }
-
     def _parse_llm_response(self, response: str) -> Optional[Dict[str, Any]]:
         """Extract JSON from LLM response string"""
         import json
@@ -848,7 +829,8 @@ class DecisionEngine:
         risks = analysis.get("risks", [])
 
         # Determine if approval needed
-        needs_approval = self._needs_approval(intent, risks, context)
+        intent_str = str(intent or "unknown")
+        needs_approval = self._needs_approval(intent_str, risks, context)
 
         # Select best action
         action = self._select_action(steps, context)

@@ -110,13 +110,14 @@ class Computer:
         """
         self.check_availability()
 
-        target_x, target_y = x, y
-
-        # If x is a string, treat it as a visual target (advanced)
         if isinstance(x, str):
             # For now, just log and fail safe
             raise NotImplementedError(
                 "Visual clicking (click('Submit')) not yet implemented. Use coordinates.")
+        
+        # At this point x must be int
+        target_x: int = int(x)
+        target_y: int = y
 
         try:
             # Bounds check

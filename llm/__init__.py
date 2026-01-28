@@ -2,9 +2,12 @@
 from .openrouter_client import OpenRouterClient, LLMCache, RateLimiter
 
 # DrakbenBrain is in core.brain, not llm.brain
+from typing import Any
+DrakbenBrain: Any = None
 try:
-    from core.brain import DrakbenBrain
+    from core.brain import DrakbenBrain as _DB
+    DrakbenBrain = _DB
 except ImportError:
-    DrakbenBrain = None
+    pass
 
 __all__ = ["DrakbenBrain", "OpenRouterClient", "LLMCache", "RateLimiter"]

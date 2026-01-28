@@ -19,18 +19,17 @@ logger = logging.getLogger(__name__)
 
 # Cross-platform readline support
 try:
-    import readline
+    import readline as readline_mod
     READLINE_AVAILABLE = True
 except ImportError:
-    # Windows fallback - try pyreadline3
+    # Windows fallback
     try:
-        import pyreadline3 as readline
+        import pyreadline3 as readline_mod # type: ignore
         READLINE_AVAILABLE = True
     except ImportError:
-        readline = None
+        readline_mod = None # type: ignore
         READLINE_AVAILABLE = False
-        logger.debug(
-            "readline not available - history and completion disabled")
+        logger.debug("readline not available - history and completion disabled")
 
 
 @dataclass
@@ -119,14 +118,14 @@ class InteractiveShell:
         try:
             # History file
             if os.path.exists(self.history_file):
-                readline.read_history_file(self.history_file)
+                readline_mod.read_history_file(self.history_file)
 
             # Set history length
-            readline.set_history_length(1000)
+            readline_mod.set_history_length(1000)
 
             # Tab completion
-            readline.parse_and_bind("tab: complete")
-            readline.set_completer(self._completer)
+            readline_mod.parse_and_bind("tab: complete")
+            readline_mod.set_completer(self._completer)
 
             logger.debug("Readline initialized with history")
         except Exception as e:
@@ -240,9 +239,9 @@ class InteractiveShell:
 
     def _save_history(self):
         """Save command history on exit"""
-        if self.enable_history and READLINE_AVAILABLE and readline is not None:
+        if self.enable_history and READLINE_AVAILABLE and readline_mod is not None:
             try:
-                readline.write_history_file(self.history_file)
+                readline_mod.write_history_file(self.history_file)
             except Exception:
                 pass
 
@@ -568,11 +567,12 @@ class InteractiveShell:
                 "session": self.session_vars,
             }
 
-            result = eval(
-                code, safe_globals) if "=" not in code else exec(
-                code, safe_globals)
-            if result is not None:
-                self.console.print(repr(result))
+            if "=" not in code:
+                result = eval(code, safe_globals)
+                if result is not None:
+                    self.console.print(repr(result))
+            else:
+                exec(code, safe_globals)
 
             return CommandResult(success=True, output="")
         except Exception as e:

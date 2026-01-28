@@ -27,6 +27,10 @@ from dataclasses import dataclass, field
 from unittest.mock import Mock, patch, MagicMock
 import tempfile
 import sqlite3
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.self_refining_engine import SelfRefiningEngine, Strategy, StrategyProfile
 
 # Test result keys - constants to avoid duplication
 TEST_KEY_ADD_POLICY = "SelfRefiningEngine.add_policy"
@@ -38,6 +42,8 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Default database filename
 DEFAULT_DB_NAME = "drakben_memory.db"
+EXAMPLE_URL = "https://example.com"
+FAIL_TEST_URL = "https://fail-test.com"
 
 # Results storage
 RESULTS = {
@@ -202,7 +208,7 @@ def _print_file_info(rel_path: str, analysis: FileAnalysis) -> None:
 # TASK 2: FUNCTION-BY-FUNCTION EXECUTION TEST
 # =============================================================================
 
-def test_self_refining_engine():
+def test_self_refining_engine() -> Dict[str, Any]:
     """Test SelfRefiningEngine functions"""
     print("\n--- Testing: core/self_refining_engine.py ---\n")
     
@@ -211,7 +217,7 @@ def test_self_refining_engine():
     db_path = "verification_test.db"
     safe_remove(db_path)
     
-    results = {}
+    results: Dict[str, Any] = {}
     
     # Test 1: __init__
     engine = _test_engine_init(db_path, results)
@@ -300,7 +306,7 @@ def _test_engine_selection(engine: SelfRefiningEngine, results: Dict) -> None:
     except Exception as e:
         results["SelfRefiningEngine.select_strategy_and_profile"] = {"status": "FAIL", "error": str(e)}
 
-def _test_engine_policy(engine: SelfRefiningEngine, results: Dict) -> None:
+def _test_engine_policy(engine: SelfRefiningEngine, results: Dict) -> Dict:
     """Test add_policy"""
     try:
         from core.self_refining_engine import PolicyTier
@@ -317,7 +323,7 @@ def _test_engine_policy(engine: SelfRefiningEngine, results: Dict) -> None:
     _test_engine_policies(engine, results)
     _test_engine_remaining_functions(engine, results)
     
-    safe_remove(db_path)
+    del engine
     return results
 
 def _test_engine_policies(engine: SelfRefiningEngine, results: Dict) -> None:
@@ -345,13 +351,14 @@ def _test_engine_policies(engine: SelfRefiningEngine, results: Dict) -> None:
     except Exception as e:
         results[TEST_KEY_GET_APPLICABLE_POLICIES] = {"status": "FAIL", "error": str(e)}
 
-def _test_engine_remaining_functions(engine: SelfRefiningEngine, results: Dict) -> None:
+def _test_engine_remaining_functions(engine: SelfRefiningEngine, results: Dict) -> Dict:
     """Test remaining engine functions"""
     _test_engine_policy_functions(engine, results)
     _test_engine_failure_recording(engine, results)
     _test_engine_profile_outcome(engine, results)
+    return results
 
-def _test_engine_policy_functions(engine: SelfRefiningEngine, results: Dict) -> None:
+def _test_engine_policy_functions(engine: SelfRefiningEngine, results: Dict) -> Dict:
     """Test policy-related functions"""
     try:
         policies = engine.get_applicable_policies({"target_type": "web_app"})
@@ -375,8 +382,9 @@ def _test_engine_policy_functions(engine: SelfRefiningEngine, results: Dict) -> 
         }
     except Exception as e:
         results[TEST_KEY_GET_APPLICABLE_POLICIES] = {"status": "FAIL", "error": str(e)}
+    return results
 
-def _test_engine_failure_recording(engine: SelfRefiningEngine, results: Dict) -> None:
+def _test_engine_failure_recording(engine: SelfRefiningEngine, results: Dict) -> Dict:
     """Test failure recording"""
     try:
         fail_id = engine.record_failure(
@@ -389,8 +397,9 @@ def _test_engine_failure_recording(engine: SelfRefiningEngine, results: Dict) ->
         results["SelfRefiningEngine.record_failure"] = {"status": "PASS", "proof": fail_id[:12] if fail_id else "None"}
     except Exception as e:
         results["SelfRefiningEngine.record_failure"] = {"status": "FAIL", "error": str(e)}
+    return results
 
-def _test_engine_profile_outcome(engine: SelfRefiningEngine, results: Dict) -> None:
+def _test_engine_profile_outcome(engine: SelfRefiningEngine, results: Dict) -> Dict:
     """Test profile outcome update"""
     try:
         profile = engine.get_profiles_for_strategy("web_aggressive")[0]
@@ -435,14 +444,10 @@ def _test_engine_profile_outcome(engine: SelfRefiningEngine, results: Dict) -> N
     except Exception as e:
         results["SelfRefiningEngine.get_evolution_status"] = {"status": "FAIL", "error": str(e)}
     
-    # Cleanup
-    del engine
-    safe_remove(db_path)
-    
     return results
 
 
-def test_evolution_memory():
+def test_evolution_memory() -> Dict[str, Any]:
     """Test EvolutionMemory functions"""
     print("\n--- Testing: core/evolution_memory.py ---\n")
     
@@ -638,14 +643,15 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
     # Step 1: Strategy selection actually runs
     print("Step 1: Strategy Selection")
     try:
-        strategy, profile = engine.select_strategy_and_profile("https://test.com")
-        assert strategy is not None
-        assert profile is not None
+        strategy_res, profile_res = engine.select_strategy_and_profile("https://test.com")
+        assert strategy_res is not None
+        assert profile_res is not None
         results["strategy_selection"] = {
             "status": "PASS",
-            "proof": f"Strategy: {strategy.name}, Profile: {profile.profile_id[:8]}"
+            "proof": f"Strategy: {strategy_res.name}, Profile: {profile_res.profile_id[:8]}"
         }
-        print(f"  ✅ Strategy: {strategy.name}, Profile: {profile.profile_id[:8]}")
+        print(f"  ✅ Strategy: {strategy_res.name}, Profile: {profile_res.profile_id[:8]}")
+        strategy, profile = strategy_res, profile_res
     except Exception as e:
         results["strategy_selection"] = {"status": "FAIL", "error": str(e)}
         print(f"  ❌ {e}")
@@ -730,6 +736,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
         
         # Select initial
         _, profile1 = engine.select_strategy_and_profile(FAIL_TEST_URL)
+        assert profile1 is not None
         
         # Record failure
         engine.record_failure(
@@ -761,7 +768,7 @@ def task3_agent_loop_verification() -> Dict[str, Any]:
         status_before = engine.get_evolution_status()
         
         # Record more failures to trigger learning
-        for _ in range(3):
+        for i in range(3):
             engine.record_failure(
                 target_signature="web_app:evolution_test",
                 strategy_name="web_aggressive",
@@ -822,6 +829,8 @@ def task4_persistence_restart() -> Dict[str, Any]:
     
     # Select strategy and profile
     strategy1, profile1 = engine1.select_strategy_and_profile(PERSIST_TEST_URL)
+    assert strategy1 is not None
+    assert profile1 is not None
     print(f"  Strategy: {strategy1.name}")
     print(f"  Profile: {profile1.profile_id[:12]}...")
     print(f"  Aggressiveness: {profile1.aggressiveness}")
@@ -885,6 +894,8 @@ def task4_persistence_restart() -> Dict[str, Any]:
     
     # Now select for same target - should get DIFFERENT behavior
     strategy2, profile2 = engine2.select_strategy_and_profile(PERSIST_TEST_URL)
+    assert strategy2 is not None
+    assert profile2 is not None
     print("\n  New selection:")
     print(f"  Strategy: {strategy2.name}")
     print(f"  Profile: {profile2.profile_id[:12]}...")
@@ -894,8 +905,8 @@ def task4_persistence_restart() -> Dict[str, Any]:
     behavior_changed = False
     changes = []
     
-    if profile2.profile_id != run1_data["profile_id"]:
-        changes.append(f"Different profile: {run1_data['profile_id'][:8]} → {profile2.profile_id[:8]}")
+    if profile1.profile_id != run1_data["profile_id"]:
+        changes.append(f"Different profile: {str(run1_data['profile_id'])[:8]} → {profile1.profile_id[:8]}")
         behavior_changed = True
     
     if profile2.aggressiveness != run1_data["aggressiveness"]:
@@ -906,7 +917,7 @@ def task4_persistence_restart() -> Dict[str, Any]:
         print("\n  ✅ BEHAVIOR CHANGED AFTER RESTART")
         for c in changes:
             print(f"     - {c}")
-        results["restart_behavior_change"] = {"status": "PASS", "proof": changes}
+        results["restart_behavior_change"] = {"status": "PASS", "proof": ", ".join(changes)}
     else:
         print("\n  ❌ NO EVOLUTION PRESENT - Same behavior after restart")
         results["restart_behavior_change"] = {"status": "FAIL", "proof": "Same profile selected"}
@@ -928,7 +939,7 @@ def task5_dead_fake_detection() -> Dict[str, Any]:
     print("TASK 5: DEAD / FAKE AI DETECTION")
     print("="*70 + "\n")
     
-    results = {
+    results: Dict[str, Any] = {
         "dead_code": [],
         "fake_intelligence": [],
         "cosmetic": []

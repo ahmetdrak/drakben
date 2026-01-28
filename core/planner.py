@@ -161,8 +161,9 @@ class Planner:
         - Refuses to replan if limits exceeded
         """
         # Initialize replan tracking if needed
+        # (Already initialized in __init__, but kept for robustness)
         if not hasattr(self, '_replan_counts'):
-            self._replan_counts = {}
+            self._replan_counts: Dict[str, int] = {}
         if not hasattr(self, '_total_replans'):
             self._total_replans = 0
         

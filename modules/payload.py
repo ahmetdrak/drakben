@@ -466,7 +466,8 @@ def generate_payload(
     
     # Generate payload code
     try:
-        code = template["code"].format(lhost=lhost or "LHOST", lport=lport)
+        code_template = str(template["code"])
+        code = code_template.format(lhost=lhost or "LHOST", lport=lport)
     except KeyError as e:
         logger.error(f"Missing parameter for payload: {e}")
         return {"error": f"Missing parameter: {e}"}
@@ -579,6 +580,16 @@ class PayloadObfuscator:
         """
         chunks = [payload[i:i+chunk_size] for i in range(0, len(payload), chunk_size)]
         return ' + '.join(f'"{chunk}"' for chunk in chunks)
+
+    @staticmethod
+    def variable_substitution(payload: str) -> str:
+        """Generic variable substitution - placeholder"""
+        return payload
+
+    @staticmethod
+    def dead_code_injection(payload: str, language: str = "bash") -> str:
+        """Generic dead code injection - placeholder"""
+        return payload
     
     @staticmethod
     def polymorphic_encode(payload: str, language: str = "bash") -> str:
@@ -824,7 +835,7 @@ class AVBypass:
 def obfuscate_payload(
     payload: str,
     language: str = "bash",
-    techniques: List[str] = None
+    techniques: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Apply obfuscation techniques to payload.
@@ -899,6 +910,7 @@ def _apply_concat_obfuscation(payload: str, language: str) -> str:
 
 
 def generate_staged_payload(
+    state: "AgentState",
     payload_type: str,
     lhost: str,
     lport: int,
@@ -926,7 +938,7 @@ def generate_staged_payload(
     }
     
     # Get main payload
-    payload_result = generate_payload(payload_type, lhost, lport)
+    payload_result = generate_payload(state, payload_type, lhost, lport)
     
     if not payload_result.get("success"):
         return payload_result

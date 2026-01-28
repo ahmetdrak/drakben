@@ -13,8 +13,8 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -396,7 +396,7 @@ class AuditLogger:
         command: str,
         target: str = "",
         success: bool = True,
-        details: Dict = None
+        details: Optional[Dict[Any, Any]] = None
     ):
         """Convenience method for logging commands"""
         event = AuditEvent(

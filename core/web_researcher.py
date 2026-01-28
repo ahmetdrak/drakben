@@ -1,14 +1,14 @@
-
 import os
 import requests
-from bs4 import BeautifulSoup
 import logging
 import urllib.parse
 import time
+from typing import Any, Dict, List, Optional
+from bs4 import BeautifulSoup
 
 try:
     from rich.console import Console
-    console = Console()
+    console: Optional[Console] = Console()
 except ImportError:
     console = None
 
@@ -32,7 +32,7 @@ class WebResearcher:
 
     def search_tool(self, query: str, max_results=5):
         """Searches specific targets using DDG HTML endpoint."""
-        results = []
+        results: List[Dict[str, Any]] = []
         try:
             logger.info(f"Searching for: {query}")
             

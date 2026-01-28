@@ -384,7 +384,8 @@ class RefactoredDrakbenAgent:
         """Handle case where no steps are left."""
         if self.planner.is_plan_complete():
             self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
-            self.state.phase = AttackPhase.COMPLETE
+            if self.state:
+                self.state.phase = AttackPhase.COMPLETE
         else:
             self.console.print("❓ No executable step found", style="yellow")
 
@@ -642,6 +643,8 @@ class RefactoredDrakbenAgent:
     
     def _get_deterministic_fallback(self) -> Optional[Dict]:
         """Get deterministic decision as fallback"""
+        if not self.state:
+            return None
         deterministic_decision = self.tool_selector.recommend_next_action(self.state)
         if deterministic_decision:
             _, tool_name, args = deterministic_decision

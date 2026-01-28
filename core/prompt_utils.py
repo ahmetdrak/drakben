@@ -56,7 +56,13 @@ if TYPE_CHECKING:
 # COMMAND COMPLETER
 # =========================================
 
-class DrakbenCompleter(Completer if (PROMPT_TOOLKIT_AVAILABLE or TYPE_CHECKING) else object):
+# Handle optional completer base class for Mypy
+if TYPE_CHECKING:
+    BaseCompleter = Completer
+else:
+    BaseCompleter = Completer if PROMPT_TOOLKIT_AVAILABLE else object
+
+class DrakbenCompleter(BaseCompleter):  # type: ignore
     """Custom completer for DRAKBEN commands"""
     
     def __init__(self):

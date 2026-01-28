@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -467,11 +467,11 @@ class SmartTerminal:
             if platform.system() != "Windows":
                 try:
                     # pylint: disable=no-member
-                    pgid = os.getpgid(process.pid)
-                    os.killpg(pgid, signal.SIGTERM)
+                    pgid = os.getpgid(process.pid) # type: ignore
+                    os.killpg(pgid, signal.SIGTERM) # type: ignore
                     time.sleep(0.5)
                     try:
-                        os.killpg(pgid, signal.SIGKILL)
+                        os.killpg(pgid, signal.SIGKILL) # type: ignore
                     except ProcessLookupError:
                         pass
                     # pylint: enable=no-member
@@ -536,7 +536,7 @@ class SmartTerminal:
         
         if shell:
             logger.warning("Async shell execution enabled - this is a security risk")
-            cmd_args = command
+            cmd_args: Any = command
         else:
             cmd_args = shlex.split(command)
             
@@ -825,8 +825,8 @@ class StreamingMonitor:
         timeout: float = 300.0
     ) -> Tuple[str, str]:
         """Monitor process output in real-time with timeout protection"""
-        stdout_lines = []
-        stderr_lines = []
+        stdout_lines: List[str] = []
+        stderr_lines: List[str] = []
         stop_event = threading.Event()
 
         stdout_thread, stderr_thread = self._start_monitor_threads(
@@ -861,12 +861,13 @@ class StreamingMonitor:
                      stdout_lines: List[str], callback: Optional[Callable]) -> None:
         """Read stdout from process"""
         try:
-            for line in process.stdout:
-                if stop_event.is_set():
-                    break
-                stdout_lines.append(line)
-                if callback:
-                    callback("stdout", line)
+            if process.stdout:
+                for line in process.stdout:
+                    if stop_event.is_set():
+                        break
+                    stdout_lines.append(line)
+                    if callback:
+                        callback("stdout", line)
         except Exception as e:
             logger.debug(f"Stdout reader exception: {e}")
 
@@ -874,10 +875,11 @@ class StreamingMonitor:
                      stderr_lines: List[str], callback: Optional[Callable]) -> None:
         """Read stderr from process"""
         try:
-            for line in process.stderr:
-                if stop_event.is_set():
-                    break
-                stderr_lines.append(line)
+            if process.stderr:
+                for line in process.stderr:
+                    if stop_event.is_set():
+                        break
+                    stderr_lines.append(line)
                 if callback:
                     callback("stderr", line)
         except Exception as e:

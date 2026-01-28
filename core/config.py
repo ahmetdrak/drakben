@@ -336,7 +336,7 @@ class ConfigManager:
                 self.config.language = lang
                 self.save_config()
 
-    def set_target(self, target: str):
+    def set_target(self, target: Optional[str]):
         """Set target (thread-safe)"""
         with self._lock:
             self.config.target = target

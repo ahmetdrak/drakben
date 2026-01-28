@@ -99,7 +99,7 @@ if mutated_profile:
     differences = []
     
     # Get parent for comparison
-    parent = engine.get_profile(mutated_profile.parent_profile_id)
+    parent = engine.get_profile(str(mutated_profile.parent_profile_id))
     if parent:
         if parent.parameters != mutated_profile.parameters:
             differences.append(f"parameters: {parent.parameters} → {mutated_profile.parameters}")
@@ -363,6 +363,8 @@ engine1 = SelfRefiningEngine(db_path)
 
 # Create state
 strategy1, profile1 = engine1.select_strategy_and_profile(MEMORY_TEST_URL)
+assert strategy1 is not None
+assert profile1 is not None
 target_sig = engine1.get_target_signature(MEMORY_TEST_URL)
 
 # Record failures
@@ -420,6 +422,7 @@ print()
 print("MEMORY AFFECTS DECISION TEST:")
 
 strategy2, profile2 = engine2.select_strategy_and_profile(MEMORY_TEST_URL)
+assert profile2 is not None
 
 print(f"  Session 1 profile: {SESSION1_DATA['profile_id'][:12]}...")
 print(f"  Session 2 profile: {profile2.profile_id[:12]}...")

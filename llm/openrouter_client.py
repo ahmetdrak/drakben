@@ -144,8 +144,8 @@ class RateLimiter:
             burst_size: Max burst requests allowed
         """
         self.rate = requests_per_minute / 60.0  # requests per second
-        self.burst_size = burst_size
-        self.tokens = burst_size
+        self.burst_size = float(burst_size)
+        self.tokens: float = self.burst_size
         self.last_update = time.time()
         self._lock = Lock()
         self._condition = threading.Condition(self._lock)
@@ -358,7 +358,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        callback: Optional[callable] = None,
+        callback: Optional[Callable] = None,
         timeout: int = 60
     ):
         """
@@ -395,7 +395,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system_prompt: str,
-        callback: Optional[callable],
+        callback: Optional[Callable],
         timeout: int
     ):
         """Query Ollama with streaming response"""

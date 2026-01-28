@@ -61,7 +61,7 @@ class EvolutionMemory:
             self._is_memory = True
             self._persistent_conn = None  # Will hold the connection for in-memory mode
         else:
-            self.db_path = Path(db_path)
+            self.db_path = str(Path(db_path))
             self._is_memory = False
             self._persistent_conn = None
         self._lock = threading.Lock()

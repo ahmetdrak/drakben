@@ -224,7 +224,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
             current = node.func
             while isinstance(current, ast.Attribute):
                 parts.append(current.attr)
-                current = current.value
+                current = current.value # type: ignore
             if isinstance(current, ast.Name):
                 parts.append(current.id)
             return '.'.join(reversed(parts))
@@ -238,7 +238,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
                 path = first_arg.value
                 self._check_dangerous_path(path)
             elif isinstance(first_arg, ast.Str):
-                self._check_dangerous_path(first_arg.s)
+                self._check_dangerous_path(str(first_arg.s))
     
     def _check_dangerous_path(self, path: str):
         """Check if path is dangerous"""
@@ -262,7 +262,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
                 cmd = str(first_element.value).lower()
                 return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
             elif isinstance(first_element, ast.Str):
-                cmd = first_element.s.lower()
+                cmd = str(first_element.s).lower()
                 return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
         
         # Check if it's a string like "nmap -p ..."
@@ -270,7 +270,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
             cmd = first_arg.value.lower()
             return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
         elif isinstance(first_arg, ast.Str):
-            cmd = first_arg.s.lower()
+            cmd = str(getattr(first_arg, 's', '')).lower()
             return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
         
         return False
@@ -587,7 +587,7 @@ def run(target, args=None):
             logger.exception(f"Error loading dynamic module {module_name}: {e}")
             return None
 
-    def execute_dynamic_tool(self, tool_name: str, target: str, args: Dict = None) -> Dict:
+    def execute_dynamic_tool(self, tool_name: str, target: str, args: Optional[Dict[Any, Any]] = None) -> Dict:
         """Dinamik tool'u çalıştır"""
         logger.info(f"Executing dynamic tool: {tool_name} on {target}")
         
