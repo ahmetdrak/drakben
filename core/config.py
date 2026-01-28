@@ -288,6 +288,12 @@ class ConfigManager:
                     self._llm_client = None
             return self._llm_client
 
+    @llm_client.setter
+    def llm_client(self, value):
+        """Allow setting LLM client (useful for testing/mocking)"""
+        with self._lock:
+            self._llm_client = value
+
     @property
     def language(self) -> str:
         """Get current language setting"""

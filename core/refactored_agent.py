@@ -386,8 +386,10 @@ class RefactoredDrakbenAgent:
             self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
             if self.state:
                 self.state.phase = AttackPhase.COMPLETE
+            self.running = False
         else:
             self.console.print("❓ No executable step found", style="yellow")
+            self.running = False
 
     def _check_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked by evolution penalty."""
