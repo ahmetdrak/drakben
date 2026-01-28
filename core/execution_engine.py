@@ -35,16 +35,15 @@ class CommandSanitizer:
     
     # Patterns that indicate shell injection attempts
     SHELL_INJECTION_PATTERNS = [
-        r';\s*rm\s',           # ; rm 
-        r'\|\s*rm\s',          # | rm
+        r';',                  # Command separator
+        r'\|',                 # Pipe
+        r'&&',                 # AND operator
+        r'\|\|',               # OR operator
+        r'&',                  # Background execution or redirect
         r'`[^`]*`',            # Command substitution with backticks
         r'\$\([^)]+\)',        # Command substitution with $()
-        r'>\s*/dev/',          # Redirect to /dev/
-        r'>\s*/etc/',          # Redirect to /etc/
-        r'\|\|',               # OR operator (can be used for fallback attacks)
-        r'&&\s*rm\s',          # && rm
-        r';\s*cat\s+/etc/passwd',  # Password file access
-        r';\s*cat\s+/etc/shadow',  # Shadow file access
+        r'>',                  # Redirection
+        r'<',                  # Input redirection
     ]
     
     # Commands that are completely forbidden
@@ -540,9 +539,10 @@ class SmartTerminal:
         else:
             cmd_args = shlex.split(command)
             
+        # FORCED SECURITY POLICY: Always use shell=False for async execution
         process = subprocess.Popen(
             cmd_args,
-            shell=shell,
+            shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

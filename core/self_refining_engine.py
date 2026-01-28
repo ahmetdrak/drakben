@@ -96,11 +96,32 @@ CREATE TABLE IF NOT EXISTS failure_contexts (
     FOREIGN KEY (profile_id) REFERENCES strategy_profiles(profile_id)
 );
 
+-- Learned Patterns: Patterns extracted from multiple failures
+CREATE TABLE IF NOT EXISTS learned_patterns (
+    pattern_id TEXT PRIMARY KEY,
+    pattern_type TEXT NOT NULL,
+    pattern_data TEXT NOT NULL,     -- JSON: the pattern itself
+    occurrence_count INTEGER DEFAULT 1,
+    confidence REAL DEFAULT 0.5,
+    last_seen TEXT NOT NULL,
+    is_validated INTEGER DEFAULT 0
+);
+
+-- Policy Conflicts: History of resolved policy conflicts
+CREATE TABLE IF NOT EXISTS policy_conflicts (
+    conflict_id TEXT PRIMARY KEY,
+    policy_ids TEXT NOT NULL,       -- JSON: conflicting policies
+    resolution_action TEXT NOT NULL,
+    context_data TEXT,              -- JSON: context of conflict
+    resolved_at TEXT NOT NULL
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_profiles_strategy ON strategy_profiles(strategy_name);
 CREATE INDEX IF NOT EXISTS idx_profiles_retired ON strategy_profiles(retired);
 CREATE INDEX IF NOT EXISTS idx_policies_tier ON policies(priority_tier);
 CREATE INDEX IF NOT EXISTS idx_failures_signature ON failure_contexts(target_signature);
+CREATE INDEX IF NOT EXISTS idx_patterns_type ON learned_patterns(pattern_type);
 """
 
 
@@ -371,6 +392,8 @@ class SelfRefiningEngine:
         if self._needs_migration(conn):
             logger.info("Migrating database to new schema...")
             conn.executescript("""
+                DROP TABLE IF EXISTS learned_patterns;
+                DROP TABLE IF EXISTS policy_conflicts;
                 DROP TABLE IF EXISTS policies;
                 DROP TABLE IF EXISTS failure_contexts;
                 DROP TABLE IF EXISTS strategy_profiles;
@@ -379,16 +402,17 @@ class SelfRefiningEngine:
                 DROP INDEX IF EXISTS idx_profiles_retired;
                 DROP INDEX IF EXISTS idx_policies_tier;
                 DROP INDEX IF EXISTS idx_failures_signature;
+                DROP INDEX IF EXISTS idx_patterns_type;
+                PRAGMA user_version = 2;
             """)
             conn.commit()
 
     def _needs_migration(self, conn: sqlite3.Connection) -> bool:
-        """Check if migration is needed based on schema"""
-        try:
-            conn.execute("SELECT priority_tier FROM policies LIMIT 1")
-            return False # Schema matches
-        except sqlite3.OperationalError:
-            return True # Column missing, old schema
+        """Check if schema needs migration using PRAGMA user_version"""
+        cursor = conn.execute("PRAGMA user_version")
+        version = cursor.fetchone()[0]
+        # Current schema version is 2. If lower, we need migration.
+        return version < 2
 
     def _handle_db_error(self, e):
         """Handle database specific errors"""
@@ -1216,8 +1240,12 @@ class SelfRefiningEngine:
                 
                 similar_count = cursor.fetchone()[0]
                 
-                # Only learn policy if pattern repeats (2+ times)
-                if similar_count < 2:
+                # CRITICAL SECURITY FIX: Determine if we should learn immediately
+                critical_errors = ["blocked", "banned", "firewall", "access_denied"]
+                is_critical = row["error_type"] in critical_errors
+                
+                # Learn immediately if critical, otherwise wait for 2+ failures
+                if not is_critical and similar_count < 2:
                     return None
                 
                 # Create policy based on failure type

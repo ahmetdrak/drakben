@@ -248,9 +248,11 @@ class UniversalInterpreter:
         import shlex
         
         try:
+            # SECURITY FIX: Use shlex to split and shell=False
+            args = shlex.split(sanitized)
             process = subprocess.run(
-                sanitized, 
-                shell=True, 
+                args, 
+                shell=False, 
                 capture_output=True, 
                 text=True,
                 timeout=60
