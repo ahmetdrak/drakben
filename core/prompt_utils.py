@@ -42,13 +42,21 @@ try:
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
     logger.info("prompt_toolkit not installed - using basic input")
+    # Stub for Mypy when toolkit is missing
+    if not TYPE_CHECKING:
+        class Completer: pass
+        class Completion: pass
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from prompt_toolkit.completion import Completer, Completion
 
 
 # =========================================
 # COMMAND COMPLETER
 # =========================================
 
-class DrakbenCompleter(Completer if PROMPT_TOOLKIT_AVAILABLE else object):
+class DrakbenCompleter(Completer if (PROMPT_TOOLKIT_AVAILABLE or TYPE_CHECKING) else object):
     """Custom completer for DRAKBEN commands"""
     
     def __init__(self):
@@ -373,7 +381,7 @@ class StatusDisplay:
     
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
-        self.status_data = {}
+        self.status_data: Dict[str, Any] = {}
         self._live = None
     
     def _generate_table(self) -> Table:

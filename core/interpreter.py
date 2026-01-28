@@ -9,22 +9,32 @@ import traceback
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Any, Dict, List, Optional, Union
 
+# Global references with proper typing for Mypy
+_computer_obj: Any = None
+_CommandSanitizer_cls: Any = None
+_SecurityError_cls: Any = Exception
+
 # Import Computer integration
 try:
-    from core.computer import computer
+    from core.computer import computer as _comp
+    _computer_obj = _comp
     COMPUTER_AVAILABLE = True
 except ImportError:
-    computer = None
     COMPUTER_AVAILABLE = False
 
 # Import CommandSanitizer for security
 try:
-    from core.execution_engine import CommandSanitizer, SecurityError
+    from core.execution_engine import CommandSanitizer as _CS, SecurityError as _SE
+    _CommandSanitizer_cls = _CS
+    _SecurityError_cls = _SE
     SANITIZER_AVAILABLE = True
 except ImportError:
-    CommandSanitizer = None
-    SecurityError = Exception
     SANITIZER_AVAILABLE = False
+
+# Re-expose for module level access if needed
+computer = _computer_obj
+CommandSanitizer = _CommandSanitizer_cls
+SecurityError = _SecurityError_cls
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +55,7 @@ BLOCKED_MODULES = {
 }
 
 class InterpreterResult:
-    def __init__(self, output: str, error: str, files: List[str] = None):
+    def __init__(self, output: str, error: str, files: Optional[List[str]] = None):
         self.output = output
         self.error = error
         self.files = files or []

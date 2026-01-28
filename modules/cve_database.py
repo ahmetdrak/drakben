@@ -11,10 +11,13 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from enum import Enum
 
 import aiohttp
+
+if TYPE_CHECKING:
+    from core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +251,7 @@ class CVEDatabase:
             
             async with aiohttp.ClientSession() as session:
                 url = f"{self.NVD_API_BASE}?cveId={cve_id}"
-                async with session.get(url, headers=headers, timeout=30) as resp:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         vulnerabilities = data.get("vulnerabilities", [])
@@ -312,7 +315,7 @@ class CVEDatabase:
             
             async with aiohttp.ClientSession() as session:
                 url = f"{self.NVD_API_BASE}?keywordSearch={keyword}&resultsPerPage={max_results}"
-                async with session.get(url, headers=headers, timeout=60) as resp:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         results = self._process_api_results(data, min_cvss)
@@ -369,7 +372,7 @@ class CVEDatabase:
             
             async with aiohttp.ClientSession() as session:
                 url = f"{self.NVD_API_BASE}?cpeName={cpe}&resultsPerPage={max_results}"
-                async with session.get(url, headers=headers, timeout=60) as resp:
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         for item in data.get("vulnerabilities", []):
@@ -632,7 +635,7 @@ class VulnerabilityMatcher:
     
     async def _try_cpe_match(self, vuln_type: str, product: Optional[str], version: Optional[str]) -> List[VulnerabilityMatch]:
         """Try CPE-based matching"""
-        matches = []
+        matches: List[VulnerabilityMatch] = []
         if not product:
             return matches
         

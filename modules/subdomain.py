@@ -9,10 +9,13 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 from urllib.parse import urlparse
 
 import aiohttp
+
+if TYPE_CHECKING:
+    from core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +248,7 @@ class SubdomainEnumerator:
             params = {"apikey": self.vt_api_key, "domain": domain}
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=30) as resp:
+                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         results = self._parse_virustotal_data(data)
