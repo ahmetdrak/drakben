@@ -35,7 +35,7 @@ class IntegrityReport:
 
     def print_summary(self):
         print("\n" + "="*60)
-        print(f"🔍 DEEP INTEGRITY SCAN REPORT")
+        print("🔍 DEEP INTEGRITY SCAN REPORT")
         print("="*60)
         print(f"📂 Scanned Files: {self.total_files}")
         

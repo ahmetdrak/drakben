@@ -18,9 +18,8 @@ def get_imports_from_file(file_path):
         if isinstance(node, ast.Import):
             for n in node.names:
                 imports.add(n.name.split('.')[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.add(node.module.split('.')[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module.split('.')[0])
     return imports
 
 def _get_import_status(imp, installed, mapping):
