@@ -757,7 +757,15 @@ class RefactoredDrakbenAgent:
         target = args.get("target")  # file path or tool name
         instruction = args.get("instruction")
 
+        if not action:
+            return {"success": False, "error": "Missing 'action' parameter"}
+
         if action == "create_tool":
+            if not target or not isinstance(target, str):
+                 return {"success": False, "error": "Missing or invalid 'target' (tool name)"}
+            if not instruction or not isinstance(instruction, str):
+                 instruction = "No description provided"
+
             # Dynamic tool creation via Coder
             result = self.coder.create_tool(
                 tool_name=target, description=instruction
@@ -773,7 +781,9 @@ class RefactoredDrakbenAgent:
             return result
 
         elif action == "modify_file":
-            # Self-modification
+            if not target or not isinstance(target, str):
+                 return {"success": False, "error": "Missing or invalid 'target' (file path)"}
+            
             # Security check: only allow modifying non-core files?
             # For now, allow all (God Mode)
             
