@@ -155,7 +155,7 @@ class NucleiScanner:
             
         return cmd
 
-    async def _execute_nuclei_scan(self, cmd: List[str], output_file: Optional[str] = None) -> List[NucleiResult]:
+    async def _execute_nuclei_scan(self, cmd: List[str]) -> List[NucleiResult]:
         """Execute nuclei scan and parse output"""
         results = []
         try:
@@ -226,7 +226,7 @@ class NucleiScanner:
         
         try:
             cmd = self._build_nuclei_command(targets_file, config, output_file)
-            results = await self._execute_nuclei_scan(cmd, output_file)
+            results = await self._execute_nuclei_scan(cmd)
             return results
         finally:
             _cleanup_nuclei_temp_file(targets_file)

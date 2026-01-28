@@ -404,7 +404,7 @@ class OpenRouterClient:
             if not response:
                 return
             
-            yield from self._process_ollama_stream(response, callback, timeout)
+            yield from self._process_ollama_stream(response, callback)
                         
         except requests.exceptions.Timeout:
             logger.warning("Ollama request timeout")
@@ -770,22 +770,23 @@ class OpenRouterClient:
             logger.error(f"Ollama request failed: {e}")
             return None
 
-    def _process_ollama_stream(self, response: requests.Response, callback: Optional[Callable], timeout: int) -> Iterator[str]:
-        """Process stream from Ollama API"""
+    def _process_ollama_stream(self, response: requests.Response, callback: Optional[Callable]) -> Iterator[str]:
+        """Process streaming response from Ollama API"""
         import json
         for line in response.iter_lines(decode_unicode=True):
-            if line:
-                try:
-                    data = json.loads(line)
-                    chunk = data.get("response", "")
-                    if chunk:
-                        if callback:
-                            callback(chunk)
-                        yield chunk
-                    if data.get("done"):
-                        break
-                except json.JSONDecodeError:
-                    continue
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                chunk = data.get("response", "")
+                if chunk:
+                    if callback:
+                        callback(chunk)
+                    yield chunk
+                if data.get("done"):
+                    break
+            except json.JSONDecodeError:
+                continue
 
     def close(self):
         """Close the session and cleanup resources"""

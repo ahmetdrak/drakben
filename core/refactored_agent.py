@@ -1661,7 +1661,7 @@ Respond in JSON:
         
         stdout = result.get("stdout", "")
         # Hybrid parsing with LLM fallback
-        parsed_vulns = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
+        _ = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
 
         # 3. Process findings (if any)
         if result.get("success") and "findings" in result:
