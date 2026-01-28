@@ -55,7 +55,7 @@ def test_research_real_integration():
         try:
             menu.run()
         except (StopIteration, SystemExit):
-            pass
+            raise
         except Exception as e:
             print(f"❌ TEST HATASI: {e}")
             import traceback

@@ -83,26 +83,14 @@ class ImportGraphAnalyzer(ast.NodeVisitor):
 def find_project_root():
     return Path(os.getcwd())
 
-def scan_project(report):
-    root = find_project_root()
-    py_files = list(root.rglob("*.py"))
-    
-    # Exclude venv, .git, tests/tmp
-    py_files = [f for f in py_files if ".venv" not in str(f) and "site-packages" not in str(f) and ".git" not in str(f) and "__pycache__" not in str(f)]
-    
-    report.total_files = len(py_files)
-    print(f"Scanning {len(py_files)} Python files...")
-
-    # 1. SYNTAX CHECK
+def _check_syntax(py_files, report):
+    """AST syntax check helper"""
     for file_path in py_files:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 source = f.read()
             
-            # Syntax Parse
             tree = ast.parse(source, filename=str(file_path))
-            
-            # Analyzer Visit
             analyzer = ImportGraphAnalyzer(file_path)
             analyzer.visit(tree)
             
@@ -115,35 +103,44 @@ def scan_project(report):
         except Exception as e:
             report.log_syntax_error(file_path.name, f"Read Error: {str(e)}")
 
-    # 2. RUNTIME IMPORT TEST (Safe Mode)
-    # We try to import modules to check if dependencies exist.
-    # Exclude scripts and main execution points to avoid side effects
-    
+def _check_imports(py_files, root, report):
+    """Runtime import check helper"""
     sys.path.append(str(root))
     
     for file_path in py_files:
-        # Construct module name
         try:
             rel_path = file_path.relative_to(root)
             if rel_path.name == "drakben.py" or rel_path.parent.name == "scripts":
-                continue # Skip entry points that run code on import
+                continue 
             
             module_name = str(rel_path).replace(os.sep, ".")[:-3]
-            
-            # Skip tests for import check to speed up (and avoid mock issues)
-            if "tests." in module_name: 
-                continue
+            if "tests." in module_name: continue
 
             try:
                 importlib.import_module(module_name)
             except ImportError as e:
                 report.log_import_error(module_name, str(e))
-            except Exception as e:
-                # Some modules might have side effects on import, log logic errors
-                pass # report.log_import_error(module_name, f"Runtime Error: {e}")
-
+            except Exception:
+                pass 
         except ValueError:
             pass
+
+def scan_project(report):
+    root = find_project_root()
+    py_files = list(root.rglob("*.py"))
+    
+    # Exclude logic
+    py_files = [
+        f for f in py_files 
+        if ".venv" not in str(f) and "site-packages" not in str(f) 
+        and ".git" not in str(f) and "__pycache__" not in str(f)
+    ]
+    
+    report.total_files = len(py_files)
+    print(f"Scanning {len(py_files)} Python files...")
+
+    _check_syntax(py_files, report)
+    _check_imports(py_files, root, report)
 
 def run_deep_check():
     report = IntegrityReport()

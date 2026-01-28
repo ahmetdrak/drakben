@@ -88,7 +88,6 @@ def test_native_sandbox(self):
     """Test AST Security Checker"""
     try:
         from core.coder import ASTSecurityChecker
-        checker = ASTSecurityChecker()
         
         # Test Case: Dangerous function
         code_dangerous = "eval('print(1)')"
@@ -112,7 +111,7 @@ def test_concurrency_sqlite(self):
         db_path = "test_audit.db"
         
         # Initialize one writer to set up DB
-        mem_init = EvolutionMemory(db_path)
+        _ = EvolutionMemory(db_path)
         
         errors = []
         def reader():
@@ -132,7 +131,7 @@ def test_concurrency_sqlite(self):
             if os.path.exists(db_path):
                 # We can't easily close all connections in this script context if open by threads
                 pass
-        except: pass
+        except OSError: pass
             
         if not errors:
             return True, "20 concurrent DB reads successful"
@@ -187,7 +186,7 @@ def test_cross_platform(self):
         return False, str(e)
 
 def run_ultimate_audit():
-    print(f"\n🧬 DRAKBEN ULTIMATE 20-POINT AUDIT (FINAL) 🧬")
+    print("\n🧬 DRAKBEN ULTIMATE 20-POINT AUDIT (FINAL) 🧬")
     print("="*60)
 
     # 1. Functional
