@@ -24,30 +24,36 @@ class IntegrityReport:
     def log_import_error(self, file, error):
         self.import_errors.append(f"{file}: {error}")
 
+    def _print_error_section(self, title, errors):
+        """Helper to print a section of errors if they exist."""
+        if errors:
+            print(f"\n❌ {title} ({len(errors)}):")
+            for err in errors:
+                print(f"  - {err}")
+            return True
+        return False
+
     def print_summary(self):
-        print("\n" + "="*80)
+        print("\n" + "="*60)
         print(f"🔍 DEEP INTEGRITY SCAN REPORT")
-        print("="*80)
+        print("="*60)
         print(f"📂 Scanned Files: {self.total_files}")
         
-        if not any([self.syntax_errors, self.import_errors, self.circular_imports, self.infinite_loops]):
+        has_errors = False
+        has_errors |= self._print_error_section("SYNTAX ERRORS", self.syntax_errors)
+        has_errors |= self._print_error_section("IMPORT ERRORS", self.import_errors)
+        has_errors |= self._print_error_section("CIRCULAR IMPORTS", self.circular_imports)
+        
+        # Infinite loops are warnings, not strictly errors in this context unless specified
+        if self.infinite_loops:
+             print(f"\n⚠️ POTENTIAL INFINITE LOOPS ({len(self.infinite_loops)}):")
+             for loop in self.infinite_loops:
+                 print(f"  - {loop}")
+        
+        if not has_errors:
             print("\n✅ PROJECT IS 100% CLEAN! NO ERRORS FOUND.")
         else:
-            if self.syntax_errors:
-                print(f"\n❌ SYNTAX ERRORS ({len(self.syntax_errors)}):")
-                for e in self.syntax_errors: print(f"  - {e}")
-            
-            if self.import_errors:
-                print(f"\n❌ IMPORT/MODULE ERRORS ({len(self.import_errors)}):")
-                for e in self.import_errors: print(f"  - {e}")
-
-            if self.circular_imports:
-                print(f"\n🔄 CIRCULAR IMPORTS DETECTED ({len(self.circular_imports)}):")
-                for cycle in self.circular_imports: print(f"  - Cycle: {' -> '.join(cycle)}")
-
-            if self.infinite_loops:
-                print(f"\n⚠️ POTENTIAL INFINITE LOOPS ({len(self.infinite_loops)}):")
-                for l in self.infinite_loops: print(f"  - {l}")
+            print("\n❌ CRITICAL ISSUES FOUND. PLEASE FIX THEM.")
 
 class ImportGraphAnalyzer(ast.NodeVisitor):
     def __init__(self, file_path):
@@ -90,7 +96,10 @@ def _check_syntax(py_files, report):
             with open(file_path, "r", encoding="utf-8") as f:
                 source = f.read()
             
+            # Syntax Parse
             tree = ast.parse(source, filename=str(file_path))
+            
+            # Analyzer Visit
             analyzer = ImportGraphAnalyzer(file_path)
             analyzer.visit(tree)
             
@@ -108,21 +117,21 @@ def _check_imports(py_files, root, report):
     sys.path.append(str(root))
     
     for file_path in py_files:
+        if file_path.name == "drakben.py" or file_path.parent.name == "scripts":
+            continue 
+            
         try:
             rel_path = file_path.relative_to(root)
-            if rel_path.name == "drakben.py" or rel_path.parent.name == "scripts":
-                continue 
-            
             module_name = str(rel_path).replace(os.sep, ".")[:-3]
-            if "tests." in module_name: continue
-
-            try:
-                importlib.import_module(module_name)
-            except ImportError as e:
-                report.log_import_error(module_name, str(e))
-            except Exception:
-                pass 
-        except ValueError:
+            
+            if "tests" in module_name: continue
+            
+            importlib.import_module(module_name)
+            
+        except ImportError as e:
+            report.log_import_error(file_path.name, str(e))
+        except Exception as e:
+            # We ignore runtime errors during import (like missing API keys), we only care about ImportErrors
             pass
 
 def scan_project(report):

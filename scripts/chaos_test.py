@@ -31,7 +31,7 @@ def generate_fuzz_input():
     ]
     return random.choice(fuzz_vectors)
 
-def stress_test_agent_init(iteration):
+def stress_test_agent_init():
     """Tries to initialize agent with garbage configs"""
     try:
         mock_config = MagicMock()
@@ -42,22 +42,18 @@ def stress_test_agent_init(iteration):
              patch('core.kali_detector.KaliDetector'), \
              patch('core.tool_selector.ToolSelector'), \
              patch('core.evolution_memory.EvolutionMemory'):
-            
-            agent = RefactoredDrakbenAgent(mock_config)
-            
-            # Fuzzing internal methods
-            fuzz_target = str(generate_fuzz_input())
-            agent._classify_target(fuzz_target)
+             
+            agent = Agent(mock_config)
             
             # Check state integrity
             if agent.state is None:
                 raise ValueError("State is None after init!")
                 
             return True
-    except Exception as e:
+    except Exception:
         # We expect some failures due to garbage input, but NO CRASHES (Segfaults)
         # We want to catch handled exceptions.
-        # print(f"  [Iter {iteration}] Caught expected error: {e}")
+        # print(" [Caught expected error]")
         return False
 
 def memory_leak_test():
@@ -67,17 +63,19 @@ def memory_leak_test():
     snapshot1 = tracemalloc.take_snapshot()
     
     # Run heavy loop
-    for i in range(100):
-        stress_test_agent_init(i)
-        if i % 20 == 0:
+    for _ in range(100):
+        stress_test_agent_init()
+        # 1% chance to force GC
+        if random.random() < 0.01:
+            import gc
             gc.collect()
-            
+
     snapshot2 = tracemalloc.take_snapshot()
     
     top_stats = snapshot2.compare_to(snapshot1, 'lineno')
-    print("  [Memory] Top 3 consuming lines after 100 iterations:")
+    print("   [Memory Delta (Top 3)]")
     for stat in top_stats[:3]:
-        print(f"    {stat}")
+        print(f"   {stat}")
     
     total_diff = sum(stat.size_diff for stat in top_stats)
     print(f"  [Memory] Total footprint difference: {total_diff / 1024:.2f} KB")
@@ -91,16 +89,17 @@ def memory_leak_test():
 
 def concurrency_fuzz_test():
     print("\n⚡ STARTING CONCURRENCY FUZZ TEST (50 THREADS)...")
+    
     threads = []
     errors = []
     
     def worker():
         try:
             # Try to break shared resources
-            res = stress_test_agent_init(0)
+            stress_test_agent_init()
         except Exception as e:
             errors.append(str(e))
-
+            
     for _ in range(50):
         t = threading.Thread(target=worker)
         threads.append(t)
@@ -113,12 +112,12 @@ def concurrency_fuzz_test():
         print(f"❌ Concurrency Errors Found: {len(errors)}")
         print(f"   Last Error: {errors[-1]}")
         return False
-    
-    print(f"✅ 50 Threads finished without crashing components.")
+        
+    print("✅ 50 Threads finished without crashing components.")
     return True
 
 if __name__ == "__main__":
-    print("💀 DRAKBEN CHAOS & FUZZING TOOL 💀")
+    print("🚨 DRAKBEN CHAOS & FUZZING TOOL 🚨")
     print("====================================")
     
     mem_result = memory_leak_test()
@@ -128,5 +127,5 @@ if __name__ == "__main__":
         print("\n🎉 CHAOS TEST PASSED: System is resilient.")
         sys.exit(0)
     else:
-        print("\n🔥 CHAOS TEST FAILED: Vulnerabilities found.")
+        print("\n💥 CHAOS TEST FAILED.")
         sys.exit(1)

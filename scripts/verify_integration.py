@@ -7,11 +7,11 @@ import os
 from pathlib import Path
 
 def get_imports_from_file(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        try:
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
             tree = ast.parse(f.read())
-        except:
-            return set()
+    except Exception: # SONARQUBE FIX: Avoid bare except
+        return set()
     
     imports = set()
     for node in ast.walk(tree):
@@ -22,6 +22,33 @@ def get_imports_from_file(file_path):
             if node.module:
                 imports.add(node.module.split('.')[0])
     return imports
+
+def _get_import_status(imp, installed, mapping):
+    """Helper to determine status of a single import"""
+    # 1. Standard Lib
+    # The list of common standard library modules is extensive.
+    # We'll rely on sys.builtin_module_names and a few common ones not always in builtin_module_names
+    # but are part of the standard library and don't need explicit installation.
+    # The original code had a very long list, which is redundant if sys.builtin_module_names is used.
+    # For simplicity and to avoid maintaining a huge list, we'll check against sys.builtin_module_names
+    # and assume if it's not installed and not in builtin_module_names, it's missing.
+    # The original code's "Built-in/System Module (Imported successfully)" message for non-installed
+    # but importable modules is implicitly covered by the standard library check or if it's truly
+    # a system-wide installed package not detected by `distributions()`.
+    if imp in sys.builtin_module_names:
+        return "std", None
+        
+    # 2. Local Module
+    if os.path.isdir(imp) or os.path.isfile(f"{imp}.py"):
+        return "local", None
+
+    # 3. Installed Package
+    pkg_name = mapping.get(imp, imp)
+    if pkg_name and pkg_name.lower() in installed:
+        return "installed", f"{pkg_name} (v{installed[pkg_name.lower()]})"
+    
+    # 4. Missing
+    return "missing", None
 
 def check_integration():
     print("🔍 INTEGRATION & DEPENDENCY PROOF SCAN")
@@ -35,55 +62,53 @@ def check_integration():
     root = Path(os.getcwd())
     all_imports = set()
     for py_file in root.rglob("*.py"):
-        if "venv" in str(py_file) or "site-packages" in str(py_file): continue
+        if "env" in str(py_file) or "venv" in str(py_file) or "site-packages" in str(py_file): continue
         all_imports.update(get_imports_from_file(py_file))
-    
-    # Filter standard lib (approximate)
-    std_lib = sys.builtin_module_names
+
+    # 3. Verify
+    print("\n🔬 Verifying Imports vs. Installed Packages:")
     # Mapping common imports to package names
     mapping = {
-        "bs4": "beautifulsoup4",
-        "yaml": "pyyaml",
-        "dotenv": "python-dotenv",
-        "PIL": "pillow",
         "cv2": "opencv-python",
-        "sklearn": "scikit-learn",
-        "typing": None, "os": None, "sys": None, "json": None, "re": None # stdlib
+        "PIL": "pillow",
+        "bs4": "beautifulsoup4",
+        "dotenv": "python-dotenv",
+        "yaml": "PyYAML",
+        "msgpack": "msgpack",
+        "rich": "rich",
+        # Removed stdlib entries as they are handled by sys.builtin_module_names
     }
+
+    missing_count = 0
     
-    missing = []
-    
-    print("\n🔬 Verifying Imports vs. Installed Packages:")
     for imp in sorted(all_imports):
-        if imp in sys.builtin_module_names or imp in ["sys", "os", "time", "json", "logging", "asyncio", "threading", "subprocess", "ast", "abc", "argparse", "base64", "collections", "contextlib", "copy", "csv", "dataclasses", "datetime", "difflib", "enum", "functools", "glob", "hashlib", "importlib", "inspect", "io", "itertools", "math", "multiprocessing", "operator", "pathlib", "pickle", "platform", "queue", "random", "shlex", "shutil", "signal", "socket", "sqlite3", "string", "struct", "tempfile", "textwrap", "traceback", "types", "unittest", "urllib", "uuid", "warnings", "weakref", "zipfile"]:
-            continue # Standard Lib
-            
-        # Check if local module
-        if os.path.isdir(imp) or os.path.isfile(f"{imp}.py"):
-             print(f"  📂 {imp:<15} -> Local Project Module - OK")
-             continue
-            
-        pkg_name = mapping.get(imp, imp)
-        if pkg_name is None: continue
+        status, info = _get_import_status(imp, installed, mapping)
         
-        if pkg_name.lower() in installed:
-            print(f"  ✅ {imp:<15} -> {pkg_name:<15} (v{installed[pkg_name.lower()]}) - OK")
-        else:
-            # Try verification by import
+        if status == "std":
+            # For standard library modules, we can assume they are importable.
+            # The original code had a `try-except ImportError` for this, but for stdlib, it's redundant.
+            print(f"  ⚠️ {imp:<15} -> Standard Library Module - OK")
+        elif status == "local":
+             print(f"  📂 {imp:<15} -> Local Project Module - OK")
+        elif status == "installed":
+            print(f"  ✅ {imp:<15} -> {info} - OK")
+        else: # status == "missing"
+            # As a final fallback, try to import it. Some modules might be system-installed
+            # but not reported by `distributions()` (e.g., some OS-level Python packages).
             try:
                 importlib.import_module(imp)
-                print(f"  ⚠️ {imp:<15} -> Built-in/System Module (Imported successfully)")
+                print(f"  ⚠️ {imp:<15} -> System-wide/Implicitly Available Module - OK")
             except ImportError:
                 print(f"  ❌ {imp:<15} -> MISSING IN ENVIRONMENT!")
-                missing.append(imp)
-    
+                missing_count += 1
+
     print("-" * 60)
-    if missing:
-        print(f"❌ FAILED: {len(missing)} missing dependencies found.")
-        sys.exit(1)
-    else:
-        print("✅ SUCCESS: All imports are satisfied by installed packages or standard library.")
+    if missing_count == 0:
+        print("✅ PROJECT INTEGRATION VERIFIED: 100% MATCH")
         sys.exit(0)
+    else:
+        print(f"❌ FAILED: {missing_count} missing dependencies found.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     check_integration()

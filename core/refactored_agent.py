@@ -756,64 +756,71 @@ class RefactoredDrakbenAgent:
         action = args.get("action")
         target = args.get("target")  # file path or tool name
         instruction = args.get("instruction")
-
         if not action:
             return {"success": False, "error": "Missing 'action' parameter"}
 
         if action == "create_tool":
-            if not target or not isinstance(target, str):
-                 return {"success": False, "error": "Missing or invalid 'target' (tool name)"}
-            if not instruction or not isinstance(instruction, str):
-                 instruction = "No description provided"
-
-            # Dynamic tool creation via Coder
-            result = self.coder.create_tool(
-                tool_name=target, description=instruction
-            )
-            if result["success"]:
-                # Register new tool dynamically
-                self.tool_selector.register_dynamic_tool(
-                    name=target,
-                    phase=AttackPhase.EXPLOIT,
-                    command_template=f"python3 modules/{target}.py {{target}}"
-                )
-                return {"success": True, "output": f"Tool {target} created and registered."}
-            return result
-
+            return self._handle_create_tool(target, instruction)
         elif action == "modify_file":
-            if not target or not isinstance(target, str):
-                 return {"success": False, "error": "Missing or invalid 'target' (file path)"}
-            
-            # Security check: only allow modifying non-core files?
-            # For now, allow all (God Mode)
-            
-            # Read file first
-            try:
-                with open(target, 'r') as f:
-                    content = f.read()
-            except Exception as e:
-                return {"success": False, "error": f"Read failed: {e}"}
+            return self._handle_modify_file(target, instruction)
+        
+        return {"success": False, "error": f"Unknown evolution action: {action}"}
 
-            # Ask LLM for modification
-            modification = self.brain.ask_coder(
-                f"Modify this file:\n{target}\n\nInstruction:\n{instruction}\n\nContent:\n{content}"
+    def _handle_create_tool(self, target: Optional[str], instruction: Optional[str]) -> Dict:
+        if not target or not isinstance(target, str):
+             return {"success": False, "error": "Missing or invalid 'target' (tool name)"}
+        
+        desc = instruction if isinstance(instruction, str) else "No description provided"
+
+        # Dynamic tool creation via Coder
+        result = self.coder.create_tool(tool_name=target, description=desc)
+        
+        if result["success"]:
+            # Register new tool dynamically
+            self.tool_selector.register_dynamic_tool(
+                name=target,
+                phase=AttackPhase.EXPLOIT,
+                command_template=f"python3 modules/{target}.py {{target}}"
             )
-            
-            if modification.get("code"):
-                new_content = modification["code"]
-                # Verify syntax
-                import ast
-                try:
-                    ast.parse(new_content)
-                    with open(target, 'w') as f:
-                        f.write(new_content)
-                    return {"success": True, "output": f"File {target} modified successfully."}
-                except SyntaxError:
-                    return {
-                        "success": False,
-                        "error": "Generated code had syntax errors. Change rejected.",
-                    }
-            return {"success": False, "error": "No code generated"}
+            return {"success": True, "output": f"Tool {target} created and registered."}
+        
+        return result
+
+    def _handle_modify_file(self, target: Optional[str], instruction: Optional[str]) -> Dict:
+        if not target or not isinstance(target, str):
+             return {"success": False, "error": "Missing or invalid 'target' (file path)"}
+        
+        # Read file first
+        try:
+            with open(target, 'r') as f:
+                content = f.read()
+        except Exception as e:
+            return {"success": False, "error": f"Read failed: {e}"}
+
+        # Ask LLM for modification
+        if not hasattr(self, 'brain') or not hasattr(self.brain, 'ask_coder'):
+             return {"success": False, "error": "Brain/Coder not attached"}
+
+        modification = self.brain.ask_coder(
+            f"Modify this file:\n{target}\n\nInstruction:\n{instruction}\n\nContent:\n{content}"
+        )
+        
+        if modification.get("code"):
+            new_content = modification["code"]
+            # Verify syntax
+            import ast
+            try:
+                ast.parse(new_content)
+                with open(target, 'w') as f:
+                    f.write(new_content)
+                return {"success": True, "output": f"File {target} modified successfully."}
+            except SyntaxError:
+                return {
+                    "success": False,
+                    "error": "Generated code had syntax errors. Change rejected.",
+                }
+        
+        return {"success": False, "error": "No code generated"}
 
         return {"success": False, "error": "Unknown evolution action"}
 
