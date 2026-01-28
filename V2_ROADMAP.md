@@ -155,6 +155,26 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 
 ## �📊 Kıyaslama Tablosu (Hedeflenen)
 
+---
+
+## 🏗️ Faz 8: THE SUPREME PILLARS (Nükleer Temeller & Ölçekleme)
+*Mevcut Durum: %0 (Tavsiye / Plan)*
+*Hedef: %100 (Kurşun Geçirmez Altyapı)*
+
+- [ ] **Distributed State Management (Complexity Guard):**
+    - [ ] Ajan sayısı arttıkça oluşacak "Complexity Explosion"ı engellemek için durum yönetimini (State) **Redis / RabbitMQ** gibi dağıtık sistemlere taşıma.
+    - [ ] Bu sayede binlerce eşzamanlı ajan (Swarm Mode) tek bir merkezi beyin (Hive Mind) ile senkronize çalışabilir.
+
+- [ ] **Local LLM & Performance Optimization (Speed Pillar):**
+    - [ ] **Ollama / Llama3 / Misral** entegrasyonlarını "birinci sınıf vatandaş" (First-class citizen) yapmak.
+    - [ ] Token maliyetini sıfıra indirmek ve gecikmeyi (latency) minimize etmek için saldırı anında "Edge Inference" (Yerinde Tahminleme) kullanma.
+
+- [ ] **Docker SDK Sandboxing (Isolaton Guard):**
+    - [ ] V2'nin artan gücünü kontrol altında tutmak için tüm operasyonları **Docker SDK** aracılığıyla izole konteynerlarda çalıştırma.
+    - [ ] "Sessiz ve Kalıntısız" (Silent & Clean) operasyon: Konteyner silindiğinde tüm saldırı kalıntıları (tools, logs, payloads) fiziksel makineden tamamen silinmiş olur.
+
+---
+
 | Özellik | Villager | DRAKBEN V2.0 (Hedef) |
 | :--- | :---: | :---: |
 | **Zeka** | LLM Wrapper (Çevirmen) | **Self-Refining (Otonom Karar & Hata Düzeltme)** |
@@ -162,6 +182,7 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 | **Hedef Kapsamı** | Tekil / Basit Ağ | **Enterprise AD / Forest / Cloud** |
 | **Genişleme** | Kod Güncellemesi | **Hot-Swap Plugin Sistemi + MCP** |
 | **Kod Kalitesi** | Bilinmiyor | **Zero-Defect / Nuclear Tested / Thread Safe** |
+| **Altyapı** | Monolitik | **Distributed State (Redis) + Docker Sandbox** |
 | **Kalıcılık** | Basit Persistence | **WMI, Registry, Scheduled Task (Gizli)** |
 | **Raporlama** | Teknik PDF | **Executive Summary (C-Level Language)** |
 | **Sosyal Müh.** | YOK | **OSINT + Phishing + Profiling** |
