@@ -78,6 +78,7 @@ class DrakbenMenu:
             "/tr": self._cmd_turkish,
             "/en": self._cmd_english,
             "/exit": self._cmd_exit,
+            "/research": self._cmd_research,
         }
 
         # System detection
@@ -165,6 +166,7 @@ class DrakbenMenu:
         self.show_banner()
         self.show_status_line()
 
+        lang = self.config.language
         self._show_welcome_message(lang)
 
         # PLUGINS: Register external tools
@@ -402,6 +404,37 @@ class DrakbenMenu:
             )
 
     # ========== COMMANDS ==========
+
+    def _cmd_research(self, args):
+        """Web research command"""
+        if not args:
+            self.console.print("Usage: /research <query>")
+            return
+
+        if isinstance(args, list):
+            query = " ".join(args)
+        else:
+            query = str(args)
+        self.console.print(f"[yellow]🔍 Searching for: {query}...[/yellow]")
+        
+        try:
+            from core.web_researcher import WebResearcher
+            researcher = WebResearcher()
+            results = researcher.search_tool(query)
+            
+            if not results:
+                self.console.print("[red]❌ No results found.[/red]")
+                return
+
+            self.console.print(f"\n[bold green]Found {len(results)} results:[/bold green]\n")
+            for i, r in enumerate(results, 1):
+                self.console.print(f"{i}. [bold]{r['title']}[/bold]")
+                self.console.print(f"   [blue underline]{r['href']}[/blue underline]")
+                body = r.get('body', '')[:200] + "..." if r.get('body') else "No description."
+                self.console.print(f"   [dim]{body}[/dim]\n")
+                
+        except Exception as e:
+            self.console.print(f"[red]Error during research: {e}[/red]")
 
     def _cmd_help(self, args: str = ""):
         """Help command - Modern Dracula themed"""

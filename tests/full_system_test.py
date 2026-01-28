@@ -30,7 +30,16 @@ class TestDrakbenSystem(unittest.TestCase):
         self.mock_llm.query.return_value = '{"success": true, "response": "Mocked response"}'
         
         # Initialize Brain with Mock LLM
-        self.brain = ContinuousReasoning(llm_client=self.mock_llm)
+        # Patch LLMCache to avoid persistent cache interfering with tests
+        # We patch where the class is DEFINED, because it is imported locally in __init__
+        with patch('core.llm_cache.LLMCache') as MockCache:
+            # Configure mock cache to return None (cache miss) by default
+            MockCache.return_value.get.return_value = None
+            self.brain = ContinuousReasoning(llm_client=self.mock_llm)
+            # Ensure the brain uses our mock instance if it was successfully assigned
+            if self.brain.llm_cache:
+                self.brain.llm_cache = MockCache.return_value
+        
         self.context = ExecutionContext()
 
     def test_01_brain_fast_path(self):

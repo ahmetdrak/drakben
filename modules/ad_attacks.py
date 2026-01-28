@@ -37,12 +37,12 @@ class ActiveDirectoryAttacker:
             result = self.executor_callback(cmd, timeout=300)
             output = result.stdout + result.stderr
             return self._parse_kerbrute(output)
-        else:
             # Standalone execution
             try:
+                cmd_list = ["kerbrute", "userenum", "-d", str(domain), "--dc", str(dc_ip), str(user_list), "--safe"]
                 res = subprocess.run(
-                    cmd,
-                    shell=True,
+                    cmd_list,
+                    shell=False,
                     capture_output=True,
                     text=True,
                     timeout=300)
@@ -86,8 +86,12 @@ class ActiveDirectoryAttacker:
             output = result.stdout + result.stderr
         else:
             # Fallback
+            cmd_list = ["impacket-GetNPUsers", f"{domain}/", "-no-pass", "-dc-ip", str(dc_ip), "-format", "hashcat"]
+            if user_file:
+                cmd_list.extend(["-usersfile", str(user_file)])
+            
             res = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True)
+                cmd_list, shell=False, capture_output=True, text=True)
             output = res.stdout + res.stderr
 
         # Parse hashes
@@ -119,8 +123,9 @@ class ActiveDirectoryAttacker:
             result = self.executor_callback(cmd, timeout=300)
             output = result.stdout
         else:
+            cmd_list = [tool, "smb", str(target_ip), "-u", str(user_file), "-p", str(password), "-d", str(domain), "--continue-on-success"]
             res = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True)
+                cmd_list, shell=False, capture_output=True, text=True)
             output = res.stdout
 
         success_logins = []
