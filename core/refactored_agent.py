@@ -191,6 +191,8 @@ class RefactoredDrakbenAgent:
     def _switch_to_stealth_profile(self) -> None:
         """Switch to low-aggression profile for stealth mode"""
         self.console.print("🥷 Stealth mode: Searching for low-aggression profile...", style="dim")
+        if not self.current_strategy:
+            return
         profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
         stealth_profiles = [p for p in profiles if p.aggressiveness <= 0.4]
         if stealth_profiles:
@@ -200,6 +202,8 @@ class RefactoredDrakbenAgent:
     def _switch_to_aggressive_profile(self) -> None:
         """Switch to high-aggression profile for aggressive mode"""
         self.console.print("⚡ Aggressive mode: Searching for high-aggression profile...", style="dim")
+        if not self.current_strategy:
+            return
         profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
         aggressive_profiles = [p for p in profiles if p.aggressiveness >= 0.6]
         if aggressive_profiles:
@@ -208,6 +212,10 @@ class RefactoredDrakbenAgent:
     
     def _display_selected_profile(self) -> None:
         """Display selected strategy and profile information"""
+        if not self.current_strategy or not self.current_profile:
+            self.console.print("⚠️ No strategy/profile active.", style="yellow")
+            return
+
         self.console.print(f"🧠 Selected Strategy: {self.current_strategy.name}", style=self.STYLE_MAGENTA)
         self.console.print(
             f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
@@ -270,6 +278,10 @@ class RefactoredDrakbenAgent:
         self.console.print(
             "\n🚀 Starting evolved autonomous loop...\n", style=self.STYLE_GREEN
         )
+
+        if not self.state:
+            self.console.print("❌ FATAL: State not initialized.", style=self.STYLE_RED)
+            return
 
         max_iterations = self.state.max_iterations
         while self.running and self.state.iteration_count < max_iterations:
