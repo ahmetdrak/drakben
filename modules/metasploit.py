@@ -9,6 +9,7 @@ import socket
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from core.state import AgentState
 from enum import Enum
 
 import aiohttp

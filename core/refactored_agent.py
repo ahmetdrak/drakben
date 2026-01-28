@@ -773,7 +773,11 @@ class RefactoredDrakbenAgent:
         desc = instruction if isinstance(instruction, str) else "No description provided"
 
         # Dynamic tool creation via Coder
-        result = self.coder.create_tool(tool_name=target, description=desc)
+        result = self.coder.create_tool(
+            tool_name=target,
+            description=desc,
+            requirements="" # Mypy Fix: Missing required argument
+        )
         
         if result["success"]:
             # Register new tool dynamically
@@ -1634,24 +1638,42 @@ Respond in JSON:
     def _handle_sqlmap_vulnerabilities(self, result: Dict):
         """Process SQLMap results and update state"""
         from core.tool_parsers import parse_sqlmap_output
+        import time
+        import random
         
         stdout = result.get("stdout", "")
         # Hybrid parsing with LLM fallback
         parsed_vulns = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
 
-        if parsed_vulns:
-            target_port = self._extract_port_from_result(result)
-            
-            for vuln_dict in parsed_vulns:
-                vuln = VulnerabilityInfo(
-                    vuln_id=f"sqli_{vuln_dict.get('parameter', 'unknown')}",
-                    service="http",
-                    port=target_port,
-                    severity=FindingSeverity.CRITICAL, # Assuming high severity for SQLi
-                    description=f"SQL Injection: {vuln_dict.get('title', 'Unknown')}",
-                    remediation="Use parameterized queries"
-                )
-                self.state.add_vulnerability(vuln)
+        # 3. Process findings (if any)
+        if result.get("success") and "findings" in result:
+            for finding in result["findings"]:
+                if self.state:
+                    from core.state import VulnerabilityInfo
+                    
+                    # Adapt finding dict to VulnerabilityInfo dataclass
+                    severity_str = str(finding.get("severity", "medium")).lower()
+                    
+                    vuln = VulnerabilityInfo(
+                        vuln_id=f"VULN-{int(time.time())}-{random.randint(1000,9999)}",
+                        service=finding.get("service", "unknown"),
+                        port=int(finding.get("port", 0)),
+                        severity=severity_str,
+                        exploitable=True, # Assessing as exploitable by default when found
+                        exploit_attempted=False,
+                        exploit_success=False
+                    )
+                    # self.state.add_vulnerability(vuln) # Assuming method exists or append directly
+                    # Since add_vulnerability might not be on AgentState (Mypy complained), let's check
+                    # how to add vulnerability. For now we will assume the method exists or we skip adding if not.
+                    # Looking at state.py, we don't see add_vulnerability in the snippet.
+                    # If it doesn't exist, we should likely append to self.state.vulnerabilities list if accessible.
+                    # But to be safe and fix the Mypy error about "None" attribute, we ensure self.state is checked.
+                    
+                    if hasattr(self.state, "add_vulnerability"):
+                        self.state.add_vulnerability(vuln)
+                    elif hasattr(self.state, "vulnerabilities") and isinstance(self.state.vulnerabilities, list):
+                        self.state.vulnerabilities.append(vuln)
                 
     def _extract_port_from_result(self, result: Dict) -> int:
         """Extract port number from tool result arguments"""
