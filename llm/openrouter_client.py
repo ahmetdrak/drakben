@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any, List, Callable, Union, Iterator
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -423,7 +423,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system_prompt: str,
-        callback: Optional[callable],
+        callback: Optional[Callable],
         timeout: int
     ):
         """Query OpenAI-compatible API with streaming response"""
@@ -528,7 +528,7 @@ class OpenRouterClient:
             line = line[6:]
         return line
     
-    def _extract_chunk_from_line(self, line: str, callback: Optional[callable]) -> Optional[str]:
+    def _extract_chunk_from_line(self, line: str, callback: Optional[Callable]) -> Optional[str]:
         """Extract chunk from processed line"""
         import json
         try:
@@ -754,6 +754,38 @@ class OpenRouterClient:
         if self._cache:
             return self._cache.get_stats()
         return None
+
+    def _make_ollama_request(self, prompt: str, system_prompt: str, timeout: int) -> Optional[requests.Response]:
+        """Make request to Ollama local API"""
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "system": system_prompt,
+            "stream": True
+        }
+        try:
+            return self._session.post(url, json=payload, timeout=timeout, stream=True)
+        except Exception as e:
+            logger.error(f"Ollama request failed: {e}")
+            return None
+
+    def _process_ollama_stream(self, response: requests.Response, callback: Optional[Callable], timeout: int) -> Iterator[str]:
+        """Process stream from Ollama API"""
+        import json
+        for line in response.iter_lines(decode_unicode=True):
+            if line:
+                try:
+                    data = json.loads(line)
+                    chunk = data.get("response", "")
+                    if chunk:
+                        if callback:
+                            callback(chunk)
+                        yield chunk
+                    if data.get("done"):
+                        break
+                except json.JSONDecodeError:
+                    continue
 
     def close(self):
         """Close the session and cleanup resources"""

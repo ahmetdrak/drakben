@@ -292,6 +292,46 @@ class ContinuousReasoning:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _chat_with_llm(self, user_input: str, user_lang: str, context: ExecutionContext) -> Dict[str, Any]:
+        """Direct chat mode - no JSON overhead"""
+        prompt = f"User: {user_input}\n(Answer in {user_lang})"
+        # Protective check for llm_client
+        if not self.llm_client:
+             return {"success": False, "error": "LLM client not available"}
+             
+        response = self.llm_client.query(prompt, "You are a helpful cybersecurity assistant.")
+        return {
+            "success": True,
+            "intent": "chat",
+            "confidence": 1.0,
+            "response": response,
+            "llm_response": response,
+            "steps": [],
+            "reasoning": "Direct chat request",
+            "risks": []
+        }
+
+    def _parse_llm_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """Extract JSON from LLM response string"""
+        import json
+        import re
+        
+        # Try to find JSON block
+        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                pass
+        
+        # Try raw JSON
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError:
+            pass
+            
+        return None
+
     def _is_chat_request(self, user_input: Any) -> bool:
         """Detect if user input is a chat/conversation request (not pentest)"""
         # Safety check: Ensure input is string

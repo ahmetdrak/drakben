@@ -2,7 +2,13 @@
 # DRAKBEN - Minimal Interactive Menu System
 # Optimized for Kali Linux - Fixed Menu
 
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import os
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.refactored_agent import RefactoredDrakbenAgent
+    from core.brain import DrakbenBrain
 
 from rich.console import Console
 from rich.prompt import Prompt
