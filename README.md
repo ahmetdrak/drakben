@@ -40,7 +40,17 @@ Designed for limitless expansion.
 
 ## ⚡ Quick Start
 
-### Installation
+### Seçenek 1: Docker (Önerilen)
+Bağımlılık karmaşası yaşamadan Drakben'i dağıtmanın en hızlı yolu.
+
+```bash
+docker build -t drakben .
+docker run -it drakben
+```
+
+### Seçenek 2: Manuel Kurulum
+Linux/Windows ortamında geliştirme yapmak için.
+
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
