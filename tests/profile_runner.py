@@ -6,7 +6,7 @@ import time
 from unittest.mock import MagicMock
 # Prevent real LLM init from checking keys/network
 import core.brain
-core.brain.LLMClient = MagicMock()
+core.brain.OpenRouterClient = MagicMock()
 
 from core.refactored_agent import RefactoredDrakbenAgent
 

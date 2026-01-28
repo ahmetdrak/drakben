@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
+from core.state import AgentState
+
 logger = logging.getLogger(__name__)
 
 

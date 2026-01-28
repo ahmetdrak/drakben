@@ -294,6 +294,7 @@ class RefactoredDrakbenAgent:
 
     def _run_single_iteration(self, max_iterations: int) -> bool:
         """Execute a single iteration of the autonomous loop"""
+        assert self.state is not None, "State missing in iteration"
         iteration = self.state.iteration_count + 1
         
         self.console.print(f"\n{'='*60}", style="dim")
@@ -357,9 +358,11 @@ class RefactoredDrakbenAgent:
         self._update_state_from_result(step.tool, execution_result, observation)
 
         # 8. Validation & Halt Limit
+        # 8. Validation & Halt Limit
         if not self._validate_loop_state():
             return False
 
+        assert self.state is not None
         self.state.increment_iteration()
         return True
 
@@ -405,7 +408,9 @@ class RefactoredDrakbenAgent:
 
     def _record_action(self, step: PlanStep, success: bool, penalty: float, execution_result: Dict[str, Any]) -> None:
         """Record action to evolution memory."""
-        target = self.state.target if self.state else "unknown"
+        # Using assertion for Mypy safety, logic handles None gracefully via defaults but type checker complains
+        assert self.state is not None
+        target = self.state.target
         record = ActionRecord(
             goal=f"pentest_{target}",
             plan_id=self.planner.current_plan_id or "unknown",
@@ -541,6 +546,9 @@ class RefactoredDrakbenAgent:
 
     def _validate_loop_state(self) -> bool:
         """Validate state invariants and halt conditions."""
+        if not self.state:
+             return False
+        
         if not self.state.validate():
             self.console.print("❌ STATE INVARIANT VIOLATION!", style=self.STYLE_RED)
             for violation in self.state.invariant_violations:
@@ -1538,6 +1546,7 @@ Respond in JSON:
         """
         Update state based on tool result.
         """
+        assert self.state is not None
         # Set observation
         self.state.set_observation(observation)
         
@@ -1574,6 +1583,7 @@ Respond in JSON:
 
     def _process_exploit_result(self, tool_name: str, result: Dict):
         """Helper to process exploit results"""
+        assert self.state is not None
         observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
         # Check if exploit succeeded
         if "success" in observation.lower() or "shell" in observation.lower() or result.get("success"):
@@ -1583,6 +1593,7 @@ Respond in JSON:
 
     def _update_state_nmap_port_scan(self, result: Dict):
         """Update state from Nmap port scan results"""
+        assert self.state is not None
         from core.tool_parsers import parse_nmap_output
 
         stdout = result.get("stdout", "")
@@ -1608,6 +1619,7 @@ Respond in JSON:
 
     def _apply_mock_services(self):
         """Apply mock services for testing or fallback"""
+        assert self.state is not None
         services = [
             ServiceInfo(port=80, protocol="tcp", service="http"),
             ServiceInfo(port=443, protocol="tcp", service="https"),
@@ -1617,6 +1629,7 @@ Respond in JSON:
 
     def _update_state_service_completion(self, result: Dict):
         """Mark service as tested"""
+        assert self.state is not None
         args_port = result.get("args", {}).get("port")
         if not args_port:
             self.state.set_observation(
