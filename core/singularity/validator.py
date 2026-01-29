@@ -65,60 +65,67 @@ class CodeValidator(IValidator):
     def _validate_subprocess(self, snippet: CodeSnippet) -> bool:
         """
         Execute via Subprocess (Less secure).
-        Paranoid Mode: Pre-scan for dangerous AST patterns before execution.
         """
         if snippet.language.lower() != "python":
             logger.warning("Subprocess validation only supports Python currently")
             return False
             
         # Paranoid Static Analysis
+        if not self._is_safe_code(snippet.code):
+            return False
+
+        return self._run_code_safety(snippet)
+
+    def _is_safe_code(self, code: str) -> bool:
+        """Perform paranoid static analysis on the code"""
         try:
-            tree = ast.parse(snippet.code)
+            tree = ast.parse(code)
             for node in ast.walk(tree):
-                # Block dangerous calls
-                if isinstance(node, ast.Call):
-                    func_name = ""
-                    if isinstance(node.func, ast.Name):
-                        func_name = node.func.id
-                    elif isinstance(node.func, ast.Attribute):
-                        func_name = node.func.attr
-                    
-                    forbidden = {"system", "popen", "spawn", "exec", "eval", "open", "remove", "rmdir", "unlink"}
-                    if func_name in forbidden:
-                        logger.error(f"SECURITY ALERT: Blocked dangerous call '{func_name}' in un-sandboxed snippet")
-                        return False
-                
-                # Block sensitive imports
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    for name in node.names:
-                        if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
-                            logger.error(f"SECURITY ALERT: Blocked sensitive import '{name.name}' in un-sandboxed snippet")
-                            return False
+                if not self._check_ast_node(node):
+                    return False
+            return True
         except Exception as e:
             logger.error(f"Static analysis failed: {e}")
             return False
 
+    def _check_ast_node(self, node: ast.AST) -> bool:
+        """Check a single AST node for dangerous patterns"""
+        # Block dangerous calls
+        if isinstance(node, ast.Call):
+            func_name = ""
+            if isinstance(node.func, ast.Name):
+                func_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                func_name = node.func.attr
+            
+            forbidden = {"system", "popen", "spawn", "exec", "eval", "open", "remove", "rmdir", "unlink"}
+            if func_name in forbidden:
+                logger.error(f"SECURITY ALERT: Blocked dangerous call '{func_name}'")
+                return False
+        
+        # Block sensitive imports
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for name in node.names:
+                if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
+                    logger.error(f"SECURITY ALERT: Blocked sensitive import '{name.name}'")
+                    return False
+        return True
+
+    def _run_code_safety(self, snippet: CodeSnippet) -> bool:
+        """Write code to temp file and execute it"""
         try:
-            # Write to temp file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
                 f.write(snippet.code)
                 f_path = f.name
             
-            # Execute with timeout
-            # Use same python interpreter
-            cmd = [sys.executable, f_path]
             result = subprocess.run(
-                cmd,
+                [sys.executable, f_path],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout
             )
             
-            # Clean up
-            try:
-                os.remove(f_path)
-            except Exception:
-                pass
+            self._cleanup_temp_file(f_path)
                 
             if result.returncode == 0:
                 logger.info("Validation successful")
@@ -126,7 +133,6 @@ class CodeValidator(IValidator):
                 return True
             else:
                 logger.warning(f"Validation failed (Exit: {result.returncode})")
-                logger.debug(f"Stderr: {result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
@@ -135,3 +141,11 @@ class CodeValidator(IValidator):
         except Exception as e:
             logger.error(f"Validation error: {e}")
             return False
+
+    def _cleanup_temp_file(self, f_path: str):
+        """Clean up temporary validation file"""
+        try:
+            if os.path.exists(f_path):
+                os.remove(f_path)
+        except Exception:
+            pass

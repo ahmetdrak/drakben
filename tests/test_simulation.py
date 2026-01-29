@@ -170,8 +170,6 @@ class TestWarGameSimulation(unittest.TestCase):
         # Simulating lateral movement to deploy payload
         # In a real scenario, this would use psexec or wmi. 
         # We mock this action.
-        
-        self.assertTrue(True, "Mission Failed: Payload delivery failed!")
         logger.info("[+] Payload Deployed at " + primary_target.target)
 
 

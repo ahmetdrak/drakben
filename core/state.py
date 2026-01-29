@@ -408,34 +408,32 @@ class AgentState:
                 service=service
             )
             
-            # Check for duplicates (simple check)
-            is_duplicate = False
-            for c in self.credentials:
-                if c.username == username and c.service == service:
-                    if c.password == password and c.hash == hash_val:
-                        is_duplicate = True
-                        break
-            
-            if not is_duplicate:
+            if not self._is_duplicate_credential(cred):
                 self.credentials.append(cred)
                 logger.info(f"Credential captured: {username} ({service})")
+                self._persist_credential(username, password, hash_val, service)
+
+    def _is_duplicate_credential(self, cred: CredentialInfo) -> bool:
+        """Check if a credential already exists in memory"""
+        for c in self.credentials:
+            if c.username == cred.username and c.service == cred.service:
+                if c.password == cred.password and c.hash == cred.hash:
+                    return True
+        return False
+
+    def _persist_credential(self, username: str, password: Optional[str], hash_val: Optional[str], service: str):
+        """Save captured credential to secure store"""
+        try:
+            from core.security_utils import get_credential_store, CredentialStore
+            store: CredentialStore = get_credential_store()
+            
+            # We use service:username as the key
+            cred_key: str = f"{service}:{username}" if service else username
+            cred_value: str = password or hash_val or "unknown"
                 
-                # PERSIST: Save to encrypted credential store
-                try:
-                    store: CredentialStore = get_credential_store()
-                    # We use service:username as the key
-                    cred_key: str = f"{service}:{username}" if service else username
-                    
-                    if password:
-                        cred_value = password
-                    elif hash_val:
-                        cred_value = hash_val
-                    else:
-                        cred_value = "unknown"
-                        
-                    store.store(cred_key, cred_value)
-                except Exception as e:
-                    logger.debug(f"Persistence skipped (Master Password probably not set): {e}")
+            store.store(cred_key, cred_value)
+        except Exception as e:
+            logger.debug(f"Persistence skipped: {e}")
 
     def check_state_changed(self) -> bool:
         """

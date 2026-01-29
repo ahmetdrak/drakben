@@ -8,15 +8,13 @@ from core.tool_selector import __init__
 
 from core.execution_engine import ExecutionResult
 
-from rich.table import Table
-
-from rich.table import Table
+from datetime import datetime
+from pathlib import Path
 
 from core.state import AgentState
 
 if TYPE_CHECKING:
     from core.refactored_agent import RefactoredDrakbenAgent
-    from core.brain import DrakbenBrain
     from core.brain import DrakbenBrain
 
 from rich.console import Console
@@ -31,7 +29,7 @@ try:
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
-from core.config import ConfigManager, DrakbenConfig, DrakbenConfig, DrakbenConfig, DrakbenConfig, DrakbenConfig, DrakbenConfig
+from core.config import ConfigManager, DrakbenConfig
 from core.kali_detector import KaliDetector
 
 
@@ -92,6 +90,7 @@ class DrakbenMenu:
             "/en": self._cmd_english,
             "/exit": self._cmd_exit,
             "/research": self._cmd_research,
+            "/report": self._cmd_report,
         }
 
         # System detection
@@ -473,6 +472,7 @@ class DrakbenMenu:
                 ("💻 /shell", "İnteraktif kabuk"),
                 ("📊 /status", "Durum bilgisi"),
                 ("🤖 /llm", "LLM/API ayarları"),
+                ("📝 /report", "Rapor oluştur"),
                 ("🧹 /clear", "Ekranı temizle"),
                 ("🇹🇷 /tr", "Türkçe mod"),
                 ("🇬🇧 /en", "English mode"),
@@ -489,6 +489,7 @@ class DrakbenMenu:
                 ("💻 /shell", "Interactive shell"),
                 ("📊 /status", "Status info"),
                 ("🤖 /llm", "LLM/API settings"),
+                ("📝 /report", "Generate report"),
                 ("🧹 /clear", "Clear screen"),
                 ("🇹🇷 /tr", "Turkish mode"),
                 ("🇬🇧 /en", "English mode"),
@@ -784,6 +785,16 @@ class DrakbenMenu:
                 border_style=self.COLORS["yellow"],
                 padding=(0, 1)
             ))
+            
+            # Show Plan Table
+            if self.agent.planner and self.agent.planner.steps:
+                plan_title = "📋 Mission Plan" if lang == "en" else "📋 Görev Planı"
+                self.console.print(Panel(
+                    self._create_plan_table(lang),
+                    title=f"[bold {self.COLORS['pink']}]{plan_title}[/]",
+                    border_style=self.COLORS["pink"],
+                    padding=(0, 1)
+                ))
         
         llm_title = "🧠 LLM" 
         self.console.print(Panel(
@@ -793,6 +804,83 @@ class DrakbenMenu:
             padding=(0, 1)
         ))
         self.console.print()
+
+    def _create_plan_table(self, lang: str) -> Table:
+        """Create a table showing current plan steps"""
+        from rich.table import Table
+        from core.planner import StepStatus
+        
+        table = Table(box=None, padding=(0, 1))
+        table.add_column("Step", style="dim")
+        table.add_column("Action", style="bold")
+        table.add_column("Tool", style="cyan")
+        table.add_column("Status", style="bold")
+        
+        status_colors = {
+            StepStatus.PENDING: "dim",
+            StepStatus.EXECUTING: "bold yellow",
+            StepStatus.SUCCESS: "bold green",
+            StepStatus.FAILED: "bold red",
+            StepStatus.SKIPPED: "dim yellow"
+        }
+        
+        for i, step in enumerate(self.agent.planner.steps, 1):
+            color = status_colors.get(step.status, "white")
+            table.add_row(
+                f"#{i}",
+                step.action.replace("_", " ").title(),
+                step.tool,
+                f"[{color}]{step.status.value.upper()}[/]"
+            )
+        return table
+
+    def _cmd_report(self, args: str = "") -> None:
+        """Generate professional report"""
+        from rich.panel import Panel
+        from modules.report_generator import ReportGenerator, ReportFormat, ReportConfig, generate_report_from_state
+        
+        lang = self.config.language
+        
+        if not self.agent or not self.agent.state:
+            msg = "Önce bir tarama başlatmalısın." if lang == "tr" else "You must start a scan first."
+            self.console.print(Panel(f"[red]❌ {msg}[/]", style="red"))
+            return
+            
+        gen_msg = "Profesyonel rapor oluşturuluyor..." if lang == "tr" else "Generating professional report..."
+        self.console.print(f"[bold {self.COLORS['purple']}]📝 {gen_msg}[/]")
+        
+        try:
+            # Create reports directory
+            reports_dir = Path("reports")
+            reports_dir.mkdir(exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            target_clean = (self.config.target or "unknown").replace(".", "_").replace("/", "_").replace(":", "_")
+            output_path = reports_dir / f"drakben_report_{target_clean}_{timestamp}.html"
+            
+            # Use ReportGenerator
+            config = ReportConfig(
+                title=f"DRAKBEN AI Security Report - {self.config.target}",
+                use_llm_summary=True
+            )
+            
+            final_path = generate_report_from_state(
+                state=self.agent.state,
+                output_path=str(output_path),
+                format=ReportFormat.HTML,
+                config=config
+            )
+            
+            success_msg = f"Rapor başarıyla oluşturuldu: {final_path}" if lang == "tr" else f"Report generated successfully: {final_path}"
+            self.console.print(Panel(
+                f"[bold green]✅ {success_msg}[/]",
+                border_style="green",
+                padding=(1, 2)
+            ))
+            
+        except Exception as e:
+            err_msg = f"Rapor oluşturma hatası: {e}" if lang == "tr" else f"Report generation error: {e}"
+            self.console.print(f"[bold red]❌ {err_msg}[/]")
 
     def _create_system_table(self, lang) -> Table:
         from rich.table import Table
