@@ -1905,7 +1905,6 @@ Respond in JSON:
         try:
             from core.singularity.synthesizer import CodeSynthesizer
             # Initialize with existing Brain/Coder components if available
-            brain_ref: DrakbenBrain | None = self.brain if hasattr(self, 'brain') else None
             synth = CodeSynthesizer()
             
             instruction = args.get("description") or args.get("instruction")

@@ -1200,13 +1200,12 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
         except Exception:
             return None
 
-    def ask_coder(self, instruction: str, file_path: Optional[str] = None, context: Optional[Dict] = None) -> Dict:
+    def ask_coder(self, instruction: str, context: Optional[Dict] = None) -> Dict:
         """
         Delegate coding task to AICoder.
         
         Args:
             instruction: What to code
-            file_path: Target file path (optional)
             context: Additional context
             
         Returns:
