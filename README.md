@@ -1,175 +1,119 @@
-# 🩸 DRAKBEN - Autonomous Pentest AI
+# 🩸 DRAKBEN V2 - Autonomous Cognitive Pentest AI
 
-Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
+> **The Next Generation of Autonomous offensive Security Orchestration.**
+> *Drakben is not just a tool; it's a self-evolving autonomous operative designed to bridge the gap between human reasoning and machine-speed exploitation.*
 
-![Python](https://img.shields.io/badge/Python-3.10+-green)
-![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-
-⭐ **Star this repo if it helps you!**
+[![Python](https://img.shields.io/badge/Python-3.10+-red?style=flat-square&logo=python)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20|%20Windows-000?style=flat-square&logo=terminal)](https://github.com/ahmetdrak/drakben)
+[![Intelligence](https://img.shields.io/badge/Core-Self--Refining%20Engine-9333ea?style=flat-square&logo=intel)](https://github.com/ahmetdrak/drakben)
+[![License](https://img.shields.io/badge/License-MIT-red?style=flat-square)](LICENSE)
 
 ---
 
-## 🚀 Kurulum
+## 🌩️ Vision & Concept
+Drakben V2 is an **Autonomous Cognitive Pentest AI** that utilizes a persistent evolution loop. Unlike traditional scanners, Drakben simulates a real threat actor's thought process, combining reconnaissance, vulnerability research, and custom tool synthesis.
 
-### Linux (Kali / Ubuntu / Debian)
+Built on the **Self-Refining Evolving Agent** architecture, it dreams, iterates, and adapts its strategies based on successful or failed outcomes, stored in a persistent SQLite neural-state.
+
+---
+
+## 🧪 Core Architectural Pillars
+
+### 🧠 1. Neural Orchestration (The Brain)
+- **Refactored Agent (V2 Hub):** The central command unit managing sub-engines and tool dispatching.
+- **Self-Refining Engine:** A closed-loop optimization system that mutates attack strategies based on failure analysis.
+- **Brain.py:** The reasoning layer that maps high-level goals into actionable technical plans.
+
+### ⚡ 2. Singularity Engine (Self-Coding)
+- **Dynamic Synthesis:** When a required tool is missing, Drakben uses its `Coder` module to write, test, and validate custom Python scripts on the fly.
+- **AST Validation:** All AI-generated code passes through an Abstract Syntax Tree (AST) security checker to prevent self-sabotage or dangerous execution.
+
+### 🎭 3. Ghost Protocol (Evasion & Stealth)
+- **Polymorphic Obfuscation:** Dynamically mutates payload structures to evade signature-based detection.
+- **Memory Forensics Protection:** Includes a specialized `RAMCleaner` to securely wipe sensitive credentials and attack artifacts from system memory.
+- **Anti-Forensics:** Automatic cleanup of temporary files, shell history, and execution artifacts.
+
+### �️ 4. HiveMind (Network Supremacy)
+- **Autonomous Mapping:** Discovers and classifies network hosts, services, and attack paths.
+- **Lateral Movement Plan:** Uses graph-based reasoning to find the shortest path to the domain controller or high-value targets.
+
+---
+
+## 📁 System Blueprint
+
 ```bash
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 drakben.py
+drakben/
+├── drakben.py                  # Core Entry Point & Interactive CLI
+├── core/
+│   ├── refactored_agent.py      # Main Orchestrator (V2)
+│   ├── brain.py                 # Cognitive Decision Layer
+│   ├── state.py                 # Persistent Agent State & Neural Memory
+│   ├── self_refining_engine.py   # Strategy Mutation & Genetic Loop
+│   ├── execution_engine.py      # Hardened Execution Hub & Sandbox
+│   ├── ghost_protocol.py        # Stealth, Evasion & Anti-Forensics
+│   ├── coder.py                 # AI Self-Coding & Tool Synthesis
+│   └── universal_adapter.py     # MCP Hardware/Software Interface
+├── modules/
+│   ├── hive_mind.py             # Network Recon & Lateral Movement
+│   ├── weapon_foundry.py        # Advanced Payload Generation Lab
+│   ├── c2_framework.py          # Hardened Command & Control (TLS)
+│   └── recon.py                 # OSINT & Attack Surface Enumeration
+├── config/                      # Neural settings & API Environments
+├── tests/                       # High-coverage Test Suite (Pytest)
+└── drakben_evolution.db         # Persistent Neural Database
 ```
 
-### Windows
-```powershell
+---
+
+## ⚙️ Deployment
+
+### Prerequisites
+- Python 3.10+
+- Nmap, Metasploit (optional, but recommended for full capability)
+- API Keys for AI Providers (Ollama, OpenAI, or OpenRouter)
+
+### Installation (The Quick Way)
+```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# Linux:
+source .venv/bin/activate
+# Windows:
+.\.venv\Scripts\activate.ps1
+
 pip install -r requirements.txt
 python drakben.py
 ```
 
 ---
 
-## 🤖 AI/LLM Kurulumu (Opsiyonel)
+## 🎮 Command Center
 
-Framework **%100 offline** çalışır. AI özellikleri için:
+Drakben supports both **Natural Language** and **Command-Line Interface**:
 
-| Provider | Kurulum | Not |
-|----------|---------|-----|
-| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
-| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
-| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
-
-```bash
-# İlk çalıştırmada interaktif setup yapılır
-python drakben.py
-# veya manuel: cp .env.example config/api.env && nano config/api.env
-```
+| Command | Action |
+|:---|:---|
+| `/target <IP>` | Initialize target reconnaissance |
+| `/scan` | Execute autonomous vulnerability assessment |
+| `/shell` | Drop into an interactive AI-assisted session |
+| `/status` | View agent cognitive status and neural health |
+| `/report` | Generate professional-grade pentest findings |
+| `[Prompt]` | i.e., "Find SQLi on 192.168.1.5 and try to dump the users table" |
 
 ---
 
-## 🎯 Kullanım
-
-```bash
-python drakben.py
-
-# Doğal dil ile konuş:
-💬 "10.0.0.1 portlarını tara"
-💬 "example.com sql injection test et"
-💬 "192.168.1.1'e shell at"
-
-# Slash komutları:
-/target 192.168.1.100   # Hedef belirle
-/scan                    # Hedefi tara
-/status                  # Sistem durumu
-/stats                   # Hafıza istatistikleri
-/help                    # Yardım
-/exit                    # Çıkış
-```
+## ⚠️ Legal & Ethical Notice
+**Drakben is developed for authorized security research and professional penetration testing only.** Usage of this software for attacking targets without prior mutual consent is illegal. The developers assume no liability for misuse or damage caused by this program.
 
 ---
 
-## ✨ Özellikler
-
-### 🧠 Kalıcı Hafıza Sistemi
-- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
-- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
-- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
-- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
-
-### 🤖 Otonom Çalışma
-- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
-- **Auto-healing**: Hatalar otomatik düzeltilir
-- **Araç yükleme**: Eksik araçlar otomatik yüklenir
-- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
-
-### 🛡️ Güvenlik
-- **Safety checks**: Tehlikeli komutlar engellenir
-- **Risk analizi**: Her komut için risk değerlendirmesi
-- **Approval sistemi**: Kritik işlemler için onay
-
-### 🎨 Arayüz
-- **Dracula teması**: Mor/pembe/kırmızı terminal UI
-- **Türkçe/İngilizce**: Tam çoklu dil desteği
-- **Minimal**: Temiz, odaklanmış arayüz
+## 📄 License
+Released under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 
-## 📋 Komutlar
-
-| Komut | Açıklama |
-|-------|----------|
-| `/target <IP>` | Hedef belirle |
-| `/scan` | Mevcut hedefi tara |
-| `/status` | Sistem durumunu göster |
-| `/stats` | Hafıza ve AI istatistikleri |
-| `/help` | Detaylı yardım |
-| `/clear` | Ekranı temizle |
-| `/exit` | Çıkış |
-| Doğal dil | AI'a herhangi bir pentest görevi söyle |
-
----
-
-## 📁 Proje Yapısı
-
-```
-drakben/
-├── drakben.py              # Ana giriş noktası
-├── core/
-│   ├── agent.py            # Ana agent orchestrator
-│   ├── brain.py            # AI reasoning ve planlama
-│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
-│   ├── system_intelligence.py  # Sistem tanıma
-│   ├── execution_engine.py # Komut çalıştırma
-│   ├── autonomous_solver.py    # Auto-healing
-│   ├── security_toolkit.py # Güvenlik kontrolleri
-│   ├── config.py           # Konfigürasyon yönetimi
-│   └── i18n.py             # Çoklu dil desteği
-├── llm/
-│   ├── brain.py            # LLM entegrasyonu
-│   └── openrouter_client.py    # Multi-provider client
-├── modules/
-│   ├── recon.py            # Keşif modülü
-│   ├── exploit.py          # Exploit modülü
-│   ├── payload.py          # Payload üretimi
-│   └── report.py           # Raporlama
-├── config/
-│   ├── api.env             # API anahtarları
-│   └── plugins.json        # Plugin registry
-└── drakben_memory.db       # Kalıcı hafıza veritabanı
-```
-
----
-
-## 🔧 Sorun Giderme
-
-| Problem | Çözüm |
-|---------|-------|
-| `ModuleNotFoundError` | `pip install -r requirements.txt` |
-| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
-| Permission denied | Linux'ta `sudo` ile çalıştır |
-
----
-
-## 📚 Dokümantasyon
-
-- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
-- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
-- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
-
----
-
-## 📄 Lisans
-
-MIT License - [LICENSE](LICENSE)
-
----
-
-**Made with ❤️ for the security community**
-
-⚠️ **Sadece yetkili hedeflerde kullanın.**
+<p align="center">
+  <b>Elevating Security Through Autonomous Intelligence</b><br>
+  Developed by <a href="https://github.com/ahmetdrak">@ahmetdrak</a>
+</p>
