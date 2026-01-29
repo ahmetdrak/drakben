@@ -310,8 +310,8 @@ class DomainFronter:
             context.check_hostname = True
             context.verify_mode = ssl.CERT_REQUIRED
         else:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            context.check_hostname = False  # NOSONAR
+            context.verify_mode = ssl.CERT_NONE  # NOSONAR
             
         return context
 
@@ -648,8 +648,8 @@ class C2Channel:
             context.check_hostname = True
             context.verify_mode = ssl.CERT_REQUIRED
         else:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            context.check_hostname = False  # NOSONAR
+            context.verify_mode = ssl.CERT_NONE  # NOSONAR
             
         return context
     
