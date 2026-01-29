@@ -103,18 +103,23 @@ docker run -it --name drakben drakben
 
 ---
 
-## 🎮 Command Center
+## 🎮 How to Interact with Drakben
 
-Drakben supports both **Natural Language** and **Command-Line Interface**:
+Drakben is powered by an LLM-driven reasoning engine. You don't need to memorize complex syntax; just tell the agent what you want to achieve.
 
-| Command | Action |
-|:---|:---|
-| `/target <IP>` | Initialize target reconnaissance |
-| `/scan` | Execute autonomous vulnerability assessment |
-| `/shell` | Drop into an interactive AI-assisted session |
-| `/status` | View agent cognitive status and neural health |
-| `/report` | Generate professional-grade pentest findings |
-| `[Prompt]` | i.e., "Find SQLi on 192.168.1.5 and try to dump the users table" |
+### 🗨️ Natural Language Examples
+- *"Analyze 192.168.1.10 and find a way to get a root shell."*
+- *"Scan example.com for subdomains and check for common web vulnerabilities."*
+- *"I have a hash: `5d41402abc4b2a76b9719d911017c592`. Try to crack it and see where we can use it."*
+- *"Generate a polymorphic python payload that calls back to my IP on port 4444."*
+
+### ⚡ Direct System Control (Slash Commands)
+While natural language handles the mission, use these for quick system control:
+- `/target <IP>` - Instantly lock a target.
+- `/status` - Check the agent's neural state and current plan.
+- `/report` - Compile all findings into a final document.
+- `/clear` - Refresh the terminal UI.
+- `/exit` - Securely shut down the agent.
 
 ---
 
