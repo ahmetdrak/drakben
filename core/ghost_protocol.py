@@ -195,13 +195,12 @@ class PolymorphicTransformer(ast.NodeTransformer):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
         """Transform function definitions"""
         # Preserve docstring if configured
-        docstring = None
         if (self.preserve_docstrings and 
             node.body and 
             isinstance(node.body[0], ast.Expr) and
             isinstance(node.body[0].value, ast.Constant) and
             isinstance(node.body[0].value.value, str)):
-            docstring = node.body[0]
+            pass # Docstring logic placeholder
         
         # Obfuscate function name (except main and special methods)
         if (self.obfuscate_names and 

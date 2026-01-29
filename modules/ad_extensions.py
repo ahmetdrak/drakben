@@ -496,13 +496,13 @@ class ImpacketWrapper:
         ]
         
         for path in paths_to_check:
-            if os.path.exists(os.path.join(path, "psexec.py")):
+            if os.path.exists(os.path.join(path, ImpacketTool.PSEXEC.value)):
                 return path
         
         # Check if in PATH
         try:
             result = subprocess.run(
-                ["which", "psexec.py"],
+                ["which", ImpacketTool.PSEXEC.value],
                 capture_output=True,
                 text=True
             )
@@ -654,7 +654,8 @@ class ImpacketWrapper:
             args.extend(["-outputfile", output_file])
         
         # For AS-REP roasting, we target DC directly
-        return f"python3 {ImpacketTool.GETNPUSERS.value} {domain}/ -dc-ip {target} {' '.join(args)}"
+        target_identity = f"{domain}/{username}" if username else f"{domain}/"
+        return f"python3 {ImpacketTool.GETNPUSERS.value} {target_identity} -dc-ip {target} {' '.join(args)}"
     
     def generate_ticketer(
         self,

@@ -98,7 +98,7 @@ class DaemonService:
         try:
             with open(self.pid_file, 'r') as f:
                 return int(f.read().strip())
-        except:
+        except (OSError, ValueError):
             return None
             
     def stop(self) -> bool:

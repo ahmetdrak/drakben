@@ -113,17 +113,25 @@ if __name__ == "__main__":
 
     def _extract_dependencies(self, code: str, language: str) -> List[str]:
         """Extract imports/requirements"""
-        deps = []
         if language == "python":
-            try:
-                tree = ast.parse(code)
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        for n in node.names:
-                            deps.append(n.name.split('.')[0])
-                    elif isinstance(node, ast.ImportFrom):
-                        if node.module:
-                            deps.append(node.module.split('.')[0])
-            except:
-                pass
+            return self._extract_python_deps(code)
+        return []
+
+    def _extract_python_deps(self, code: str) -> List[str]:
+        """Helper to extract Python imports"""
+        deps = []
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for n in node.names:
+                        deps.append(n.name.split('.')[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        deps.append(node.module.split('.')[0])
+        except SyntaxError:
+            pass
+        except Exception as e:
+            logger.warning(f"Failed to extract deps: {e}")
+            
         return list(set(deps))

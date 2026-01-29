@@ -25,7 +25,7 @@ class LocalLLMProvider:
         try:
             resp = requests.get(f"{self.base_url}/api/tags", timeout=1)
             return resp.status_code == 200
-        except:
+        except Exception:
             return False
 
     def chat_completion(
@@ -75,5 +75,5 @@ class LocalLLMProvider:
             resp = requests.get(f"{self.base_url}/api/tags")
             data = resp.json()
             return [m['name'] for m in data.get('models', [])]
-        except:
+        except Exception:
             return []
