@@ -146,7 +146,7 @@ class TestSecureCleanup(unittest.TestCase):
         ghost = GhostProtocol()
         
         # Encrypt the secret
-        encrypted = ghost.encrypt_string(secret, "xor")
+        ghost.encrypt_string(secret, "xor")
         
         # Force garbage collection
         gc.collect()

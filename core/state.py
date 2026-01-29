@@ -425,7 +425,14 @@ class AgentState:
                     store: CredentialStore = get_credential_store()
                     # We use service:username as the key
                     cred_key: str = f"{service}:{username}" if service else username
-                    cred_value: str = password if password else (hash_val if hash_val else "unknown")
+                    
+                    if password:
+                        cred_value = password
+                    elif hash_val:
+                        cred_value = hash_val
+                    else:
+                        cred_value = "unknown"
+                        
                     store.store(cred_key, cred_value)
                 except Exception as e:
                     logger.debug(f"Persistence skipped (Master Password probably not set): {e}")

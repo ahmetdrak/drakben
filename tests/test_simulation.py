@@ -168,12 +168,10 @@ class TestWarGameSimulation(unittest.TestCase):
         logger.info("[3] DELIVERY & EXPLOITATION STARTED")
         
         # Simulating lateral movement to deploy payload
-        exploiter = self.hive.mover
         # In a real scenario, this would use psexec or wmi. 
         # We mock this action.
-        success = True # Mocking successful delivery
         
-        self.assertTrue(success, "Mission Failed: Payload delivery failed!")
+        self.assertTrue(True, "Mission Failed: Payload delivery failed!")
         logger.info("[+] Payload Deployed at " + primary_target.target)
 
 

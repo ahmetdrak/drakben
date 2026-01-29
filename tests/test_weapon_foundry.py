@@ -249,7 +249,7 @@ class TestWeaponFoundry(unittest.TestCase):
             
         # Check uniqueness
         # NOTE: If randomization is not yet implemented, this test will fail, spurring development.
-        unique_payloads = set(payloads)
+        # unique_payloads = set(payloads)
         # For now, if polymorphism isn't implemented, we might see duplicates. 
         # But for 'Villager Killer' status, we expect uniqueness.
         # self.assertEqual(len(unique_payloads), 5, "Polymorphism failed: Duplicate payloads generated!")

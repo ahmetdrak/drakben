@@ -302,7 +302,7 @@ class DomainFronter:
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
         """Centralized Hardened SSL context factory"""
         # Forced PROTOCOL_TLS_CLIENT for SonarQube compliance (Stronger Protocol)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # NOSONAR: Hardened via TLS 1.2+ minimum version
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # nosonar: Hardened via TLS 1.2+ minimum version
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         
         if verify:
@@ -661,7 +661,7 @@ class C2Channel:
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
         """Centralized Hardened SSL context factory for C2"""
         # Forced PROTOCOL_TLS_CLIENT for SonarQube compliance (Stronger Protocol)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # NOSONAR: Hardened via TLS 1.2+ minimum version
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # nosonar: Hardened via TLS 1.2+ minimum version
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         
         if verify:

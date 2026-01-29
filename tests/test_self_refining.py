@@ -46,9 +46,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
     def test_mutation_logic(self):
         """Test that failure triggers mutation/adaptation"""
         target = "10.0.0.5"
-        strategy, profile = self.engine.select_strategy_and_profile(target)
-        
-        original_score = profile.success_rate
+        _, profile = self.engine.select_strategy_and_profile(target)
         
         # Report failure
         self.engine.update_profile_outcome(profile.profile_id, success=False)
