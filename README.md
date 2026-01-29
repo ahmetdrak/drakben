@@ -86,6 +86,21 @@ pip install -r requirements.txt
 python drakben.py
 ```
 
+### 🐳 Docker Deployment (Recommended)
+Deploy Drakben in a pre-configured Kali environment with all dependencies and tools pre-installed.
+
+**Using Docker Compose:**
+```bash
+docker-compose up -d
+docker exec -it drakben python3 drakben.py
+```
+
+**Using Dockerfile:**
+```bash
+docker build -t drakben .
+docker run -it --name drakben drakben
+```
+
 ---
 
 ## 🎮 Command Center
