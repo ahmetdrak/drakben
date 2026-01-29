@@ -157,7 +157,7 @@ class TestADAnalyzer(unittest.TestCase):
         """Test kerberoastable user patterns"""
         users = self.analyzer.get_kerberoastable_users()
         self.assertIsInstance(users, list)
-        self.assertTrue(len(users) > 0)
+        self.assertGreater(len(users), 0)
     
     def test_calculate_attack_path(self):
         """Test attack path calculation"""

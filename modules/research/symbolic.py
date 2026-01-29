@@ -128,7 +128,7 @@ class SymbolicExecutor:
                     value = "?"
                     
                 return PathConstraint(var_name, op_str, value)
-            except:
+            except Exception:
                 pass
                 
         return None

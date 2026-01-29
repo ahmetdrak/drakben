@@ -1866,9 +1866,8 @@ Respond in JSON:
             # Args might differ, check CodeSynthesizer definition. 
             # Assuming generate_tool is the main entry point from context step 1960.
             result = synth.generate_tool(
-                tool_name=f"custom_{int(time.time())}", 
                 description=instruction, 
-                requirements=""
+                language=lang
             )
             
             if result.get("success"):

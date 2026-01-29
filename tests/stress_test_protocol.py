@@ -124,19 +124,18 @@ def test_tool_registry_integrity():
         "hive_mind_attack"  # Swarm
     ]
     
-    for tool in critical_tools:
-        # Check if they are registered
+    handlers = {
+        "generate_payload": "_execute_weapon_foundry",
+        "synthesize_code": "_execute_singularity",
+        "osint_scan": "_execute_osint",
+        "hive_mind_attack": "_execute_hive_mind"
+    }
+    
+    for tool, handler_name in handlers.items():
         if tool not in selector.tools:
             pytest.fail(f"CRITICAL: {tool} is missing from Tool Registry!")
             
-        # Check if they have handlers (introspection)
-        has_handler = False
-        if tool == "generate_payload" and hasattr(agent, "_execute_weapon_foundry"): has_handler = True
-        if tool == "synthesize_code" and hasattr(agent, "_execute_singularity"): has_handler = True
-        if tool.startswith("osint") and hasattr(agent, "_execute_osint"): has_handler = True
-        if tool.startswith("hive_mind") and hasattr(agent, "_execute_hive_mind"): has_handler = True
-        
-        if not has_handler:
+        if not hasattr(agent, handler_name):
             missing_handlers.append(tool)
 
     if missing_handlers:

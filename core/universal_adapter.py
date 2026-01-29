@@ -301,7 +301,7 @@ class DependencyResolver:
                 timeout=10
             )
             return result.returncode == 0
-        except (subprocess.TimeoutExpired, Exception):
+        except Exception:
             return False
     
     def get_tool_version(self, tool_name: str) -> Optional[str]:
@@ -334,46 +334,10 @@ class DependencyResolver:
         
         return None
     
-    def install_tool(self, tool_name: str, force: bool = False) -> Dict[str, Any]:
-        """
-        Install a tool.
-        
-        Args:
-            tool_name: Name of the tool to install
-            force: Force reinstall even if present
-            
-        Returns:
-            Result dict with success status
-        """
-        result = {
-            "tool": tool_name,
-            "success": False,
-            "message": "",
-            "method": None
-        }
-        
-        tool_def = TOOL_REGISTRY.get(tool_name)
-        
-        if not tool_def:
-            result["message"] = f"Unknown tool: {tool_name}"
-            return result
-        
-        # Check if already installed
-        if not force and self.is_tool_installed(tool_name):
-            result["success"] = True
-            result["message"] = f"{tool_name} is already installed"
-            return result
-        
-        # Install dependencies first
-        for dep in tool_def.dependencies:
-            dep_result = self.install_tool(dep)
-            if not dep_result["success"]:
-                result["message"] = f"Failed to install dependency: {dep}"
-                return result
-        
-        # Try package manager
-        if self.package_manager and self.package_manager.value in tool_def.install_commands:
-            cmd = tool_def.install_commands[self.package_manager.value]
+    def _install_via_package_manager(self, tool_name: str, install_commands: Dict[str, str], result: Dict[str, Any]):
+        """Helper to install via system package manager"""
+        if self.package_manager and self.package_manager.value in install_commands:
+            cmd = install_commands[self.package_manager.value]
             result["method"] = self.package_manager.value
             
             try:
@@ -390,10 +354,13 @@ class DependencyResolver:
                 result["message"] = "Installation timed out"
             except Exception as e:
                 result["message"] = str(e)
-        
-        # Try pip if available
-        elif "pip" in tool_def.install_commands:
-            cmd = tool_def.install_commands["pip"]
+            return True
+        return False
+
+    def _install_via_pip(self, tool_name: str, install_commands: Dict[str, str], result: Dict[str, Any]):
+        """Helper to install via pip"""
+        if "pip" in install_commands:
+            cmd = install_commands["pip"]
             result["method"] = "pip"
             
             try:
@@ -404,7 +371,36 @@ class DependencyResolver:
                 result["message"] = f"Installed {tool_name} via pip" if result["success"] else proc.stderr[:200]
             except Exception as e:
                 result["message"] = str(e)
+            return True
+        return False
+
+    def install_tool(self, tool_name: str, force: bool = False) -> Dict[str, Any]:
+        """
+        Install a tool with reduced cognitive complexity.
+        """
+        result = {"tool": tool_name, "success": False, "message": "", "method": None}
+        tool_def = TOOL_REGISTRY.get(tool_name)
         
+        if not tool_def:
+            result["message"] = f"Unknown tool: {tool_name}"
+            return result
+        
+        if not force and self.is_tool_installed(tool_name):
+            result["success"] = True
+            result["message"] = f"{tool_name} is already installed"
+            return result
+        
+        # 1. Install dependencies
+        for dep in tool_def.dependencies:
+            if not self.install_tool(dep)["success"]:
+                result["message"] = f"Failed to install dependency: {dep}"
+                return result
+        
+        # 2. Try installation methods
+        if self._install_via_package_manager(tool_name, tool_def.install_commands, result):
+            pass
+        elif self._install_via_pip(tool_name, tool_def.install_commands, result):
+            pass
         else:
             result["message"] = f"No installation method available for {tool_name} on {self.system}"
         

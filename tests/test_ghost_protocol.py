@@ -85,8 +85,8 @@ class TestStringEncryptor(unittest.TestCase):
     def test_chunk_and_join(self):
         """Test string chunking"""
         text = "HelloWorld"
-        chunks, join_expr = StringEncryptor.chunk_and_join(text)
-        self.assertTrue(len(chunks) > 0)
+        chunks, _ = StringEncryptor.chunk_and_join(text)
+        self.assertGreater(len(chunks), 0)
         self.assertEqual("".join(chunks), text)
 
 
@@ -175,7 +175,7 @@ class TestGhostProtocol(unittest.TestCase):
         
         # Create temp files
         files = []
-        for i in range(3):
+        for _ in range(3):
             with tempfile.NamedTemporaryFile(delete=False) as f:
                 f.write(b"temp data")
                 files.append(f.name)

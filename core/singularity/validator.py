@@ -88,7 +88,7 @@ class CodeValidator(IValidator):
             # Clean up
             try:
                 os.remove(f_path)
-            except:
+            except Exception:
                 pass
                 
             if result.returncode == 0:

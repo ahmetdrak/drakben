@@ -82,7 +82,7 @@ class MutationEngine(IMutationEngine):
         Generate a variant by applying multiple mutation passes.
         """
         current_code = payload
-        for i in range(iterations):
+        for _ in range(iterations):
             result = self.mutate(current_code)
             if result.success:
                 # In real scenario, we would use result.code but here logic is tied to ghost protocol

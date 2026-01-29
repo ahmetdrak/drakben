@@ -55,7 +55,7 @@ class SingularityEngine:
         is_valid = self.validator.validate(snippet)
         if not is_valid:
             logger.warning("Initial validation failed. Attempting self-repair...")
-            # TODO: Implement repair loop (feed error back to LLM)
+            logger.error("Validation failed. Moving to fallback or human intervention required.")
             return None
             
         # 3. Mutation (Polymorphism)

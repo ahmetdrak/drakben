@@ -74,7 +74,7 @@ class TargetAnalyzer:
             try:
                 base = node.func.value.id
                 return f"{base}.{node.func.attr}"
-            except:
+            except Exception:
                 return node.func.attr
         return ""
 

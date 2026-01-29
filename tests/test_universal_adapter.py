@@ -55,7 +55,7 @@ class TestDependencyResolver(unittest.TestCase):
         """Test listing available tools"""
         tools = self.resolver.list_available_tools()
         self.assertIsInstance(tools, list)
-        self.assertTrue(len(tools) > 0)
+        self.assertGreater(len(tools), 0)
         
         # Each tool should have required fields
         for tool in tools:
@@ -75,7 +75,7 @@ class TestDependencyResolver(unittest.TestCase):
     
     def test_tool_registry_structure(self):
         """Test tool registry has valid structure"""
-        self.assertTrue(len(TOOL_REGISTRY) > 0)
+        self.assertGreater(len(TOOL_REGISTRY), 0)
         
         for name, tool_def in TOOL_REGISTRY.items():
             self.assertIsInstance(tool_def, ToolDefinition)
@@ -94,7 +94,7 @@ class TestMCPClient(unittest.TestCase):
         """Test MCP client initialization"""
         self.assertEqual(self.mcp.name, "drakben")
         self.assertIsNotNone(self.mcp.version)
-        self.assertTrue(len(self.mcp.tools) > 0)  # Built-in tools registered
+        self.assertGreater(len(self.mcp.tools), 0)  # Built-in tools registered
     
     def test_get_capabilities(self):
         """Test getting MCP capabilities"""
@@ -110,7 +110,7 @@ class TestMCPClient(unittest.TestCase):
         tools = self.mcp.list_tools()
         
         self.assertIsInstance(tools, list)
-        self.assertTrue(len(tools) > 0)
+        self.assertGreater(len(tools), 0)
         
         # Check built-in tools exist
         tool_names = [t["name"] for t in tools]
@@ -219,7 +219,7 @@ class TestAPIServer(unittest.TestCase):
         endpoints = self.api.get_endpoints()
         
         self.assertIsInstance(endpoints, list)
-        self.assertTrue(len(endpoints) > 0)
+        self.assertGreater(len(endpoints), 0)
         
         # Check endpoint structure
         for ep in endpoints:
@@ -252,7 +252,7 @@ class TestUniversalAdapter(unittest.TestCase):
         """Test listing tools"""
         tools = self.adapter.list_tools()
         self.assertIsInstance(tools, list)
-        self.assertTrue(len(tools) > 0)
+        self.assertGreater(len(tools), 0)
     
     def test_get_mcp_manifest(self):
         """Test getting MCP manifest"""

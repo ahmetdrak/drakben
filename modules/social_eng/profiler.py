@@ -38,7 +38,7 @@ class PsychoProfiler:
                 # Placeholder for LLM call
                 # prompt = f"Analyze {target.role} and suggest a phishing email topic."
                 pass
-            except:
+            except Exception:
                 pass
                 
         # 2. Heuristic Approach (Fallback)
