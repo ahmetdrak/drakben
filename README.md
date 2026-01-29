@@ -1,85 +1,175 @@
-# 🩸 DRAKBEN - Advanced Autonomous Offensive Intelligence
+# 🩸 DRAKBEN - Autonomous Pentest AI
 
-**The World's First Self-Evolving Cyber Security Intelligence Framework**
+Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
 
-![Status](https://img.shields.io/badge/Status-Zero%20Defect-brightgreen)
-![Security](https://img.shields.io/badge/Security-Nuclear%20Tested-red)
-![Architecture](https://img.shields.io/badge/Architecture-Distributed%20State-blueviolet)
-![Engine](https://img.shields.io/badge/Intelligence-Self--Refining-orange)
+![Python](https://img.shields.io/badge/Python-3.10+-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-Drakben is not a scanner. It is an **Autonomous APT Simulation Agent** designed to bridge the gap between human expertise and machine speed. Built on a "Zero-Defect" architecture, Drakben possesses cognitive reasoning, real-time adaptation, and a persistent evolution memory that allows it to bypass modern security controls (WAF/EDR/AV).
-
----
-
-## �️ MISSION-CRITICAL ARCHITECTURE
-
-### � 1. Cognitive Core (Self-Refining Engine)
-Drakben doesn't just execute commands; it solves problems.
-- **Fail-Forward Logic:** Automatically diagnoses command failures, analyzes logs via LLM reasoning, and auto-corrects strategies.
-- **Reality Check Protocol:** Strict anti-hallucination logic ensures the agent only uses verified tools and existing vulnerabilities.
-- **Evolving Policies:** Stores experiences in a persistent SQLite database, refining its "Attack Recipes" over time.
-
-### � 2. Ghost Protocol (Elite Stealth)
-Designed for silent operations in hostile environments.
-- **Polymorphic Mutation:** Dynamically transforms its own code structure to evade signature-based detection.
-- **Fileless Execution:** Operates entirely within memory (Memory-Only) to leave zero digital footprint on the disk.
-- **Anti-Forensics:** DoD-standard secure cleanup and timestomping for total operational security.
-
-### � 3. Weapon Foundry & Singularity
-Custom-built arsenal for every engagement.
-- **Foundry:** Generates FUD (Fully Undetectable) payloads with AES-256/ChaCha20 encryption.
-- **Singularity:** When a tool doesn't exist, Drakben **writes its own**. It synthesizes custom Python/Go tools, validates them in a sandbox, and deploys them.
-
-### 🧠 4. Hive Mind (Enterprise Domination)
-Specialized for complex Active Directory and network topologies.
-- **Lateral Movement:** Automated Pass-the-Hash, Kerberoasting, and Token Impersonation.
-- **Infrastructure Awareness:** Deep BloodHound integration for visual attack path analysis.
+⭐ **Star this repo if it helps you!**
 
 ---
 
-## ⚡ QUICK START
+## 🚀 Kurulum
 
-### Option 1: Docker Deployment (Recommended)
-The fastest way to deploy Drakben with isolated dependencies.
-```bash
-docker build -t drakben .
-docker run -it drakben
-```
-
-### Option 2: Binary / Manual Install
+### Linux (Kali / Ubuntu / Debian)
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 drakben.py
+```
+
+### Windows
+```powershell
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python drakben.py
 ```
 
 ---
 
-## 🎮 OPERATIONAL MODES
+## 🤖 AI/LLM Kurulumu (Opsiyonel)
 
-Drakben understands **Natural Language** and supports multi-lingual interaction.
+Framework **%100 offline** çalışır. AI özellikleri için:
 
-- **Internal Monologue:** Technical reasoning is processed in English for maximum precision.
-- **Human Interface:** Supports Turkish and English commands.
+| Provider | Kurulum | Not |
+|----------|---------|-----|
+| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
+| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
+| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
 
-**Examples:**
-- `> Analyze 10.0.8.0/24 and find lateral movement paths to Domain Controller.`
-- `> 192.168.1.5 üzerinde zafiyet taraması yap ve bulduğun açığa uygun payload üret.`
-- `> Create a phishing scenario for IT Admins using LinkedIn OSINT data.`
-
----
-
-## � ENTERPRISE FEATURES
-
-- **Distributed State:** Scale your swarm with Redis-backed state management.
-- **C-Level Reporting:** AI-generated executive summaries with technical deep-dives (PDF/HTML).
-- **Universal Adapter:** Fully MCP-compliant; integrates with GitHub, Shodan, Jira, and more.
-- **Local LLM Support:** Ready for Ollama / Llama3 integration for air-gapped environments.
+```bash
+# İlk çalıştırmada interaktif setup yapılır
+python drakben.py
+# veya manuel: cp .env.example config/api.env && nano config/api.env
+```
 
 ---
 
-## ⚖️ LEGAL DISCLAIMER
-This software is intended for **authorized penetration testing and educational purposes only**. Using Drakben against targets without written permission is illegal. The developers are not responsible for any misuse.
+## 🎯 Kullanım
 
-**Drakben: Villager köylüleri yönetir, Drakben kralları devirir.**
+```bash
+python drakben.py
+
+# Doğal dil ile konuş:
+💬 "10.0.0.1 portlarını tara"
+💬 "example.com sql injection test et"
+💬 "192.168.1.1'e shell at"
+
+# Slash komutları:
+/target 192.168.1.100   # Hedef belirle
+/scan                    # Hedefi tara
+/status                  # Sistem durumu
+/stats                   # Hafıza istatistikleri
+/help                    # Yardım
+/exit                    # Çıkış
+```
+
+---
+
+## ✨ Özellikler
+
+### 🧠 Kalıcı Hafıza Sistemi
+- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
+- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
+- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
+- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
+
+### 🤖 Otonom Çalışma
+- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
+- **Auto-healing**: Hatalar otomatik düzeltilir
+- **Araç yükleme**: Eksik araçlar otomatik yüklenir
+- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
+
+### 🛡️ Güvenlik
+- **Safety checks**: Tehlikeli komutlar engellenir
+- **Risk analizi**: Her komut için risk değerlendirmesi
+- **Approval sistemi**: Kritik işlemler için onay
+
+### 🎨 Arayüz
+- **Dracula teması**: Mor/pembe/kırmızı terminal UI
+- **Türkçe/İngilizce**: Tam çoklu dil desteği
+- **Minimal**: Temiz, odaklanmış arayüz
+
+---
+
+## 📋 Komutlar
+
+| Komut | Açıklama |
+|-------|----------|
+| `/target <IP>` | Hedef belirle |
+| `/scan` | Mevcut hedefi tara |
+| `/status` | Sistem durumunu göster |
+| `/stats` | Hafıza ve AI istatistikleri |
+| `/help` | Detaylı yardım |
+| `/clear` | Ekranı temizle |
+| `/exit` | Çıkış |
+| Doğal dil | AI'a herhangi bir pentest görevi söyle |
+
+---
+
+## 📁 Proje Yapısı
+
+```
+drakben/
+├── drakben.py              # Ana giriş noktası
+├── core/
+│   ├── agent.py            # Ana agent orchestrator
+│   ├── brain.py            # AI reasoning ve planlama
+│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
+│   ├── system_intelligence.py  # Sistem tanıma
+│   ├── execution_engine.py # Komut çalıştırma
+│   ├── autonomous_solver.py    # Auto-healing
+│   ├── security_toolkit.py # Güvenlik kontrolleri
+│   ├── config.py           # Konfigürasyon yönetimi
+│   └── i18n.py             # Çoklu dil desteği
+├── llm/
+│   ├── brain.py            # LLM entegrasyonu
+│   └── openrouter_client.py    # Multi-provider client
+├── modules/
+│   ├── recon.py            # Keşif modülü
+│   ├── exploit.py          # Exploit modülü
+│   ├── payload.py          # Payload üretimi
+│   └── report.py           # Raporlama
+├── config/
+│   ├── api.env             # API anahtarları
+│   └── plugins.json        # Plugin registry
+└── drakben_memory.db       # Kalıcı hafıza veritabanı
+```
+
+---
+
+## 🔧 Sorun Giderme
+
+| Problem | Çözüm |
+|---------|-------|
+| `ModuleNotFoundError` | `pip install -r requirements.txt` |
+| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
+| Permission denied | Linux'ta `sudo` ile çalıştır |
+
+---
+
+## 📚 Dokümantasyon
+
+- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
+- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
+- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+
+---
+
+## 📄 Lisans
+
+MIT License - [LICENSE](LICENSE)
+
+---
+
+**Made with ❤️ for the security community**
+
+⚠️ **Sadece yetkili hedeflerde kullanın.**

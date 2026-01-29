@@ -5,11 +5,33 @@
 import asyncio
 import json
 import logging
+from sqlite3 import OperationalError
+from re import Match
+from re import Match
+from re import Match
+from re import Match
+from re import Match
+from re import Match
+from re import Match
 import time
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, List, List, List, List, List, Optional, Tuple, Any
+
+from core.self_healer import SelfHealer
+
+from modules.weapon_foundry import GeneratedPayload
+
+from core.singularity.base import CodeSnippet
+
+from modules.hive_mind import NetworkHost
+
+from modules.hive_mind import NetworkHost
+
+from modules.hive_mind import AttackPath
+
+from modules.hive_mind import AttackPath
 
 # Setup logger
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -18,23 +40,25 @@ from rich.text import Text
 from core.brain import DrakbenBrain
 from core.coder import AICoder
 from core.config import ConfigManager
-from core.evolution_memory import ActionRecord, get_evolution_memory
-from core.execution_engine import ExecutionEngine
+from core.evolution_memory import ActionRecord, EvolutionMemory, PlanRecord, get_evolution_memory
+from core.execution_engine import ExecutionEngine, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult, ExecutionResult
 from core.planner import Planner, PlanStep, StepStatus
-from core.state import (AgentState, AttackPhase, reset_state, ServiceInfo, VulnerabilityInfo)
-from modules.report_generator import FindingSeverity
+from core.state import (AgentState, AttackPhase, reset_state, ServiceInfo)
+from core.security_utils import audit_command
 from core.self_refining_engine import (
+    Policy,
+    Policy,
     SelfRefiningEngine, 
     Strategy, 
     StrategyProfile,
     PolicyTier
 )
-from core.tool_selector import ToolSelector
+from core.tool_selector import ToolSelector, ToolSpec
 from core.tool_parsers import normalize_error_message
 from core.structured_logger import DrakbenLogger
 from core.agent.error_diagnostics import ErrorDiagnosticsMixin
-from modules import exploit as exploit_module
-from modules import payload as payload_module
+from modules.research.exploit_crafter import ExploitCrafter
+from modules.research.fuzzer import FuzzResult
 
 class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     """
@@ -48,8 +72,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     5. Restart Evolution - Persist learning across restarts
     """
 
-    def __init__(self, config_manager: ConfigManager):
-        self.config = config_manager
+    def __init__(self, config_manager: ConfigManager) -> None:
+        self.config: ConfigManager = config_manager
         self.console = Console()
         self.logger = DrakbenLogger()  # NEW: Structured Logging
 
@@ -60,15 +84,15 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.executor = ExecutionEngine()
         
         # SELF-REFINING EVOLUTION COMPONENTS
-        self.evolution = get_evolution_memory()
+        self.evolution: EvolutionMemory = get_evolution_memory()
         self.refining_engine = SelfRefiningEngine()  # NEW: Profile-based evolution
         self.planner = Planner()
-        self.coder = AICoder(self.brain)
+        self.coder: AICoder[DrakbenBrain] = AICoder(self.brain)
         
         # Additional Modules for Full System Test
         from core.self_healer import SelfHealer
         from modules.ad_attacks import ActiveDirectoryAttacker
-        self.healer = SelfHealer(self)
+        self.healer: SelfHealer = SelfHealer(self)
         self.ad_attacker = ActiveDirectoryAttacker()
 
         # Runtime state
@@ -116,7 +140,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         try:
             self._reset_and_evolve_state(target)
-            target_type = self._classify_target(target)
+            target_type: str = self._classify_target(target)
             
             if not self._select_and_filter_profile(target):
                 return
@@ -136,8 +160,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _setup_scan_mode(self, mode: str, target: str) -> None:
         """Setup scan mode and display initialization message"""
-        self._scan_mode = mode.lower() if mode else "auto"
-        mode_label = {
+        self._scan_mode: str = mode.lower() if mode else "auto"
+        mode_label: str = {
             "stealth": "🥷 STEALTH (Sessiz)",
             "aggressive": "⚡ AGGRESSIVE (Hızlı)",
             "auto": "🤖 AUTO"
@@ -158,7 +182,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
     def _classify_target(self, target: str) -> str:
         """Classify target and set signature"""
-        target_type = self.refining_engine.classify_target(target)
+        target_type: str = self.refining_engine.classify_target(target)
         self.target_signature = self.refining_engine.get_target_signature(target)
         self.console.print(f"🎯 Target Classification: {target_type}", style="cyan")
         self.console.print(f"🔑 Target Signature: {self.target_signature}", style="dim")
@@ -193,8 +217,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.console.print("🥷 Stealth mode: Searching for low-aggression profile...", style="dim")
         if not self.current_strategy:
             return
-        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-        stealth_profiles = [p for p in profiles if p.aggressiveness <= 0.4]
+        profiles: List[StrategyProfile] = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        stealth_profiles: list[StrategyProfile] = [p for p in profiles if p.aggressiveness <= 0.4]
         if stealth_profiles:
             self.current_profile = sorted(stealth_profiles, key=lambda p: p.aggressiveness)[0]
             self.console.print(f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})", style="green")
@@ -204,8 +228,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.console.print("⚡ Aggressive mode: Searching for high-aggression profile...", style="dim")
         if not self.current_strategy:
             return
-        profiles = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-        aggressive_profiles = [p for p in profiles if p.aggressiveness >= 0.6]
+        profiles: List[StrategyProfile] = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        aggressive_profiles: list[StrategyProfile] = [p for p in profiles if p.aggressiveness >= 0.6]
         if aggressive_profiles:
             self.current_profile = sorted(aggressive_profiles, key=lambda p: -p.aggressiveness)[0]
             self.console.print(f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})", style="yellow")
@@ -229,12 +253,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _create_or_load_plan(self, target: str) -> None:
         """Create new plan or load existing plan"""
-        existing_plan = self.evolution.get_active_plan(f"pentest_{target}")
+        existing_plan: PlanRecord | None = self.evolution.get_active_plan(f"pentest_{target}")
         if existing_plan:
             self.console.print(f"🔁 Resuming plan: {existing_plan.plan_id}", style=self.STYLE_GREEN)
             self.planner.load_plan(existing_plan.plan_id)
         else:
-            plan_id = self.planner.create_plan_from_profile(target, self.current_profile, f"pentest_{target}")
+            plan_id: str = self.planner.create_plan_from_profile(target, self.current_profile, f"pentest_{target}")
             self.console.print(f"📋 Created plan from profile: {plan_id}", style=self.STYLE_GREEN)
     
     def _show_evolution_info(self, target_type: str) -> None:
@@ -251,12 +275,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             logger.warning(f"Could not get evolution status: {e}")
 
         try:
-            context = {"target_type": target_type}
-            policies = self.refining_engine.get_applicable_policies(context)
+            context: Dict[str, str] = {"target_type": target_type}
+            policies: List[Policy] = self.refining_engine.get_applicable_policies(context)
             if policies:
                 self.console.print(f"📜 Active Policies: {len(policies)}", style="yellow")
                 for p in policies[:3]:
-                    tier_name = PolicyTier(p.priority_tier).name
+                    tier_name: str = PolicyTier(p.priority_tier).name
                     self.console.print(
                         f"   - Tier {p.priority_tier} ({tier_name}): {p.action} (weight: {p.weight:.2f})", 
                         style="dim"
@@ -283,9 +307,9 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             self.console.print("❌ FATAL: State not initialized.", style=self.STYLE_RED)
             return
 
-        max_iterations = self.state.max_iterations
+        max_iterations: int = self.state.max_iterations
         while self.running and self.state.iteration_count < max_iterations:
-            should_continue = self._run_single_iteration(max_iterations)
+            should_continue: bool = self._run_single_iteration(max_iterations)
             if not should_continue:
                 break
         
@@ -295,7 +319,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _run_single_iteration(self, max_iterations: int) -> bool:
         """Execute a single iteration of the autonomous loop"""
         assert self.state is not None, "State missing in iteration"
-        iteration = self.state.iteration_count + 1
+        iteration: int = self.state.iteration_count + 1
         
         self.console.print(f"\n{'='*60}", style="dim")
         self.console.print(
@@ -308,7 +332,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return False
 
         # 2. Get Next Step
-        step = self.planner.get_next_step()
+        step: PlanStep | None = self.planner.get_next_step()
         if not step:
             self._handle_plan_completion()
             return False
@@ -342,7 +366,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         success = execution_result.get("success", False)
 
         # Record & Update
-        penalty = self.evolution.get_tool_penalty(step.tool)
+        penalty: float = self.evolution.get_tool_penalty(step.tool)
         self._record_action(step, success, penalty, execution_result)
         self.evolution.update_penalty(step.tool, success=success)
 
@@ -354,7 +378,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 return False
 
         # 7. Update State
-        observation = f"{step.tool}: {'success' if success else 'failed'}"
+        observation: str = f"{step.tool}: {'success' if success else 'failed'}"
         self._update_state_from_result(step.tool, execution_result, observation)
 
         # 8. Validation & Halt Limit
@@ -370,7 +394,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Check for stagnation and triggering replan if needed. Returns True if halt required."""
         if self.evolution.detect_stagnation():
             self.console.print("⚠️  STAGNATION DETECTED - forcing replan", style=self.STYLE_YELLOW)
-            current_step = self.planner.get_next_step()
+            current_step: PlanStep | None = self.planner.get_next_step()
             if current_step:
                 self.planner.replan(current_step.step_id)
             self.stagnation_counter += 1
@@ -393,7 +417,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
     def _check_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked by evolution penalty."""
-        penalty = self.evolution.get_tool_penalty(step.tool)
+        penalty: float = self.evolution.get_tool_penalty(step.tool)
         if self.evolution.is_tool_blocked(step.tool):
             self.console.print(
                 f"🚫 Tool {step.tool} is BLOCKED (penalty={penalty:.1f})",
@@ -413,7 +437,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Record action to evolution memory."""
         # Using assertion for Mypy safety, logic handles None gracefully via defaults but type checker complains
         assert self.state is not None
-        target = self.state.target
+        target: str | None = self.state.target
         record = ActionRecord(
             goal=f"pentest_{target}",
             plan_id=self.planner.current_plan_id or "unknown",
@@ -427,6 +451,19 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             error_message=execution_result.get("stderr", "")[:200]
         )
         self.evolution.record_action(record)
+        
+        # Log to secure audit trail
+        audit_command(
+            command=f"{step.tool} {json.dumps(step.params)}",
+            target=self.state.target or "unknown",
+            success=success,
+            details={
+                "step_id": step.step_id,
+                "penalty": penalty,
+                "duration": execution_result.get("duration", 0),
+                "error": str(execution_result.get("error", ""))
+            }
+        )
 
     def _handle_step_success(self, step: PlanStep, execution_result: Dict[str, Any]) -> None:
         """Handle successful step execution."""
@@ -441,7 +478,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _handle_step_failure(self, step: PlanStep, execution_result: Dict[str, Any]) -> bool:
         """Handle failed step execution. Returns False if critical failure loop break needed."""
         stderr_msg = execution_result.get("stderr", "Unknown error")
-        should_replan = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
+        should_replan: bool = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
         self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
         
         # === RECORD FAILURE + POLICY LEARNING ===
@@ -467,9 +504,9 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             
         return True
 
-    def _record_failure_learning(self, step, error_type, error_msg):
+    def _record_failure_learning(self, step, error_type, error_msg) -> None:
         """Record failure detail to refining engine."""
-        failure_id = self.refining_engine.record_failure(
+        failure_id: str = self.refining_engine.record_failure(
             target_signature=self.target_signature,
             strategy_name=self.current_strategy.name if self.current_strategy else "unknown",
             profile_id=self.current_profile.profile_id,
@@ -480,7 +517,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         )
         
         # Try to learn policy from this failure
-        policy_id = self.refining_engine.learn_policy_from_failure(failure_id)
+        policy_id: str | None = self.refining_engine.learn_policy_from_failure(failure_id)
         if policy_id:
             self.console.print(
                 f"📚 Learned new policy: {policy_id[:12]}...",
@@ -488,7 +525,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             )
         
         # Update profile outcome (may trigger retirement)
-        retired_profile = self.refining_engine.update_profile_outcome(
+        retired_profile: StrategyProfile | None = self.refining_engine.update_profile_outcome(
             self.current_profile.profile_id, False
         )
         if retired_profile:
@@ -497,10 +534,10 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 style="yellow"
             )
 
-    def _handle_replan(self, step, error_msg):
+    def _handle_replan(self, step, error_msg) -> None:
         """Handle replanning logic and AI tool creation backup."""
         self.console.print("🔄 Triggering replan...", style="yellow")
-        replan_success = self.planner.replan(step.step_id)
+        replan_success: bool = self.planner.replan(step.step_id)
         
         if not replan_success:
             self.console.print(
@@ -609,7 +646,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             if self._is_valid_llm_result(result):
                 return result
             
-            llm_error = self._extract_llm_error(result)
+            llm_error: str | None = self._extract_llm_error(result)
             if llm_error and self._should_retry(attempt, max_retries):
                 self._handle_llm_retry(attempt, max_retries)
             return None
@@ -662,7 +699,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         import platform
         
         # Map internal tool names to package names
-        tool_pkg_map = {
+        tool_pkg_map: Dict[str, str] = {
             # Nmap variants
             "nmap_port_scan": "nmap",
             "nmap_service_scan": "nmap", 
@@ -699,29 +736,29 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             "wget": "wget",
         }
         
-        pkg = tool_pkg_map.get(tool_name)
+        pkg: str | None = tool_pkg_map.get(tool_name)
         if not pkg:
             # Try using tool_name directly as package name
-            pkg = tool_name.split("_")[0]  # nmap_port_scan -> nmap
+            pkg: str = tool_name.split("_")[0]  # nmap_port_scan -> nmap
             
-        system = platform.system().lower()
+        system: str = platform.system().lower()
         self.console.print(f"🛠️ Attempting to auto-install '{pkg}'...", style="yellow")
         
-        install_cmd = ""
+        install_cmd: str = ""
         if system == "linux":
-            install_cmd = f"sudo apt-get update && sudo apt-get install -y {pkg}"
+            install_cmd: str = f"sudo apt-get update && sudo apt-get install -y {pkg}"
         elif system == "darwin": # MacOS
-            install_cmd = f"brew install {pkg}"
+            install_cmd: str = f"brew install {pkg}"
         elif system == "windows":
             # Try winget first (standard on modern Windows)
-            install_cmd = f"winget install {pkg} --accept-source-agreements --accept-package-agreements"
+            install_cmd: str = f"winget install {pkg} --accept-source-agreements --accept-package-agreements"
         
         if not install_cmd:
             return False
             
         # Execute install
         try:
-             res = self.executor.terminal.execute(install_cmd, timeout=300)
+             res: ExecutionResult = self.executor.terminal.execute(install_cmd, timeout=300)
              if res.exit_code == 0:
                  self.console.print(f"✅ Successfully installed {pkg}", style="green")
                  return True
@@ -774,7 +811,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return self._execute_osint(tool_name, args)
 
         # 4. Get tool spec
-        tool_spec = self.tool_selector.tools.get(tool_name)
+        tool_spec: ToolSpec | None = self.tool_selector.tools.get(tool_name)
         if not tool_spec:
             return {"success": False, "error": "Tool not found", "args": args}
 
@@ -800,7 +837,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         if not target or not isinstance(target, str):
              return {"success": False, "error": "Missing or invalid 'target' (tool name)"}
         
-        desc = instruction if isinstance(instruction, str) else "No description provided"
+        desc: str = instruction if isinstance(instruction, str) else "No description provided"
 
         # Dynamic tool creation via Coder
         result = self.coder.create_tool(
@@ -827,7 +864,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         # Read file first
         try:
             with open(target, 'r') as f:
-                content = f.read()
+                content: str = f.read()
         except Exception as e:
             return {"success": False, "error": f"Read failed: {e}"}
 
@@ -867,7 +904,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
         # Execute via execution engine
-        result = self.executor.terminal.execute(command, timeout=300)
+        result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
 
         # Track tool failures globally
         if result.exit_code != 0:
@@ -900,8 +937,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             self._self_heal_attempts = {}
         
         # Check if we've exceeded self-heal limit for this tool
-        heal_key = f"{tool_name}:{command[:50]}"
-        current_attempts = self._self_heal_attempts.get(heal_key, 0)
+        heal_key: str = f"{tool_name}:{command[:50]}"
+        current_attempts: int = self._self_heal_attempts.get(heal_key, 0)
         
         if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
             self.console.print(f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})", style="yellow")
@@ -910,7 +947,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
-        combined_output = f"{stdout_str}\n{stderr_str}".lower()
+        combined_output: str = f"{stdout_str}\n{stderr_str}".lower()
         
         # Diagnose error type
         error_diagnosis = self._diagnose_error(combined_output, result.exit_code)
@@ -960,7 +997,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Heal missing tool error by auto-installing"""
         if self._install_tool(tool_name):
             self.console.print(f"🔄 {tool_name} yüklendi, yeniden deneniyor...", style="cyan")
-            retry_result = self.executor.terminal.execute(command, timeout=300)
+            retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
             return retry_result.exit_code == 0, retry_result
         return False, None
     
@@ -969,8 +1006,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         import platform
         if platform.system().lower() != "windows" and not command.startswith("sudo"):
             self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
-            sudo_cmd = f"sudo {command}"
-            retry_result = self.executor.terminal.execute(sudo_cmd, timeout=300)
+            sudo_cmd: str = f"sudo {command}"
+            retry_result: ExecutionResult = self.executor.terminal.execute(sudo_cmd, timeout=300)
             return retry_result.exit_code == 0, retry_result
         return False, None
     
@@ -979,11 +1016,11 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         module_name = error_diagnosis.get("module")
         if module_name:
             self.console.print(f"📦 Python modülü eksik: {module_name} - yükleniyor...", style="yellow")
-            pip_cmd = f"pip install {module_name}"
-            pip_result = self.executor.terminal.execute(pip_cmd, timeout=120)
+            pip_cmd: str = f"pip install {module_name}"
+            pip_result: ExecutionResult = self.executor.terminal.execute(pip_cmd, timeout=120)
             if pip_result.exit_code == 0:
                 self.console.print(f"✅ {module_name} yüklendi, yeniden deneniyor...", style="green")
-                retry_result = self.executor.terminal.execute(command, timeout=300)
+                retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
                 return retry_result.exit_code == 0, retry_result
         return False, None
     
@@ -991,13 +1028,13 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Heal connection error by retrying with backoff"""
         self.console.print("🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...", style="yellow")
         time.sleep(3)
-        retry_result = self.executor.terminal.execute(command, timeout=300)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_timeout(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
         """Heal timeout by retrying with longer timeout"""
         self.console.print("⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow")
-        retry_result = self.executor.terminal.execute(command, timeout=600)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=600)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_library_missing(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
@@ -1008,25 +1045,25 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         
         self.console.print(f"📚 Kütüphane eksik: {library} - yükleniyor...", style="yellow")
         import platform
-        system = platform.system().lower()
-        lib_pkg_map = {
+        system: str = platform.system().lower()
+        lib_pkg_map: Dict[str, str] = {
             "libssl": "openssl" if system == "darwin" else "libssl-dev",
             "libcrypto": "openssl" if system == "darwin" else "libssl-dev",
             "libffi": "libffi-dev",
             "libpython": "python3-dev",
         }
-        pkg = lib_pkg_map.get(library.split(".")[0], library)
+        pkg: str | None = lib_pkg_map.get(library.split(".")[0], library)
         
         if system == "linux":
-            install_cmd = f"sudo apt-get install -y {pkg}"
+            install_cmd: str = f"sudo apt-get install -y {pkg}"
         elif system == "darwin":
-            install_cmd = f"brew install {pkg}"
+            install_cmd: str = f"brew install {pkg}"
         else:
             return False, None
         
-        install_result = self.executor.terminal.execute(install_cmd, timeout=180)
+        install_result: ExecutionResult = self.executor.terminal.execute(install_cmd, timeout=180)
         if install_result.exit_code == 0:
-            retry_result = self.executor.terminal.execute(command, timeout=300)
+            retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
             return retry_result.exit_code == 0, retry_result
         return False, None
     
@@ -1034,7 +1071,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Heal rate limit by waiting and retrying"""
         self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
         time.sleep(30)
-        retry_result = self.executor.terminal.execute(command, timeout=300)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_port_in_use(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
@@ -1046,13 +1083,13 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.console.print(f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...", style="yellow")
         import platform
         if platform.system().lower() != "windows":
-            kill_cmd = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
+            kill_cmd: str = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
         else:
-            kill_cmd = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
+            kill_cmd: str = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
         
         self.executor.terminal.execute(kill_cmd, timeout=30)
         time.sleep(2)
-        retry_result = self.executor.terminal.execute(command, timeout=300)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_disk_full(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
@@ -1065,7 +1102,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
         
         self.executor.terminal.execute(cleanup_cmd, timeout=60)
-        retry_result = self.executor.terminal.execute(command, timeout=300)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_firewall_blocked(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
@@ -1073,10 +1110,10 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.console.print("🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...", style="yellow")
         time.sleep(10)
         if "--rate" in command or "-T" in command:
-            slower_cmd = command.replace("-T4", "-T1").replace("-T5", "-T2")
-            retry_result = self.executor.terminal.execute(slower_cmd, timeout=600)
+            slower_cmd: str = command.replace("-T4", "-T1").replace("-T5", "-T2")
+            retry_result: ExecutionResult = self.executor.terminal.execute(slower_cmd, timeout=600)
         else:
-            retry_result = self.executor.terminal.execute(command, timeout=300)
+            retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _heal_database_error(self, tool_name: str, command: str, error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
@@ -1090,7 +1127,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
             except OSError as e:
                 logger.debug(f"Could not remove lock file {lock_file}: {e}")
-        retry_result = self.executor.terminal.execute(command, timeout=300)
+        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
     
     def _finalize_healing_result(
@@ -1115,7 +1152,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         
         Returns diagnosis with type, description, and suggested fix.
         """
-        output_lower = output.lower()
+        output_lower: str = output.lower()
         diagnosis = self._run_error_checks(output_lower, exit_code, output)
         
         if diagnosis:
@@ -1157,20 +1194,20 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _check_missing_tool(self, output_lower: str) -> Optional[Dict]:
         """Check for missing tool/command errors"""
         import re
-        patterns = [
+        patterns: list[str] = [
             "not found", "not recognized", "bulunamadı", "command not found",
             "komut bulunamadı", "no such command", "unknown command",
             "is not recognized as", "bash:", "sh:", "zsh:", "cmd:", "powershell:"
         ]
         if any(x in output_lower for x in patterns):
-            match = re.search(r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower)
-            tool = match.group(1) if match else None
+            match: Match[str] | None = re.search(r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower)
+            tool: str | Any | None = match.group(1) if match else None
             return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
         return None
     
     def _check_permission_error(self, output_lower: str) -> Optional[Dict]:
         """Check for permission/access denied errors"""
-        patterns = [
+        patterns: list[str] = [
             "permission denied", "access denied", "izin reddedildi",
             "operation not permitted", "root privileges required",
             "sudo required", "eacces", "eperm", "requires elevation"
@@ -1182,34 +1219,34 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _check_python_module_error(self, output_lower: str) -> Optional[Dict]:
         """Check for Python module missing errors"""
         import re
-        patterns = [
+        patterns: list[str] = [
             "no module named", "modulenotfounderror", "importerror",
             "cannot import name", "modül bulunamadı"
         ]
         if any(x in output_lower for x in patterns):
-            match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
+            match: Match[str] | None = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
             if not match:
-                match = re.search(r"cannot import name ['\"]?(\w+)", output_lower)
-            module = match.group(1) if match else None
+                match: Match[str] | None = re.search(r"cannot import name ['\"]?(\w+)", output_lower)
+            module: str | Any | None = match.group(1) if match else None
             return {"type": "python_module_missing", "type_tr": "Python modülü eksik", "module": module}
         return None
     
     def _check_library_error(self, output_lower: str) -> Optional[Dict]:
         """Check for missing library/shared object errors"""
         import re
-        patterns = [
+        patterns: list[str] = [
             "cannot open shared object", "library not found", ".so:", ".dll",
             "libssl", "libcrypto", "libpython", "kütüphane bulunamadı"
         ]
         if any(x in output_lower for x in patterns):
-            match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
-            library = match.group(1) if match else None
+            match: Match[str] | None = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
+            library: str | Any | None = match.group(1) if match else None
             return {"type": "library_missing", "type_tr": "Sistem kütüphanesi eksik", "library": library}
         return None
     
     def _check_network_error(self, output_lower: str) -> Optional[Dict]:
         """Check for connection/network errors"""
-        patterns = [
+        patterns: list[str] = [
             "connection refused", "connection reset", "network unreachable",
             "no route to host", "econnrefused", "ssl error", "tls"
         ]
@@ -1219,7 +1256,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_timeout_error(self, output_lower: str) -> Optional[Dict]:
         """Check for timeout errors"""
-        patterns = [
+        patterns: list[str] = [
             "timed out", "timeout", "zaman aşımı", "etimedout",
             "deadline exceeded", "request timeout"
         ]
@@ -1229,7 +1266,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_syntax_error(self, output_lower: str) -> Optional[Dict]:
         """Check for syntax/argument errors"""
-        patterns = [
+        patterns: list[str] = [
             "invalid argument", "invalid option", "unrecognized option",
             "syntax error", "bad argument", "usage:", "try '--help'"
         ]
@@ -1240,19 +1277,19 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _check_file_error(self, output_lower: str) -> Optional[Dict]:
         """Check for file not found errors"""
         import re
-        patterns = [
+        patterns: list[str] = [
             "no such file", "file not found", "dosya bulunamadı",
             "enoent", "path not found", "cannot find"
         ]
         if any(x in output_lower for x in patterns):
-            match = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
-            filepath = match.group(1) if match else None
+            match: Match[str] | None = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
+            filepath: str | Any | None = match.group(1) if match else None
             return {"type": "file_not_found", "type_tr": "Dosya bulunamadı", "file": filepath}
         return None
     
     def _check_memory_error(self, output_lower: str) -> Optional[Dict]:
         """Check for memory errors"""
-        patterns = [
+        patterns: list[str] = [
             "out of memory", "memory error", "enomem", "oom",
             "segmentation fault", "segfault", "core dumped"
         ]
@@ -1262,7 +1299,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_disk_error(self, output_lower: str) -> Optional[Dict]:
         """Check for disk space errors"""
-        patterns = [
+        patterns: list[str] = [
             "no space left", "disk full", "disk quota", "enospc",
             "yetersiz disk alanı"
         ]
@@ -1272,7 +1309,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_auth_error(self, output_lower: str) -> Optional[Dict]:
         """Check for authentication errors"""
-        patterns = [
+        patterns: list[str] = [
             "authentication failed", "invalid credentials", "unauthorized",
             "401", "403 forbidden", "login failed"
         ]
@@ -1283,19 +1320,19 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _check_port_error(self, output_lower: str) -> Optional[Dict]:
         """Check for port in use errors"""
         import re
-        patterns = [
+        patterns: list[str] = [
             "address already in use", "port already in use", "eaddrinuse",
             "bind failed", "port kullanımda"
         ]
         if any(x in output_lower for x in patterns):
-            match = re.search(r"port[:\s]*(\d+)", output_lower)
-            port = match.group(1) if match else None
+            match: Match[str] | None = re.search(r"port[:\s]*(\d+)", output_lower)
+            port: str | Any | None = match.group(1) if match else None
             return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
         return None
     
     def _check_database_error(self, output_lower: str) -> Optional[Dict]:
         """Check for database errors"""
-        patterns = [
+        patterns: list[str] = [
             "database", "sqlite", "mysql", "postgresql",
             "db error", "veritabanı hatası", "locked", "deadlock"
         ]
@@ -1305,7 +1342,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_parse_error(self, output_lower: str) -> Optional[Dict]:
         """Check for JSON/XML parsing errors"""
-        patterns = [
+        patterns: list[str] = [
             "json", "xml", "parsing error", "decode error",
             "invalid json", "malformed"
         ]
@@ -1315,7 +1352,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_version_error(self, output_lower: str) -> Optional[Dict]:
         """Check for version/compatibility errors"""
-        patterns = [
+        patterns: list[str] = [
             "version", "incompatible", "requires python", "unsupported",
             "deprecated", "sürüm uyumsuz"
         ]
@@ -1325,7 +1362,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_rate_limit_error(self, output_lower: str) -> Optional[Dict]:
         """Check for rate limiting errors"""
-        patterns = [
+        patterns: list[str] = [
             "rate limit", "too many requests", "429", "throttled",
             "quota exceeded", "istek limiti"
         ]
@@ -1335,7 +1372,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_firewall_error(self, output_lower: str) -> Optional[Dict]:
         """Check for firewall/WAF blocked errors"""
-        patterns = [
+        patterns: list[str] = [
             "blocked", "firewall", "waf", "forbidden", "filtered",
             "connection reset by peer", "güvenlik duvarı"
         ]
@@ -1345,7 +1382,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     
     def _check_resource_error(self, output_lower: str) -> Optional[Dict]:
         """Check for process/resource errors"""
-        patterns = [
+        patterns: list[str] = [
             "too many open files", "resource temporarily unavailable",
             "eagain", "emfile", "process limit"
         ]
@@ -1356,7 +1393,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _check_exit_code_error(self, exit_code: int, output: str) -> Optional[Dict]:
         """Check for exit code based errors"""
         if exit_code != 0 and not output.strip():
-            exit_code_map = {
+            exit_code_map: Dict[int, Dict[str, str]] = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},
                 2: {"type": "invalid_argument", "type_tr": "Geçersiz argüman"},
                 126: {"type": "permission_denied", "type_tr": "Çalıştırma izni yok"},
@@ -1370,11 +1407,11 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             if exit_code in exit_code_map:
                 return exit_code_map[exit_code]
             if exit_code > 128:
-                signal_num = exit_code - 128
+                signal_num: int = exit_code - 128
                 return {"type": "signal_killed", "type_tr": f"Sinyal {signal_num} ile sonlandırıldı"}
         return None
     
-    def _log_unknown_error(self, output: str, exit_code: int):
+    def _log_unknown_error(self, output: str, exit_code: int) -> None:
         """Log unknown errors for future pattern learning"""
         try:
             import os
@@ -1383,7 +1420,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             log_dir = "logs"
             os.makedirs(log_dir, exist_ok=True)
             
-            log_file = os.path.join(log_dir, "unknown_errors.log")
+            log_file: str = os.path.join(log_dir, "unknown_errors.log")
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(f"\n{'='*60}\n")
                 f.write(f"Timestamp: {datetime.now().isoformat()}\n")
@@ -1400,7 +1437,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         try:
             self.console.print("🤖 LLM ile hata analizi yapılıyor...", style="dim")
             
-            prompt = f"""Analyze this command execution error and suggest a fix:
+            prompt: str = f"""Analyze this command execution error and suggest a fix:
 
 Command: {command}
 Tool: {tool_name}
@@ -1420,7 +1457,7 @@ Respond in JSON:
             # Try to parse JSON response
             import json
             import re
-            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            json_match: Match[str] | None = re.search(r'\{.*\}', result, re.DOTALL)
             if json_match:
                 fix_data = json.loads(json_match.group())
                 
@@ -1430,11 +1467,11 @@ Respond in JSON:
                 fix_cmd = fix_data.get("fix_command")
                 if fix_cmd and fix_cmd != "null":
                     self.console.print(f"🔧 Düzeltme uygulanıyor: {fix_cmd}", style="yellow")
-                    fix_result = self.executor.terminal.execute(fix_cmd, timeout=120)
+                    fix_result: ExecutionResult = self.executor.terminal.execute(fix_cmd, timeout=120)
                     
                     if fix_result.exit_code == 0 and fix_data.get("should_retry", False):
                         self.console.print("🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...", style="cyan")
-                        retry_result = self.executor.terminal.execute(command, timeout=300)
+                        retry_result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
                         return (retry_result.exit_code == 0, retry_result)
                         
         except Exception as e:
@@ -1449,14 +1486,14 @@ Respond in JSON:
         exit_code = result.exit_code
         
         # New: Standardize error
-        error_msg = normalize_error_message(stdout_str, stderr_str, exit_code)
+        error_msg: str = normalize_error_message(stdout_str, stderr_str, exit_code)
         
         # Fallback raw error if normalize returns nothing but exit code non-zero
         if exit_code != 0 and not error_msg:
              if stderr_str.strip():
-                 error_msg = f"Tool Error: {stderr_str.strip()[:200]}"
+                 error_msg: str = f"Tool Error: {stderr_str.strip()[:200]}"
              else:
-                 error_msg = f"Command failed with exit code {exit_code}"
+                 error_msg: str = f"Command failed with exit code {exit_code}"
 
         final_result = {
             "success": result.status.value == "success",
@@ -1489,7 +1526,7 @@ Respond in JSON:
             Coroutine result or error dict
         """
         try:
-            loop = asyncio.get_running_loop()
+            loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
@@ -1564,7 +1601,7 @@ Respond in JSON:
         # Generic
         return f"Tool {tool_name} completed successfully"
 
-    def _update_state_from_result(self, tool_name: str, result: Dict, observation: str):
+    def _update_state_from_result(self, tool_name: str, result: Dict, observation: str) -> None:
         """
         Update state based on tool result.
         """
@@ -1581,7 +1618,7 @@ Respond in JSON:
         # 2. Update State Specifics based on Tool
         self._dispatch_state_update(tool_name, result)
 
-    def _record_execution_outcome(self, tool_name: str, result: Dict):
+    def _record_execution_outcome(self, tool_name: str, result: Dict) -> None:
         """Record success or failure to brain and tool selector"""
         output = result.get("stdout", "") + "\n" + result.get("stderr", "")
         success = result.get("success", False)
@@ -1591,7 +1628,7 @@ Respond in JSON:
         
         self.brain.observe(tool=tool_name, output=output, success=success)
 
-    def _dispatch_state_update(self, tool_name: str, result: Dict):
+    def _dispatch_state_update(self, tool_name: str, result: Dict) -> None:
         """Dispatch state update based on tool type"""
         if "nmap_port_scan" in tool_name:
             self._update_state_nmap_port_scan(result)
@@ -1603,7 +1640,7 @@ Respond in JSON:
         elif "exploit" in tool_name:
             self._process_exploit_result(tool_name, result)
 
-    def _process_exploit_result(self, tool_name: str, result: Dict):
+    def _process_exploit_result(self, tool_name: str, result: Dict) -> None:
         """Helper to process exploit results"""
         assert self.state is not None
         observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
@@ -1613,7 +1650,7 @@ Respond in JSON:
         else:
             self.state.set_observation("Exploit did not succeed; foothold not set")
 
-    def _update_state_nmap_port_scan(self, result: Dict):
+    def _update_state_nmap_port_scan(self, result: Dict) -> None:
         """Update state from Nmap port scan results"""
         assert self.state is not None
         from core.tool_parsers import parse_nmap_output
@@ -1639,17 +1676,17 @@ Respond in JSON:
             # Fallback to mock if parsing failed (for testing)
             self._apply_mock_services()
 
-    def _apply_mock_services(self):
+    def _apply_mock_services(self) -> None:
         """Apply mock services for testing or fallback"""
         assert self.state is not None
-        services = [
+        services: list[ServiceInfo] = [
             ServiceInfo(port=80, protocol="tcp", service="http"),
             ServiceInfo(port=443, protocol="tcp", service="https"),
             ServiceInfo(port=22, protocol="tcp", service="ssh"),
         ]
         self.state.update_services(services)
 
-    def _update_state_service_completion(self, result: Dict):
+    def _update_state_service_completion(self, result: Dict) -> None:
         """Mark service as tested"""
         assert self.state is not None
         args_port = result.get("args", {}).get("port")
@@ -1660,17 +1697,32 @@ Respond in JSON:
             return
             
         if args_port in self.state.open_services:
-            service_info = self.state.open_services[args_port]
+            service_info: ServiceInfo = self.state.open_services[args_port]
             self.state.mark_surface_tested(args_port, service_info.service)
 
 
-    def _process_vulnerability_result(self, tool_name: str, result: Dict, observation: str):
+    def _process_vulnerability_result(self, tool_name: str, result: Dict, observation: str) -> None:
         """Helper to process vulnerability scan results"""
         if "vuln" in tool_name or "sqlmap" in tool_name:
             if "vulnerable" in observation.lower() or "injection" in observation.lower():
                 self._handle_sqlmap_vulnerabilities(result)
+                
+                # AUTO-POC: Reanimate ExploitCrafter to generate reproduction scripts
+                try:
+                    target_name: str = self.state.target or "target"
+                    crafter = ExploitCrafter()
+                    # Create a mock FuzzResult from the tool findings
+                    mock_crash = FuzzResult(
+                        input_data=result.get("stdout", "Vulnerability payload"),
+                        crash_detected=True,
+                        error_message=f"Vulnerability found via {tool_name}: {observation}"
+                    )
+                    poc_path: str = crafter.generate_poc(target_name.replace(".", "_"), mock_crash)
+                    self.console.print(f"🚀 [bold green]Autonomous PoC Generated:[/] {poc_path}")
+                except Exception as e:
+                    logger.debug(f"PoC generation failed: {e}")
 
-    def _handle_sqlmap_vulnerabilities(self, result: Dict):
+    def _handle_sqlmap_vulnerabilities(self, result: Dict) -> None:
         """Process SQLMap results and update state"""
         from core.tool_parsers import parse_sqlmap_output
         import time
@@ -1687,7 +1739,7 @@ Respond in JSON:
                     from core.state import VulnerabilityInfo
                     
                     # Adapt finding dict to VulnerabilityInfo dataclass
-                    severity_str = str(finding.get("severity", "medium")).lower()
+                    severity_str: str = str(finding.get("severity", "medium")).lower()
                     
                     vuln = VulnerabilityInfo(
                         vuln_id=f"VULN-{int(time.time())}-{random.randint(1000,9999)}",
@@ -1728,7 +1780,7 @@ Respond in JSON:
 
 
 
-    def _check_phase_transition(self):
+    def _check_phase_transition(self) -> None:
         """
         Phase transition kontrolü - DETERMİNİSTİK
         """
@@ -1746,7 +1798,7 @@ Respond in JSON:
             self.state.phase = AttackPhase.VULN_SCAN
             # Re-add services for vuln scanning
             for port, svc in self.state.open_services.items():
-                surface_key = f"{port}:{svc.service}"
+                surface_key: str = f"{port}:{svc.service}"
                 self.state.remaining_attack_surface.add(surface_key)
             self.console.print(
                 "📈 Phase transition: RECON -> VULN_SCAN", style=self.STYLE_BLUE
@@ -1782,7 +1834,7 @@ Respond in JSON:
                 "📈 Phase transition: EXPLOIT -> POST_EXPLOIT", style=self.STYLE_BLUE
             )
 
-    def _show_final_report(self):
+    def _show_final_report(self) -> None:
         """Show final execution report"""
         self.console.print("\n" + "=" * 60, style="bold")
         self.console.print("📊 FINAL REPORT", style=self.STYLE_GREEN)
@@ -1831,7 +1883,7 @@ Respond in JSON:
                 
             self.console.print(f"🔨 Forging Payload ({payload_type})...", style="cyan")
             
-            artifact = foundry.forge(
+            artifact: GeneratedPayload = foundry.forge(
                 lhost=lhost,
                 lport=int(lport),
                 format=payload_type,
@@ -1852,7 +1904,7 @@ Respond in JSON:
         try:
             from core.singularity.synthesizer import CodeSynthesizer
             # Initialize with existing Brain/Coder components if available
-            brain_ref = self.brain if hasattr(self, 'brain') else None
+            brain_ref: DrakbenBrain | None = self.brain if hasattr(self, 'brain') else None
             synth = CodeSynthesizer(brain_component=brain_ref)
             
             instruction = args.get("description") or args.get("instruction")
@@ -1865,7 +1917,7 @@ Respond in JSON:
             # Use generate_tool (which returns artifact)
             # Args might differ, check CodeSynthesizer definition. 
             # Assuming generate_tool is the main entry point from context step 1960.
-            result = synth.generate_tool(
+            result: CodeSnippet = synth.generate_tool(
                 description=instruction, 
                 language=lang
             )
@@ -1876,8 +1928,8 @@ Respond in JSON:
                 return {"success": False, "error": f"Synthesis failed: {result.get('error')}"}
                 
         except Exception as e:
-             logger.error(f"Singularity error: {e}")
-             return {"success": False, "error": f"Singularity error: {e}"}
+            logger.error(f"Singularity error: {e}")
+            return {"success": False, "error": f"Singularity error: {e}"}
 
     def _execute_osint(self, _tool_name: str, args: Dict) -> Dict:
         """Execute OSINT tools"""
@@ -1903,14 +1955,14 @@ Respond in JSON:
             self.console.print("🐝 Waking up HIVE MIND...", style="magenta")
             
             if tool_name == "hive_mind_scan":
-                init_res = hive.initialize()
+                init_res: Dict[str, Any] = hive.initialize()
                 # If target is IP/subnet, use it. Otherwise auto-detect.
                 subnet = args.get("target") if args.get("target") and "/" in str(args.get("target")) else None
                 
-                hosts = hive.scan_network(subnet)
-                hosts_data = [str(h) for h in hosts] 
+                hosts: List[NetworkHost] = hive.scan_network(subnet)
+                hosts_data: list[str] = [str(h) for h in hosts] 
                 
-                observation = f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
+                observation: str = f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
                 self.console.print(observation, style="cyan")
                 
                 return {
@@ -1924,16 +1976,16 @@ Respond in JSON:
             elif tool_name == "hive_mind_attack":
                 self.console.print("🐝 Calculating Attack Paths...", style="magenta")
                 target = args.get("target", "Domain Admin")
-                paths = hive.find_attack_paths(target)
+                paths: List[AttackPath] = hive.find_attack_paths(target)
                 
                 if not paths:
                      return {"success": False, "error": "No viable attack paths found"}
                 
                 # Execute best path
-                best_path = paths[0]
+                best_path: AttackPath = paths[0]
                 self.console.print(f"🚀 Executing Path: {best_path}", style="red")
                 
-                result = hive.execute_movement(best_path)
+                result: Dict[str, Any] = hive.execute_movement(best_path)
                 return {
                     "success": result["success"],
                     "hops": result["hops_completed"],

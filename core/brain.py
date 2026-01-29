@@ -4,10 +4,13 @@
 
 import logging
 from dataclasses import dataclass, field
+from re import Match
 from typing import Any, Dict, List, Optional
 
+from core.coder import AICoder
+
 # Setup logger
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 # LLM Client import
 OpenRouterClient: Any = None  # Type placeholder
@@ -40,14 +43,14 @@ class MasterOrchestrator:
     Ana orkestratör - Tüm modülleri koordine eder
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.context = ExecutionContext()
         self.reasoning_engine = None
         self.context_manager = None
         self.self_correction = None
         self.decision_engine = None
 
-    def initialize(self, reasoning, context_mgr, self_corr, decision):
+    def initialize(self, reasoning, context_mgr, self_corr, decision) -> None:
         """Initialize sub-modules"""
         self.reasoning_engine = reasoning
         self.context_manager = context_mgr
@@ -130,10 +133,10 @@ class ContinuousReasoning:
     
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
 
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client=None) -> None:
         self.llm_client = llm_client
         self.reasoning_history = []
-        self.use_llm = llm_client is not None
+        self.use_llm: bool = llm_client is not None
         
         # Initialize LLM Cache
         try:
@@ -142,7 +145,7 @@ class ContinuousReasoning:
         except ImportError:
             self.llm_cache = None
     
-    def _add_to_history(self, item: Dict):
+    def _add_to_history(self, item: Dict) -> None:
         """Add item to reasoning history with size limit"""
         self.reasoning_history.append(item)
         if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
@@ -169,24 +172,24 @@ class ContinuousReasoning:
         """
         import time
         import logging
-        logger = logging.getLogger(__name__)
+        logger: logging.Logger = logging.getLogger(__name__)
         
         MAX_RETRIES = 2
-        RETRYABLE_ERRORS = ["Timeout", "Rate Limit", "Server Error", "Connection"]
+        RETRYABLE_ERRORS: List[str] = ["Timeout", "Rate Limit", "Server Error", "Connection"]
         
         # Try LLM-powered analysis first (with retry for transient errors)
         if self.use_llm and self.llm_client:
             last_error = None
             
             for attempt in range(MAX_RETRIES):
-                llm_analysis = self._analyze_with_llm(user_input, context)
+                llm_analysis: Dict[str, Any] = self._analyze_with_llm(user_input, context)
                 
                 if llm_analysis.get("success"):
                     return llm_analysis
                 
                 # Check if error is retryable
                 error_msg = llm_analysis.get("error", "")
-                is_retryable = any(err in error_msg for err in RETRYABLE_ERRORS)
+                is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
                 
                 if is_retryable and attempt < MAX_RETRIES - 1:
                     logger.warning(f"LLM transient error, retrying ({attempt + 1}/{MAX_RETRIES}): {error_msg}")
@@ -228,25 +231,25 @@ class ContinuousReasoning:
         """
 
         # LANGUAGE LOGIC: Think in English, speak in user's language
-        user_lang = getattr(context, "language", "tr")
+        user_lang: Any | str = getattr(context, "language", "tr")
 
         # Detect if this is a chat/conversation request (not pentest)
-        is_chat = self._is_chat_request(user_input)
+        is_chat: bool = self._is_chat_request(user_input)
 
         if is_chat:
             # Direct chat mode - no JSON, just conversation
             return self._chat_with_llm(user_input, user_lang, context)
 
         # Context Construction
-        system_prompt = self._construct_system_prompt(user_lang, context)
+        system_prompt: str = self._construct_system_prompt(user_lang, context)
 
         try:
             # 1. Check Cache First
             if self.llm_cache:
-                cached_json = self.llm_cache.get(user_input + system_prompt)
+                cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
                 if cached_json:
                     # Cache hit! Parse and return directly
-                    parsed = self._parse_llm_response(cached_json) # Helper usage
+                    parsed: Dict[str, Any] | None = self._parse_llm_response(cached_json) # Helper usage
                     if parsed:
                          parsed["success"] = True
                          parsed["response"] = parsed.get("response", parsed.get("reasoning", ""))
@@ -268,7 +271,7 @@ class ContinuousReasoning:
                 self.llm_cache.set(user_input + system_prompt, response)
 
             # Try to parse JSON from response
-            parsed = self._parse_llm_response(response)
+            parsed: Dict[str, Any] | None = self._parse_llm_response(response)
             if parsed:
                 parsed["success"] = True
                 # Use "response" field if available, otherwise use raw response
@@ -298,7 +301,7 @@ class ContinuousReasoning:
         import re
         
         # Try to find JSON block
-        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        json_match: Match[str] | None = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group(1))
@@ -323,10 +326,10 @@ class ContinuousReasoning:
         if not isinstance(user_input, str):
             user_input = str(user_input)
 
-        user_lower = user_input.lower()
+        user_lower: str | Any = user_input.lower()
         
         # Chat indicators - questions about the AI, greetings, general questions
-        chat_patterns = [
+        chat_patterns: List[str] = [
             # Greetings
             "merhaba", "selam", "hello", "hi", "hey", "nasılsın", "how are you",
             # Questions about the AI
@@ -341,14 +344,14 @@ class ContinuousReasoning:
         ]
         
         # If contains any chat pattern and NO pentest keywords
-        pentest_keywords = [
+        pentest_keywords: List[str] = [
             "tara", "scan", "port", "nmap", "exploit", "zafiyet", "vuln",
             "injection", "shell", "payload", "hedef", "target", "saldır",
             "attack", "hack", "pentest", "test et", "sqlmap", "nikto"
         ]
         
-        has_chat_pattern = any(p in user_lower for p in chat_patterns)
-        has_pentest_keyword = any(k in user_lower for k in pentest_keywords)
+        has_chat_pattern: bool = any(p in user_lower for p in chat_patterns)
+        has_pentest_keyword: bool = any(k in user_lower for k in pentest_keywords)
         
         # FIX: If pentest keyword exists, it is NEVER just a chat. It's an action.
         if has_pentest_keyword:
@@ -369,7 +372,7 @@ class ContinuousReasoning:
         
         # FAST PATH: Simple greetings (No LLM cost)
         # Optimized for performance and test passing
-        simple_inputs = ["merhaba", "selam", "hi", "hello", "ping", "test"]
+        simple_inputs: List[str] = ["merhaba", "selam", "hi", "hello", "ping", "test"]
         if user_input.lower().strip() in simple_inputs:
              return {
                 "success": True,
@@ -405,7 +408,7 @@ IMPORTANT:
         try:
             # 1. Check Cache
             if self.llm_cache:
-                cached_resp = self.llm_cache.get(user_input + system_prompt)
+                cached_resp: str | None = self.llm_cache.get(user_input + system_prompt)
                 if cached_resp:
                      return {
                         "success": True,
@@ -464,7 +467,7 @@ PROCESS:
         else:
              language_instruction = "Response Language: English."
 
-        context_str = ""
+        context_str: str = ""
         if context.system_info.get("last_tool"):
              context_str += f"\n\n[🟢 SYSTEM STATUS: ACTION COMPLETED]\nTool: {context.system_info.get('last_tool')}\nResult: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput Snippet:\n{str(context.system_info.get('last_output', ''))[:4000]}\n[END STATUS]\n"
 
@@ -541,16 +544,16 @@ User Input: """
     def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> Dict:
         """Rule-based analysis (fallback when LLM unavailable)"""
         # Intent detection
-        intent = self._detect_intent(user_input)
+        intent: str = self._detect_intent(user_input)
 
         # Risk assessment
-        risks = self._assess_risks(intent, context)
+        risks: List[str] = self._assess_risks(intent, context)
 
         # Step planning
         steps = self._plan_steps(intent, context)
 
         # Reasoning explanation
-        reasoning = self._generate_reasoning(intent, steps, risks)
+        reasoning: str = self._generate_reasoning(intent, steps, risks)
 
         analysis = {
             "intent": intent,
@@ -573,7 +576,7 @@ User Input: """
         if not isinstance(user_input, str):
             user_input = str(user_input)
 
-        user_lower = user_input.lower()
+        user_lower: str | Any = user_input.lower()
 
         # Pentest intents
         if any(word in user_lower for word in ["tara", "scan", "port", "keşif"]):
@@ -608,7 +611,7 @@ User Input: """
         steps = []
 
         if intent == "scan":
-            steps = [
+            steps: List[Dict[str, str]] = [
                 {"action": "check_tools", "tool": "nmap"},
                 {"action": "port_scan", "tool": "nmap"},
                 {"action": "service_detection", "tool": "nmap"},
@@ -616,7 +619,7 @@ User Input: """
             ]
 
         elif intent == "find_vulnerability":
-            steps = [
+            steps: List[Dict[str, str]] = [
                 {"action": "scan", "tool": "nmap"},
                 {"action": "web_scan", "tool": "nikto"},
                 {"action": "vuln_scan", "tool": "nmap_scripts"},
@@ -624,7 +627,7 @@ User Input: """
             ]
 
         elif intent == "get_shell":
-            steps = [
+            steps: List[Dict[str, str]] = [
                 {"action": "scan_target"},
                 {"action": "find_vulnerabilities"},
                 {"action": "select_exploit"},
@@ -634,14 +637,14 @@ User Input: """
             ]
 
         elif intent == "generate_payload":
-            steps = [
+            steps: List[Dict[str, str]] = [
                 {"action": "determine_target_os"},
                 {"action": "generate_payloads"},
                 {"action": "encode_if_needed"},
             ]
 
         else:  # chat
-            steps = [{"action": "respond", "type": "chat"}]
+            steps: List[Dict[str, str]] = [{"action": "respond", "type": "chat"}]
 
         return steps
 
@@ -699,11 +702,11 @@ class ContextManager:
     Bağlam yöneticisi - Sistem durumunu takip eder
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_context = {}
         self.context_history = []
 
-    def update(self, new_context: Dict):
+    def update(self, new_context: Dict) -> None:
         """Update current context"""
         self.context_history.append(self.current_context.copy())
         self.current_context.update(new_context)
@@ -738,7 +741,7 @@ class ContextManager:
 
         return changes
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear context history"""
         self.context_history = []
 
@@ -749,7 +752,7 @@ class SelfCorrection:
     Kendi kendine düzeltme - Hataları tespit edip düzeltir
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.correction_history = []
 
     def review(self, decision: Dict) -> Dict:
@@ -772,13 +775,13 @@ class SelfCorrection:
             corrected["safety_warning"] = "Potentially destructive operation"
 
         # Check for missing prerequisites
-        prereqs = self._check_prerequisites(decision)
+        prereqs: List[str] = self._check_prerequisites(decision)
         if prereqs:
             corrections.append(f"Added prerequisites: {', '.join(prereqs)}")
             corrected["prerequisites"] = prereqs
 
         # Check for optimization opportunities
-        optimizations = self._suggest_optimizations(decision)
+        optimizations: List[str] = self._suggest_optimizations(decision)
         if optimizations:
             corrections.append("Suggested optimizations")
             corrected["optimizations"] = optimizations
@@ -798,7 +801,7 @@ class SelfCorrection:
 
     def _is_dangerous(self, decision: Dict) -> bool:
         """Check if decision involves dangerous operations"""
-        dangerous_patterns = [
+        dangerous_patterns: List[str] = [
             "rm -rf",
             "dd if=",
             "mkfs",
@@ -850,7 +853,7 @@ class DecisionEngine:
     Karar motoru - Hangi aksiyonun alınacağına karar verir
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.decision_history = []
 
     def decide(self, analysis: Dict, context: ExecutionContext) -> Dict:
@@ -872,13 +875,13 @@ class DecisionEngine:
 
         # Determine if approval needed
         intent_str = str(intent or "unknown")
-        needs_approval = self._needs_approval(intent_str, risks, context)
+        needs_approval: bool = self._needs_approval(intent_str, risks, context)
 
         # Select best action
-        action = self._select_action(steps, context)
+        action: str = self._select_action(steps, context)
 
         # Generate command if needed
-        command = self._generate_command(action, context)
+        command: str | None = self._generate_command(action, context)
 
         decision = {
             "action": action,
@@ -918,7 +921,7 @@ class DecisionEngine:
             return "respond"
 
         # Get first uncompleted step
-        current_step = context.current_step
+        current_step: int = context.current_step
         if current_step < len(steps):
             return steps[current_step].get("action", "unknown")
 
@@ -928,7 +931,7 @@ class DecisionEngine:
         self, action: str, context: ExecutionContext
     ) -> Optional[str]:
         """Generate shell command for action"""
-        target = context.target
+        target: str | None = context.target
 
         if action == "port_scan" and target:
             return f"nmap -F {target}"
@@ -949,7 +952,7 @@ class DrakbenBrain:
     Gerçek LLM entegrasyonu ile
     """
 
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client=None) -> None:
         # Auto-initialize LLM client if not provided
         if llm_client is None and LLM_AVAILABLE:
             try:
@@ -1058,11 +1061,11 @@ class DrakbenBrain:
         """Get current context"""
         return self.context_mgr.get_full_context()
 
-    def update_context(self, context_update: Dict):
+    def update_context(self, context_update: Dict) -> None:
         """Update brain context"""
         self.context_mgr.update(context_update)
 
-    def observe(self, tool: str, output: str, success: bool = True):
+    def observe(self, tool: str, output: str, success: bool = True) -> None:
         """
         Observe tool output and update context.
         This allows the Brain to 'see' what happened in the terminal.
@@ -1156,14 +1159,14 @@ class DrakbenBrain:
 
         # Get language from context
         user_lang = context.get("state_snapshot", {}).get("language", "tr")
-        lang_instruction = (
+        lang_instruction: str = (
             "Respond in Turkish (Türkçe)."
             if user_lang == "tr"
             else "Respond in English."
         )
 
         # Build minimal prompt for LLM
-        prompt = f"""You are DRAKBEN penetration testing agent. {lang_instruction}
+        prompt: str = f"""You are DRAKBEN penetration testing agent. {lang_instruction}
 Current state:
 - Phase: {context.get('phase')}
 - Iteration: {context.get('state_snapshot', {}).get('iteration')}
@@ -1186,7 +1189,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             )
 
             # Parse JSON using reasoning module's parser
-            parsed = self.reasoning._parse_llm_response(response)
+            parsed: Dict[str, Any] | None = self.reasoning._parse_llm_response(response)
             if parsed and "tool" in parsed:
                 return parsed
 
@@ -1214,7 +1217,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
         # Since AICoder is stateful, we might need a persistent instance in Brain
         # checking if we have one, if not create
         if not hasattr(self, 'coder'):
-            self.coder = AICoder(llm_client=self.llm_client)
+            self.coder: AICoder = AICoder(llm_client=self.llm_client)
             
         return self.coder.generate_code(instruction, file_path)
 

@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 from typing import Optional
+import ast
 from .base import IValidator, CodeSnippet
 
 logger = logging.getLogger(__name__)
@@ -62,11 +63,41 @@ class CodeValidator(IValidator):
             return False
 
     def _validate_subprocess(self, snippet: CodeSnippet) -> bool:
-        """Execute via Subprocess (Less secure)"""
+        """
+        Execute via Subprocess (Less secure).
+        Paranoid Mode: Pre-scan for dangerous AST patterns before execution.
+        """
         if snippet.language.lower() != "python":
             logger.warning("Subprocess validation only supports Python currently")
-            return False # For safety
+            return False
             
+        # Paranoid Static Analysis
+        try:
+            tree = ast.parse(snippet.code)
+            for node in ast.walk(tree):
+                # Block dangerous calls
+                if isinstance(node, ast.Call):
+                    func_name = ""
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        func_name = node.func.attr
+                    
+                    forbidden = {"system", "popen", "spawn", "exec", "eval", "open", "remove", "rmdir", "unlink"}
+                    if func_name in forbidden:
+                        logger.error(f"SECURITY ALERT: Blocked dangerous call '{func_name}' in un-sandboxed snippet")
+                        return False
+                
+                # Block sensitive imports
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for name in node.names:
+                        if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
+                            logger.error(f"SECURITY ALERT: Blocked sensitive import '{name.name}' in un-sandboxed snippet")
+                            return False
+        except Exception as e:
+            logger.error(f"Static analysis failed: {e}")
+            return False
+
         try:
             # Write to temp file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:

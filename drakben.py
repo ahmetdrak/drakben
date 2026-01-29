@@ -3,17 +3,18 @@
 # DRAKBEN - Autonomous Pentesting Agent
 # Dracula Theme Edition
 
+from logging import Logger
 import os
 import sys
 from pathlib import Path
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT: Path = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Load environment variables from config/api.env
 from dotenv import load_dotenv
-env_file = PROJECT_ROOT / "config" / "api.env"
+env_file: Path = PROJECT_ROOT / "config" / "api.env"
 if env_file.exists():
     load_dotenv(env_file)
 
@@ -30,15 +31,15 @@ setup_logging(
     log_to_console=False,  # Rich handles console output
     use_colors=True
 )
-logger = get_logger("main")
+logger: Logger = get_logger("main")
 
 
-def clear_screen():
+def clear_screen() -> None:
     """Clear terminal screen"""
     os.system("clear" if os.name != "nt" else "cls")
 
 
-def show_banner():
+def show_banner() -> None:
     """Show DRAKBEN ASCII banner - Dracula Theme"""
     clear_screen()
 
@@ -66,7 +67,7 @@ def show_banner():
     console.print()
 
 
-def check_environment():
+def check_environment() -> None:
     """Check basic environment requirements"""
     console = Console()
 
@@ -78,14 +79,14 @@ def check_environment():
     # Check required directories
     required_dirs = ["core", "llm", "config", "logs", "sessions"]
     for dir_name in required_dirs:
-        dir_path = PROJECT_ROOT / dir_name
+        dir_path: Path = PROJECT_ROOT / dir_name
         if not dir_path.exists():
             dir_path.mkdir(parents=True, exist_ok=True)
 
     # Check if config file exists, create if not
 
     # Check if api.env exists
-    env_file = PROJECT_ROOT / "config" / "api.env"
+    env_file: Path = PROJECT_ROOT / "config" / "api.env"
     if not env_file.exists():
         env_template = """# DRAKBEN LLM Configuration
 # Copy this file and edit with your API keys
@@ -109,13 +110,13 @@ OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
             f.write(env_template)
 
 
-def show_startup_info():
+def show_startup_info() -> None:
     """Show startup information - Dracula Theme"""
     # Startup panel removed - now combined in agent.py
     pass
 
 
-def main():
+def main() -> None:
     """Main entry point - Interactive Menu System"""
     # Windows UTF-8 support
     if os.name == "nt":

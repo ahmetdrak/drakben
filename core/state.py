@@ -3,6 +3,8 @@
 # REQUIRED: All modules access/update state ONLY through this API
 # Thread-safe implementation
 
+from _thread import RLock
+from _thread import RLock
 import hashlib
 import logging
 import threading
@@ -10,9 +12,10 @@ import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
+from core.security_utils import CredentialStore, get_credential_store
 
 # Setup logger
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 # Constants
 MAX_ITERATIONS = 15
@@ -27,7 +30,7 @@ STAGNATION_CHECK_WINDOW = 3
 MAX_HALLUCINATIONS_THRESHOLD = 3
 
 # Thread-safe singleton implementation - MUST be defined BEFORE AgentState class
-_state_lock = threading.RLock()
+_state_lock: RLock = threading.RLock()
 _state_instance: Optional["AgentState"] = None  # Forward reference
 
 
@@ -94,7 +97,7 @@ class AgentState:
     5. State pollution = SYSTEM HALT
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> "AgentState":
         """Ensure singleton instance"""
         global _state_instance, _state_lock
         if _state_instance is None:
@@ -106,7 +109,7 @@ class AgentState:
                     return instance
         return _state_instance
 
-    def __init__(self, target: Optional[str] = None):
+    def __init__(self, target: Optional[str] = None) -> None:
         """
         Initialize agent state.
         
@@ -118,7 +121,7 @@ class AgentState:
             return
 
         # Thread safety lock
-        self._lock = threading.RLock()
+        self._lock: RLock = threading.RLock()
         
         # Core state
         self.target: Optional[str] = target
@@ -220,7 +223,7 @@ class AgentState:
             self.open_services[svc.port] = svc
             return
         
-        existing = self.open_services[svc.port]
+        existing: ServiceInfo = self.open_services[svc.port]
         if self._should_skip_unknown_service(svc, existing):
             return
         
@@ -246,7 +249,7 @@ class AgentState:
     
     def _add_to_attack_surface(self, svc: ServiceInfo) -> None:
         """Add service to attack surface if not tested"""
-        surface_key = f"{svc.port}:{self.open_services[svc.port].service}"
+        surface_key: str = f"{svc.port}:{self.open_services[svc.port].service}"
         if surface_key not in self.tested_attack_surface:
             self.remaining_attack_surface.add(surface_key)
 
@@ -259,7 +262,7 @@ class AgentState:
             service: Service name
         """
         with self._lock:
-            surface_key = f"{port}:{service}"
+            surface_key: str = f"{port}:{service}"
             self.tested_attack_surface.add(surface_key)
             self.remaining_attack_surface.discard(surface_key)
 
@@ -384,7 +387,7 @@ class AgentState:
             8-character hash string
         """
         with self._lock:
-            state_str = (
+            state_str: str = (
                 f"{self.phase.value}|{len(self.open_services)}|"
                 f"{len(self.tested_attack_surface)}|{len(self.remaining_attack_surface)}|"
                 f"{len(self.vulnerabilities)}|{self.has_foothold}"
@@ -425,6 +428,16 @@ class AgentState:
             if not is_duplicate:
                 self.credentials.append(cred)
                 logger.info(f"Credential captured: {username} ({service})")
+                
+                # PERSIST: Save to encrypted credential store
+                try:
+                    store: CredentialStore = get_credential_store()
+                    # We use service:username as the key
+                    cred_key: str = f"{service}:{username}" if service else username
+                    cred_value: str = password if password else (hash_val if hash_val else "unknown")
+                    store.store(cred_key, cred_value)
+                except Exception as e:
+                    logger.debug(f"Persistence skipped (Master Password probably not set): {e}")
 
     def check_state_changed(self) -> bool:
         """
@@ -433,7 +446,7 @@ class AgentState:
         Returns:
             True if state changed, False otherwise
         """
-        current_hash = self.compute_state_hash()
+        current_hash: str = self.compute_state_hash()
         if current_hash == self.last_state_hash:
             return False
         self.last_state_hash = current_hash
@@ -494,7 +507,7 @@ class AgentState:
         Returns:
             True if allowed, False otherwise
         """
-        phase_order = {
+        phase_order: Dict[str, int] = {
             "init": 0,
             "recon": 1,
             "vulnerability_scan": 2,
@@ -505,8 +518,8 @@ class AgentState:
             "failed": 6,
         }
 
-        current_order = phase_order.get(self.phase.value, 0)
-        tool_order = phase_order.get(tool_phase, 0)
+        current_order: int = phase_order.get(self.phase.value, 0)
+        tool_order: int = phase_order.get(tool_phase, 0)
 
         # Tool can run in its phase or one phase after
         return tool_order <= current_order + PHASE_TOLERANCE
@@ -624,7 +637,7 @@ class AgentState:
             if len(self.open_services) == 0:
                 violations.append("Exploit phase without discovered services")
             if len(self.vulnerabilities) == 0:
-                has_exploitable = any(svc.vulnerable for svc in self.open_services.values())
+                has_exploitable: bool = any(svc.vulnerable for svc in self.open_services.values())
                 if not has_exploitable:
                     violations.append("Exploit phase without any vulnerabilities or exploitable services")
         return violations

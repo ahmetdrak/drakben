@@ -4,6 +4,7 @@ Author: @drak_ben
 Description: 5 modules for intelligent command execution and monitoring
 """
 
+from _thread import lock
 import logging
 import os
 import platform
@@ -17,14 +18,18 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from core.sandbox_manager import SandboxManager, ContainerInfo, ExecutionResult
+
+
 
 # Setup logger
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 # Sandbox support (lazy import to avoid circular dependency)
 _sandbox_manager = None
 
-def _get_sandbox_manager():
+def _get_sandbox_manager() -> SandboxManager | None:
     """Lazy load sandbox manager to avoid import issues"""
     global _sandbox_manager
     if _sandbox_manager is None:
@@ -49,7 +54,7 @@ class CommandSanitizer:
     """
     
     # Patterns that indicate shell injection attempts
-    SHELL_INJECTION_PATTERNS = [
+    SHELL_INJECTION_PATTERNS: List[str] = [
         r';',                  # Command separator
         r'\|',                 # Pipe
         r'&&',                 # AND operator
@@ -62,7 +67,7 @@ class CommandSanitizer:
     ]
     
     # Commands that are completely forbidden
-    FORBIDDEN_COMMANDS = [
+    FORBIDDEN_COMMANDS: List[str] = [
         'rm -rf /',
         'rm -rf /*',
         'rm -rf ~',
@@ -97,7 +102,7 @@ class CommandSanitizer:
     ]
     
     # Commands that require explicit confirmation
-    HIGH_RISK_PATTERNS = [
+    HIGH_RISK_PATTERNS: List[str] = [
         r'rm\s+-[rf]+',        # rm with -r or -f flags
         r'chmod\s+[0-7]{3,4}\s+/(etc|bin|usr|var|boot|sbin)', # Forbidden system chmod
         r'chown\s+.*?\s+/(etc|bin|usr|var|boot|sbin)',       # Forbidden system chown
@@ -123,7 +128,7 @@ class CommandSanitizer:
             SecurityError: If command contains forbidden patterns
         """
         # Check for forbidden commands
-        command_lower = command.lower().strip()
+        command_lower: str = command.lower().strip()
         for forbidden in cls.FORBIDDEN_COMMANDS:
             if forbidden.lower() in command_lower:
                 raise SecurityError(f"Forbidden command detected: {forbidden}")
@@ -144,7 +149,7 @@ class CommandSanitizer:
         Returns:
             Tuple of (requires_confirmation: bool, reason: str)
         """
-        command_lower = command.lower().strip()
+        command_lower: str = command.lower().strip()
         
         # Check for high-risk patterns
         for pattern in cls.HIGH_RISK_PATTERNS:
@@ -183,7 +188,7 @@ class CommandSanitizer:
         Returns:
             'low', 'medium', 'high', or 'critical'
         """
-        command_lower = command.lower()
+        command_lower: str = command.lower()
         
         # Check for forbidden (critical)
         for forbidden in cls.FORBIDDEN_COMMANDS:
@@ -195,7 +200,7 @@ class CommandSanitizer:
             return 'high'
         
         # Check for medium-risk commands
-        medium_risk = ['curl', 'wget', 'nc', 'netcat', 'ncat', 'python -c', 'perl -e', 'ruby -e']
+        medium_risk: List[str] = ['curl', 'wget', 'nc', 'netcat', 'ncat', 'python -c', 'perl -e', 'ruby -e']
         if any(cmd in command_lower for cmd in medium_risk):
             return 'medium'
         
@@ -235,7 +240,7 @@ MAX_EXECUTION_HISTORY = 1000
 class SmartTerminal:
     """Intelligent command executor with safety, monitoring, and user confirmation"""
 
-    def __init__(self, confirmation_callback: Optional[Callable[[str, str], bool]] = None):
+    def __init__(self, confirmation_callback: Optional[Callable[[str, str], bool]] = None) -> None:
         """
         Initialize SmartTerminal.
         
@@ -247,21 +252,21 @@ class SmartTerminal:
         self.execution_history: List[ExecutionResult] = []
         self.current_process: Optional[subprocess.Popen] = None
         self.sanitizer = CommandSanitizer()
-        self._history_lock = threading.Lock()  # Thread safety for history
-        self._confirmation_callback = confirmation_callback
+        self._history_lock: lock = threading.Lock()  # Thread safety for history
+        self._confirmation_callback: Callable[[str, str], bool] | None = confirmation_callback
         self._auto_approve = False  # Set True to skip confirmations (dangerous!)
         self._sandbox_container_id: Optional[str] = None  # Active sandbox container
     
-    def set_confirmation_callback(self, callback: Optional[Callable[[str, str], bool]]):
+    def set_confirmation_callback(self, callback: Optional[Callable[[str, str], bool]]) -> None:
         """Set or update the confirmation callback"""
-        self._confirmation_callback = callback
+        self._confirmation_callback: Callable[[str, str], bool] | None = callback
     
-    def set_auto_approve(self, auto: bool):
+    def set_auto_approve(self, auto: bool) -> None:
         """
         Enable/disable auto-approval for high-risk commands.
         WARNING: Only use in controlled environments!
         """
-        self._auto_approve = auto
+        self._auto_approve: bool = auto
         if auto:
             logger.warning("SECURITY: Auto-approve enabled for high-risk commands!")
     
@@ -332,7 +337,7 @@ class SmartTerminal:
         Raises:
             SecurityError: If command contains forbidden patterns
         """
-        start_time = time.time()
+        start_time: float = time.time()
 
         try:
             # 1. Prepare Command (Sanitize & Parse)
@@ -372,7 +377,7 @@ class SmartTerminal:
             # 3. Wait for result
             stdout, stderr, exit_code, status = self._wait_for_process(process, timeout, sanitized_cmd)
             
-            duration = time.time() - start_time
+            duration: float = time.time() - start_time
             result = ExecutionResult(
                 command=sanitized_cmd,
                 status=status,
@@ -412,8 +417,8 @@ class SmartTerminal:
         Returns:
             ExecutionResult with stdout, stderr, and exit code
         """
-        start_time = time.time()
-        sandbox = _get_sandbox_manager()
+        start_time: float = time.time()
+        sandbox: SandboxManager | None = _get_sandbox_manager()
         
         # Fallback to regular execution if sandbox unavailable
         if sandbox is None or not sandbox.is_available():
@@ -423,8 +428,8 @@ class SmartTerminal:
         try:
             # Create sandbox if not exists
             if self._sandbox_container_id is None:
-                name = sandbox_name or f"exec-{int(time.time())}"
-                container = sandbox.create_sandbox(name)
+                name: str = sandbox_name or f"exec-{int(time.time())}"
+                container: ContainerInfo | None = sandbox.create_sandbox(name)
                 if container is None:
                     logger.warning("Failed to create sandbox, falling back")
                     return self.execute(command, timeout=timeout)
@@ -432,14 +437,14 @@ class SmartTerminal:
             
             # Execute in sandbox
             from core.sandbox_manager import ExecutionResult as SandboxResult
-            sandbox_result = sandbox.execute_in_sandbox(
+            sandbox_result: ExecutionResult = sandbox.execute_in_sandbox(
                 self._sandbox_container_id,
                 command,
                 timeout=timeout
             )
             
             # Convert to our ExecutionResult format
-            status = ExecutionStatus.SUCCESS if sandbox_result.success else ExecutionStatus.FAILED
+            status: ExecutionStatus = ExecutionStatus.SUCCESS if sandbox_result.success else ExecutionStatus.FAILED
             result = ExecutionResult(
                 command=command,
                 status=status,
@@ -467,11 +472,11 @@ class SmartTerminal:
         if self._sandbox_container_id is None:
             return True
         
-        sandbox = _get_sandbox_manager()
+        sandbox: SandboxManager | None = _get_sandbox_manager()
         if sandbox is None:
             return False
         
-        success = sandbox.cleanup_sandbox(self._sandbox_container_id)
+        success: bool = sandbox.cleanup_sandbox(self._sandbox_container_id)
         if success:
             self._sandbox_container_id = None
         return success
@@ -483,21 +488,21 @@ class SmartTerminal:
             command = CommandSanitizer.sanitize(command, allow_shell=shell)
 
         # Log high-risk commands
-        risk_level = CommandSanitizer.get_risk_level(command)
+        risk_level: str = CommandSanitizer.get_risk_level(command)
         if risk_level in ('high', 'critical'):
             logger.warning(f"Executing {risk_level} risk command: {command[:100]}...")
 
         if shell:
             logger.warning("Shell execution enabled - this is a security risk")
-            cmd_args = command
+            cmd_args: str = command
         else:
-            cmd_args = shlex.split(command)
+            cmd_args: List[str] = shlex.split(command)
             
         return command, cmd_args
 
     def _create_process(self, cmd_args, shell: bool, capture_output: bool) -> subprocess.Popen:
         """Create and start the subprocess"""
-        popen_kwargs = {
+        popen_kwargs: Dict[str, bool] = {
             "shell": shell,
             "text": True if capture_output else False,
         }
@@ -526,8 +531,8 @@ class SmartTerminal:
             stdout, stderr = process.communicate(timeout=timeout)
             
             # Process finished naturally
-            exit_code = process.returncode
-            status = (
+            exit_code: int | Any = process.returncode
+            status: ExecutionStatus = (
                 ExecutionStatus.SUCCESS
                 if exit_code == 0
                 else ExecutionStatus.FAILED
@@ -546,10 +551,10 @@ class SmartTerminal:
                 # Give it a split second to flush buffers after kill signal
                 stdout, stderr = process.communicate(timeout=1)
             except subprocess.TimeoutExpired:
-                 stdout, stderr = "", "Command timed out and output buffer was lost"
+                stdout, stderr = "", "Command timed out and output buffer was lost"
             except (OSError, IOError, ValueError) as e:
-                 logger.debug(f"Error capturing output during timeout: {e}")
-                 stdout, stderr = "", "Command timed out (output capture failed)"
+                logger.debug(f"Error capturing output during timeout: {e}")
+                stdout, stderr = "", "Command timed out (output capture failed)"
             
             return stdout or "", stderr or "", -1, ExecutionStatus.TIMEOUT
             
@@ -559,7 +564,7 @@ class SmartTerminal:
             self._terminate_process_group(process)
             return "", str(e), -1, ExecutionStatus.FAILED
 
-    def _terminate_process_group(self, process: subprocess.Popen):
+    def _terminate_process_group(self, process: subprocess.Popen) -> None:
         """Terminate process and all children"""
         try:
             if platform.system() != "Windows":
@@ -597,7 +602,7 @@ class SmartTerminal:
 
     def _handle_execution_error(self, command: str, error: Exception, start_time: float) -> ExecutionResult:
         """Handle generic execution error"""
-        duration = time.time() - start_time
+        duration: float = time.time() - start_time
         logger.error(f"Command execution failed: {error}")
         result = ExecutionResult(
             command=command,
@@ -639,7 +644,7 @@ class SmartTerminal:
             cmd_args = shlex.split(command)
             
         # FORCED SECURITY POLICY: Always use shell=False for async execution
-        process = subprocess.Popen(
+        process: os.Popen[str] = subprocess.Popen(
             cmd_args,
             shell=False,
             stdout=subprocess.PIPE,
@@ -677,15 +682,15 @@ class CommandGenerator:
         """Generate optimized nmap command"""
 
         if scan_type == "quick":
-            cmd = f"nmap -T4 -F {target}"
+            cmd: str = f"nmap -T4 -F {target}"
         elif scan_type == "stealth":
-            cmd = f"nmap -sS -T2 {target}"
+            cmd: str = f"nmap -sS -T2 {target}"
         elif scan_type == "aggressive":
-            cmd = f"nmap -A -T4 {target}"
+            cmd: str = f"nmap -A -T4 {target}"
         elif scan_type == "version":
-            cmd = f"nmap -sV -T4 {target}"
+            cmd: str = f"nmap -sV -T4 {target}"
         else:  # full
-            cmd = f"nmap -sV -sC -T4 {target}"
+            cmd: str = f"nmap -sV -sC -T4 {target}"
 
         if ports:
             cmd += f" -p {ports}"
@@ -701,8 +706,8 @@ class CommandGenerator:
         """Sanitize URL to prevent command injection"""
         import shlex
         # Remove dangerous characters that could break shell commands
-        dangerous_chars = ["'", '"', ';', '|', '&', '$', '`', '\\', '\n', '\r']
-        sanitized = url
+        dangerous_chars: List[str] = ["'", '"', ';', '|', '&', '$', '`', '\\', '\n', '\r']
+        sanitized: str = url
         for char in dangerous_chars:
             sanitized = sanitized.replace(char, '')
         # Also validate URL format
@@ -721,12 +726,12 @@ class CommandGenerator:
     ) -> str:
         """Generate sqlmap command with URL sanitization"""
         # SECURITY: Sanitize URL to prevent command injection
-        safe_url = self._sanitize_url(url)
+        safe_url: str = self._sanitize_url(url)
         # Validate level and risk are within bounds
         level = max(1, min(5, int(level)))
         risk = max(1, min(3, int(risk)))
         
-        cmd = f"sqlmap -u '{safe_url}' --batch --level={level} --risk={risk}"
+        cmd: str = f"sqlmap -u '{safe_url}' --batch --level={level} --risk={risk}"
 
         if dbs:
             cmd += " --dbs"
@@ -745,15 +750,15 @@ class CommandGenerator:
     ) -> str:
         """Generate gobuster command with URL sanitization"""
         # SECURITY: Sanitize URL
-        safe_url = self._sanitize_url(url)
+        safe_url: str = self._sanitize_url(url)
         # Sanitize wordlist path
-        safe_wordlist = wordlist.replace("'", "").replace('"', '').replace(';', '')
+        safe_wordlist: str = wordlist.replace("'", "").replace('"', '').replace(';', '')
         
-        cmd = f"gobuster dir -u {safe_url} -w {safe_wordlist}"
+        cmd: str = f"gobuster dir -u {safe_url} -w {safe_wordlist}"
 
         if extensions:
             # Sanitize extensions
-            safe_ext = extensions.replace("'", "").replace('"', '').replace(';', '')
+            safe_ext: str = extensions.replace("'", "").replace('"', '').replace(';', '')
             cmd += f" -x {safe_ext}"
 
         cmd += " -o gobuster_results.txt"
@@ -829,7 +834,7 @@ class OutputAnalyzer:
 
         # Find open ports
         port_pattern = r"(\d+)/tcp\s+open\s+(\w+)"
-        matches = re.findall(port_pattern, output)
+        matches: List[Any] = re.findall(port_pattern, output)
 
         for port, service in matches:
             open_ports.append({"port": port, "service": service})
@@ -863,7 +868,7 @@ class OutputAnalyzer:
 
         # Find discovered directories
         dir_pattern = r"(/.+?)\s+\(Status:\s+(\d+)\)"
-        matches = re.findall(dir_pattern, output)
+        matches: List[Any] = re.findall(dir_pattern, output)
 
         for path, status in matches:
             found_dirs.append({"path": path, "status": status})
@@ -891,7 +896,7 @@ class OutputAnalyzer:
         if not stderr:
             return None
 
-        stderr_lower = stderr.lower()
+        stderr_lower: str = stderr.lower()
 
         if "command not found" in stderr_lower or "not recognized" in stderr_lower:
             return "missing_tool"
@@ -915,7 +920,7 @@ class OutputAnalyzer:
 class StreamingMonitor:
     """Monitors command execution in real-time"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.output_queue = queue.Queue()
         self.monitoring = False
 
@@ -1019,7 +1024,7 @@ class StreamingMonitor:
         if stderr_thread.is_alive():
             logger.warning("Stderr thread did not terminate in time")
 
-    def stream_output(self, line_type: str, line: str):
+    def stream_output(self, line_type: str, line: str) -> None:
         """Stream output to queue"""
         self.output_queue.put((line_type, line, time.time()))
 
@@ -1108,7 +1113,7 @@ class ExecutionValidator:
         """Extract meaningful error message"""
         if result.stderr:
             # Get first meaningful line
-            lines = result.stderr.strip().split("\n")
+            lines: List[str] = result.stderr.strip().split("\n")
             for line in lines:
                 if line.strip() and not line.startswith("#"):
                     return line.strip()
@@ -1121,7 +1126,7 @@ class ExecutionValidator:
 class ExecutionEngine:
     """Main facade combining all 5 execution modules"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.terminal = SmartTerminal()
         self.generator = CommandGenerator()
         self.analyzer = OutputAnalyzer()
@@ -1142,7 +1147,7 @@ class ExecutionEngine:
             command = self.generator.optimize_command(command)
 
         # Execute
-        result = self.terminal.execute(command, timeout=timeout, callback=callback)
+        result: ExecutionResult = self.terminal.execute(command, timeout=timeout, callback=callback)
 
         # Analyze
         analysis = self.analyzer.analyze(result)
@@ -1189,7 +1194,7 @@ class ExecutionEngine:
 
     def get_execution_summary(self) -> Dict:
         """Get summary of all executions"""
-        history = self.terminal.execution_history
+        history: List[ExecutionResult] = self.terminal.execution_history
 
         return {
             "total_executions": len(history),

