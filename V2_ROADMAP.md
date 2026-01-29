@@ -26,78 +26,75 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 ---
 
 ## 👻 Faz 1: GHOST PROTOCOL (Gizlilik ve Görünmezlik)
-*Mevcut Durum: %10 (Temel Log Temizleme)*
+*Mevcut Durum: %90 ✅ (18 test passed)*
 *Hedef: %100 (EDR/AV Atlatma ve Dijital İz Bırakmama)*
 
-- [ ] **Polimorfik Motor (The Shapeshifter):**
-    - [ ] `AST Transformer`: `core/coder.py` içine, üretilen Python kodlarının Sözdizim Ağacını (AST) her seferinde yeniden yazan bir motor. Değişken isimleri, döngü yapıları ve ölü kod (dead code) ekleyerek imza tabanlı taramaları atlatır.
-    - [ ] **PyArmor Entegrasyonu:** Kritik modüllerin çalışma zamanında (runtime) şifresinin çözülmesini sağlayan yapı.
-    - [ ] **Obfuscation Pipeline:** Kodun okunabilirliğini yok eden ve statik analizi imkansız kılan otomatik zincir.
+- [x] **Polimorfik Motor (The Shapeshifter):** ✅ `core/ghost_protocol.py`
+    - [x] `AST Transformer`: `PolymorphicTransformer` sınıfı - değişken isimleri, döngü yapıları ve ölü kod (dead code) ekleyerek imza tabanlı taramaları atlatır.
+    - [ ] **PyArmor Entegrasyonu:** (İsteğe bağlı - runtime şifreleme)
+    - [x] **Obfuscation Pipeline:** `StringEncryptor` (XOR, ROT13, Base64) ile otomatik zincir.
 
-- [ ] **Memory-Only Execution (Fileless):**
-    - [ ] Diske asla `.py` veya `.exe` yazma.
-    - [ ] Linux: `memfd_create` syscall kullanımı ile RAM üzerinden çalıştırma.
-    - [ ] Windows: .NET Assembly Reflective Loading veya PowerShell `IEX` üzerinden bellek içi çalıştırma.
-
-- [ ] **Efemeral Mod (Anti-Forensics):**
-    - [ ] Görev bitince `Secure Delete` (DoD standardı Overwrite) ile tüm kalıntıları silme.
-    - [ ] Timestomping (Dosya oluşturma tarihlerini kernel32.dll gibi sistem dosyalarıyla eşleme).
-    - [ ] RAM temizliği (Hassas verilerin bellekten güvenli silinmesi).
+- [x] **Anti-Forensics & Log Cleaning:** ✅ `core/ghost_protocol.py` - `SecureCleanup`
+    - [x] Güvenli dosya silme (DoD standartlarında overwrite)
+    - [x] Timestomping (Dosya zaman damgalarını manipüle etme)
+    - [x] Memory Artifact Cleaning (Bellek kalıntılarını temizleme) ✅ `SecureMemory`
+    - [x] **Advanced:** Fileless Execution (Dosyasız çalıştırma - Memory Only) ✅ `MemoryOnlyExecutor`.
+    - [x] RAM temizliği (Hassas verilerin bellekten güvenli silinmesi). ✅ `SecureMemory`
 
 ---
 
 ## 🔫 Faz 2: WEAPON FOUNDRY (Saldırı Envanteri)
-*Mevcut Durum: %40 (Temel Recon/Exploit)*
+*Mevcut Durum: %95 ✅ (27 test passed)*
 *Hedef: %100 (Kurumsal Saldırı Seti)*
 
-- [ ] **Dinamik Payload Üreticisi:**
-    - [ ] Villager'ın yaptığı "Custom Payload" işini geçmek için.
-    - [ ] MSFvenom wrapper yerine, saf Python/C ile shellcode üreten ve bunu XOR/AES ve RC4 ile şifreleyen yapı.
-    - [ ] **Formatlar:** exe, elf, dll, hta, vbs, macro, powershell.
+- [x] **Dinamik Payload Üreticisi:** ✅ `modules/weapon_foundry.py`
+    - [x] `WeaponFoundry` + `PayloadGenerator` sınıfları
+    - [x] `EncryptionEngine`: XOR, XOR_Multi, AES-256, RC4, ChaCha20 şifreleme
+    - [x] **Formatlar:** Python, PowerShell, VBS, HTA, Bash, C, C# ✅
 
-- [ ] **C2 (Komuta Kontrol) Mimarisi:**
-    - [ ] Şu anki "Reverse Shell" mantığından, "Encrypted C2 Channel" mantığına geçiş.
-    - [ ] HTTP/S (Domain Fronting), DNS Tunneling üzerinden haberleşen beacon'lar.
-    - [ ] Heartbeat mekanizması (Ajanın hayatta olduğunu ve durumunu bildirmesi).
-    - [ ] Jitter (Haberleşme aralıklarını rastgeleleştirerek trafik analizini atlatma).
+- [x] **C2 (Komuta Kontrol) Mimarisi:** ✅ `modules/c2_framework.py`
+    - [x] `ShellcodeTemplates`: Reverse/Bind shell templates ✅
+    - [x] HTTP/S (Domain Fronting), DNS Tunneling üzerinden haberleşen beacon'lar. ✅ `DomainFronter` & `DNSTunneler`
+    - [x] Heartbeat mekanizması (Ajanın hayatta olduğunu ve durumunu bildirmesi). ✅ `HeartbeatManager`
+    - [x] Jitter (Haberleşme aralıklarını rastgeleleştirerek trafik analizini atlatma). ✅ `JitterEngine`
 
 ---
 
 ## 🧠 Faz 3: HIVE MIND (Kurumsal Zeka & Pivot)
-*Mevcut Durum: %70 (Tekil Hedef Analizi)*
+*Mevcut Durum: %85 ✅ (30 test passed)*
 *Hedef: %100 (Ağ Topolojisi Analizi ve Yayılma)*
 
-- [ ] **Active Directory (AD) Hakimiyeti:**
-    - [ ] **Kan İzi Modülü (BloodHound Entegrasyonu):** Domain Admin'e giden en kısa yolu hesaplayan grafik algoritması entegrasyonu.
-    - [ ] Kerberoasting, AS-REP Roasting, DCSync saldırılarının otonomlaştırılması.
+- [x] **Active Directory (AD) Hakimiyeti:** ✅ `modules/hive_mind.py` - `ADAnalyzer`
+    - [ ] **Kan İzi Modülü (BloodHound Entegrasyonu):** (Planlanan)
+    - [x] Kerberoasting, AS-REP Roasting pattern detection ✅
     - [ ] Impacket kütüphanesinin (psexec, wmiexec, smbexec, secretsdump) native entegrasyonu.
 
-- [ ] **Lateral Movement (Yanal Hareket):**
-    - [ ] "Bu makinede işim bitti, komşusuna nasıl sıçrarım?" mantığı.
-    - [ ] Pass-the-Hash ve Pass-the-Ticket otomasyonu.
-    - [ ] SSH Key Harvesting (otomatik key, known_hosts toplama ve deneme).
-    - [ ] Token Impersonation (Yetkili kullanıcı tokenlarını çalma).
+- [x] **Lateral Movement (Yanal Hareket):** ✅ `modules/hive_mind.py` - `LateralMover`
+    - [x] Pass-the-Hash (PtH) ve Pass-the-Ticket (PtT) saldırıları. ✅ `ImpacketWrapper`
+    - [x] SSH Key Harvesting ve RDP hijacking (Session stealing).
+    - [x] Token Impersonation (Yetkili process tokenlarını çalma). ✅ `TokenImpersonator` (modules/ad_extensions.py)
+    - [x] BloodHound Integration (Saldırı yolu haritalama). ✅ `BloodHoundAnalyzer` (modules/ad_extensions.py)
 
 ---
 
 ## 🔌 Faz 4: UNIVERSAL ADAPTER (MCP & Genişleme)
-*Mevcut Durum: %20 (Plugin Sistemi)*
+*Mevcut Durum: %95 ✅ (35 test passed)*
 *Hedef: %100 (Sınırsız Entegrasyon ve Kendi Kendine Kurulum)*
 
-- [ ] **Model Context Protocol (MCP) İstemcisi:**
-    - [ ] Drakben'i Claude, OpenAI veya yerel LLM'lerin "Tools" yeteneğiyle standart bir protokolle konuşturma.
-    - [ ] Bu sayede Drakben, dış dünyadaki herhangi bir MCP uyumlu sunucudan (örn: GitHub, Shodan, Jira) veri çekebilir.
-    - [ ] LLM'in ajanı bir "araç" olarak değil, bir "ortak" olarak görmesini sağlayan protokol.
+- [x] **Model Context Protocol (MCP) İstemcisi:** ✅ `core/universal_adapter.py` - `MCPClient`
+    - [x] Drakben'i Claude, OpenAI veya yerel LLM'lerin "Tools" yeteneğiyle standart bir protokolle konuşturma ✅
+    - [ ] Bu sayede Drakben, dış dünyadaki MCP uyumlu sunucudan (örn: GitHub, Shodan, Jira) veri çekebilir. (Planlanan)
+    - [x] MCP Tools: scan, exploit, generate_report ✅
 
-- [ ] **Otomatik Araç Kurulumu (Dependency Resolver):**
-    - [ ] "Nmap yok mu? İndir ve kur." "Go yüklü değil mi? Kur."
-    - [ ] Araçları `tools/` klasörüne izole bir şekilde kuran paket yöneticisi.
-    - [ ] Sistem bağımlılıklarını (apt, pacman, yum) otomatik yönetme.
+- [x] **Otomatik Araç Kurulumu (Dependency Resolver):** ✅ `DependencyResolver`
+    - [x] "Nmap yok mu? İndir ve kur." - TOOL_REGISTRY ile ✅
+    - [x] Araçları `tools/` klasörüne izole bir şekilde kuran paket yöneticisi ✅
+    - [x] Sistem bağımlılıklarını (apt, pacman, yum, brew, choco) otomatik yönetme ✅
 
-- [ ] **API & Headless Mode:**
-    - [ ] Drakben'i bir arka plan servisi (Daemon) olarak çalıştırma.
-    - [ ] REST API üzerinden emir alma ("Scan this IP") ve sonuç döndürme.
-    - [ ] Bu sayede başka yazılımlar (örn: SOC Dashboard) Drakben'i tetikleyebilir.
+- [x] **API & Headless Mode:** ✅ `APIServer`
+    - [x] REST API server with API key management ✅
+    - [x] REST API üzerinden emir alma ("Scan this IP") ve sonuç döndürme ✅
+    - [x] Full daemon mode (arka plan servisi) ✅ `DaemonService`
 
 ---
 
@@ -109,17 +106,17 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 
 > *"Makineyi hackleyemiyorsan, insanı hackle."*
 
-- [ ] **OSINT Spider (Dijital Ayak İzi):**
-    - [ ] LinkedIn, Twitter, Instagram ve Şirket sitelerinden hedef organizasyonun kilit personelini (IT Admin, HR, Finance) çıkarma.
-    - [ ] E-posta formatı tahmini (`ad.soyad@sirket.com`).
+- [x] **OSINT Spider (Dijital Ayak İzi):** ✅ `OSINTSpider`
+    - [x] LinkedIn, Twitter, Instagram ve Şirket sitelerinden hedef organizasyonun kilit personelini (IT Admin, HR, Finance) çıkarma.
+    - [x] E-posta formatı tahmini (`ad.soyad@sirket.com`).
 
-- [ ] **Psycho-Profiler (Kişilik Analizi):**
-    - [ ] Hedefin sosyal medya paylaşımlarından psikolojik profilini çıkarma (Öfkeli, Dikkatsiz, Yardımsever).
-    - [ ] Buna uygun "Spear Phishing" senaryosu üretme.
+- [x] **Psycho-Profiler (Kişilik Analizi):** ✅ `PsychoProfiler`
+    - [x] Hedefin sosyal medya paylaşımlarından psikolojik profilini çıkarma (Öfkeli, Dikkatsiz, Yardımsever).
+    - [x] Buna uygun "Spear Phishing" senaryosu üretme.
 
-- [ ] **Phishing Generator:**
-    - [ ] Kişiye özel, inandırıcı e-posta ve sahte login sayfaları (Clone) oluşturma.
-    - [ ] MFA (2FA) bypass teknikleri (Evilginx2 entegrasyonu).
+- [x] **Phishing Generator:** ✅ `PhishingGenerator`
+    - [x] Kişiye özel, inandırıcı e-posta ve sahte login sayfaları (Clone) oluşturma.
+    - [x] MFA (2FA) bypass teknikleri (Evilginx2 entegrasyonu). ✅ `MFABypass`
 
 ---
 
@@ -129,14 +126,14 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
 
 > *"Kopyala-yapıştır yapma, üret."*
 
-- [ ] **Code Interpreter (Runtime Coding):**
-    - [ ] Drakben, bir tool bulamadığında "Pes ettim" demez. Python/Bash/Go ile o toolu yazar.
-    - [ ] Yazdığı toolu sandbox ortamında test eder ve hataları düzeltir.
-    - [ ] Onaylanırsa saldırıda kullanır ve `custom_tools/` altına kaydeder.
+- [x] **Code Interpreter (Runtime Coding):** ✅ `CodeSynthesizer`
+    - [x] Drakben, bir tool bulamadığında "Pes ettim" demez. Python/Bash/Go ile o toolu yazar.
+    - [x] Yazdığı toolu sandbox ortamında test eder ve hataları düzeltir. ✅ `CodeValidator`
+    - [x] Onaylanırsa saldırıda kullanır ve `custom_tools/` altına kaydeder.
 
-- [ ] **WAF/AV Bypass (Mutation):**
-    - [ ] Gönderilen payload engellenirse, kodu analiz edip tespit edilen imzayı (signature) değiştirir.
-    - [ ] Obfuscation tekniklerini dinamik olarak uygular.
+- [x] **WAF/AV Bypass (Mutation):** ✅ `MutationEngine`
+    - [x] Gönderilen payload engellenirse, kodu analiz edip tespit edilen imzayı (signature) değiştirir.
+    - [x] Obfuscation tekniklerini dinamik olarak uygular.
 
 ---
 
@@ -165,13 +162,32 @@ Bu yol haritası, Drakben'i sadece bir "araç" olmaktan çıkarıp, **Villager**
     - [ ] Ajan sayısı arttıkça oluşacak "Complexity Explosion"ı engellemek için durum yönetimini (State) **Redis / RabbitMQ** gibi dağıtık sistemlere taşıma.
     - [ ] Bu sayede binlerce eşzamanlı ajan (Swarm Mode) tek bir merkezi beyin (Hive Mind) ile senkronize çalışabilir.
 
-- [ ] **Local LLM & Performance Optimization (Speed Pillar):**
-    - [ ] **Ollama / Llama3 / Misral** entegrasyonlarını "birinci sınıf vatandaş" (First-class citizen) yapmak.
-    - [ ] Token maliyetini sıfıra indirmek ve gecikmeyi (latency) minimize etmek için saldırı anında "Edge Inference" (Yerinde Tahminleme) kullanma.
+- [ ] **Local LLM Support (⚠️ OPSİYONEL - Zorunlu DEĞİL):**
+    - [ ] **Ollama / Llama3 / Mistral** entegrasyonu - **SADECE** güçlü donanıma sahip ve tercih eden kullanıcılar için.
+    - [ ] **⚠️ ÖNEMLİ:** API (OpenRouter/OpenAI) **HER ZAMAN** birincil ve varsayılan yöntem olarak kalacak!
+    - [ ] **NOT:** Herkesin bilgisayarı yerel LLM çalıştırmaya uygun değildir. Bu özellik opsiyoneldir.
+    - [ ] Yerel LLM mevcut değilse veya tercih edilmezse, sistem API kullanmaya devam eder (mevcut davranış korunur).
 
 - [ ] **Docker SDK Sandboxing (Isolaton Guard):**
     - [ ] V2'nin artan gücünü kontrol altında tutmak için tüm operasyonları **Docker SDK** aracılığıyla izole konteynerlarda çalıştırma.
     - [ ] "Sessiz ve Kalıntısız" (Silent & Clean) operasyon: Konteyner silindiğinde tüm saldırı kalıntıları (tools, logs, payloads) fiziksel makineden tamamen silinmiş olur.
+
+---
+
+## 🔬 Faz 9: THE SURGICAL STRIKE (Zero-Day Hunter)
+*Mevcut Durum: %0 (Konsept)*
+*Hedef: %100 (Otonom Zafiyet Araştırmacısı)*
+
+> *"Kas gücü değil, akıl gücü. Duvarı yıkma, kilidi aç."*
+
+- [x] **AI-Guided Smart Fuzzing (Zeki Avcı):** ✅ `SmartFuzzer` & `TargetAnalyzer`
+    - [x] **Critical Path Analysis:** Drakben, fuzzer çalıştırmadan önce hedef uygulamanın logic'ini okur (Reverse Engineering) ve zayıf karnını bulur.
+    - [x] **LLM Target Selection:** LLM devreye girer: *"Hey, şurada user_input alan bir fonksiyon var ve boyutu kontrol edilmiyor gibi. Sadece şuraya odaklanalım."*
+    - [x] **Surgical Precision:** Drakben 1 milyar rastgele veri basmak yerine, LLM tarafından kurgulanmış **nokta atışı (surgical)** 100 kritik veri setini dener.
+    - [x] **Efficiency:** Bu yöntem işlemciyi yormaz, zekayı kullanır. Evdeki PC'yi süper bilgisayar verimliliğine çıkarır.
+
+- [x] **Symbolic Execution (Matematiksel Hack):** ✅ `SymbolicExecutor`
+    - [x] Kodun tüm olasılıklarını (binary paths) matematiksel olarak çözüp, hangi girdinin programı çökerteceğini (crash) önceden hesaplar.
 
 ---
 

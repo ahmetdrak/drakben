@@ -15,5 +15,10 @@
   "target": null,
   "session_dir": "sessions",
   "log_dir": "logs",
-  "tools_available": {}
+  "tools_available": {},
+  "system": {
+    "safety_checks": true,
+    "max_iterations": 50,
+    "command_timeout": 300
+  }
 }

@@ -456,6 +456,12 @@ class EvolutionMemory:
         """Adjust heuristic by delta - SELF-MODIFICATION"""
         current = self.get_heuristic(key)
         self.set_heuristic(key, current + delta)
+
+    def update_heuristic(self, key: str, func: Any):
+        """Update heuristic using a lambda function"""
+        current = self.get_heuristic(key)
+        new_value = func(current)
+        self.set_heuristic(key, new_value)
     
     def get_all_heuristics(self) -> Dict[str, float]:
         """Get all heuristics"""

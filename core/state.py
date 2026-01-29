@@ -389,7 +389,42 @@ class AgentState:
                 f"{len(self.tested_attack_surface)}|{len(self.remaining_attack_surface)}|"
                 f"{len(self.vulnerabilities)}|{self.has_foothold}"
             )
-            return hashlib.md5(state_str.encode()).hexdigest()[:8]
+            return hashlib.sha256(state_str.encode()).hexdigest()[:8]
+
+    def add_credential(self, username: str, password: Optional[str] = None, hash_val: Optional[str] = None, service: str = "") -> None:
+        """
+        Add credential securely with RAM cleaning support.
+        """
+        # Local import to avoid circular dependency
+        from core.ghost_protocol import get_ram_cleaner
+        
+        with self._lock:
+            # Register sensitive data for secure wiping
+            if password:
+                try:
+                    get_ram_cleaner().register_sensitive(password)
+                except Exception as e:
+                    logger.warning(f"Could not register credential with RAMCleaner: {e}")
+            
+            # Create credential object
+            cred = CredentialInfo(
+                username=username,
+                password=password,
+                hash=hash_val,
+                service=service
+            )
+            
+            # Check for duplicates (simple check)
+            is_duplicate = False
+            for c in self.credentials:
+                if c.username == username and c.service == service:
+                    if c.password == password and c.hash == hash_val:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                self.credentials.append(cred)
+                logger.info(f"Credential captured: {username} ({service})")
 
     def check_state_changed(self) -> bool:
         """

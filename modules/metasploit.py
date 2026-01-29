@@ -666,7 +666,9 @@ async def auto_exploit(
     """
     results = []
     
-    assert state.target is not None, "Target must be set in state"
+    if not state.target:
+        logger.warning("Target must be set in state for auto_exploit")
+        return results
     for vuln in state.vulnerabilities:
         exploit = suggest_exploit_for_vuln(vuln.vuln_id)
         

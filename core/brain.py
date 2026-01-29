@@ -1151,5 +1151,35 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             # Fallback to rule-based
             return None
 
+
         except Exception:
             return None
+
+    def ask_coder(self, instruction: str, file_path: Optional[str] = None, context: Optional[Dict] = None) -> Dict:
+        """
+        Delegate coding task to AICoder.
+        
+        Args:
+            instruction: What to code
+            file_path: Target file path (optional)
+            context: Additional context
+            
+        Returns:
+            Result dict from AICoder
+        """
+        from core.coder import AICoder
+        
+        coder = AICoder(llm_client=self.llm_client)
+        
+        if file_path:
+            # Editing existing file or creating new specific file
+            pass # AICoder logic handled below
+            
+        # For now, simply forward to AICoder's main generation loop
+        # Since AICoder is stateful, we might need a persistent instance in Brain
+        # checking if we have one, if not create
+        if not hasattr(self, 'coder'):
+            self.coder = AICoder(llm_client=self.llm_client)
+            
+        return self.coder.generate_code(instruction, file_path)
+

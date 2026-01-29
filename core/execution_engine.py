@@ -21,6 +21,21 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 # Setup logger
 logger = logging.getLogger(__name__)
 
+# Sandbox support (lazy import to avoid circular dependency)
+_sandbox_manager = None
+
+def _get_sandbox_manager():
+    """Lazy load sandbox manager to avoid import issues"""
+    global _sandbox_manager
+    if _sandbox_manager is None:
+        try:
+            from core.sandbox_manager import get_sandbox_manager
+            _sandbox_manager = get_sandbox_manager()
+        except ImportError:
+            logger.debug("Sandbox manager not available")
+            _sandbox_manager = None
+    return _sandbox_manager
+
 
 class SecurityError(Exception):
     """Raised when a security violation is detected"""
@@ -235,6 +250,7 @@ class SmartTerminal:
         self._history_lock = threading.Lock()  # Thread safety for history
         self._confirmation_callback = confirmation_callback
         self._auto_approve = False  # Set True to skip confirmations (dangerous!)
+        self._sandbox_container_id: Optional[str] = None  # Active sandbox container
     
     def set_confirmation_callback(self, callback: Optional[Callable[[str, str], bool]]):
         """Set or update the confirmation callback"""
@@ -376,6 +392,89 @@ class SmartTerminal:
             return self._handle_execution_error(command, e, start_time)
         finally:
             self.current_process = None
+
+    def execute_sandboxed(
+        self,
+        command: str,
+        timeout: int = 300,
+        sandbox_name: Optional[str] = None,
+    ) -> ExecutionResult:
+        """
+        Execute command in an isolated Docker sandbox.
+        
+        Falls back to regular execution if Docker is unavailable.
+        
+        Args:
+            command: Command string to execute
+            timeout: Maximum execution time in seconds
+            sandbox_name: Optional name for the sandbox container
+            
+        Returns:
+            ExecutionResult with stdout, stderr, and exit code
+        """
+        start_time = time.time()
+        sandbox = _get_sandbox_manager()
+        
+        # Fallback to regular execution if sandbox unavailable
+        if sandbox is None or not sandbox.is_available():
+            logger.info("Sandbox unavailable, falling back to regular execution")
+            return self.execute(command, timeout=timeout)
+        
+        try:
+            # Create sandbox if not exists
+            if self._sandbox_container_id is None:
+                name = sandbox_name or f"exec-{int(time.time())}"
+                container = sandbox.create_sandbox(name)
+                if container is None:
+                    logger.warning("Failed to create sandbox, falling back")
+                    return self.execute(command, timeout=timeout)
+                self._sandbox_container_id = container.container_id
+            
+            # Execute in sandbox
+            from core.sandbox_manager import ExecutionResult as SandboxResult
+            sandbox_result = sandbox.execute_in_sandbox(
+                self._sandbox_container_id,
+                command,
+                timeout=timeout
+            )
+            
+            # Convert to our ExecutionResult format
+            status = ExecutionStatus.SUCCESS if sandbox_result.success else ExecutionStatus.FAILED
+            result = ExecutionResult(
+                command=command,
+                status=status,
+                stdout=sandbox_result.stdout,
+                stderr=sandbox_result.stderr,
+                exit_code=sandbox_result.exit_code,
+                duration=sandbox_result.duration,
+                timestamp=start_time,
+            )
+            
+            self._add_to_history(result)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Sandboxed execution failed: {e}")
+            return self._handle_execution_error(command, e, start_time)
+    
+    def cleanup_sandbox(self) -> bool:
+        """
+        Clean up the active sandbox container.
+        
+        Returns:
+            True if cleanup successful or no sandbox active
+        """
+        if self._sandbox_container_id is None:
+            return True
+        
+        sandbox = _get_sandbox_manager()
+        if sandbox is None:
+            return False
+        
+        success = sandbox.cleanup_sandbox(self._sandbox_container_id)
+        if success:
+            self._sandbox_container_id = None
+        return success
 
     def _prepare_command(self, command: str, shell: bool, skip_sanitization: bool) -> Tuple[str, List[str]]:
         """Prepare command for execution: sanitize and split"""

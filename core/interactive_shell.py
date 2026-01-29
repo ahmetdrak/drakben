@@ -111,7 +111,7 @@ class InteractiveShell:
 
     def _setup_readline(self):
         """Setup readline for history and completion"""
-        if not READLINE_AVAILABLE or readline is None:
+        if not READLINE_AVAILABLE or readline_mod is None:
             logger.debug("readline not available, skipping setup")
             return
 

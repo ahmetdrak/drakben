@@ -37,6 +37,8 @@ class ActiveDirectoryAttacker:
             result = self.executor_callback(cmd, timeout=300)
             output = result.stdout + result.stderr
             return self._parse_kerbrute(output)
+            
+        else:
             # Standalone execution
             try:
                 cmd_list = ["kerbrute", "userenum", "-d", str(domain), "--dc", str(dc_ip), str(user_list), "--safe"]

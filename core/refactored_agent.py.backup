@@ -32,11 +32,11 @@ from core.self_refining_engine import (
 from core.tool_selector import ToolSelector
 from core.tool_parsers import normalize_error_message
 from core.structured_logger import DrakbenLogger
-from core.agent.error_diagnostics import ErrorDiagnosticsMixin
 from modules import exploit as exploit_module
 from modules import payload as payload_module
 
-class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
+
+class RefactoredDrakbenAgent:
     """
     SELF-REFINING EVOLVING AGENT
     
@@ -756,10 +756,6 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 "args": args,
             }
 
-        # 3.5 Hive Mind Special Case
-        if tool_name.startswith("hive_mind"):
-            return self._execute_hive_mind(tool_name, args)
-
         # 4. Get tool spec
         tool_spec = self.tool_selector.tools.get(tool_name)
         if not tool_spec:
@@ -843,7 +839,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         
         return {"success": False, "error": "No code generated"}
 
-
+        return {"success": False, "error": "Unknown evolution action"}
 
     def _run_system_tool(self, tool_name: str, tool_spec, args: Dict) -> Dict:
         """Run a standard system tool"""
@@ -1798,54 +1794,3 @@ Respond in JSON:
     def stop(self) -> None:
         """Stop the agent"""
         self.running = False
-
-    def _execute_hive_mind(self, tool_name: str, args: Dict) -> Dict:
-        """Execute Hive Mind internal module"""
-        try:
-            from modules.hive_mind import HiveMind
-            hive = HiveMind()
-            
-            self.console.print("🐝 Waking up HIVE MIND...", style="magenta")
-            
-            if tool_name == "hive_mind_scan":
-                init_res = hive.initialize()
-                # If target is IP/subnet, use it. Otherwise auto-detect.
-                subnet = args.get("target") if args.get("target") and "/" in str(args.get("target")) else None
-                
-                hosts = hive.scan_network(subnet)
-                hosts_data = [str(h) for h in hosts] 
-                
-                observation = f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
-                self.console.print(observation, style="cyan")
-                
-                return {
-                    "success": True, 
-                    "init": init_res, 
-                    "hosts_discovered": len(hosts), 
-                    "hosts": hosts_data,
-                    "output": observation
-                }
-                
-            elif tool_name == "hive_mind_attack":
-                self.console.print("🐝 Calculating Attack Paths...", style="magenta")
-                target = args.get("target", "Domain Admin")
-                paths = hive.find_attack_paths(target)
-                
-                if not paths:
-                     return {"success": False, "error": "No viable attack paths found"}
-                
-                # Execute best path
-                best_path = paths[0]
-                self.console.print(f"🚀 Executing Path: {best_path}", style="red")
-                
-                result = hive.execute_movement(best_path)
-                return {
-                    "success": result["success"],
-                    "hops": result["hops_completed"],
-                    "output": f"Movement result: {'Success' if result['success'] else 'Failed'}. Final Position: {result['final_position']}"
-                }
-                
-            return {"success": False, "error": "Unknown Hive Mind tool"}
-                
-        except Exception as e:
-            return {"success": False, "error": f"Hive Mind Error: {str(e)}"}

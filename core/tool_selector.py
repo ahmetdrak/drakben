@@ -244,6 +244,26 @@ class ToolSelector:
                 requires_foothold=True,
                 risk_level="critical",
             ),
+            # SWARM INTELLIGENCE (HIVE MIND)
+            "hive_mind_scan": ToolSpec(
+                name="hive_mind_scan",
+                category=ToolCategory.RECON,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.RECON, AttackPhase.POST_EXPLOIT],
+                risk_level="medium",
+                system_tool=False,
+                description="Swarm intelligence network scan for lateral movement targets"
+            ),
+            "hive_mind_attack": ToolSpec(
+                name="hive_mind_attack",
+                category=ToolCategory.POST_EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.POST_EXPLOIT],
+                requires_foothold=True,
+                risk_level="critical",
+                system_tool=False,
+                description="Perform lateral movement attacks (SSH/Pass-the-Hash)"
+            ),
             # ADVANCED / CREATIVE tools
             "generic_command": ToolSpec(
                 name="generic_command",

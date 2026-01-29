@@ -96,6 +96,7 @@ class ReportConfig:
     include_methodology: bool = True
     include_raw_output: bool = False
     include_statistics: bool = True
+    use_llm_summary: bool = False
     classification: str = "CONFIDENTIAL"
 
 
@@ -559,7 +560,7 @@ class ReportGenerator:
         return html
     
     def _generate_executive_summary_html(self, stats: Dict[str, Any]) -> str:
-        """Generate executive summary section"""
+        """Generate executive summary section with Optional AI Insight"""
         total = stats['total_findings']
         critical = stats['severity_breakdown']['critical']
         high = stats['severity_breakdown']['high']
@@ -571,6 +572,11 @@ class ReportGenerator:
             risk_level = "HIGH"
         elif stats['risk_score'] >= 30:
             risk_level = "MEDIUM"
+            
+        # AI Insight Generation (Simulated for C-Level)
+        ai_content = ""
+        if self.config.use_llm_summary:
+            ai_content = self._generate_ai_insight(critical, high, stats['risk_score'])
         
         return f"""
         <div class="section">
@@ -585,6 +591,8 @@ class ReportGenerator:
                 <p>The overall risk level is assessed as <strong>{risk_level}</strong> 
                 with a risk score of <strong>{stats['risk_score']}/100</strong>.</p>
                 
+                {ai_content}
+                
                 <p><strong>Key Recommendations:</strong></p>
                 <ul>
                     <li>Address all critical and high severity findings immediately</li>
@@ -595,6 +603,27 @@ class ReportGenerator:
             </div>
         </div>
         """
+
+    def _generate_ai_insight(self, critical: int, high: int, risk: int) -> str:
+        """Generate C-Level insight using simulated LLM logic"""
+        # In a real scenario, this communicates with UniversalAdapter's LLM
+        insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
+        insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
+        
+        if risk > 80:
+             insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
+             insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
+             insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+        elif risk > 50:
+             insight += "Security posture is compromised with significant risks reachable from external networks. "
+             insight += "Potential for lateral movement is high. "
+             insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
+        else:
+             insight += "Security posture is generally robust, though some hygiene issues remain. "
+             insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
+             
+        insight += "</div>"
+        return insight
     
     def _generate_markdown(self) -> str:
         """Generate Markdown report"""
