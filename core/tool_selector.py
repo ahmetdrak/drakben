@@ -264,6 +264,36 @@ class ToolSelector:
                 system_tool=False,
                 description="Perform lateral movement attacks (SSH/Pass-the-Hash)"
             ),
+            # WEAPON FOUNDRY (CUSTOM PAYLOADS)
+            "generate_payload": ToolSpec(
+                name="generate_payload",
+                category=ToolCategory.PAYLOAD,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.EXPLOIT, AttackPhase.FOOTHOLD],
+                risk_level="medium",
+                system_tool=False,
+                description="Generate FUD payloads using WeaponFoundry (Anti-Debug/Encryption)"
+            ),
+            # SINGULARITY (CODE SYNTHESIS)
+            "synthesize_code": ToolSpec(
+                name="synthesize_code",
+                category=ToolCategory.EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.EXPLOIT, AttackPhase.RECON, AttackPhase.POST_EXPLOIT],
+                risk_level="high",
+                system_tool=False,
+                description="Generate custom Python/Go scripts for unique attack vectors"
+            ),
+            # SOCIAL ENGINEERING (OSINT)
+            "osint_scan": ToolSpec(
+                name="osint_scan",
+                category=ToolCategory.RECON,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.RECON],
+                risk_level="low",
+                system_tool=False,
+                description="Perform OSINT and profile target"
+            ),
             # ADVANCED / CREATIVE tools
             "generic_command": ToolSpec(
                 name="generic_command",

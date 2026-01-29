@@ -724,7 +724,7 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
                     adapter = get_universal_adapter()
                     status = adapter.get_status()
                 except Exception:
-                    status = {"status": "running", "agent": "Drakben V2"}
+                    status = {"status": "running", "agent": "Drakben"}
                 
                 self.wfile.write(json.dumps(status).encode())
                 

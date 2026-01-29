@@ -1,56 +1,52 @@
-# 🩸 DRAKBEN - Next-Gen Autonomous Pentest Agent
+# 🩸 DRAKBEN - Advanced Autonomous Offensive Intelligence
 
-**The World's First "Self-Refining" Cyber Security Intelligence**
+**The World's First Self-Evolving Cyber Security Intelligence Framework**
 
 ![Status](https://img.shields.io/badge/Status-Zero%20Defect-brightgreen)
 ![Security](https://img.shields.io/badge/Security-Nuclear%20Tested-red)
-![Architecture](https://img.shields.io/badge/Architecture-Modular%20plugin%20System-blueviolet)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![Architecture](https://img.shields.io/badge/Architecture-Distributed%20State-blueviolet)
+![Engine](https://img.shields.io/badge/Intelligence-Self--Refining-orange)
 
-Drakben is not just an automation tool; it is a **bio-mechanical artificial intelligence** designed for offensive security operations. Unlike traditional scanners, it possesses **cognitive capabilities** that allow it to learn from failures, adapt strategies in real-time, and store experiences in a persistent memory.
-
----
-
-## 🚀 Core Capabilities
-
-### 🧬 1. Self-Refining Engine (Auto-Correction)
-Most tools stop when they encounter an error. Drakben evolves.
-- **Root Cause Analysis:** It uses LLM-based reasoning to understand *why* a command failed.
-- **Dynamic Strategy Generation:** Automatically attempts alternative methods/payloads without user intervention.
-- **Evolution Memory:** It "remembers" successful techniques for specific targets, becoming smarter with every operation.
-
-### 🛡️ 2. Zero-Defect Architecture
-Built with **Enterprise-Grade** engineering standards.
-- **Nuclear Stress Tested:** Validated under 1000+ concurrent threads with zero crashes.
-- **Memory Safety:** Leak-proof design ensures stability during long-term red team engagements.
-- **Thread-Safe Core:** Asynchronous non-blocking I/O for maximum performance.
-
-### 🔌 3. Extensible Ecosystem (Universal Adapter)
-Designed for limitless expansion.
-- **Hot-Swappable Plugins:** New capabilities can be added dynamically without restarting the core.
-- **Hybrid Tooling:** Seamlessly integrates standard industry tools (Nmap, Nikto, etc.) with custom AI-generated scripts.
-- **Future-Ready:** Ready for "Model Context Protocol (MCP)" integration to connect with external intelligence feeds.
-
-### 🧠 4. Persistent Intelligence (The Brain)
-- **Context Awareness:** Maintains a deep understanding of the target environment (Topology, Services, OS).
-- **Campaign Logic:** Capable of executing multi-stage attacks rather than isolated commands.
-- **Offline Reasoning:** Operates effectively even without internet access using local heuristics.
+Drakben is not a scanner. It is an **Autonomous APT Simulation Agent** designed to bridge the gap between human expertise and machine speed. Built on a "Zero-Defect" architecture, Drakben possesses cognitive reasoning, real-time adaptation, and a persistent evolution memory that allows it to bypass modern security controls (WAF/EDR/AV).
 
 ---
 
-## ⚡ Quick Start
+## �️ MISSION-CRITICAL ARCHITECTURE
 
-### Seçenek 1: Docker (Önerilen)
-Bağımlılık karmaşası yaşamadan Drakben'i dağıtmanın en hızlı yolu.
+### � 1. Cognitive Core (Self-Refining Engine)
+Drakben doesn't just execute commands; it solves problems.
+- **Fail-Forward Logic:** Automatically diagnoses command failures, analyzes logs via LLM reasoning, and auto-corrects strategies.
+- **Reality Check Protocol:** Strict anti-hallucination logic ensures the agent only uses verified tools and existing vulnerabilities.
+- **Evolving Policies:** Stores experiences in a persistent SQLite database, refining its "Attack Recipes" over time.
 
+### � 2. Ghost Protocol (Elite Stealth)
+Designed for silent operations in hostile environments.
+- **Polymorphic Mutation:** Dynamically transforms its own code structure to evade signature-based detection.
+- **Fileless Execution:** Operates entirely within memory (Memory-Only) to leave zero digital footprint on the disk.
+- **Anti-Forensics:** DoD-standard secure cleanup and timestomping for total operational security.
+
+### � 3. Weapon Foundry & Singularity
+Custom-built arsenal for every engagement.
+- **Foundry:** Generates FUD (Fully Undetectable) payloads with AES-256/ChaCha20 encryption.
+- **Singularity:** When a tool doesn't exist, Drakben **writes its own**. It synthesizes custom Python/Go tools, validates them in a sandbox, and deploys them.
+
+### 🧠 4. Hive Mind (Enterprise Domination)
+Specialized for complex Active Directory and network topologies.
+- **Lateral Movement:** Automated Pass-the-Hash, Kerberoasting, and Token Impersonation.
+- **Infrastructure Awareness:** Deep BloodHound integration for visual attack path analysis.
+
+---
+
+## ⚡ QUICK START
+
+### Option 1: Docker Deployment (Recommended)
+The fastest way to deploy Drakben with isolated dependencies.
 ```bash
 docker build -t drakben .
 docker run -it drakben
 ```
 
-### Seçenek 2: Manuel Kurulum
-Linux/Windows ortamında geliştirme yapmak için.
-
+### Option 2: Binary / Manual Install
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
@@ -58,32 +54,32 @@ pip install -r requirements.txt
 python drakben.py
 ```
 
-### Usage
-Drakben understands **Natural Language**. You don't need to memorize flags.
+---
 
-```
-> Scan the target 10.0.0.5 for high-risk vulnerabilities.
-> Analyze example.com and suggest an SQL Injection strategy.
-> Perform a stealth reconnaissance on the internal network.
-```
+## 🎮 OPERATIONAL MODES
+
+Drakben understands **Natural Language** and supports multi-lingual interaction.
+
+- **Internal Monologue:** Technical reasoning is processed in English for maximum precision.
+- **Human Interface:** Supports Turkish and English commands.
+
+**Examples:**
+- `> Analyze 10.0.8.0/24 and find lateral movement paths to Domain Controller.`
+- `> 192.168.1.5 üzerinde zafiyet taraması yap ve bulduğun açığa uygun payload üret.`
+- `> Create a phishing scenario for IT Admins using LinkedIn OSINT data.`
 
 ---
 
-## 📂 Architecture Overview
+## � ENTERPRISE FEATURES
 
-The system is composed of four main pillars:
-
-1.  **The Brain (Cortex):** High-level decision making and planning.
-2.  **The Spine (Execution Engine):** Safe and robust command execution.
-3.  **The Memory (Hippocampus):** SQLite-based long term experience storage.
-4.  **The Limbs (Plugins & Modules):** Dynamic capability layer.
+- **Distributed State:** Scale your swarm with Redis-backed state management.
+- **C-Level Reporting:** AI-generated executive summaries with technical deep-dives (PDF/HTML).
+- **Universal Adapter:** Fully MCP-compliant; integrates with GitHub, Shodan, Jira, and more.
+- **Local LLM Support:** Ready for Ollama / Llama3 integration for air-gapped environments.
 
 ---
 
-## ⚠️ Legal Disclaimer
+## ⚖️ LEGAL DISCLAIMER
+This software is intended for **authorized penetration testing and educational purposes only**. Using Drakben against targets without written permission is illegal. The developers are not responsible for any misuse.
 
-This software is designed for **defensive and educational purposes only**. Using it on systems without explicit permission is illegal. The developers assume no liability for misuse.
-
----
-
-**Made with ❤️ by Drakben Team**
+**Drakben: Villager köylüleri yönetir, Drakben kralları devirir.**

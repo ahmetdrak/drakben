@@ -757,8 +757,21 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             }
 
         # 3.5 Hive Mind Special Case
+        # 3.5 Hive Mind Special Case
         if tool_name.startswith("hive_mind"):
             return self._execute_hive_mind(tool_name, args)
+
+        # 3.6 Weapon Foundry Special Case
+        if tool_name == "generate_payload":
+            return self._execute_weapon_foundry(args)
+
+        # 3.7 Singularity Special Case
+        if tool_name == "synthesize_code":
+            return self._execute_singularity(args)
+
+        # 3.8 OSINT Special Case
+        if tool_name.startswith("osint_"):
+            return self._execute_osint(tool_name, args)
 
         # 4. Get tool spec
         tool_spec = self.tool_selector.tools.get(tool_name)
@@ -849,7 +862,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Run a standard system tool"""
         # Build command from template
         try:
-            command = tool_spec.command_template.format(**args)
+            command = tool_spec.command_template.format(target=self.state.target, **args)
         except KeyError as e:
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
@@ -1798,6 +1811,89 @@ Respond in JSON:
     def stop(self) -> None:
         """Stop the agent"""
         self.running = False
+
+    def _execute_weapon_foundry(self, args: Dict) -> Dict:
+        """Execute Weapon Foundry to generate payloads"""
+        try:
+            from modules.weapon_foundry import WeaponFoundry
+            foundry = WeaponFoundry()
+            
+            payload_type = args.get("format", "python")
+            lhost = args.get("lhost")
+            lport = args.get("lport", 4444)
+            # Args from Agent LLM might call it 'type' instead of 'format'
+            if not payload_type and "type" in args:
+                payload_type = args["type"]
+
+            if not lhost:
+                lhost = "127.0.0.1"
+                self.console.print("⚠️ LHOST missing, using localhost.", style="yellow")
+                
+            self.console.print(f"🔨 Forging Payload ({payload_type})...", style="cyan")
+            
+            artifact = foundry.forge(
+                lhost=lhost,
+                lport=int(lport),
+                format=payload_type,
+                encryption="aes",
+                iterations=5
+            )
+            
+            if artifact:
+                return {"success": True, "output": f"Payload SUCCESS: {artifact.filename}", "artifact": artifact.filename}
+            else:
+                return {"success": False, "error": "Payload generation failed"}
+        except Exception as e:
+            logger.error(f"WeaponFoundry error: {e}")
+            return {"success": False, "error": f"WeaponFoundry error: {e}"}
+
+    def _execute_singularity(self, args: Dict) -> Dict:
+        """Execute Singularity to write custom code"""
+        try:
+            from core.singularity.synthesizer import CodeSynthesizer
+            # Initialize with existing Brain/Coder components if available
+            brain_ref = self.brain if hasattr(self, 'brain') else None
+            synth = CodeSynthesizer(brain_component=brain_ref)
+            
+            instruction = args.get("description") or args.get("instruction")
+            lang = args.get("language", "python")
+            
+            if not instruction: return {"success": False, "error": "No instruction provided for code synthesis"}
+
+            self.console.print(f"🔮 Singularity: Synthesizing {lang} code...", style="magenta")
+            
+            # Use generate_tool (which returns artifact)
+            # Args might differ, check CodeSynthesizer definition. 
+            # Assuming generate_tool is the main entry point from context step 1960.
+            result = synth.generate_tool(
+                tool_name=f"custom_{int(time.time())}", 
+                description=instruction, 
+                requirements=""
+            )
+            
+            if result.get("success"):
+                return {"success": True, "output": f"Code Synthesized: {result.get('file_path')}\nContent Preview:\n{result.get('content', '')[:300]}"}
+            else:
+                return {"success": False, "error": f"Synthesis failed: {result.get('error')}"}
+                
+        except Exception as e:
+             logger.error(f"Singularity error: {e}")
+             return {"success": False, "error": f"Singularity error: {e}"}
+
+    def _execute_osint(self, tool_name: str, args: Dict) -> Dict:
+        """Execute OSINT tools"""
+        try:
+            from modules.social_eng.osint import PassiveRecon
+            recon = PassiveRecon()
+            
+            target = args.get("target") or self.state.target
+            if not target: return {"success": False, "error": "Target required"}
+            
+            self.console.print(f"🕵️ OSINT Scanning: {target}", style="blue")
+            results = recon.gather_all(target)
+            return {"success": True, "output": str(results)[:2000]}
+        except Exception as e:
+            return {"success": False, "error": f"OSINT error: {e}"}
 
     def _execute_hive_mind(self, tool_name: str, args: Dict) -> Dict:
         """Execute Hive Mind internal module"""
