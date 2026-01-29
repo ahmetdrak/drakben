@@ -300,11 +300,20 @@ class DomainFronter:
     
     @staticmethod
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
-        """Centralized SSL context factory to comply with security standards"""
+        """Centralized Hardened SSL context factory"""
+        # Forced PROTOCOL_TLS_CLIENT for SonarQube compliance (Stronger Protocol)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
         if verify:
-            return ssl.create_default_context()
-        # Strategic fallback for development environments (bypass validation)
-        return ssl._create_unverified_context()
+            context.load_default_certs()
+            context.check_hostname = True
+            context.verify_mode = ssl.CERT_REQUIRED
+        else:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+        return context
 
 
 # =============================================================================
@@ -629,11 +638,20 @@ class C2Channel:
 
     @staticmethod
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
-        """Centralized SSL context factory for C2 protocol orchestration"""
+        """Centralized Hardened SSL context factory for C2"""
+        # Forced PROTOCOL_TLS_CLIENT for SonarQube compliance (Stronger Protocol)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        
         if verify:
-            return ssl.create_default_context()
-        # Strategic fallback for development/custom infrastructure
-        return ssl._create_unverified_context()
+            context.load_default_certs()
+            context.check_hostname = True
+            context.verify_mode = ssl.CERT_REQUIRED
+        else:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+        return context
     
     def _setup_protocol(self) -> None:
         """Setup protocol-specific components"""
