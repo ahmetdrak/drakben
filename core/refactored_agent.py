@@ -87,7 +87,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.evolution: EvolutionMemory = get_evolution_memory()
         self.refining_engine = SelfRefiningEngine()  # NEW: Profile-based evolution
         self.planner = Planner()
-        self.coder: AICoder[DrakbenBrain] = AICoder(self.brain)
+        self.coder: AICoder = AICoder(self.brain)
         
         # Additional Modules for Full System Test
         from core.self_healer import SelfHealer
@@ -1892,7 +1892,8 @@ Respond in JSON:
             )
             
             if artifact:
-                return {"success": True, "output": f"Payload SUCCESS: {artifact.filename}", "artifact": artifact.filename}
+                filename = artifact.metadata.get("filename", "payload.bin")
+                return {"success": True, "output": f"Payload SUCCESS: {filename}", "artifact": filename}
             else:
                 return {"success": False, "error": "Payload generation failed"}
         except Exception as e:
@@ -1905,7 +1906,7 @@ Respond in JSON:
             from core.singularity.synthesizer import CodeSynthesizer
             # Initialize with existing Brain/Coder components if available
             brain_ref: DrakbenBrain | None = self.brain if hasattr(self, 'brain') else None
-            synth = CodeSynthesizer(brain_component=brain_ref)
+            synth = CodeSynthesizer()
             
             instruction = args.get("description") or args.get("instruction")
             lang = args.get("language", "python")
@@ -1922,10 +1923,10 @@ Respond in JSON:
                 language=lang
             )
             
-            if result.get("success"):
-                return {"success": True, "output": f"Code Synthesized: {result.get('file_path')}\nContent Preview:\n{result.get('content', '')[:300]}"}
+            if getattr(result, "success", False):
+                return {"success": True, "output": f"Code Synthesized: {result.file_path}\nContent Preview:\n{result.content[:300] if result.content else ''}"}
             else:
-                return {"success": False, "error": f"Synthesis failed: {result.get('error')}"}
+                return {"success": False, "error": f"Synthesis failed: {getattr(result, 'error', 'Unknown Error')}"}
                 
         except Exception as e:
             logger.error(f"Singularity error: {e}")
@@ -1934,14 +1935,14 @@ Respond in JSON:
     def _execute_osint(self, _tool_name: str, args: Dict) -> Dict:
         """Execute OSINT tools"""
         try:
-            from modules.social_eng.osint import PassiveRecon
-            recon = PassiveRecon()
+            from modules.social_eng.osint import OSINTSpider
+            recon = OSINTSpider()
             
             target = args.get("target") or self.state.target
             if not target: return {"success": False, "error": "Target required"}
             
             self.console.print(f"🕵️ OSINT Scanning: {target}", style="blue")
-            results = recon.gather_all(target)
+            results = recon.harvest_domain(target)
             return {"success": True, "output": str(results)[:2000]}
         except Exception as e:
             return {"success": False, "error": f"OSINT error: {e}"}

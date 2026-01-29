@@ -1162,6 +1162,17 @@ class RAMCleaner:
                 return True
         return False
         
+    def register_sensitive(self, data: str) -> None:
+        """
+        Register sensitive string for later wiping.
+        Converts string to mutable bytearray and tracks it.
+        """
+        if not data:
+            return
+        # Create a mutable bytearray copy of the data
+        ba = bytearray(data.encode('utf-8'))
+        self._sensitive_refs.append(ba)
+
     def wipe_all(self) -> int:
         """
         Wipe all stored sensitive data.

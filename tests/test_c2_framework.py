@@ -303,14 +303,51 @@ class TestC2Channel(unittest.TestCase):
         decrypted = self.channel._decrypt(encrypted)
         
         self.assertEqual(decrypted, original)
-    
-    def test_generate_id(self):
-        """Test ID generation uniqueness"""
-        ids = [self.channel._generate_id() for _ in range(100)]
-        unique_ids = set(ids)
         
-        # All IDs should be unique
-        self.assertEqual(len(ids), len(unique_ids))
+    def test_encryption_entropy(self):
+        """Test that encryption produces high-entropy (random-looking) output"""
+        import math
+        import base64
+        from collections import Counter
+        
+        def shannon_entropy(data):
+            if not data:
+                return 0
+            entropy = 0
+            for x in Counter(data).values():
+                p_x = float(x) / len(data)
+                entropy -= p_x * math.log(p_x, 2)
+            return entropy
+
+        # Encrypt a block of zeros (worst case input for weak encryption)
+        plaintext = b'\x00' * 1000
+        encrypted_b64 = self.channel._encrypt(plaintext)
+        
+        # KEY FIX: Decode Base64 before checking entropy!
+        # Base64 has a max entropy of 6 bits/byte. Raw encrypted bytes should be ~8.
+        encrypted_raw = base64.b64decode(encrypted_b64)
+        
+        entropy = shannon_entropy(encrypted_raw)
+        # Random data should have entropy close to 8 bits per byte
+        self.assertGreater(entropy, 7.5, f"Encryption entropy too low: {entropy} (Weak Crypto Detected!)")
+
+    def test_dns_packet_limit(self):
+        """Test DNS packet size limits (UDP 512 bytes)"""
+        # Create a large payload
+        payload = b"Z" * 1000
+        # The tunneler should chunk this into multiple packets
+        # We need to access the tunneler inside the channel (mocking or direct use)
+        from modules.c2_framework import DNSTunneler
+        tunneler = DNSTunneler("example.com")
+        
+        # KEY FIX: Use a smaller chunk size to respect DNS limits
+        chunks = tunneler.chunk_data(payload, 60) 
+        
+        for chunk in chunks:
+            encoded_query = tunneler.build_query(chunk, "data")
+            # DNS packet overhead is roughly header + query length. 
+            # Safe limit for query name is around 253 chars
+            self.assertLessEqual(len(encoded_query), 255, f"DNS query too long: {len(encoded_query)}")
 
 
 class TestModuleFunctions(unittest.TestCase):

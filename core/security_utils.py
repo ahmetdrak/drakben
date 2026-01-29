@@ -687,6 +687,6 @@ def get_proxy_manager() -> ProxyManager:
     return _proxy_manager
 
 
-def audit_command(command: str, target: str = "", success: bool = True):
+def audit_command(command: str, target: str = "", success: bool = True, details: Optional[Dict[str, Any]] = None):
     """Quick audit logging for commands"""
-    get_audit_logger().log_command(command, target, success)
+    get_audit_logger().log_command(command, target, success, details)

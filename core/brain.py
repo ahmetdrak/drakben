@@ -1217,7 +1217,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
         # Since AICoder is stateful, we might need a persistent instance in Brain
         # checking if we have one, if not create
         if not hasattr(self, 'coder'):
-            self.coder: AICoder = AICoder(llm_client=self.llm_client)
+            self.coder: AICoder = AICoder(self)
             
-        return self.coder.generate_code(instruction, file_path)
+        return self.coder.create_tool("dynamic_tool", instruction, context or "")
 

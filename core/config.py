@@ -88,6 +88,9 @@ class DrakbenConfig:
 
     # Tools
     tools_available: Optional[Dict[str, bool]] = None
+    
+    # System Settings (Added to match config.json)
+    system: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.tools_available is None:

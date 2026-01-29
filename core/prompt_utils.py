@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from rich.console import Console
 from rich.progress import (
@@ -47,9 +47,7 @@ except ImportError:
         class Completer: pass
         class Completion: pass
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from prompt_toolkit.completion import Completer, Completion
+
 
 
 # =========================================

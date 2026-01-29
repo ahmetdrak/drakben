@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from core.sandbox_manager import SandboxManager, ContainerInfo, ExecutionResult
+from core.sandbox_manager import SandboxManager, ContainerInfo, ExecutionResult as SandboxExecutionResult
 
 
 
@@ -68,6 +68,7 @@ class CommandSanitizer:
     
     # Commands that are completely forbidden
     FORBIDDEN_COMMANDS: List[str] = [
+        # Linux Destructive
         'rm -rf /',
         'rm -rf /*',
         'rm -rf ~',
@@ -76,29 +77,43 @@ class CommandSanitizer:
         'dd if=/dev/zero',
         'dd if=/dev/random',
         ':(){ :|:& };:',       # Fork bomb
-        'shutdown',
-        'reboot',
-        'halt',
-        'poweroff',
-        'init 0',
-        'init 6',
         'chmod -R 777 /',
         'chown -R',
         'wget -O- | sh',
         'curl | sh',
         'curl | bash',
         'wget -O- | bash',
+        
+        # Windows Destructive (VILLAGER KILLER UPDATE)
+        'format c:',
+        'format d:',
+        'rd /s /q',
+        'rd /s/q',
+        'del /f /s /q',
+        'del /f/s/q',
+        'powershell -enc',      # Encoded commands are suspicious
+        'powershell -encodedcommand',
+        'reg delete',
+        'bcdedit /delete',
+        'vssadmin delete shadows',
+        'wbadmin delete catalog',
+        'cipher /w',            # Wipe free space
+        'drop database',        # SQL destruction
+        
+        # System State
+        'shutdown',
+        'reboot',
+        'halt',
+        'poweroff',
+        'init 0',
+        'init 6',
+        
         # Sensitive file access
         'cat /etc/shadow',
         'cat /etc/passwd',
         'cat /etc/sudoers',
-        'head /etc/shadow',
-        'tail /etc/shadow',
-        'less /etc/shadow',
-        'more /etc/shadow',
-        'vi /etc/shadow',
-        'vim /etc/shadow',
-        'nano /etc/shadow',
+        'type C:\\Windows\\System32\\config\\SAM',
+        'type C:\\Windows\\System32\\config\\SYSTEM',
     ]
     
     # Commands that require explicit confirmation
@@ -110,8 +125,30 @@ class CommandSanitizer:
         r'>\s*/(etc|bin|usr|var|boot|sbin)',                 # Forbidden redirection to system
         r'sudo\s+',            # sudo commands
         r'su\s+',              # su commands
+        
+        # Windows High Risk
+        r'net\s+user\s+.*?\s+/add', # Adding users
+        r'net\s+localgroup\s+.*?\s+/add', # Adding to groups
+        r'taskkill\s+/f',      # Force killing processes
+        r'attrib\s+\+h',       # Hiding files
+        r'sc\s+delete',        # Deleting services
+        r'reg\s+add',          # Modifying registry
     ]
     
+    # Regex patterns for more complex forbidden commands
+    FORBIDDEN_REGEX: List[str] = [
+        r'powershell.*-e(nc|ncod|ncoded)',  # Catch all encoded powershell variants
+        r'format\s+[a-z]:',                 # Format drive
+        r'rd\s+/s\s+/q',                    # Force delete dir
+        r'del\s+/f\s+/s\s+/q',              # Force delete files
+        r'reg\s+delete\s+HKLM',             # Delete system registry
+        r'net\s+user\s+.*\s+/add',          # Add user (Forbidden, not just high risk)
+        # Linux Cleanups (Final Polish)
+        r'rm\s+-[rf]+\s+\*',                # rm -rf *
+        r'chmod\s+(?:-R\s+)?777',           # chmod 777 (anywhere)
+        r'chown\s+(?:-R\s+)?root:root',     # chown root:root (generic)
+    ]
+
     @classmethod
     def sanitize(cls, command: str, allow_shell: bool = False) -> str:
         """
@@ -127,11 +164,16 @@ class CommandSanitizer:
         Raises:
             SecurityError: If command contains forbidden patterns
         """
-        # Check for forbidden commands
+        # Check for forbidden commands (Substring Match)
         command_lower: str = command.lower().strip()
         for forbidden in cls.FORBIDDEN_COMMANDS:
             if forbidden.lower() in command_lower:
                 raise SecurityError(f"Forbidden command detected: {forbidden}")
+        
+        # Check for forbidden regex patterns (Complex Match)
+        for pattern in cls.FORBIDDEN_REGEX:
+            if re.search(pattern, command, re.IGNORECASE):
+                raise SecurityError(f"Forbidden command pattern detected: {pattern}")
         
         # Check for shell injection patterns (only if shell mode is disabled)
         if not allow_shell:
@@ -216,7 +258,6 @@ class ExecutionStatus(Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
-
 
 @dataclass
 class ExecutionResult:
@@ -644,7 +685,7 @@ class SmartTerminal:
             cmd_args = shlex.split(command)
             
         # FORCED SECURITY POLICY: Always use shell=False for async execution
-        process: os.Popen[str] = subprocess.Popen(
+        process: subprocess.Popen = subprocess.Popen(
             cmd_args,
             shell=False,
             stdout=subprocess.PIPE,

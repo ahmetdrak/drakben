@@ -321,16 +321,7 @@ class AgentState:
 
             self._record_change("foothold_achieved", method)
 
-    def add_credential(self, cred: CredentialInfo) -> None:
-        """
-        Record obtained credential.
-        
-        Args:
-            cred: Credential information
-        """
-        with self._lock:
-            self.credentials.append(cred)
-            self._record_change("credential_found", cred.username)
+
 
     def mark_post_exploit_done(self, action: str) -> None:
         """

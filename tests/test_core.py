@@ -300,34 +300,81 @@ class TestExecutionEngine(unittest.TestCase):
     """Tests for ExecutionEngine class"""
     
     def test_command_sanitization(self):
-        """Test command sanitization"""
+        """Test command sanitization with OS-specific vectors"""
         from core.execution_engine import CommandSanitizer, SecurityError
-        _ = CommandSanitizer()
         
-        # Safe commands
-        safe_cmd = CommandSanitizer.sanitize("nmap -sV 192.168.1.1")
-        self.assertEqual(safe_cmd, "nmap -sV 192.168.1.1")
-        
-        # Dangerous commands should raise SecurityError
-        with self.assertRaises(SecurityError):
-            CommandSanitizer.sanitize("rm -rf /")
-    
-    def test_command_validation(self):
-        """Test command validation patterns"""
-        from core.execution_engine import CommandSanitizer, SecurityError
-        _ = CommandSanitizer()
-        
-        # Test various dangerous patterns
-        dangerous_commands = [
-            "rm -rf /",
-            "dd if=/dev/zero of=/dev/sda",
-            ":(){ :|:& };:",  # Fork bomb
-            "mkfs.ext4 /dev/sda",
+        # Test Safe Commands
+        safe_cmds = [
+            "nmap -sV 192.168.1.1",
+            "python3 test.py",
+            "ls -la",
+            "dir /w"
         ]
         
-        for cmd in dangerous_commands:
-            with self.assertRaises(SecurityError, msg=f"Command should be blocked: {cmd}"):
+        for cmd in safe_cmds:
+            sanitized = CommandSanitizer.sanitize(cmd)
+            self.assertEqual(sanitized, cmd)
+        
+        # Test Dangerous Commands (Linux & Windows)
+        dangerous_vectors = [
+            # Linux Destructive
+            "rm -rf /",
+            "rm -rf *",
+            "dd if=/dev/zero of=/dev/sda",
+            "mkfs.ext4 /dev/sdb1",
+            ":(){ :|:& };:", # Fork Bomb
+            "chmod 777 /etc/shadow",
+            "cat /etc/shadow",
+            "chown root:root /tmp/evil",
+            
+            # Windows Destructive
+            "format c: /q",
+            "rd /s /q c:\\windows",
+            "del /f /s /q c:\\*",
+            "powershell -nop -w hidden -enc JAB...", # Encoded malicious
+            "net user administrator Password123 /add",
+            "reg delete HKLM\\System /f",
+            "bcdedit /delete {current}",
+            
+            # Generic/Shell Injection
+            "ping 127.0.0.1; rm -rf /",
+            "echo hello | python -c 'import os; os.system(\"calc\")'",
+            "& ping 1.1.1.1",
+        ]
+        
+        failure_count = 0
+        for cmd in dangerous_vectors:
+            try:
                 CommandSanitizer.sanitize(cmd)
+                print(f"❌ FAILED to block: {cmd}") # Print directly for visibility
+                failure_count += 1
+            except SecurityError:
+                pass # This is what we want
+                
+        self.assertEqual(failure_count, 0, f"Failed to block {failure_count} dangerous commands!")
+
+    
+    def test_fuzzing_execution(self):
+        """Fuzz testing for execution engine input handling"""
+        from core.execution_engine import CommandSanitizer, SecurityError
+        import random
+        import string
+        
+        # Generate garbage inputs
+        for _ in range(100):
+            # Random bytes as string
+            garbage = "".join(random.choices(string.printable, k=random.randint(10, 500)))
+            
+            # Injection characters
+            garbage += "; rm -rf /"
+            
+            try:
+                # Should either sanitize or raise SecurityError, NEVER crash
+                CommandSanitizer.sanitize(garbage)
+            except SecurityError:
+                pass
+            except Exception as e:
+                self.fail(f"Execution Engine crashed on fuzz input: {garbage[:20]}... Error: {e}")
     
     @patch('subprocess.Popen')
     def test_execute_safe_command(self, mock_popen):

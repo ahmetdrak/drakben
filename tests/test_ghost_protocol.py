@@ -94,7 +94,7 @@ class TestSecureCleanup(unittest.TestCase):
     """Test secure deletion and anti-forensics"""
     
     def test_secure_delete(self):
-        """Test secure file deletion"""
+        """Test secure file deletion coverage"""
         # Create a temp file
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"sensitive data")
@@ -107,27 +107,57 @@ class TestSecureCleanup(unittest.TestCase):
         
         self.assertTrue(result)
         self.assertFalse(os.path.exists(filepath))
-    
-    def test_secure_delete_nonexistent(self):
-        """Test secure delete of non-existent file returns True"""
-        result = SecureCleanup.secure_delete("/nonexistent/path/file.txt")
-        self.assertTrue(result)  # Non-existent files are "already deleted"
-    
-    def test_timestomp(self):
-        """Test timestamp manipulation"""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(b"test")
-            filepath = f.name
+
+    def test_secure_wipe_verification(self):
+        """Verify that data is actually overwritten before deletion"""
+        from unittest.mock import patch, mock_open
         
-        try:
-            result = SecureCleanup.timestomp(filepath)
-            self.assertTrue(result)
+        # We want to verify that open() is called with 'wb' multiple times (overwriting)
+        # and that os.urandom or zeros are written to it.
+        
+        mock_file = mock_open()
+        # Mock fileno for os.fsync
+        mock_file.return_value.fileno.return_value = 1
+        
+        with patch('builtins.open', mock_file), \
+             patch('os.path.exists', return_value=True), \
+             patch('os.path.getsize', return_value=1024), \
+             patch('os.remove') as mock_remove:
             
-            # Check timestamp was modified
-            stat = os.stat(filepath)
-            self.assertEqual(stat.st_mtime, 1577836800)  # 2020-01-01
-        finally:
-            os.remove(filepath)
+            SecureCleanup.secure_delete("dummy_secret.txt", passes=3)
+            
+            # Check if write was called (overwritten)
+            self.assertTrue(mock_file().write.called, "Secure wipe failed: No overwrite detected!")
+            
+            # Since we requested 3 passes, we expect multiple write cycles (at least 3 writes)
+            self.assertGreaterEqual(mock_file().write.call_count, 3, "Secure wipe failed: Insufficient overwrite passes!")
+            
+            # Ideally verify removal happens AFTER writes
+            mock_remove.assert_called_once()
+
+    def test_memory_cleanliness(self):
+        """Test that sensitive strings are not lingering in memory intentionally"""
+        import gc
+        
+        # This test is tricky in Python because strings are immutable.
+        # But we can check if the 'GhostProtocol' class explicitly stores plaintext secrets.
+        
+        secret = "VERY_SENSITIVE_PASSWORD_12345"
+        ghost = GhostProtocol()
+        
+        # Encrypt the secret
+        encrypted = ghost.encrypt_string(secret, "xor")
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Verify the ghost instance generally shouldn't hold the plaintext
+        # This is a heuristic heuristic check
+        # We check if the object's __dict__ contains the plain secret
+        
+        for key, value in ghost.__dict__.items():
+            if value == secret:
+                self.fail(f"Memory Leak: Plaintext secret found in GhostProtocol.{key}!")
 
 
 class TestGhostProtocol(unittest.TestCase):

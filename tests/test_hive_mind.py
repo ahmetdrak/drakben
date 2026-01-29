@@ -180,6 +180,39 @@ class TestADAnalyzer(unittest.TestCase):
         self.assertEqual(path.source, source)
         self.assertEqual(path.target, target)
 
+    def test_cyclic_attack_path(self):
+        """Test detection and prevention of infinite attack loops (A->B->A)"""
+        # Set up a circular graph
+        hosts = {
+            "HostA": NetworkHost(ip="10.0.0.1", ports=[22]), # Has key to B
+            "HostB": NetworkHost(ip="10.0.0.2", ports=[22]), # Has key to A
+        }
+        
+        # This implementation requires the mocked logic to support graph traversal
+        # Since the current 'calculate_attack_path' is a placeholder, 
+        # we will verify that it doesn't crash or return an infinite list
+        
+        path = self.analyzer.calculate_attack_path("HostA", "HostB", [], hosts)
+        
+        if path:
+            # Ensure no duplicates in hops
+            self.assertEqual(len(path.hops), len(set(path.hops)), "Cycle detected in attack path!")
+
+    def test_scope_enforcement(self):
+        """Test that attack paths do not include out-of-scope targets"""
+        source = "192.168.1.1"
+        target = "8.8.8.8" # Out of scope
+        
+        # If we explicitly define authorized_scope (to be implemented), this should fail
+        # For now, we ensure the function handles unknown targets gracefully
+        
+        hosts = {source: NetworkHost(ip=source)}
+        
+        path = self.analyzer.calculate_attack_path(source, target, [], hosts)
+        
+        # Should detect target is unreachable or not in discovered hosts
+        self.assertIsNone(path, "Attack path generated for unknown/out-of-scope target!")
+
 
 class TestLateralMover(unittest.TestCase):
     """Test lateral movement engine"""
