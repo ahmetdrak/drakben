@@ -38,7 +38,7 @@ class SmartFuzzer:
         ]
         logger.info("Smart Fuzzer initialized")
         
-    def mutate(self, data: bytes, aggressiveness: float = 0.1) -> bytes:
+    def mutate(self, data: bytes, _aggressiveness: float = 0.1) -> bytes:
         """
         Apply random mutations to input data.
         """

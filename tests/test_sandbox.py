@@ -22,13 +22,7 @@ from core.sandbox_manager import (
 class TestSandboxManagerBasic(unittest.TestCase):
     """Basic tests that work without Docker"""
     
-    def test_import(self):
-        """Test that module imports correctly"""
-        self.assertIsNotNone(SandboxManager)
-        self.assertIsNotNone(ContainerStatus)
-        self.assertIsNotNone(ContainerInfo)
-        self.assertIsNotNone(ExecutionResult)
-    
+
     def test_initialization(self):
         """Test manager initialization"""
         manager = SandboxManager()

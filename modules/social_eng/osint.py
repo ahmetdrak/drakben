@@ -18,7 +18,7 @@ class TargetPerson:
     full_name: str
     role: str = "Unknown"
     email: Optional[str] = None
-    social_profiles: List[str] = None
+    social_profiles: Optional[List[str]] = None
     psych_profile: Optional[str] = None
 
 class OSINTSpider:

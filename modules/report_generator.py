@@ -604,7 +604,7 @@ class ReportGenerator:
         </div>
         """
 
-    def _generate_ai_insight(self, critical: int, high: int, risk: int) -> str:
+    def _generate_ai_insight(self, _critical: int, _high: int, risk: int) -> str:
         """Generate C-Level insight using simulated LLM logic"""
         # In a real scenario, this communicates with UniversalAdapter's LLM
         insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"

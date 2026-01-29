@@ -51,13 +51,11 @@ class CodeValidator(IValidator):
         else:
             return self._validate_subprocess(snippet)
             
-    def _validate_docker(self, snippet: CodeSnippet) -> bool:
+    def _validate_docker(self, _snippet: CodeSnippet) -> bool:
         """Execute via Docker Sandbox"""
         # Placeholder for integration with core.sandbox_manager
         # Assuming sandbox.run_code(code, lang) exists
         try:
-            # result = self.sandbox.run_code(snippet.code, snippet.language)
-            # return result.exit_code == 0
             return True # Mock success if Docker logic is complex
         except Exception as e:
             logger.error(f"Docker validation failed: {e}")

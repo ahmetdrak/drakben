@@ -258,34 +258,36 @@ class CredentialHarvester:
             pass
         return found_in_file
 
-    def harvest_config_files(self, search_paths: List[str] = None) -> List[Credential]:
-        """
-        Search config files for embedded credentials (Refactored for complexity).
-        """
-        if search_paths is None:
-            search_paths = [os.path.expanduser("~")]
-            
-        found = []
-        config_patterns = ["*.conf", "*.cfg", "*.ini", "*.yaml", "*.yml", ".env", ".netrc", ".pgpass", ".my.cnf"]
-        password_regex = re.compile(
-            r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?([^"\'\s\n]+)',
-            re.IGNORECASE
-        )
-        
+    def _get_config_files(self, search_paths: List[str], patterns: List[str]):
+        """Generator for relevant config files"""
         for search_path in search_paths:
-            if not os.path.exists(search_path): continue
-            
+            if not os.path.exists(search_path):
+                continue
             for root, dirs, files in os.walk(search_path):
                 dirs[:] = [d for d in dirs if not d.startswith('.')]
                 for filename in files:
                     filepath = os.path.join(root, filename)
-                    if not any(filepath.endswith(p.replace("*", "")) for p in config_patterns):
-                        if not any(p.replace("*", "") in filename for p in config_patterns):
-                            continue
-                    
-                    file_creds = self._parse_config_file(filepath, password_regex)
-                    found.extend(file_creds)
-                    self.harvested.extend(file_creds)
+                    # Simple filter check
+                    if any(filepath.endswith(p.replace("*", "")) for p in patterns) or \
+                       any(p.replace("*", "") in filename for p in patterns):
+                        yield filepath
+
+    def harvest_config_files(self, search_paths: List[str] = None) -> List[Credential]:
+        """Search config files for embedded credentials (Modularized)"""
+        if search_paths is None:
+            search_paths = [os.path.expanduser("~")]
+            
+        found = []
+        patterns = ["*.conf", "*.cfg", "*.ini", "*.yaml", "*.yml", ".env", ".netrc", ".pgpass", ".my.cnf"]
+        password_regex = re.compile(
+            r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?([^"\'\s]+)',
+            re.IGNORECASE
+        )
+        
+        for filepath in self._get_config_files(search_paths, patterns):
+            file_creds = self._parse_config_file(filepath, password_regex)
+            found.extend(file_creds)
+            self.harvested.extend(file_creds)
         
         return found
     
@@ -876,7 +878,7 @@ class HiveMind:
         
         return discovered
     
-    def find_attack_paths(self, target: str = "Domain Admin") -> List[AttackPath]:
+    def find_attack_paths(self, _target: str = "Domain Admin") -> List[AttackPath]:
         """
         Find attack paths to target.
         

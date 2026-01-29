@@ -1879,7 +1879,7 @@ Respond in JSON:
              logger.error(f"Singularity error: {e}")
              return {"success": False, "error": f"Singularity error: {e}"}
 
-    def _execute_osint(self, tool_name: str, args: Dict) -> Dict:
+    def _execute_osint(self, _tool_name: str, args: Dict) -> Dict:
         """Execute OSINT tools"""
         try:
             from modules.social_eng.osint import PassiveRecon

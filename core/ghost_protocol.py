@@ -270,7 +270,6 @@ class PolymorphicTransformer(ast.NodeTransformer):
     def _inject_dead_code_blocks(self, tree: ast.Module) -> ast.Module:
         """Inject dead code blocks that never execute"""
         dead_code_templates = [
-            # if False: block
             ast.If(
                 test=ast.Constant(value=False),
                 body=[

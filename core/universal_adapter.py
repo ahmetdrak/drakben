@@ -271,9 +271,8 @@ class DependencyResolver:
         elif self.system == "darwin":
             if shutil.which("brew"):
                 return PackageManager.BREW
-        elif self.system == "windows":
-            if shutil.which("choco"):
-                return PackageManager.CHOCO
+        elif self.system == "windows" and shutil.which("choco"):
+            return PackageManager.CHOCO
         
         return None
     
@@ -398,9 +397,9 @@ class DependencyResolver:
         
         # 2. Try installation methods
         if self._install_via_package_manager(tool_name, tool_def.install_commands, result):
-            pass
+            return result
         elif self._install_via_pip(tool_name, tool_def.install_commands, result):
-            pass
+            return result
         else:
             result["message"] = f"No installation method available for {tool_name} on {self.system}"
         

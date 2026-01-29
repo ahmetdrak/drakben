@@ -143,5 +143,3 @@ def test_tool_registry_integrity():
         
     print(f"\n✅ INTEGRITY CHECK PASSED: All {len(critical_tools)} critical subsystems are integrated.")
 
-if __name__ == "__main__":
-    pass
