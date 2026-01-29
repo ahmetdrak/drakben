@@ -273,7 +273,11 @@ class CredentialHarvester:
                         yield filepath
 
     def harvest_config_files(self, search_paths: List[str] = None) -> List[Credential]:
-        """Search config files for embedded credentials (Modularized)"""
+        """
+        Search config files for embedded credentials.
+        Architecture: Uses a generator for memory-efficient file discovery and 
+        centralized parsing to maintain low cognitive complexity.
+        """
         if search_paths is None:
             search_paths = [os.path.expanduser("~")]
             
