@@ -51,8 +51,7 @@ class SelfHealer:
 
         if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
             self.console.print(
-                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{
-                    self.MAX_SELF_HEAL_PER_TOOL})", style="yellow")
+                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})", style="yellow")
             # Record failure in agent's tool selector
             if hasattr(self.agent, "tool_selector"):
                 self.agent.tool_selector.record_tool_failure(tool_name)
