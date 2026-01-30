@@ -3,7 +3,7 @@
 # DRAKBEN - Autonomous Pentesting Agent
 # Dracula Theme Edition
 
-from logging import Logger
+import logging
 import os
 import sys
 from pathlib import Path

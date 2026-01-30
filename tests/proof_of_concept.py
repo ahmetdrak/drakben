@@ -112,7 +112,9 @@ async def main():
         start_t = time.time()
         tasks = []
         for i in range(100):
-            tasks.append(asyncio.to_thread(lambda: db.execute("SELECT 1").fetchone()))
+            def log_task(d=db):
+                return d.execute("SELECT 1").fetchone()
+            tasks.append(asyncio.to_thread(log_task))
 
         await asyncio.gather(*tasks)
         duration = time.time() - start_t

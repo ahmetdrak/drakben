@@ -965,7 +965,7 @@ class DrakbenMenu:
             )
             self.console.print(f"[bold red]❌ {err_msg}[/]")
 
-    def _create_system_table(self, lang) -> Table:
+    def _create_system_table(self, lang) -> "Table":
         from rich.table import Table
 
         sys_table = Table(show_header=False, box=None, padding=(0, 1))
@@ -985,7 +985,7 @@ class DrakbenMenu:
         sys_table.add_row("🔧 Tools", f"[cyan]{len(tools)}[/] available")
         return sys_table
 
-    def _create_agent_table(self) -> Table:
+    def _create_agent_table(self) -> "Table":
         from rich.table import Table
 
         state: AgentState | None = self.agent.state

@@ -758,8 +758,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
             engine.mutate_profile(profile.profile_id)
 
             # Should create new profile
-            _, _ = engine.select_strategy_and_profile("192.168.1.1")
-            # New profile should be different (or same if mutation didn't create new)
+            _, profile2 = engine.select_strategy_and_profile("192.168.1.1")
+            # New profile should be different
             self.assertIsNotNone(profile2)
         except Exception as e:
             self.skipTest(f"Profile mutation test failed: {e}")
