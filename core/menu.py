@@ -790,7 +790,7 @@ class DrakbenMenu:
             if self.agent.planner and self.agent.planner.steps:
                 plan_title = "📋 Mission Plan" if lang == "en" else "📋 Görev Planı"
                 self.console.print(Panel(
-                    self._create_plan_table(lang),
+                    self._create_plan_table(),
                     title=f"[bold {self.COLORS['pink']}]{plan_title}[/]",
                     border_style=self.COLORS["pink"],
                     padding=(0, 1)
@@ -805,7 +805,7 @@ class DrakbenMenu:
         ))
         self.console.print()
 
-    def _create_plan_table(self, lang: str) -> Table:
+    def _create_plan_table(self) -> Table:
         """Create a table showing current plan steps"""
         from rich.table import Table
         from core.planner import StepStatus

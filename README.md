@@ -1,139 +1,139 @@
 # 🩸 DRAKBEN V2 - Autonomous Cognitive Pentest AI
 
-> **The Next Generation of Autonomous offensive Security Orchestration.**
-> *Drakben is not just a tool; it's a self-evolving autonomous operative designed to bridge the gap between human reasoning and machine-speed exploitation.*
+> **The Singularity of Offensive Security.**
+> *Drakben is not merely a tool; it is a self-evolving, cognitive artificial lifeform designed to bridge the gap between human intuition and machine-speed exploitation.*
 
-[![Python](https://img.shields.io/badge/Python-3.10+-red?style=flat-square&logo=python)](https://python.org)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20|%20Windows-000?style=flat-square&logo=terminal)](https://github.com/ahmetdrak/drakben)
-[![Intelligence](https://img.shields.io/badge/Core-Self--Refining%20Engine-9333ea?style=flat-square&logo=intel)](https://github.com/ahmetdrak/drakben)
-[![License](https://img.shields.io/badge/License-MIT-red?style=flat-square)](LICENSE)
+<div align="center">
 
----
+[![Python](https://img.shields.io/badge/Python-3.10+-red?style=for-the-badge&logo=python)](https://python.org)
+[![Core](https://img.shields.io/badge/Intel-Self--Refining%20Engine-9333ea?style=for-the-badge&logo=openai)](https://github.com/ahmetdrak/drakben)
+[![Technique](https://img.shields.io/badge/Stealth-Ghost%20Protocol-000?style=for-the-badge&logo=kali-linux)](https://github.com/ahmetdrak/drakben)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-## 🌩️ Vision & Concept
-Drakben V2 is an **Autonomous Cognitive Pentest AI** that utilizes a persistent evolution loop. Unlike traditional scanners, Drakben simulates a real threat actor's thought process, combining reconnaissance, vulnerability research, and custom tool synthesis.
-
-Built on the **Self-Refining Evolving Agent** architecture, it dreams, iterates, and adapts its strategies based on successful or failed outcomes, stored in a persistent SQLite neural-state.
+</div>
 
 ---
 
-## 🧪 Core Architectural Pillars
+## 🌩️ Vision: The Cognitive Attacker
+
+Drakben V2 abandons legacy "scanner" logic in favor of a **Cognitive Loop**. It doesn't just run scripts; it *thinks*, *plans*, *fails*, *learns*, and *evolves*.
+
+By leveraging a persistent **Neural State (SQLite + Vector Memory)**, Drakben remembers every interaction. If an attack fails against a specific WAF or EDR, it mutates its strategy, records the failure in its `SelfRefiningEngine`, and spawns a new behavioral profile for the next attempt.
+
+---
+
+## � Architectural DNA
 
 ### 🧠 1. Neural Orchestration (The Brain)
-- **Refactored Agent (V2 Hub):** The central command unit managing sub-engines and tool dispatching.
-- **Self-Refining Engine:** A closed-loop optimization system that mutates attack strategies based on failure analysis.
-- **Brain.py:** The reasoning layer that maps high-level goals into actionable technical plans.
+The decision-making core that emulates a senior Red Teamer's intuition.
+- **Self-Refining Engine:** A genetic algorithm that optimizes attack strategies over generations.
+- **Strategy Profiles:** Dynamic behavioral templates (e.g., "Stealthy-Low-Noise", "Aggressive-Smash-Grab").
+- **Adaptive Planning:** Real-time replanning based on target responses (403 Forbidden? -> Switch to Domain Fronting).
 
-### ⚡ 2. Singularity Engine (Self-Coding)
-- **Dynamic Synthesis:** When a required tool is missing, Drakben uses its `Coder` module to write, test, and validate custom Python scripts on the fly.
-- **AST Validation:** All AI-generated code passes through an Abstract Syntax Tree (AST) security checker to prevent self-sabotage or dangerous execution.
+### ⚡ 2. Singularity Engine (Dynamic Code Synthesis)
+When pre-built tools fail, Drakben builds its own.
+- **Just-In-Time (JIT) Coding:** Generates custom Python/C++ tools on the fly for unique scenarios.
+- **Secure Sandbox:** Validates all AI-generated code via AST parsing and Docker sandboxing before execution.
+- **Self-Healing:** Detects runtime errors in its own modules and attempts to patch them automatically.
 
-### 🎭 3. Ghost Protocol (Evasion & Stealth)
-- **Polymorphic Obfuscation:** Dynamically mutates payload structures to evade signature-based detection.
-- **Memory Forensics Protection:** Includes a specialized `RAMCleaner` to securely wipe sensitive credentials and attack artifacts from system memory.
-- **Anti-Forensics:** Automatic cleanup of temporary files, shell history, and execution artifacts.
+### ⚔️ 3. Weapon Foundry (Advanced Payload Lab)
+A fully automated arsenal for generating military-grade malware.
+- **Polymorphic Engine:** Mutates payload signatures on every generation to bypass static analysis.
+- **Encryption Standards:** Native support for **AES-256**, **ChaCha20**, **RC4**, and **Multi-layer XOR**.
+- **Formatted Payloads:** Generates `.exe`, `.dll`, `.elf`, `.ps1`, `.hta`, `.vbs`, and Polyglots.
+- **Anti-Analysis:** Built-in anti-debug, anti-sandbox, and time-accelerated sleep techniques.
 
-### �️ 4. HiveMind (Network Supremacy)
-- **Autonomous Mapping:** Discovers and classifies network hosts, services, and attack paths.
-- **Lateral Movement Plan:** Uses graph-based reasoning to find the shortest path to the domain controller or high-value targets.
+### 👻 4. Ghost Protocol (Stealth & Evasion)
+Drakben operates in the shadows, leaving zero evidence.
+- **RAM Wiper:** Specialized `RAMCleaner` class ensuring sensitive credentials are scrubbed from memory immediately after use.
+- **Forensic Cleanse:** Automates the removal of event logs, prefetch files, and shell history.
+- **Obfuscation:** Code and traffic are heavily obfuscated to mimic legitimate administrator activity.
+
+### 🕸️ 5. HiveMind (Network Supremacy)
+Intelligent lateral movement and domain dominance.
+- **Active Directory Assualt:** Kerberoasting, AS-REP Roasting, DCSync, and ZeroLogon checks.
+- **BloodHound Integration:** Graph-based pathfinding to identify the shortest route to Domain Admin.
+- **Lateral Movement:** Pass-the-Hash (PtH), Pass-the-Ticket (PtT), WMIExec, and WinRM pivoting.
+
+### 📡 6. C2 Framework (Command & Control)
+Enterprise-grade communication channels meant to survive deep packet inspection.
+- **Domain Fronting:** Hides traffic behind legitimate CDNs (e.g., Cloudflare, Azure).
+- **DNS Tunneling:** Fallback covert channel encoding data in DNS TXT records.
+- **Jitter Engine:** Randomized beacon intervals with statistical noise to defeat traffic analysis.
 
 ---
 
 ## 📁 System Blueprint
 
+The architecture is modular, scalable, and built for speed.
+
 ```bash
 drakben/
-├── drakben.py                  # Core Entry Point & Interactive CLI
+├── drakben.py                  # Core Entry Point (Interactive CLI)
 ├── core/
-│   ├── refactored_agent.py      # Main Orchestrator (V2)
-│   ├── brain.py                 # Cognitive Decision Layer
-│   ├── state.py                 # Persistent Agent State & Neural Memory
-│   ├── self_refining_engine.py   # Strategy Mutation & Genetic Loop
-│   ├── execution_engine.py      # Hardened Execution Hub & Sandbox
-│   ├── ghost_protocol.py        # Stealth, Evasion & Anti-Forensics
-│   ├── coder.py                 # AI Self-Coding & Tool Synthesis
-│   └── universal_adapter.py     # MCP Hardware/Software Interface
+│   ├── refactored_agent.py      # V2 Orchestrator & Logic Hub
+│   ├── self_refining_engine.py  # Genetic Strategy Optimization
+│   ├── ghost_protocol.py        # Forensics Evasion & RAM Cleaning
+│   └── singularity/             # AI Code Synthesis & Validation
 ├── modules/
-│   ├── hive_mind.py             # Network Recon & Lateral Movement
-│   ├── weapon_foundry.py        # Advanced Payload Generation Lab
-│   ├── c2_framework.py          # Hardened Command & Control (TLS)
-│   └── recon.py                 # OSINT & Attack Surface Enumeration
-├── config/                      # Neural settings & API Environments
-├── tests/                       # High-coverage Test Suite (Pytest)
-└── drakben_evolution.db         # Persistent Neural Database
+│   ├── weapon_foundry.py        # Payload Generation (AES/XOR/Poly)
+│   ├── hive_mind.py             # Active Directory & Lateral Move
+│   ├── c2_framework.py          # Domain Fronting & DNS Tunneling
+│   └── ad_attacks.py            # Kerberoasting/DCSync Implementation
+└── drakben_evolution.db         # Persistent Neural Knowledge Base
 ```
 
 ---
 
-## ⚙️ Deployment
+## ⚙️ Deployment & Usage
 
-### Prerequisites
-- Python 3.10+
-- Nmap, Metasploit (optional, but recommended for full capability)
-- API Keys for AI Providers (Ollama, OpenAI, or OpenRouter)
+### 🐳 Docker (Recommended)
+Deploy the full offensive stack in seconds.
 
-### Installation (The Quick Way)
+```bash
+# Production Deployment
+docker-compose up -d --build
+docker exec -it drakben python3 drakben.py
+```
+
+### 🐍 Manual Installation
 ```bash
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
-python -m venv .venv
-# Linux:
-source .venv/bin/activate
-# Windows:
-.\.venv\Scripts\activate.ps1
-
 pip install -r requirements.txt
 python drakben.py
 ```
 
-### 🐳 Docker Deployment (Recommended)
-Deploy Drakben in a pre-configured Kali environment with all dependencies and tools pre-installed.
+---
 
-**Using Docker Compose:**
-```bash
-docker-compose up -d
-docker exec -it drakben python3 drakben.py
-```
+## 🎮 Command Center & Interaction
 
-**Using Dockerfile:**
-```bash
-docker build -t drakben .
-docker run -it --name drakben drakben
-```
+Drakben prioritizes **Natural Language Interaction**. You lead; it executes.
+
+### �️ Conversational Commands
+> *"Scan 10.10.10.5 for high-risk vulnerabilities and attempt to exploit SMB."*
+> *"Create a FUD reverse shell payload using AES encryption and save it as update.exe."*
+> *"I have domain admin credentials. Map the network and find the backup server."*
+
+### 💻 System Controls
+| Command | Description |
+|:--- |:--- |
+| **`/target <IP>`** | Lock onto a new target scope. |
+| **`/status`** | View live neural state, evolution generation, and active plan. |
+| **`/report`** | Compile a professional HTML/PDF penetration test report. |
+| **`/llm`** | Configure AI backend (Ollama, OpenAI, Anthropic). |
+| **`/shell`** | Drop into a raw system shell (use with caution). |
 
 ---
 
-## 🎮 How to Interact with Drakben
-
-Drakben is powered by an LLM-driven reasoning engine. You don't need to memorize complex syntax; just tell the agent what you want to achieve.
-
-### 🗨️ Natural Language Examples
-- *"Analyze 192.168.1.10 and find a way to get a root shell."*
-- *"Scan example.com for subdomains and check for common web vulnerabilities."*
-- *"I have a hash: `5d41402abc4b2a76b9719d911017c592`. Try to crack it and see where we can use it."*
-- *"Generate a polymorphic python payload that calls back to my IP on port 4444."*
-
-### ⚡ Direct System Control (Slash Commands)
-While natural language handles the mission, use these for quick system control:
-- `/target <IP>` - Instantly lock a target.
-- `/status` - Check the agent's neural state and current plan.
-- `/report` - Compile all findings into a final document.
-- `/clear` - Refresh the terminal UI.
-- `/exit` - Securely shut down the agent.
-
----
-
-## ⚠️ Legal & Ethical Notice
-**Drakben is developed for authorized security research and professional penetration testing only.** Usage of this software for attacking targets without prior mutual consent is illegal. The developers assume no liability for misuse or damage caused by this program.
-
----
-
-## 📄 License
-Released under the **MIT License**. See [LICENSE](LICENSE) for details.
+## ⚠️ Compliance & Disclaimer
+**Drakben is a specialized tool for authorized security professionals.**
+Usage for unauthorized attacks is strictly prohibited. The developers assume no liability for misuse.
+*Always obtain written consent before scanning any network.*
 
 ---
 
 <p align="center">
-  <b>Elevating Security Through Autonomous Intelligence</b><br>
-  Developed by <a href="https://github.com/ahmetdrak">@ahmetdrak</a>
+  <b>Developed by <a href="https://github.com/ahmetdrak">@ahmetdrak</a></b><br>
+  <i>Forging the Future of Autonomous Cyber Weaponry</i>
 </p>
