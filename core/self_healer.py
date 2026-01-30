@@ -68,8 +68,7 @@ class SelfHealer:
 
         if error_diagnosis["type"] != "unknown":
             self.console.print(
-                f"🔍 Hata teşhisi: {
-                    error_diagnosis['type_tr']}",
+                f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}",
                 style="yellow")
 
         # Increment counter
