@@ -56,7 +56,6 @@ class ToolSelector:
     - Deterministic: Rule-based selection
     """
 
-
     def evolve_strategies(self, evolution_memory):
         """
         EVOLUTION MODULE: Update strategy based on success rates in memory.
@@ -76,11 +75,13 @@ class ToolSelector:
         else:
             logger.debug("Evolution: No changes needed")
 
-    def _update_tool_priority_from_memory(self, tool_name: str, evolution_memory) -> bool:
+    def _update_tool_priority_from_memory(
+        self, tool_name: str, evolution_memory
+    ) -> bool:
         """Update single tool priority based on evolution memory. Returns True if changed."""
         penalty = evolution_memory.get_penalty(tool_name)
         is_blocked = evolution_memory.is_tool_blocked(tool_name)
-        
+
         original_priority = self.tools[tool_name].priority
         new_priority = original_priority
 
@@ -98,10 +99,11 @@ class ToolSelector:
 
         if new_priority != original_priority:
             self.tools[tool_name].priority = new_priority
-            logger.info(f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})")
+            logger.info(
+                f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})"
+            )
             return True
         return False
-
 
     def update_tool_priority(self, tool_name: str, delta: int):
         """Update priority for a single tool"""
@@ -137,7 +139,7 @@ class ToolSelector:
         for name, spec in new_tools.items():
             self.tools[name] = spec
             count += 1
-        
+
         if count > 0:
             logger.info(f"Registered {count} external plugin tools.")
 
@@ -252,7 +254,7 @@ class ToolSelector:
                 phase_allowed=[AttackPhase.RECON, AttackPhase.POST_EXPLOIT],
                 risk_level="medium",
                 system_tool=False,
-                description="Swarm intelligence network scan for lateral movement targets"
+                description="Swarm intelligence network scan for lateral movement targets",
             ),
             "hive_mind_attack": ToolSpec(
                 name="hive_mind_attack",
@@ -262,7 +264,7 @@ class ToolSelector:
                 requires_foothold=True,
                 risk_level="critical",
                 system_tool=False,
-                description="Perform lateral movement attacks (SSH/Pass-the-Hash)"
+                description="Perform lateral movement attacks (SSH/Pass-the-Hash)",
             ),
             # WEAPON FOUNDRY (CUSTOM PAYLOADS)
             "generate_payload": ToolSpec(
@@ -272,17 +274,21 @@ class ToolSelector:
                 phase_allowed=[AttackPhase.EXPLOIT, AttackPhase.FOOTHOLD],
                 risk_level="medium",
                 system_tool=False,
-                description="Generate FUD payloads using WeaponFoundry (Anti-Debug/Encryption)"
+                description="Generate FUD payloads using WeaponFoundry (Anti-Debug/Encryption)",
             ),
             # SINGULARITY (CODE SYNTHESIS)
             "synthesize_code": ToolSpec(
                 name="synthesize_code",
                 category=ToolCategory.EXPLOIT,
                 command_template="INTERNAL_MODULE",
-                phase_allowed=[AttackPhase.EXPLOIT, AttackPhase.RECON, AttackPhase.POST_EXPLOIT],
+                phase_allowed=[
+                    AttackPhase.EXPLOIT,
+                    AttackPhase.RECON,
+                    AttackPhase.POST_EXPLOIT,
+                ],
                 risk_level="high",
                 system_tool=False,
-                description="Generate custom Python/Go scripts for unique attack vectors"
+                description="Generate custom Python/Go scripts for unique attack vectors",
             ),
             # SOCIAL ENGINEERING (OSINT)
             "osint_scan": ToolSpec(
@@ -292,7 +298,7 @@ class ToolSelector:
                 phase_allowed=[AttackPhase.RECON],
                 risk_level="low",
                 system_tool=False,
-                description="Perform OSINT and profile target"
+                description="Perform OSINT and profile target",
             ),
             # ADVANCED / CREATIVE tools
             "generic_command": ToolSpec(
@@ -375,11 +381,11 @@ class ToolSelector:
     ) -> Optional[Tuple[str, Dict[str, Any]]]:
         """
         Select appropriate tool for a specific attack surface.
-        
+
         Args:
             state: Current agent state
             surface: Attack surface string (format: "port:service")
-            
+
         Returns:
             Tuple of (tool_name, params_dict) or None if no suitable tool
         """
@@ -527,7 +533,9 @@ class ToolSelector:
 
         return None
 
-    def _recommend_surface_scan(self, state: AgentState, surface: str) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_surface_scan(
+        self, state: AgentState, surface: str
+    ) -> Optional[Tuple[str, str, Dict]]:
         """Recommend a scan action for a specific surface"""
         tool_result = self.select_tool_for_surface(state, surface)
         if tool_result:
@@ -535,7 +543,9 @@ class ToolSelector:
             return ("scan_surface", tool_name, args)
         return None
 
-    def _recommend_phase_transition(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_phase_transition(
+        self, state: AgentState
+    ) -> Optional[Tuple[str, str, Dict]]:
         """Recommend a phase transition if applicable"""
         # No more surfaces to test in current phase
         if state.phase == AttackPhase.RECON and state.open_services:

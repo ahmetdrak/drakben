@@ -6,17 +6,18 @@ Description: Generates functional code using LLM prompts and AST validation.
 
 import ast
 import logging
-from typing import Optional, Dict, Any, List
+from typing import List
 from .base import ISynthesizer, CodeSnippet
 
 logger = logging.getLogger(__name__)
+
 
 class CodeSynthesizer(ISynthesizer):
     """
     Generates code specific to attack requirements.
     Uses Available LLM (via MCP or API) to write Python/Go/Bash tools.
     """
-    
+
     def __init__(self, model: str = "gpt-4o"):
         self.model = model
         self.system_prompt = """
@@ -27,27 +28,27 @@ class CodeSynthesizer(ISynthesizer):
         - Include error handling and logging.
         """
         logger.info(f"Synthesizer initialized (Target Model: {model})")
-    
+
     def generate_tool(self, description: str, language: str = "python") -> CodeSnippet:
         """
         Generate a new tool based on description.
-        
+
         Args:
             description: What the tool should do (e.g. "port scanner with banner grabbing")
             language: Target language
-            
+
         Returns:
             CodeSnippet object
         """
         logger.info(f"Synthesizing tool: {description} ({language})")
-        
+
         # 1. Construct Prompt
         prompt = f"Write a {language} script that performs: {description}"
-        
+
         # 2. Call LLM (Placeholder for actual API call)
         # In a real scenario, this would call UniversalAdapter's LLM Client
         generated_code = self._mock_llm_call(prompt, language)
-        
+
         # 3. Validate Syntax (Python only)
         if language.lower() == "python":
             if not self._validate_python_syntax(generated_code):
@@ -57,24 +58,26 @@ class CodeSynthesizer(ISynthesizer):
                     language=language,
                     purpose=description,
                     dependencies=[],
-                    is_validated=False
+                    is_validated=False,
                 )
-        
+
         # 4. Extract Dependencies (Basic parsing)
         deps = self._extract_dependencies(generated_code, language)
-        
+
         return CodeSnippet(
             code=generated_code,
             language=language,
             purpose=description,
             dependencies=deps,
-            is_validated=False  # Needs Sandbox testing
+            is_validated=False,  # Needs Sandbox testing
         )
 
     def refactor_code(self, code: str) -> CodeSnippet:
         """Refactor code for performance or stealth"""
         # Placeholder for refactoring logic
-        return CodeSnippet(code=code, language="python", purpose="refactor", dependencies=[])
+        return CodeSnippet(
+            code=code, language="python", purpose="refactor", dependencies=[]
+        )
 
     def _mock_llm_call(self, prompt: str, _language: str) -> str:
         """Simulate LLM response for testing"""
@@ -124,12 +127,12 @@ if __name__ == "__main__":
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for n in node.names:
-                        deps.append(n.name.split('.')[0])
+                        deps.append(n.name.split(".")[0])
                 elif isinstance(node, ast.ImportFrom) and node.module:
-                    deps.append(node.module.split('.')[0])
+                    deps.append(node.module.split(".")[0])
         except SyntaxError:
             pass
         except Exception as e:
             logger.warning(f"Failed to extract deps: {e}")
-            
+
         return list(set(deps))

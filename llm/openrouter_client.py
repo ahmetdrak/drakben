@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Dict, Optional, Tuple, Any, List, Callable, Union, Iterator
+from typing import Dict, Optional, Callable, Iterator
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -36,6 +36,7 @@ except ImportError:
 @dataclass
 class CacheEntry:
     """Cache entry for LLM responses"""
+
     response: str
     timestamp: float
     ttl: float  # Time to live in seconds
@@ -46,11 +47,11 @@ class LLMCache:
     Thread-safe LLM response cache.
     Reduces API costs and improves response time for repeated queries.
     """
-    
+
     def __init__(self, default_ttl: float = 300.0, max_entries: int = 1000):
         """
         Initialize cache.
-        
+
         Args:
             default_ttl: Default time-to-live for cache entries (seconds)
             max_entries: Maximum number of cache entries
@@ -61,59 +62,68 @@ class LLMCache:
         self.max_entries = max_entries
         self._hits = 0
         self._misses = 0
-    
+
     def _generate_key(self, prompt: str, system_prompt: str, model: str) -> str:
         """Generate unique cache key from prompt, system prompt, and model"""
         content = f"{model}:{system_prompt}:{prompt}"
         return hashlib.sha256(content.encode()).hexdigest()
-    
+
     def get(self, prompt: str, system_prompt: str, model: str) -> Optional[str]:
         """
         Get cached response if available and not expired.
-        
+
         Returns:
             Cached response or None if not found/expired
         """
         key = self._generate_key(prompt, system_prompt, model)
-        
+
         with self._lock:
             entry = self._cache.get(key)
             if entry is None:
                 self._misses += 1
                 return None
-            
+
             # Check if expired
             if time.time() - entry.timestamp > entry.ttl:
                 del self._cache[key]
                 self._misses += 1
                 return None
-            
+
             self._hits += 1
             return entry.response
-    
-    def set(self, prompt: str, system_prompt: str, model: str, response: str, ttl: Optional[float] = None):
+
+    def set(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str,
+        response: str,
+        ttl: Optional[float] = None,
+    ):
         """Store response in cache"""
         key = self._generate_key(prompt, system_prompt, model)
-        
+
         with self._lock:
             # Evict oldest entries if at capacity
             if len(self._cache) >= self.max_entries:
-                oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k].timestamp)
+                oldest_key = min(
+                    self._cache.keys(), key=lambda k: self._cache[k].timestamp
+                )
                 del self._cache[oldest_key]
-            
+
             self._cache[key] = CacheEntry(
                 response=response,
                 timestamp=time.time(),
-                ttl=ttl if ttl is not None else self.default_ttl
+                ttl=ttl if ttl is not None else self.default_ttl,
             )
-    
+
     def clear(self):
         """Clear all cache entries"""
         with self._lock:
             self._cache.clear()
             self._hits = 0
             self._misses = 0
-    
+
     def get_stats(self) -> Dict:
         """Get cache statistics"""
         with self._lock:
@@ -124,7 +134,7 @@ class LLMCache:
                 "hits": self._hits,
                 "misses": self._misses,
                 "hit_rate": hit_rate,
-                "max_entries": self.max_entries
+                "max_entries": self.max_entries,
             }
 
 
@@ -134,11 +144,11 @@ class RateLimiter:
     Prevents hitting rate limits by spacing out requests.
     Uses threading.Condition for efficient waiting instead of busy-polling.
     """
-    
+
     def __init__(self, requests_per_minute: int = 60, burst_size: int = 10):
         """
         Initialize rate limiter.
-        
+
         Args:
             requests_per_minute: Max sustained requests per minute
             burst_size: Max burst requests allowed
@@ -150,17 +160,17 @@ class RateLimiter:
         self._lock = Lock()
         self._condition = threading.Condition(self._lock)
         self._retry_after: Optional[float] = None
-    
+
     def acquire(self, timeout: float = 30.0) -> bool:
         """
         Acquire a token to make a request.
         Uses Condition.wait() for efficient blocking instead of busy-polling.
-        
+
         Returns:
             True if token acquired, False if timeout
         """
         deadline = time.time() + timeout
-        
+
         with self._condition:
             while True:
                 # Check if we're in a retry-after period
@@ -170,29 +180,31 @@ class RateLimiter:
                     # Refill tokens based on time passed
                     now = time.time()
                     elapsed = now - self.last_update
-                    self.tokens = min(self.burst_size, self.tokens + elapsed * self.rate)
+                    self.tokens = min(
+                        self.burst_size, self.tokens + elapsed * self.rate
+                    )
                     self.last_update = now
-                    
+
                     if self.tokens >= 1:
                         self.tokens -= 1
                         return True
-                    
+
                     wait_time = (1 - self.tokens) / self.rate
-                
+
                 # Check timeout
                 remaining = deadline - time.time()
                 if remaining <= 0:
                     return False
-                
+
                 # Efficient wait using Condition (releases lock while waiting)
                 actual_wait = min(wait_time, remaining, 1.0)  # Max 1 second wait
                 self._condition.wait(timeout=actual_wait)
-    
+
     def set_retry_after(self, seconds: float):
         """
         Set retry-after period from API response.
-        
-        Safety: Caps maximum wait time to 60 seconds to prevent 
+
+        Safety: Caps maximum wait time to 60 seconds to prevent
         indefinite blocking from malformed/malicious responses.
         """
         # Cap retry-after to maximum 60 seconds for safety
@@ -200,9 +212,13 @@ class RateLimiter:
         with self._lock:
             self._retry_after = time.time() + safe_seconds
             if seconds > 60.0:
-                logger.warning(f"Rate limit retry-after capped from {seconds}s to {safe_seconds}s")
+                logger.warning(
+                    f"Rate limit retry-after capped from {seconds}s to {safe_seconds}s"
+                )
             else:
-                logger.warning(f"Rate limit hit, waiting {safe_seconds}s before next request")
+                logger.warning(
+                    f"Rate limit hit, waiting {safe_seconds}s before next request"
+                )
 
 
 class OpenRouterClient:
@@ -212,7 +228,7 @@ class OpenRouterClient:
     - Ollama (local LLMs)
     - OpenAI Direct
     - Custom OpenAI-compatible APIs
-    
+
     Enhanced with:
     - Automatic retry with exponential backoff
     - Rate limiting to prevent 429 errors
@@ -221,15 +237,15 @@ class OpenRouterClient:
     """
 
     def __init__(
-        self, 
+        self,
         enable_cache: bool = True,
         cache_ttl: float = 300.0,
         max_retries: int = 3,
-        requests_per_minute: int = 60
+        requests_per_minute: int = 60,
     ):
         """
         Initialize LLM client.
-        
+
         Args:
             enable_cache: Enable response caching (default: True)
             cache_ttl: Cache time-to-live in seconds (default: 300)
@@ -238,14 +254,14 @@ class OpenRouterClient:
         """
         self.provider = self._detect_provider()
         self._setup_provider()
-        
+
         # Setup caching
         self.enable_cache = enable_cache
         self._cache = LLMCache(default_ttl=cache_ttl) if enable_cache else None
-        
+
         # Setup rate limiting
         self._rate_limiter = RateLimiter(requests_per_minute=requests_per_minute)
-        
+
         # Setup connection pooling with retry strategy
         self.max_retries = max_retries
         self._session = self._create_session()
@@ -253,26 +269,24 @@ class OpenRouterClient:
     def _create_session(self) -> requests.Session:
         """Create requests session with connection pooling and retry strategy"""
         session = requests.Session()
-        
+
         # Configure retry strategy
         retry_strategy = Retry(
             total=self.max_retries,
             backoff_factor=1,  # 1, 2, 4 seconds between retries
             status_forcelist=[500, 502, 503, 504],  # Server errors only
             allowed_methods=["POST", "GET"],
-            raise_on_status=False
+            raise_on_status=False,
         )
-        
+
         # Configure connection pooling
         adapter = HTTPAdapter(
-            max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=20
+            max_retries=retry_strategy, pool_connections=10, pool_maxsize=20
         )
-        
+
         session.mount("http://", adapter)
         session.mount("https://", adapter)
-        
+
         return session
 
     def _detect_provider(self) -> str:
@@ -310,21 +324,21 @@ class OpenRouterClient:
             self.api_key = os.getenv("OPENROUTER_API_KEY")
 
     def query(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         system_prompt: Optional[str] = None,
         use_cache: bool = True,
-        timeout: int = 20  # Reduced from 30 to prevent long waits on WAF blocking
+        timeout: int = 20,  # Reduced from 30 to prevent long waits on WAF blocking
     ) -> str:
         """
         Query the LLM with automatic provider routing.
-        
+
         Args:
             prompt: User prompt
             system_prompt: System prompt (optional)
             use_cache: Whether to use cached responses (default: True)
             timeout: Request timeout in seconds (default: 30)
-            
+
         Returns:
             LLM response string
         """
@@ -347,11 +361,11 @@ class OpenRouterClient:
             result = self._query_ollama(prompt, system_prompt, timeout)
         else:
             result = self._query_openai_compatible(prompt, system_prompt, timeout)
-        
+
         # Cache successful responses (not errors)
         if use_cache and self._cache and not result.startswith("["):
             self._cache.set(prompt, system_prompt, self.model, result)
-        
+
         return result
 
     def query_streaming(
@@ -359,20 +373,20 @@ class OpenRouterClient:
         prompt: str,
         system_prompt: Optional[str] = None,
         callback: Optional[Callable] = None,
-        timeout: int = 60
+        timeout: int = 60,
     ):
         """
         Query the LLM with streaming response.
-        
+
         Args:
             prompt: User prompt
             system_prompt: System prompt (optional)
             callback: Callback function for each token/chunk, signature: callback(chunk: str)
             timeout: Request timeout in seconds (default: 60)
-            
+
         Yields:
             String chunks as they arrive from the LLM
-            
+
         Example:
             for chunk in client.query_streaming("Hello"):
                 print(chunk, end="", flush=True)
@@ -387,25 +401,29 @@ class OpenRouterClient:
 
         # Route to appropriate provider
         if self.provider == "ollama":
-            yield from self._query_ollama_streaming(prompt, system_prompt, callback, timeout)
+            yield from self._query_ollama_streaming(
+                prompt, system_prompt, callback, timeout
+            )
         else:
-            yield from self._query_openai_streaming(prompt, system_prompt, callback, timeout)
+            yield from self._query_openai_streaming(
+                prompt, system_prompt, callback, timeout
+            )
 
     def _query_ollama_streaming(
         self,
         prompt: str,
         system_prompt: str,
         callback: Optional[Callable],
-        timeout: int
+        timeout: int,
     ):
         """Query Ollama with streaming response"""
         try:
             response = self._make_ollama_request(prompt, system_prompt, timeout)
             if not response:
                 return
-            
+
             yield from self._process_ollama_stream(response, callback)
-                        
+
         except requests.exceptions.Timeout:
             logger.warning("Ollama request timeout")
             yield "[Timeout] Ollama streaming timed out."
@@ -424,7 +442,7 @@ class OpenRouterClient:
         prompt: str,
         system_prompt: str,
         callback: Optional[Callable],
-        timeout: int
+        timeout: int,
     ):
         """Query OpenAI-compatible API with streaming response"""
         if not self.api_key:
@@ -440,17 +458,19 @@ class OpenRouterClient:
                 headers=headers,
                 json=payload,
                 timeout=timeout,
-                stream=True
+                stream=True,
             )
-            
+
             if response.status_code != 200:
                 yield from self._handle_error_response(response)
                 return
-            
+
             yield from self._process_streaming_response(response, callback, timeout)
-                        
+
         except requests.exceptions.Timeout:
-            logger.warning("OpenAI-compatible API streaming timeout - possible WAF blocking")
+            logger.warning(
+                "OpenAI-compatible API streaming timeout - possible WAF blocking"
+            )
             yield "[Timeout] API streaming timed out (possible WAF blocking)."
         except requests.exceptions.ConnectionError as e:
             logger.warning(f"OpenAI-compatible API connection error: {e}")
@@ -469,11 +489,15 @@ class OpenRouterClient:
             "Content-Type": "application/json",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/drakben/drakben" # updated to generic
+            headers["HTTP-Referer"] = (
+                "https://github.com/drakben/drakben"  # updated to generic
+            )
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
 
-    def _build_payload(self, prompt: str, system_prompt: str, stream: bool = False) -> Dict:
+    def _build_payload(
+        self, prompt: str, system_prompt: str, stream: bool = False
+    ) -> Dict:
         """Build API payload"""
         return {
             "model": self.model,
@@ -497,40 +521,44 @@ class OpenRouterClient:
 
     def _process_streaming_response(self, response, callback, timeout):
         """Process streaming response lines"""
-        import json
         start_time = time.time()
         max_stream_time = min(timeout * 2, 300)
-        
+
         for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
             if self._check_stream_timeout(start_time, max_stream_time):
                 yield "[Timeout] Streaming response took too long (possible WAF blocking)."
                 break
-            
+
             if line:
                 processed_line = self._preprocess_stream_line(line)
                 if processed_line == "[DONE]":
                     break
-                
+
                 chunk = self._extract_chunk_from_line(processed_line, callback)
                 if chunk:
                     yield chunk
-    
+
     def _check_stream_timeout(self, start_time: float, max_stream_time: float) -> bool:
         """Check if streaming has exceeded timeout"""
         if time.time() - start_time > max_stream_time:
-            logger.warning(f"Streaming timeout after {max_stream_time}s - possible WAF blocking")
+            logger.warning(
+                f"Streaming timeout after {max_stream_time}s - possible WAF blocking"
+            )
             return True
         return False
-    
+
     def _preprocess_stream_line(self, line: str) -> str:
         """Preprocess stream line (remove data: prefix, check for DONE)"""
         if line.startswith("data: "):
             line = line[6:]
         return line
-    
-    def _extract_chunk_from_line(self, line: str, callback: Optional[Callable]) -> Optional[str]:
+
+    def _extract_chunk_from_line(
+        self, line: str, callback: Optional[Callable]
+    ) -> Optional[str]:
         """Extract chunk from processed line"""
         import json
+
         try:
             data = json.loads(line)
             chunk = self._extract_chunk(data)
@@ -554,7 +582,9 @@ class OpenRouterClient:
         """Query local Ollama instance with retry logic"""
         for attempt in range(self.max_retries):
             try:
-                response = self._make_ollama_non_streaming_request(prompt, system_prompt, timeout)
+                response = self._make_ollama_non_streaming_request(
+                    prompt, system_prompt, timeout
+                )
                 result = self._handle_ollama_response(response, attempt)
                 if result is not None:
                     return result
@@ -565,10 +595,12 @@ class OpenRouterClient:
             except Exception as e:
                 logger.error(f"Ollama query error: {e}")
                 return f"[Ollama Error] {str(e)}"
-        
+
         return "[Error] Max retries exceeded"
-    
-    def _make_ollama_non_streaming_request(self, prompt: str, system_prompt: str, timeout: int):
+
+    def _make_ollama_non_streaming_request(
+        self, prompt: str, system_prompt: str, timeout: int
+    ):
         """Make non-streaming Ollama request"""
         payload = {
             "model": self.model,
@@ -576,7 +608,7 @@ class OpenRouterClient:
             "stream": False,
         }
         return self._session.post(self.base_url, json=payload, timeout=timeout)
-    
+
     def _handle_ollama_response(self, response, attempt: int) -> Optional[str]:
         """Handle Ollama response with retry logic"""
         if response.status_code == 200:
@@ -585,7 +617,7 @@ class OpenRouterClient:
             return self._handle_ollama_rate_limit(response, attempt)
         else:
             return self._handle_ollama_error(response, attempt)
-    
+
     def _handle_ollama_rate_limit(self, response, attempt: int) -> Optional[str]:
         """Handle Ollama rate limiting"""
         retry_after = int(response.headers.get("Retry-After", 5))
@@ -594,28 +626,30 @@ class OpenRouterClient:
             time.sleep(retry_after)
             return None
         return "[Rate Limit] Ollama rate limited. Please wait."
-    
+
     def _handle_ollama_error(self, response, attempt: int) -> Optional[str]:
         """Handle Ollama error responses"""
         if attempt < self.max_retries - 1:
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             return None
         return f"[Ollama Error] {response.status_code}: {response.text[:100]}"
-    
+
     def _handle_ollama_connection_error(self, attempt: int) -> str:
         """Handle Ollama connection errors"""
         if attempt < self.max_retries - 1:
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
             return ""  # Continue retry
         return "[Offline] Ollama baglantisi yok. 'ollama serve' calistirin."
-    
+
     def _handle_ollama_timeout(self, attempt: int) -> str:
         """Handle Ollama timeout errors"""
         if attempt < self.max_retries - 1:
             return ""  # Continue retry
         return "[Timeout] Ollama did not respond in time."
 
-    def _query_openai_compatible(self, prompt: str, system_prompt: str, timeout: int) -> str:
+    def _query_openai_compatible(
+        self, prompt: str, system_prompt: str, timeout: int
+    ) -> str:
         """Query OpenAI-compatible API with retry logic and rate limit handling"""
         if not self.api_key:
             return "[Offline Mode] No API key configured."
@@ -640,9 +674,9 @@ class OpenRouterClient:
             except Exception as e:
                 logger.exception(f"API query error: {e}")
                 return f"[Error] {str(e)}"
-        
+
         return "[Error] Max retries exceeded"
-    
+
     def _build_api_headers(self) -> Dict[str, str]:
         """Build API request headers"""
         headers = {
@@ -650,10 +684,12 @@ class OpenRouterClient:
             "Content-Type": "application/json",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/drakben/drakben" # updated to generic
+            headers["HTTP-Referer"] = (
+                "https://github.com/drakben/drakben"  # updated to generic
+            )
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
-    
+
     def _build_api_payload(self, system_prompt: str, prompt: str) -> Dict:
         """Build API request payload"""
         return {
@@ -663,7 +699,7 @@ class OpenRouterClient:
                 {"role": "user", "content": prompt},
             ],
         }
-    
+
     def _handle_api_response(self, response, attempt: int) -> Optional[str]:
         """Handle API response with status code logic"""
         if response.status_code == 200:
@@ -677,39 +713,45 @@ class OpenRouterClient:
             return self._handle_api_server_error(response, attempt)
         else:
             return f"[API Error] {response.status_code}: {response.text[:100]}"
-    
+
     def _handle_api_rate_limit(self, response, attempt: int) -> Optional[str]:
         """Handle API rate limiting"""
         retry_after = int(response.headers.get("Retry-After", 5))
         self._rate_limiter.set_retry_after(retry_after)
         if attempt < self.max_retries - 1:
-            logger.warning(f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{self.max_retries})")
+            logger.warning(
+                f"Rate limited, waiting {retry_after}s (attempt {attempt + 1}/{self.max_retries})"
+            )
             time.sleep(retry_after)
             return None
         return "[Rate Limit] Too many requests. Please wait and retry."
-    
+
     def _handle_api_server_error(self, response, attempt: int) -> Optional[str]:
         """Handle API server errors (5xx)"""
         if attempt < self.max_retries - 1:
-            wait_time = min(2 ** attempt, 5)
-            logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})")
+            wait_time = min(2**attempt, 5)
+            logger.warning(
+                f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})"
+            )
             time.sleep(wait_time)
             return None
         return f"[Server Error] {response.status_code}: Service unavailable"
-    
+
     def _handle_api_timeout(self, timeout: int, attempt: int) -> str:
         """Handle API timeout errors"""
-        logger.warning(f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking")
+        logger.warning(
+            f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking"
+        )
         return "[Timeout] API did not respond in time (possible WAF blocking)."
-    
+
     def _handle_api_connection_error(self, e: Exception, attempt: int) -> str:
         """Handle API connection errors"""
         logger.warning(f"Connection error: {e}")
         if attempt < self.max_retries - 1:
-            time.sleep(min(2 ** attempt, 5))
+            time.sleep(min(2**attempt, 5))
             return ""  # Continue retry
         return "[Offline] No internet connection or connection refused."
-    
+
     def _handle_api_request_error(self, e: Exception, attempt: int) -> str:
         """Handle API request errors"""
         logger.error(f"Request error: {e}")
@@ -728,10 +770,10 @@ class OpenRouterClient:
             "cache_enabled": self.enable_cache,
             "max_retries": self.max_retries,
         }
-        
+
         if self._cache:
             info["cache_stats"] = self._cache.get_stats()
-        
+
         return info
 
     def test_connection(self) -> bool:
@@ -755,14 +797,16 @@ class OpenRouterClient:
             return self._cache.get_stats()
         return None
 
-    def _make_ollama_request(self, prompt: str, system_prompt: str, timeout: int) -> Optional[requests.Response]:
+    def _make_ollama_request(
+        self, prompt: str, system_prompt: str, timeout: int
+    ) -> Optional[requests.Response]:
         """Make request to Ollama local API"""
         url = "http://localhost:11434/api/generate"
         payload = {
             "model": self.model,
             "prompt": prompt,
             "system": system_prompt,
-            "stream": True
+            "stream": True,
         }
         try:
             return self._session.post(url, json=payload, timeout=timeout, stream=True)
@@ -770,9 +814,12 @@ class OpenRouterClient:
             logger.error(f"Ollama request failed: {e}")
             return None
 
-    def _process_ollama_stream(self, response: requests.Response, callback: Optional[Callable]) -> Iterator[str]:
+    def _process_ollama_stream(
+        self, response: requests.Response, callback: Optional[Callable]
+    ) -> Iterator[str]:
         """Process streaming response from Ollama API"""
         import json
+
         for line in response.iter_lines(decode_unicode=True):
             if not line:
                 continue

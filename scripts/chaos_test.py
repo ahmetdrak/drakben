@@ -4,8 +4,9 @@ import logging
 import sys
 from core.state import reset_state
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("chaos_test")
+
 
 async def test_state_stability():
     """Rapidly reset and update state to check for race conditions"""
@@ -22,12 +23,13 @@ async def test_state_stability():
         logger.error(f"State instability detected: {e}")
         return False
 
+
 async def main():
     logger.info("Starting Chaos Test (Stress Test)...")
     start_time = time.time()
-    
+
     success = await test_state_stability()
-    
+
     duration = time.time() - start_time
     if success:
         logger.info(f"Chaos Test PASSED in {duration:.2f}s.")
@@ -35,6 +37,7 @@ async def main():
     else:
         logger.error("Chaos Test FAILED.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

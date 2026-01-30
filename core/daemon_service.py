@@ -14,17 +14,18 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class DaemonService:
     """
     Cross-platform daemon/service manager for Drakben.
     Supports Linux (systemd/init.d) and Windows (pywin32).
     """
-    
+
     def __init__(self, pid_file: str = "/tmp/drakben.pid"):
         self.pid_file = pid_file
         self.running = False
         self.is_windows = sys.platform == "win32"
-        
+
     def daemonize(self) -> bool:
         """
         Fork process into background (Unix only).
@@ -33,81 +34,81 @@ class DaemonService:
         if self.is_windows:
             logger.info("Windows detected. Use install_windows_service() instead.")
             return False
-            
+
         try:
             # First fork
             pid = os.fork()  # pylint: disable=no-member
             if pid > 0:
                 sys.exit(0)
-                
+
         except OSError as e:
             logger.error(f"Fork #1 failed: {e}")
             return False
-            
+
         # Decouple from parent
         os.chdir("/")
         os.setsid()  # pylint: disable=no-member
         os.umask(0)
-        
+
         try:
             # Second fork
             pid = os.fork()  # pylint: disable=no-member
             if pid > 0:
                 sys.exit(0)
-                
+
         except OSError as e:
             logger.error(f"Fork #2 failed: {e}")
             return False
-            
+
         # Redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        
-        with open('/dev/null', 'r') as devnull:
+
+        with open("/dev/null", "r") as devnull:
             os.dup2(devnull.fileno(), sys.stdin.fileno())  # pylint: disable=no-member
-        with open('/tmp/drakben.log', 'a+') as log:
+        with open("/tmp/drakben.log", "a+") as log:
             os.dup2(log.fileno(), sys.stdout.fileno())  # pylint: disable=no-member
             os.dup2(log.fileno(), sys.stderr.fileno())  # pylint: disable=no-member
-            
+
         # Write PID file
         pid = str(os.getpid())
-        with open(self.pid_file, 'w') as f:
+        with open(self.pid_file, "w") as f:
             f.write(pid)
-            
+
         # Register cleanup
         atexit.register(self._cleanup)
         signal.signal(signal.SIGTERM, self._signal_handler)
-        
+
         logger.info(f"Daemon started with PID {pid}")
         self.running = True
         return True
-        
+
     def _cleanup(self) -> None:
         """Remove PID file on exit"""
         if os.path.exists(self.pid_file):
             os.remove(self.pid_file)
-            
+
     def _signal_handler(self, signum, frame) -> None:
         """Handle termination signals"""
         self.running = False
         self._cleanup()
         sys.exit(0)
-        
+
     def get_pid(self) -> Optional[int]:
         """Get running daemon PID"""
         try:
-            with open(self.pid_file, 'r') as f:
+            with open(self.pid_file, "r") as f:
                 return int(f.read().strip())
         except (OSError, ValueError):
             return None
-            
+
     def stop(self) -> bool:
         """Stop running daemon"""
         pid = self.get_pid()
         if not pid:
             logger.info("Daemon not running")
             return True
-            
+
         try:
             os.kill(pid, signal.SIGTERM)
             time.sleep(1)
@@ -117,7 +118,7 @@ class DaemonService:
         except OSError as e:
             logger.error(f"Failed to stop daemon: {e}")
             return False
-            
+
     def status(self) -> str:
         """Check daemon status"""
         pid = self.get_pid()
@@ -128,7 +129,7 @@ class DaemonService:
             except OSError:
                 return "Stale PID file"
         return "Not running"
-        
+
     def generate_systemd_unit(self, install_path: str = "/opt/drakben") -> str:
         """
         Generate systemd service file for Linux.
@@ -153,7 +154,7 @@ WantedBy=multi-user.target
         unit_path = "/etc/systemd/system/drakben.service"
         logger.info(f"Systemd unit file content generated for: {unit_path}")
         return unit_content
-        
+
     def install_windows_service(self) -> bool:
         """
         Install as Windows service using pywin32.
@@ -161,18 +162,20 @@ WantedBy=multi-user.target
         if not self.is_windows:
             logger.error("Not a Windows system")
             return False
-            
+
         try:
             import win32serviceutil
             import win32service
-            
+
             # This would require a proper service class
             # For now, return instructions
-            logger.info("Windows service installation instructions logged successfully.")
+            logger.info(
+                "Windows service installation instructions logged successfully."
+            )
             # Windows service registration is managed via external sc.exe or advanced installer
             # to maintain stealth and avoid persistent process handles during runtime.
             return True
-            
+
         except ImportError:
             logger.warning("pywin32 not installed. Run: pip install pywin32")
             return False

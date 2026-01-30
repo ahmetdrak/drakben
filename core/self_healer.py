@@ -32,8 +32,12 @@ class SelfHealer:
         self._self_heal_attempts: Dict[str, int] = {}
 
     def handle_tool_failure(
-        self, tool_name: str, command: str, result, args: Dict,
-        format_result_callback: Callable
+        self,
+        tool_name: str,
+        command: str,
+        result,
+        args: Dict,
+        format_result_callback: Callable,
     ) -> Dict:
         """
         Main entry point for healing a failed tool execution.
@@ -51,7 +55,9 @@ class SelfHealer:
 
         if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
             self.console.print(
-                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})", style="yellow")
+                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})",
+                style="yellow",
+            )
             # Record failure in agent's tool selector
             if hasattr(self.agent, "tool_selector"):
                 self.agent.tool_selector.record_tool_failure(tool_name)
@@ -63,18 +69,19 @@ class SelfHealer:
         combined_output = f"{stdout_str}\n{stderr_str}".lower()
 
         # Diagnose
-        error_diagnosis = self._diagnose_error(
-            combined_output, result.exit_code)
+        error_diagnosis = self._diagnose_error(combined_output, result.exit_code)
 
         if error_diagnosis["type"] != "unknown":
             self.console.print(
-                f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}",
-                style="yellow")
+                f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}", style="yellow"
+            )
 
         # Increment counter
         self._self_heal_attempts[heal_key] = current_attempts + 1
         self.console.print(
-            f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}", style="dim")
+            f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}",
+            style="dim",
+        )
 
         # Attempt healing
         healed, retry_result = self._apply_error_specific_healing(
@@ -83,9 +90,7 @@ class SelfHealer:
 
         # Finalize
         if healed and retry_result:
-            self.console.print(
-                "✅ Hata otomatik olarak düzeltildi!",
-                style="green")
+            self.console.print("✅ Hata otomatik olarak düzeltildi!", style="green")
             return format_result_callback(retry_result, args)
 
         # If not healed
@@ -95,8 +100,11 @@ class SelfHealer:
         return format_result_callback(result, args)
 
     def _apply_error_specific_healing(
-        self, error_diagnosis: Dict[str, Any], tool_name: str, command: str,
-        combined_output: str
+        self,
+        error_diagnosis: Dict[str, Any],
+        tool_name: str,
+        command: str,
+        combined_output: str,
     ) -> Tuple[bool, Optional[Any]]:
         """Dispatch to specific healing methods"""
         error_type = error_diagnosis["type"]
@@ -118,50 +126,45 @@ class SelfHealer:
         if error_type in healing_map:
             return healing_map[error_type](tool_name, command, error_diagnosis)
         elif error_type == "unknown" and getattr(self.agent, "brain", None):
-            return self._llm_assisted_error_fix(
-                tool_name, command, combined_output)
+            return self._llm_assisted_error_fix(tool_name, command, combined_output)
 
         return False, None
 
     # ==================== HEALING STRATEGIES ====================
 
-    def _heal_missing_tool(self,
-                           tool_name: str,
-                           command: str,
-                           error_diagnosis: Dict) -> Tuple[bool,
-                                                           Optional[Any]]:
+    def _heal_missing_tool(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         """Heal missing tool error by auto-installing or synthesizing code"""
 
         # 1. Try standard installation
-        if hasattr(
-                self.agent,
-                "_install_tool") and self.agent._install_tool(tool_name):
+        if hasattr(self.agent, "_install_tool") and self.agent._install_tool(tool_name):
             self.console.print(
-                f"🔄 {tool_name} yüklendi, yeniden deneniyor...",
-                style="cyan")
-            retry_result = self.agent.executor.terminal.execute(
-                command, timeout=300)
+                f"🔄 {tool_name} yüklendi, yeniden deneniyor...", style="cyan"
+            )
+            retry_result = self.agent.executor.terminal.execute(command, timeout=300)
             return retry_result.exit_code == 0, retry_result
 
         # 2. If installation failed, try to write own tool!
         if hasattr(self.agent, "coder"):
             self.console.print(
                 f"🧬 Takım yüklenemedi. Yapay zeka ile {tool_name} klonlanıyor...",
-                style="magenta")
+                style="magenta",
+            )
 
             # Create synthetic tool
             result = self.agent.coder.create_alternative_tool(
                 failed_tool=tool_name,
                 action="scan" if "scan" in command else "exploit",  # Infer action
                 target="unknown",  # We can't easily extract target here without parsing command
-                error_message="Tool missing and not installable"
+                error_message="Tool missing and not installable",
             )
 
             if result.get("success"):
                 new_tool_name = result["tool_name"]
                 self.console.print(
-                    f"✨ Kendi aracımızı yazdık: {new_tool_name}",
-                    style="green")
+                    f"✨ Kendi aracımızı yazdık: {new_tool_name}", style="green"
+                )
 
                 # Execute the new tool immediately (mocking the command execution)
                 # Note: In a real scenario, we would need to map the original arguments
@@ -177,80 +180,71 @@ class SelfHealer:
 
         return False, None
 
-    def _heal_permission_denied(self,
-                                tool_name: str,
-                                command: str,
-                                error_diagnosis: Dict) -> Tuple[bool,
-                                                                Optional[Any]]:
+    def _heal_permission_denied(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         import platform
+
         if platform.system().lower() != "windows" and not command.startswith("sudo"):
-            self.console.print(
-                "🔐 İzin hatası - sudo ile deneniyor...",
-                style="yellow")
+            self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
             # Use -n to prevent blocking on password prompt
             sudo_cmd = f"sudo -n {command}"
-            retry_result = self.agent.executor.terminal.execute(
-                sudo_cmd, timeout=300)
+            retry_result = self.agent.executor.terminal.execute(sudo_cmd, timeout=300)
             return retry_result.exit_code == 0, retry_result
         return False, None
 
-    def _heal_python_module_missing(self,
-                                    tool_name: str,
-                                    command: str,
-                                    error_diagnosis: Dict) -> Tuple[bool,
-                                                                    Optional[Any]]:
+    def _heal_python_module_missing(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         module_name = error_diagnosis.get("module")
         if module_name:
             self.console.print(
-                f"📦 Python modülü eksik: {module_name} - yükleniyor...",
-                style="yellow")
+                f"📦 Python modülü eksik: {module_name} - yükleniyor...", style="yellow"
+            )
             pip_cmd = f"pip install {module_name}"
-            pip_result = self.agent.executor.terminal.execute(
-                pip_cmd, timeout=120)
+            pip_result = self.agent.executor.terminal.execute(pip_cmd, timeout=120)
             if pip_result.exit_code == 0:
                 self.console.print(
-                    f"✅ {module_name} yüklendi, yeniden deneniyor...",
-                    style="green")
+                    f"✅ {module_name} yüklendi, yeniden deneniyor...", style="green"
+                )
                 retry_result = self.agent.executor.terminal.execute(
-                    command, timeout=300)
+                    command, timeout=300
+                )
                 return retry_result.exit_code == 0, retry_result
         return False, None
 
-    def _heal_connection_error(self,
-                               tool_name: str,
-                               command: str,
-                               error_diagnosis: Dict) -> Tuple[bool,
-                                                               Optional[Any]]:
+    def _heal_connection_error(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         self.console.print(
             "🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...",
-            style="yellow")
+            style="yellow",
+        )
         time.sleep(3)
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=300)
+        retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_timeout(self, tool_name: str, command: str,
-                      error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+    def _heal_timeout(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         self.console.print(
-            "⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...",
-            style="yellow")
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=600)
+            "⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow"
+        )
+        retry_result = self.agent.executor.terminal.execute(command, timeout=600)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_library_missing(self,
-                              tool_name: str,
-                              command: str,
-                              error_diagnosis: Dict) -> Tuple[bool,
-                                                              Optional[Any]]:
+    def _heal_library_missing(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         library = error_diagnosis.get("library", "")
         if not library:
             return False, None
 
         self.console.print(
-            f"📚 Kütüphane eksik: {library} - yükleniyor...",
-            style="yellow")
+            f"📚 Kütüphane eksik: {library} - yükleniyor...", style="yellow"
+        )
         import platform
+
         system = platform.system().lower()
         lib_pkg_map = {
             "libssl": "openssl" if system == "darwin" else "libssl-dev",
@@ -268,113 +262,101 @@ class SelfHealer:
         else:
             return False, None
 
-        install_result = self.agent.executor.terminal.execute(
-            install_cmd, timeout=180)
+        install_result = self.agent.executor.terminal.execute(install_cmd, timeout=180)
         if install_result.exit_code == 0:
-            retry_result = self.agent.executor.terminal.execute(
-                command, timeout=300)
+            retry_result = self.agent.executor.terminal.execute(command, timeout=300)
             return retry_result.exit_code == 0, retry_result
         return False, None
 
-    def _heal_rate_limit(self, tool_name: str, command: str,
-                         error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
-        self.console.print(
-            "⏳ İstek limiti - 30 saniye bekleniyor...",
-            style="yellow")
+    def _heal_rate_limit(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
+        self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
         time.sleep(30)
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=300)
+        retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_port_in_use(self,
-                          tool_name: str,
-                          command: str,
-                          error_diagnosis: Dict) -> Tuple[bool,
-                                                          Optional[Any]]:
+    def _heal_port_in_use(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         port = error_diagnosis.get("port")
         if not port:
             return False, None
 
         self.console.print(
             f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...",
-            style="yellow")
+            style="yellow",
+        )
         import platform
+
         if platform.system().lower() != "windows":
             kill_cmd = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
         else:
-            kill_cmd = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
+            kill_cmd = f'for /f "tokens=5" %a in (\'netstat -aon ^| find ":{port}"\') do taskkill /F /PID %a'
 
         self.agent.executor.terminal.execute(kill_cmd, timeout=30)
         time.sleep(2)
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=300)
+        retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_disk_full(self, tool_name: str, command: str,
-                        error_diagnosis: Dict) -> Tuple[bool, Optional[Any]]:
+    def _heal_disk_full(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         self.console.print(
-            "💾 Disk alanı yetersiz - temizlik yapılıyor...",
-            style="yellow")
+            "💾 Disk alanı yetersiz - temizlik yapılıyor...", style="yellow"
+        )
         import platform
+
         if platform.system().lower() != "windows":
             cleanup_cmd = "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
         else:
             cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
 
         self.agent.executor.terminal.execute(cleanup_cmd, timeout=60)
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=300)
+        retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_firewall_blocked(self,
-                               tool_name: str,
-                               command: str,
-                               error_diagnosis: Dict) -> Tuple[bool,
-                                                               Optional[Any]]:
+    def _heal_firewall_blocked(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         self.console.print(
             "🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...",
-            style="yellow")
+            style="yellow",
+        )
         time.sleep(10)
         if "--rate" in command or "-T" in command:
             slower_cmd = command.replace("-T4", "-T1").replace("-T5", "-T2")
-            retry_result = self.agent.executor.terminal.execute(
-                slower_cmd, timeout=600)
+            retry_result = self.agent.executor.terminal.execute(slower_cmd, timeout=600)
         else:
-            retry_result = self.agent.executor.terminal.execute(
-                command, timeout=300)
+            retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
-    def _heal_database_error(self,
-                             tool_name: str,
-                             command: str,
-                             error_diagnosis: Dict) -> Tuple[bool,
-                                                             Optional[Any]]:
+    def _heal_database_error(
+        self, tool_name: str, command: str, error_diagnosis: Dict
+    ) -> Tuple[bool, Optional[Any]]:
         self.console.print(
-            "🗄️ Veritabanı hatası - düzeltme deneniyor...",
-            style="yellow")
+            "🗄️ Veritabanı hatası - düzeltme deneniyor...", style="yellow"
+        )
         import glob
         import os
-        for lock_file in glob.glob("*.db-journal") + \
-                glob.glob("*.db-wal") + glob.glob("*.db-shm"):
+
+        for lock_file in (
+            glob.glob("*.db-journal") + glob.glob("*.db-wal") + glob.glob("*.db-shm")
+        ):
             try:
                 os.remove(lock_file)
                 self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
             except OSError as e:
                 logger.debug(f"Could not remove lock file {lock_file}: {e}")
-        retry_result = self.agent.executor.terminal.execute(
-            command, timeout=300)
+        retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
     def _llm_assisted_error_fix(
-            self,
-            tool_name: str,
-            command: str,
-            error_output: str) -> tuple:
+        self, tool_name: str, command: str, error_output: str
+    ) -> tuple:
         """Use LLM to diagnose unknown errors via the agent's brain"""
         try:
-            self.console.print(
-                "🤖 LLM ile hata analizi yapılıyor...",
-                style="dim")
+            self.console.print("🤖 LLM ile hata analizi yapılıyor...", style="dim")
 
             prompt = f"""Analyze this command execution error and suggest a fix:
 
@@ -383,7 +365,8 @@ Tool: {tool_name}
 Error Output: {error_output[:1000]}
 
 Respond in JSON:
-{"error_type": "brief error classification",
+{
+                "error_type": "brief error classification",
     "root_cause": "what caused this error",
     "fix_command": "shell command to fix (or null if not fixable)",
     "should_retry": true/false,
@@ -395,31 +378,36 @@ Respond in JSON:
             # Try to parse JSON response
             import json
             import re
-            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", result, re.DOTALL)
             if json_match:
                 fix_data = json.loads(json_match.group())
 
                 self.console.print(
-                    f"🔍 LLM Analizi: {
-                        fix_data.get(
-                            'explanation',
-                            'Analiz tamamlandı')}",
-                    style="dim")
+                    f"🔍 LLM Analizi: {fix_data.get('explanation', 'Analiz tamamlandı')}",
+                    style="dim",
+                )
 
                 # Apply fix command if provided
                 fix_cmd = fix_data.get("fix_command")
                 if fix_cmd and fix_cmd != "null":
                     self.console.print(
-                        f"🔧 Düzeltme uygulanıyor: {fix_cmd}", style="yellow")
+                        f"🔧 Düzeltme uygulanıyor: {fix_cmd}", style="yellow"
+                    )
                     fix_result = self.agent.executor.terminal.execute(
-                        fix_cmd, timeout=120)
+                        fix_cmd, timeout=120
+                    )
 
                     if fix_result.exit_code == 0 and fix_data.get(
-                            "should_retry", False):
+                        "should_retry", False
+                    ):
                         self.console.print(
-                            "🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...", style="cyan")
+                            "🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...",
+                            style="cyan",
+                        )
                         retry_result = self.agent.executor.terminal.execute(
-                            command, timeout=300)
+                            command, timeout=300
+                        )
                         return (retry_result.exit_code == 0, retry_result)
 
         except Exception as e:
@@ -437,26 +425,35 @@ Respond in JSON:
         if diagnosis:
             return diagnosis
 
-        return {"type": "unknown",
-                "type_tr": "Tanımlanamayan hata",
-                "raw_output": output[:500]}
+        return {
+            "type": "unknown",
+            "type_tr": "Tanımlanamayan hata",
+            "raw_output": output[:500],
+        }
 
     def _run_error_checks(
-            self,
-            output_lower: str,
-            exit_code: int,
-            output: str) -> Optional[Dict]:
+        self, output_lower: str, exit_code: int, output: str
+    ) -> Optional[Dict]:
         """Run all error checks in priority order"""
         checkers = [
-            self._check_missing_tool, self._check_permission_error,
-            self._check_python_module_error, self._check_library_error,
-            self._check_network_error, self._check_timeout_error,
-            self._check_syntax_error, self._check_file_error,
-            self._check_memory_error, self._check_disk_error,
-            self._check_auth_error, self._check_port_error,
-            self._check_database_error, self._check_parse_error,
-            self._check_version_error, self._check_rate_limit_error,
-            self._check_firewall_error, self._check_resource_error,
+            self._check_missing_tool,
+            self._check_permission_error,
+            self._check_python_module_error,
+            self._check_library_error,
+            self._check_network_error,
+            self._check_timeout_error,
+            self._check_syntax_error,
+            self._check_file_error,
+            self._check_memory_error,
+            self._check_disk_error,
+            self._check_auth_error,
+            self._check_port_error,
+            self._check_database_error,
+            self._check_parse_error,
+            self._check_version_error,
+            self._check_rate_limit_error,
+            self._check_firewall_error,
+            self._check_resource_error,
         ]
 
         for checker in checkers:
@@ -469,21 +466,20 @@ Respond in JSON:
     # ... Helper Checker Methods ...
     def _check_missing_tool(self, output_lower: str) -> Optional[Dict]:
         import re
+
         patterns = [
             "not found",
             "not recognized",
             "bulunamadı",
             "command not found",
-            "komut bulunamadı"]
+            "komut bulunamadı",
+        ]
         if any(x in output_lower for x in patterns):
             match = re.search(
-                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found",
-                output_lower)
+                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower
+            )
             tool = match.group(1) if match else None
-            return {
-                "type": "missing_tool",
-                "type_tr": "Araç bulunamadı",
-                "tool": tool}
+            return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
         return None
 
     def _check_permission_error(self, output_lower: str) -> Optional[Dict]:
@@ -491,13 +487,15 @@ Respond in JSON:
             "permission denied",
             "access denied",
             "izin reddedildi",
-            "root privileges required"]
+            "root privileges required",
+        ]
         if any(x in output_lower for x in patterns):
             return {"type": "permission_denied", "type_tr": "İzin hatası"}
         return None
 
     def _check_python_module_error(self, output_lower: str) -> Optional[Dict]:
         import re
+
         patterns = ["no module named", "modulenotfounderror", "importerror"]
         if any(x in output_lower for x in patterns):
             match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
@@ -505,24 +503,28 @@ Respond in JSON:
             return {
                 "type": "python_module_missing",
                 "type_tr": "Python modülü eksik",
-                "module": module}
+                "module": module,
+            }
         return None
 
     def _check_library_error(self, output_lower: str) -> Optional[Dict]:
         import re
+
         patterns = [
             "cannot open shared object",
             "library not found",
             "libssl",
             "libcrypto",
-            ".so:"]
+            ".so:",
+        ]
         if any(x in output_lower for x in patterns):
             match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
             library = match.group(1) if match else None
             return {
                 "type": "library_missing",
                 "type_tr": "Sistem kütüphanesi eksik",
-                "library": library}
+                "library": library,
+            }
         return None
 
     def _check_network_error(self, output_lower: str) -> Optional[Dict]:
@@ -530,7 +532,8 @@ Respond in JSON:
             "connection refused",
             "network unreachable",
             "no route to host",
-            "ssl error"]
+            "ssl error",
+        ]
         if any(x in output_lower for x in patterns):
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
         return None
@@ -549,16 +552,16 @@ Respond in JSON:
 
     def _check_file_error(self, output_lower: str) -> Optional[Dict]:
         import re
+
         patterns = ["no such file", "file not found", "dosya bulunamadı"]
         if any(x in output_lower for x in patterns):
-            match = re.search(
-                r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?",
-                output_lower)
+            match = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
             filepath = match.group(1) if match else None
             return {
                 "type": "file_not_found",
                 "type_tr": "Dosya bulunamadı",
-                "file": filepath}
+                "file": filepath,
+            }
         return None
 
     def _check_memory_error(self, output_lower: str) -> Optional[Dict]:
@@ -578,24 +581,20 @@ Respond in JSON:
             "authentication failed",
             "invalid credentials",
             "401",
-            "403 forbidden"]
+            "403 forbidden",
+        ]
         if any(x in output_lower for x in patterns):
             return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
         return None
 
     def _check_port_error(self, output_lower: str) -> Optional[Dict]:
         import re
-        patterns = [
-            "address already in use",
-            "port already in use",
-            "bind failed"]
+
+        patterns = ["address already in use", "port already in use", "bind failed"]
         if any(x in output_lower for x in patterns):
             match = re.search(r"port[:\s]*(\d+)", output_lower)
             port = match.group(1) if match else None
-            return {
-                "type": "port_in_use",
-                "type_tr": "Port kullanımda",
-                "port": port}
+            return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
         return None
 
     def _check_database_error(self, output_lower: str) -> Optional[Dict]:
@@ -625,9 +624,7 @@ Respond in JSON:
     def _check_firewall_error(self, output_lower: str) -> Optional[Dict]:
         patterns = ["blocked", "firewall", "waf", "filtered"]
         if any(x in output_lower for x in patterns):
-            return {
-                "type": "firewall_blocked",
-                "type_tr": "Güvenlik duvarı engeli"}
+            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 
     def _check_resource_error(self, output_lower: str) -> Optional[Dict]:
@@ -636,10 +633,7 @@ Respond in JSON:
             return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
         return None
 
-    def _check_exit_code_error(
-            self,
-            exit_code: int,
-            output: str) -> Optional[Dict]:
+    def _check_exit_code_error(self, exit_code: int, output: str) -> Optional[Dict]:
         if exit_code != 0 and not output.strip():
             exit_code_map = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},

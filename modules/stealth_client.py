@@ -5,7 +5,7 @@ Description: State-of-the-art TLS Fingerprint Impersonation to bypass Cloudflare
 """
 
 from curl_cffi.requests import Session, AsyncSession
-from typing import Optional, Dict, Any, Union
+from typing import Dict, Any
 import logging
 import random
 
@@ -18,6 +18,7 @@ BROWSER_IMPERSONATIONS = [
     "safari17_0",
     "edge101",
 ]
+
 
 class StealthSession(Session):
     """
@@ -34,7 +35,9 @@ class StealthSession(Session):
         self.impersonate_target = impersonate or random.choice(BROWSER_IMPERSONATIONS)
         super().__init__(impersonate=self.impersonate_target, **kwargs)
         self.headers = self._get_default_headers()
-        logger.debug(f"StealthSession init initialized with impersonation: {self.impersonate_target}")
+        logger.debug(
+            f"StealthSession init initialized with impersonation: {self.impersonate_target}"
+        )
 
     def _get_default_headers(self) -> Dict[str, str]:
         # curl_cffi handles most headers automatically based on impersonation.
@@ -46,7 +49,7 @@ class StealthSession(Session):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
             "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"'
+            "sec-ch-ua-platform": '"Windows"',
         }
 
     def request(self, method: str, url: str, *args, **kwargs) -> Any:
@@ -54,18 +57,25 @@ class StealthSession(Session):
             # Ensure impersonate param is passed if not provided
             if "impersonate" not in kwargs:
                 kwargs["impersonate"] = self.impersonate_target
-            
+
             # Execute request
             response = super().request(method, url, *args, **kwargs)
-            
+
             # WAF/Block Detection
             if response.status_code in [403, 406, 429]:
-                 # Check if it's a Cloudflare challenge page
-                if "Just a moment..." in response.text or "cloudflare" in response.text.lower():
-                     logger.warning(f"StealthSession: Cloudflare Challenge Detected! ({response.status_code})")
+                # Check if it's a Cloudflare challenge page
+                if (
+                    "Just a moment..." in response.text
+                    or "cloudflare" in response.text.lower()
+                ):
+                    logger.warning(
+                        f"StealthSession: Cloudflare Challenge Detected! ({response.status_code})"
+                    )
                 else:
-                    logger.warning(f"StealthSession: WAF Block Detected ({response.status_code})")
-            
+                    logger.warning(
+                        f"StealthSession: WAF Block Detected ({response.status_code})"
+                    )
+
             return response
 
         except Exception as e:
@@ -76,7 +86,7 @@ class StealthSession(Session):
 # Async Version for high-concurrency scans
 class AsyncStealthSession(AsyncSession):
     """Async version of StealthSession"""
-    
+
     def __init__(self, impersonate: str = "chrome120", **kwargs):
         self.impersonate_target = impersonate or random.choice(BROWSER_IMPERSONATIONS)
         super().__init__(impersonate=self.impersonate_target, **kwargs)

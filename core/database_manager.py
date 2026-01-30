@@ -1,33 +1,40 @@
-
 """
 DRAKBEN Database Abstraction Layer (DAL)
 Description: Centralized database connection manager supporting SQLite (default) and scalable to PostgreSQL.
 Thread-safe singleton pattern.
 """
+
 import sqlite3
 import threading
 import logging
-from pathlib import Path
-from typing import Optional, Any, List, Dict, Union
+from typing import Optional, List
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseProvider:
     """Abstract Base Class for Database Providers (Future-proofing)"""
-    def connect(self): raise NotImplementedError
-    def close(self): raise NotImplementedError
-    def execute(self, query: str, params: tuple = ()): raise NotImplementedError
+
+    def connect(self):
+        raise NotImplementedError
+
+    def close(self):
+        raise NotImplementedError
+
+    def execute(self, query: str, params: tuple = ()):
+        raise NotImplementedError
+
 
 class SQLiteProvider(DatabaseProvider):
     """Robust SQLite Provider with Connection Pooling logic (One per thread)"""
-    
+
     _instance = None
     _lock = threading.Lock()
-    
+
     def __init__(self, db_path: str = "drakben.db"):
         self.db_path = db_path
-        self._local = threading.local() # Thread-local storage for connections
+        self._local = threading.local()  # Thread-local storage for connections
 
     @classmethod
     def get_instance(cls, db_path: str = "drakben.db"):
@@ -40,8 +47,10 @@ class SQLiteProvider(DatabaseProvider):
         """Get thread-specific connection"""
         if not hasattr(self._local, "conn"):
             # WAL mode is crucial for concurrency (Write-Ahead Logging)
-            self._local.conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-            self._local.conn.execute("PRAGMA journal_mode=WAL;") 
+            self._local.conn = sqlite3.connect(
+                self.db_path, timeout=30.0, check_same_thread=False
+            )
+            self._local.conn.execute("PRAGMA journal_mode=WAL;")
             self._local.conn.execute("PRAGMA synchronous=NORMAL;")
             self._local.conn.row_factory = sqlite3.Row
         return self._local.conn
@@ -51,7 +60,8 @@ class SQLiteProvider(DatabaseProvider):
         if hasattr(self._local, "conn"):
             try:
                 self._local.conn.close()
-            except: pass
+            except:
+                pass
             del self._local.conn
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -59,7 +69,11 @@ class SQLiteProvider(DatabaseProvider):
         try:
             cur = conn.execute(query, params)
             # Optimize: Only commit if query modifies data
-            if query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")):
+            if (
+                query.strip()
+                .upper()
+                .startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"))
+            ):
                 conn.commit()
             return cur
         except sqlite3.Error as e:
@@ -67,7 +81,8 @@ class SQLiteProvider(DatabaseProvider):
             # Only rollback if we were in a write operation context (simplified)
             try:
                 conn.rollback()
-            except: pass
+            except:
+                pass
             raise
 
     def fetch_all(self, query: str, params: tuple = ()) -> List[dict]:
@@ -89,6 +104,7 @@ class SQLiteProvider(DatabaseProvider):
         except Exception:
             conn.rollback()
             raise
+
 
 # Global Accessor
 def get_db(db_path: str = "drakben.db") -> SQLiteProvider:

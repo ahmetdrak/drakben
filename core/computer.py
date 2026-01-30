@@ -5,9 +5,8 @@
 
 import logging
 import os
-import platform
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 try:
     import pyautogui
@@ -15,6 +14,7 @@ try:
     import cv2
     import numpy as np
     from PIL import Image
+
     COMPUTER_AVAILABLE = True
 except ImportError:
     COMPUTER_AVAILABLE = False
@@ -30,6 +30,7 @@ if COMPUTER_AVAILABLE:
 
 class ComputerError(Exception):
     """Custom exception for computer control errors"""
+
     pass
 
 
@@ -55,7 +56,8 @@ class Computer:
         """Check if dependencies are available"""
         if not COMPUTER_AVAILABLE:
             raise ComputerError(
-                "Computer control dependencies (pyautogui, mss, opencv) not installed.")
+                "Computer control dependencies (pyautogui, mss, opencv) not installed."
+            )
 
     # ============ VISION ============
 
@@ -85,8 +87,7 @@ class Computer:
                 sct_img = sct.grab(monitor)
 
                 # Convert to PIL/PNG
-                img = Image.frombytes(
-                    "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
                 img.save(absolute_path)
 
             logger.info(f"Screenshot saved to {absolute_path}")
@@ -97,8 +98,9 @@ class Computer:
 
     # ============ MOUSE ============
 
-    def click(self, x: Union[int, str], y: int = 0,
-              button: str = "left", clicks: int = 1):
+    def click(
+        self, x: Union[int, str], y: int = 0, button: str = "left", clicks: int = 1
+    ):
         """
         Click at coordinates or on an image/text match.
 
@@ -113,8 +115,9 @@ class Computer:
         if isinstance(x, str):
             # For now, just log and fail safe
             raise NotImplementedError(
-                "Visual clicking (click('Submit')) not yet implemented. Use coordinates.")
-        
+                "Visual clicking (click('Submit')) not yet implemented. Use coordinates."
+            )
+
         # At this point x must be int
         target_x: int = int(x)
         target_y: int = y
@@ -124,14 +127,11 @@ class Computer:
             if not self._is_on_screen(target_x, target_y):
                 raise ComputerError(
                     f"Coordinates ({target_x}, {target_y}) are out of bounds ({
-                        self.width}x{
-                        self.height})")
+                        self.width
+                    }x{self.height})"
+                )
 
-            pyautogui.click(
-                x=target_x,
-                y=target_y,
-                clicks=clicks,
-                button=button)
+            pyautogui.click(x=target_x, y=target_y, clicks=clicks, button=button)
             logger.info(f"Clicked {button} at ({target_x}, {target_y})")
 
         except Exception as e:

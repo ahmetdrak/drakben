@@ -7,43 +7,51 @@ Description: Synchronizes agent state across distributed nodes using Redis.
 
 import json
 import logging
-import threading
 import time
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class DistributedStateManager:
     """
     Manages state synchronization via Redis.
     Supports swarm mode coordination.
     """
-    
-    def __init__(self, redis_host: str = "localhost", redis_port: int = 6379, password: Optional[str] = None):
+
+    def __init__(
+        self,
+        redis_host: str = "localhost",
+        redis_port: int = 6379,
+        password: Optional[str] = None,
+    ):
         self.redis_host = redis_host
         self.redis_port = redis_port
         self.password = password
         self.redis_client = None
         self.connected = False
-        
+
         # Try to connect
         self._connect()
-        
+
     def _connect(self) -> None:
         """Attempt to connect to Redis"""
         try:
             import redis
+
             self.redis_client = redis.Redis(
                 host=self.redis_host,
                 port=self.redis_port,
                 password=self.password,
                 decode_responses=True,
-                socket_connect_timeout=2
+                socket_connect_timeout=2,
             )
             # Test connection
             self.redis_client.ping()
             self.connected = True
-            logger.info(f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})")
+            logger.info(
+                f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})"
+            )
         except ImportError:
             logger.warning("Redis library not installed. Running in standalone mode.")
             self.connected = False
@@ -54,46 +62,51 @@ class DistributedStateManager:
     def sync_state(self, agent_id: str, state_data: Dict[str, Any]) -> bool:
         """
         Push local state to distributed store.
-        
+
         Args:
             agent_id: Unique identifier for this agent
             state_data: Dictionary representation of state
-            
+
         Returns:
             True if sync successful
         """
         if not self.connected or not self.redis_client:
             return False
-            
+
         try:
             key = f"drakben:agent:{agent_id}:state"
             # Serialize
             payload = json.dumps(state_data)
             # Set with expiration (hearbeat mechanics)
             self.redis_client.setex(key, 300, payload)
-            
+
             # Publish update event
-            self.redis_client.publish("drakben:events", json.dumps({
-                "type": "state_update",
-                "agent_id": agent_id,
-                "timestamp": time.time()
-            }))
-            
+            self.redis_client.publish(
+                "drakben:events",
+                json.dumps(
+                    {
+                        "type": "state_update",
+                        "agent_id": agent_id,
+                        "timestamp": time.time(),
+                    }
+                ),
+            )
+
             return True
         except Exception as e:
             logger.error(f"Failed to sync state: {e}")
             return False
-            
+
     def get_swarm_state(self) -> Dict[str, Any]:
         """
         Get states of all active agents in the swarm.
-        
+
         Returns:
             Dict of agent_id -> state_data
         """
         if not self.connected or not self.redis_client:
             return {}
-            
+
         swarm_data = {}
         try:
             # Scan for all agent keys
@@ -105,11 +118,13 @@ class DistributedStateManager:
                     swarm_data[agent_id] = json.loads(data)
         except Exception as e:
             logger.error(f"Failed to fetch swarm state: {e}")
-            
+
         return swarm_data
+
 
 # Singleton
 _dsm_instance = None
+
 
 def get_distributed_state_manager() -> DistributedStateManager:
     """Get singleton DistributedStateManager"""

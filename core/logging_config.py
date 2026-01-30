@@ -4,11 +4,9 @@
 
 import logging
 import logging.handlers
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 
 class DrakbenFormatter(logging.Formatter):
@@ -19,12 +17,12 @@ class DrakbenFormatter(logging.Formatter):
 
     # ANSI color codes (Dracula theme compatible)
     COLORS = {
-        'DEBUG': '\033[36m',      # Cyan
-        'INFO': '\033[32m',       # Green
-        'WARNING': '\033[33m',    # Yellow
-        'ERROR': '\033[31m',      # Red
-        'CRITICAL': '\033[35m',   # Magenta
-        'RESET': '\033[0m',
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
+        "RESET": "\033[0m",
     }
 
     def __init__(self, use_colors: bool = True, include_module: bool = True):
@@ -32,19 +30,17 @@ class DrakbenFormatter(logging.Formatter):
         self.include_module = include_module
 
         if include_module:
-            fmt = '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
+            fmt = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
         else:
-            fmt = '%(asctime)s | %(levelname)-8s | %(message)s'
+            fmt = "%(asctime)s | %(levelname)-8s | %(message)s"
 
-        super().__init__(fmt=fmt, datefmt='%Y-%m-%d %H:%M:%S')
+        super().__init__(fmt=fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
     def format(self, record: logging.LogRecord) -> str:
         # Add colors for terminal output
         if self.use_colors:
-            color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
-            record.levelname = f"{color}{
-                record.levelname}{
-                self.COLORS['RESET']}"
+            color = self.COLORS.get(record.levelname, self.COLORS["RESET"])
+            record.levelname = f"{color}{record.levelname}{self.COLORS['RESET']}"
 
         return super().format(record)
 
@@ -59,27 +55,44 @@ class JSONFormatter(logging.Formatter):
         import json
 
         log_entry = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Add exception info if present
         if record.exc_info:
-            log_entry['exception'] = self.formatException(record.exc_info)
+            log_entry["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields
         for key, value in record.__dict__.items():
-            if key not in ('name', 'msg', 'args', 'created', 'filename',
-                           'funcName', 'levelname', 'levelno', 'lineno',
-                           'module', 'msecs', 'pathname', 'process',
-                           'processName', 'relativeCreated', 'stack_info',
-                           'thread', 'threadName', 'exc_info', 'exc_text',
-                           'message'):
+            if key not in (
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "stack_info",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "message",
+            ):
                 log_entry[key] = value
 
         return json.dumps(log_entry, default=str)
@@ -112,7 +125,7 @@ def setup_logging(
         Root logger configured for DRAKBEN
     """
     # Get root logger for drakben
-    root_logger = logging.getLogger('drakben')
+    root_logger = logging.getLogger("drakben")
     root_logger.setLevel(getattr(logging, level.upper()))
 
     # Clear existing handlers
@@ -136,7 +149,7 @@ def setup_logging(
             log_file,
             maxBytes=max_file_size_mb * 1024 * 1024,
             backupCount=backup_count,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         file_handler.setLevel(getattr(logging, level.upper()))
 
@@ -153,15 +166,15 @@ def setup_logging(
             error_file,
             maxBytes=max_file_size_mb * 1024 * 1024,
             backupCount=backup_count,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(DrakbenFormatter(use_colors=False))
         root_logger.addHandler(error_handler)
 
     # Suppress noisy third-party loggers
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
 
     return root_logger
 
@@ -181,8 +194,8 @@ def get_logger(name: str) -> logging.Logger:
         logger.info("Processing started")
     """
     # Prepend 'drakben' if not already present
-    if not name.startswith('drakben'):
-        name = f'drakben.{name}'
+    if not name.startswith("drakben"):
+        name = f"drakben.{name}"
 
     return logging.getLogger(name)
 
@@ -220,35 +233,32 @@ class LogContext:
 
 # Module-level convenience functions
 def log_tool_execution(
-        logger: logging.Logger,
-        tool_name: str,
-        target: str,
-        success: bool,
-        duration: float = 0.0):
+    logger: logging.Logger,
+    tool_name: str,
+    target: str,
+    success: bool,
+    duration: float = 0.0,
+):
     """Log tool execution with consistent format"""
     status = "SUCCESS" if success else "FAILED"
     logger.info(
         f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {
-            duration:.2f}s")
+            duration:.2f}s"
+    )
 
 
-def log_phase_transition(
-        logger: logging.Logger,
-        from_phase: str,
-        to_phase: str):
+def log_phase_transition(logger: logging.Logger, from_phase: str, to_phase: str):
     """Log phase transition"""
     logger.info(f"Phase transition: {from_phase} -> {to_phase}")
 
 
 def log_vulnerability_found(
-        logger: logging.Logger,
-        vuln_id: str,
-        service: str,
-        port: int,
-        severity: str):
+    logger: logging.Logger, vuln_id: str, service: str, port: int, severity: str
+):
     """Log vulnerability discovery"""
     logger.warning(
-        f"Vulnerability found: {vuln_id} | Service: {service}:{port} | Severity: {severity}")
+        f"Vulnerability found: {vuln_id} | Service: {service}:{port} | Severity: {severity}"
+    )
 
 
 def log_security_event(logger: logging.Logger, event_type: str, details: str):

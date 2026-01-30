@@ -18,38 +18,39 @@ logger = logging.getLogger(__name__)
 # Constants
 API_ENV_PATH = "config/api.env"
 
+
 # ===========================================
 # CENTRALIZED TIMEOUT CONFIGURATION
 # All modules should use these values for consistency
 # ===========================================
 class TimeoutConfig:
     """Centralized timeout settings for consistency across modules"""
-    
+
     # Database timeouts
     SQLITE_CONNECT_TIMEOUT = 10.0  # seconds
-    SQLITE_BUSY_TIMEOUT = 10000    # milliseconds
-    
+    SQLITE_BUSY_TIMEOUT = 10000  # milliseconds
+
     # Network timeouts
-    HTTP_REQUEST_TIMEOUT = 30      # seconds
-    SOCKET_TIMEOUT = 10            # seconds
-    
+    HTTP_REQUEST_TIMEOUT = 30  # seconds
+    SOCKET_TIMEOUT = 10  # seconds
+
     # LLM timeouts
-    LLM_QUERY_TIMEOUT = 30         # seconds
-    LLM_STREAMING_TIMEOUT = 60     # seconds
-    LLM_MAX_STREAM_TIME = 300      # 5 minutes max
-    
+    LLM_QUERY_TIMEOUT = 30  # seconds
+    LLM_STREAMING_TIMEOUT = 60  # seconds
+    LLM_MAX_STREAM_TIME = 300  # 5 minutes max
+
     # Tool execution timeouts
-    TOOL_DEFAULT_TIMEOUT = 300     # 5 minutes
-    TOOL_FAST_TIMEOUT = 60         # 1 minute for fast tools
-    TOOL_SLOW_TIMEOUT = 600        # 10 minutes for slow tools
-    
+    TOOL_DEFAULT_TIMEOUT = 300  # 5 minutes
+    TOOL_FAST_TIMEOUT = 60  # 1 minute for fast tools
+    TOOL_SLOW_TIMEOUT = 600  # 10 minutes for slow tools
+
     # Thread timeouts
-    THREAD_JOIN_TIMEOUT = 5.0      # seconds
-    LOCK_ACQUIRE_TIMEOUT = 5.0     # seconds
-    
+    THREAD_JOIN_TIMEOUT = 5.0  # seconds
+    LOCK_ACQUIRE_TIMEOUT = 5.0  # seconds
+
     # Process timeouts
     PROCESS_TERMINATE_TIMEOUT = 5  # seconds before kill
-    PROCESS_CLEANUP_TIMEOUT = 2    # seconds for cleanup
+    PROCESS_CLEANUP_TIMEOUT = 2  # seconds for cleanup
 
 
 # Export for easy import
@@ -88,7 +89,7 @@ class DrakbenConfig:
 
     # Tools
     tools_available: Optional[Dict[str, bool]] = None
-    
+
     # System Settings (Added to match config.json)
     system: Optional[Dict[str, Any]] = None
 
@@ -209,14 +210,17 @@ class ConfigManager:
 
         # Interactive LLM setup prompt
         from rich.console import Console
+
         console = Console()
-        
+
         if not self._prompt_user_consent(console):
             self.config.llm_setup_complete = True
             self.save_config()
             return
 
-        console.print("\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip")
+        console.print(
+            "\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip"
+        )
         provider_choice = input("> ").strip()
 
         env_values = existing.copy()
@@ -275,7 +279,7 @@ class ConfigManager:
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
             return True
-        
+
         return False
 
     @property
@@ -285,6 +289,7 @@ class ConfigManager:
             if self._llm_client is None:
                 try:
                     from llm.openrouter_client import OpenRouterClient
+
                     self._llm_client = OpenRouterClient()
                 except Exception as e:
                     logger.error(f"Failed to initialize LLM client: {e}")
@@ -318,7 +323,7 @@ class ConfigManager:
 
     def save_config(self):
         """Save configuration to file (thread-safe)
-        
+
         Raises:
             PermissionError: If file cannot be written due to permissions
             OSError: If file system error occurs
@@ -326,14 +331,14 @@ class ConfigManager:
         with self._lock:
             try:
                 self.config_file.parent.mkdir(parents=True, exist_ok=True)
-                
+
                 # SENSITIVE DATA PROTECTION
                 # Do not write API keys to settings.json (they belong in .env)
                 data = asdict(self.config)
                 keys_to_remove = [k for k in data.keys() if "_api_key" in k]
                 for k in keys_to_remove:
                     data.pop(k, None)
-                    
+
                 with open(self.config_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
             except PermissionError as e:
@@ -409,7 +414,9 @@ class SessionManager:
                 import time
 
                 timestamp = int(time.time())
-                filename = f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
+                filename = (
+                    f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
+                )
                 filepath = self.session_dir / filename
 
                 with open(filepath, "w", encoding="utf-8") as f:
@@ -462,4 +469,3 @@ class SessionManager:
             notes = self.current_session.get("notes")
             if notes is not None:
                 notes.append(note)
-

@@ -17,6 +17,7 @@ OpenRouterClient: Any = None  # Type placeholder
 LLM_AVAILABLE = False
 try:
     from llm.openrouter_client import OpenRouterClient as _OpenRouterClient
+
     OpenRouterClient = _OpenRouterClient
     LLM_AVAILABLE = True
     logger.debug("LLM client loaded successfully")
@@ -102,31 +103,37 @@ class MasterOrchestrator:
         # CRITICAL SAFETY: Circuit Breaker for Infinite Loops
         if len(self.context.history) >= 3:
             last_3 = self.context.history[-3:]
-            current_action = decision.get("action") or decision.get("next_action", {}).get("type")
-            
+            current_action = decision.get("action") or decision.get(
+                "next_action", {}
+            ).get("type")
+
             repeated_count = 0
             for hist in last_3:
                 # Assuming history structure {"step":..., "action": {"tool": "x"}...}
                 hist_action_obj = hist.get("action", {})
                 # Handle both dict and object/string cases defensively
                 if isinstance(hist_action_obj, dict):
-                     hist_action = hist_action_obj.get("tool") or hist_action_obj.get("type")
+                    hist_action = hist_action_obj.get("tool") or hist_action_obj.get(
+                        "type"
+                    )
                 else:
-                     hist_action = str(hist_action_obj)
+                    hist_action = str(hist_action_obj)
 
                 if hist_action and current_action and hist_action == current_action:
                     repeated_count += 1
-            
+
             if repeated_count >= 3:
                 import logging
-                logging.getLogger(__name__).critical("Infinite Loop Detected: Same action proposed 3+ times.")
+
+                logging.getLogger(__name__).critical(
+                    "Infinite Loop Detected: Same action proposed 3+ times."
+                )
                 return {
                     "action": "error",
                     "error": "Infinite Loop Detected. The agent is repeating the same action.",
                     "needs_approval": True,
-                    "risks": ["Infinite Loop"]
+                    "risks": ["Infinite Loop"],
                 }
-
 
         # Self-correction check
         if decision.get("has_risks"):
@@ -159,26 +166,29 @@ class ContinuousReasoning:
     Sürekli düşünme motoru - Her adımda yeniden değerlendirir
     Gerçek LLM entegrasyonu ile
     """
-    
+
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
 
     def __init__(self, llm_client=None) -> None:
         self.llm_client = llm_client
         self.reasoning_history = []
         self.use_llm: bool = llm_client is not None
-        
+
         # Initialize LLM Cache
         try:
             from core.llm_cache import LLMCache
+
             self.llm_cache = LLMCache()
         except ImportError:
             self.llm_cache = None
-    
+
     def _add_to_history(self, item: Dict) -> None:
         """Add item to reasoning history with size limit"""
         self.reasoning_history.append(item)
         if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
-            self.reasoning_history = self.reasoning_history[-self.MAX_REASONING_HISTORY:]
+            self.reasoning_history = self.reasoning_history[
+                -self.MAX_REASONING_HISTORY :
+            ]
 
     def analyze(self, user_input: str, context: ExecutionContext) -> Dict:
         """
@@ -194,44 +204,59 @@ class ContinuousReasoning:
                 "risks": List[str],
                 "llm_response": str (optional)
             }
-            
+
         ERROR RECOVERY:
         - Retry LLM on transient errors (timeout, rate limit)
         - Fall back to rule-based analysis on persistent failure
         """
         import time
         import logging
+
         logger: logging.Logger = logging.getLogger(__name__)
-        
+
         MAX_RETRIES = 3
-        RETRYABLE_ERRORS: List[str] = ["Timeout", "Rate Limit", "Server Error", "Connection", "429", "502", "503"]
-        
+        RETRYABLE_ERRORS: List[str] = [
+            "Timeout",
+            "Rate Limit",
+            "Server Error",
+            "Connection",
+            "429",
+            "502",
+            "503",
+        ]
+
         # Try LLM-powered analysis first (with retry for transient errors)
         if self.use_llm and self.llm_client:
             last_error = None
-            
+
             for attempt in range(MAX_RETRIES):
-                llm_analysis: Dict[str, Any] = self._analyze_with_llm(user_input, context)
-                
+                llm_analysis: Dict[str, Any] = self._analyze_with_llm(
+                    user_input, context
+                )
+
                 if llm_analysis.get("success"):
                     return llm_analysis
-                
+
                 # Check if error is retryable
                 error_msg = llm_analysis.get("error", "")
                 is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
-                
+
                 if is_retryable and attempt < MAX_RETRIES - 1:
-                    delay = 5 * (2 ** attempt) # 5s, 10s, 20s
-                    logger.warning(f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}")
+                    delay = 5 * (2**attempt)  # 5s, 10s, 20s
+                    logger.warning(
+                        f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}"
+                    )
                     time.sleep(delay)
                     continue
-                
+
                 last_error = error_msg
                 break
-            
+
             # Log persistent LLM failure
             if last_error:
-                logger.warning(f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}")
+                logger.warning(
+                    f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}"
+                )
 
         # Fallback to rule-based analysis
         logger.info("Falling back to rule-based analysis")
@@ -239,14 +264,16 @@ class ContinuousReasoning:
         rule_result["fallback_mode"] = True  # Mark that we used fallback
         return rule_result
 
-    def _analyze_with_llm(self, user_input: str, context: ExecutionContext) -> Dict[str, Any]:
+    def _analyze_with_llm(
+        self, user_input: str, context: ExecutionContext
+    ) -> Dict[str, Any]:
         """
         LLM-powered analysis with language-aware response.
-        
+
         Args:
             user_input: User's natural language request
             context: Execution context with target, language, system info
-            
+
         Returns:
             Dict with keys:
                 - success: bool - Whether analysis succeeded
@@ -279,13 +306,17 @@ class ContinuousReasoning:
                 cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
                 if cached_json:
                     # Cache hit! Parse and return directly
-                    parsed: Dict[str, Any] | None = self._parse_llm_response(cached_json) # Helper usage
+                    parsed: Dict[str, Any] | None = self._parse_llm_response(
+                        cached_json
+                    )  # Helper usage
                     if parsed:
-                         parsed["success"] = True
-                         parsed["response"] = parsed.get("response", parsed.get("reasoning", ""))
-                         parsed["llm_response"] = cached_json # Raw json
-                         self._add_to_history(parsed)
-                         return parsed
+                        parsed["success"] = True
+                        parsed["response"] = parsed.get(
+                            "response", parsed.get("reasoning", "")
+                        )
+                        parsed["llm_response"] = cached_json  # Raw json
+                        self._add_to_history(parsed)
+                        return parsed
 
             # Add timeout to prevent hanging on Cloudflare WAF blocking
             response = self.llm_client.query(user_input, system_prompt, timeout=20)
@@ -329,60 +360,113 @@ class ContinuousReasoning:
         """Extract JSON from LLM response string"""
         import json
         import re
-        
+
         # Try to find JSON block
-        json_match: Match[str] | None = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        json_match: Match[str] | None = re.search(
+            r"```json\s*(.*?)\s*```", response, re.DOTALL
+        )
         if json_match:
             try:
                 return json.loads(json_match.group(1))
             except json.JSONDecodeError:
                 pass
-        
+
         # Try raw JSON
         try:
             return json.loads(response)
         except json.JSONDecodeError:
             pass
-            
+
         return None
 
     def _is_chat_request(self, user_input: Any) -> bool:
         """Detect if user input is a chat/conversation request (not pentest)"""
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
-             # Try to extract meaningful text from dict if passed by mistake
-             user_input = user_input.get("command") or user_input.get("input") or str(user_input)
-        
+            # Try to extract meaningful text from dict if passed by mistake
+            user_input = (
+                user_input.get("command") or user_input.get("input") or str(user_input)
+            )
+
         if not isinstance(user_input, str):
             user_input = str(user_input)
 
         user_lower: str | Any = user_input.lower()
-        
+
         # Chat indicators - questions about the AI, greetings, general questions
         chat_patterns: List[str] = [
             # Greetings
-            "merhaba", "selam", "hello", "hi", "hey", "nasılsın", "how are you",
+            "merhaba",
+            "selam",
+            "hello",
+            "hi",
+            "hey",
+            "nasılsın",
+            "how are you",
             # Questions about the AI
-            "sen kimsin", "who are you", "hangi model", "what model", "ne yapabilirsin",
-            "what can you do", "adın ne", "your name", "hakkında", "about you",
+            "sen kimsin",
+            "who are you",
+            "hangi model",
+            "what model",
+            "ne yapabilirsin",
+            "what can you do",
+            "adın ne",
+            "your name",
+            "hakkında",
+            "about you",
             # General chat
-            "teşekkür", "thank", "iyi", "good", "tamam", "okay", "ok",
-            "neden", "why", "nasıl", "how do", "ne zaman", "when",
+            "teşekkür",
+            "thank",
+            "iyi",
+            "good",
+            "tamam",
+            "okay",
+            "ok",
+            "neden",
+            "why",
+            "nasıl",
+            "how do",
+            "ne zaman",
+            "when",
             # System questions (not pentest)
-            "hangi sistem", "what system", "çalışıyor", "working",
-            "cevap ver", "answer", "konuş", "talk", "söyle", "tell"
+            "hangi sistem",
+            "what system",
+            "çalışıyor",
+            "working",
+            "cevap ver",
+            "answer",
+            "konuş",
+            "talk",
+            "söyle",
+            "tell",
         ]
-        
+
         # If contains any chat pattern and NO pentest keywords
         pentest_keywords: List[str] = [
-            "tara", "scan", "port", "nmap", "exploit", "zafiyet", "vuln",
-            "injection", "shell", "payload", "hedef", "target", "saldır",
-            "attack", "hack", "pentest", "test et", "sqlmap", "nikto"
+            "tara",
+            "scan",
+            "port",
+            "nmap",
+            "exploit",
+            "zafiyet",
+            "vuln",
+            "injection",
+            "shell",
+            "payload",
+            "hedef",
+            "target",
+            "saldır",
+            "attack",
+            "hack",
+            "pentest",
+            "test et",
+            "sqlmap",
+            "nikto",
         ]
-        
+
         has_chat_pattern: bool = any(p in user_lower for p in chat_patterns)
         has_pentest_keyword: bool = any(k in user_lower for k in pentest_keywords)
-        
+
         # FIX: If pentest keyword exists, it is NEVER just a chat. It's an action.
         if has_pentest_keyword:
             return False
@@ -390,21 +474,23 @@ class ContinuousReasoning:
         # It's chat if it has chat patterns
         if has_chat_pattern:
             return True
-            
+
         # Short message default to chat
         if len(user_input.split()) <= 5:
             return True
-            
+
         return False
 
-    def _chat_with_llm(self, user_input: str, user_lang: str, context: ExecutionContext) -> Dict:
+    def _chat_with_llm(
+        self, user_input: str, user_lang: str, context: ExecutionContext
+    ) -> Dict:
         """Direct chat mode - conversational response without JSON structure"""
-        
+
         # FAST PATH: Simple greetings (No LLM cost)
         # Optimized for performance and test passing
         simple_inputs: List[str] = ["merhaba", "selam", "hi", "hello", "ping", "test"]
         if user_input.lower().strip() in simple_inputs:
-             return {
+            return {
                 "success": True,
                 "intent": "chat",
                 "confidence": 1.0,
@@ -412,7 +498,7 @@ class ContinuousReasoning:
                 "reasoning": "Fast-path: Simple greeting detected",
                 "response": "Merhaba! Ben DRAKBEN. Hedef sistem nedir? (Fast-ready)",
                 "risks": [],
-                "llm_response": "Fast-path greeting"
+                "llm_response": "Fast-path greeting",
             }
 
         if user_lang == "tr":
@@ -440,7 +526,7 @@ IMPORTANT:
             if self.llm_cache:
                 cached_resp: str | None = self.llm_cache.get(user_input + system_prompt)
                 if cached_resp:
-                     return {
+                    return {
                         "success": True,
                         "intent": "chat",
                         "confidence": 0.95,
@@ -459,7 +545,7 @@ IMPORTANT:
                 x in response for x in ["Error", "Offline", "Timeout"]
             ):
                 return {"success": False, "error": response}
-            
+
             # 2. Save to Cache
             if self.llm_cache:
                 self.llm_cache.set(user_input + system_prompt, response)
@@ -477,8 +563,9 @@ IMPORTANT:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-
-    def _construct_system_prompt(self, user_lang: str, context: ExecutionContext) -> str:
+    def _construct_system_prompt(
+        self, user_lang: str, context: ExecutionContext
+    ) -> str:
         """Helper to construct the system prompt for pentest analysis"""
         if user_lang == "tr":
             language_instruction = """
@@ -488,18 +575,18 @@ PROCESS:
 3. RESPOND in TURKISH (Türkçe). Professional, tactical tone.
 """
         elif user_lang == "en":
-             language_instruction = """
+            language_instruction = """
 PROCESS: 
 1. ANALYZE intent deeply. 
 2. SELECT best tool from 'Command Protocols'. 
 3. RESPOND in English. Professional, tactical tone.
 """
         else:
-             language_instruction = "Response Language: English."
+            language_instruction = "Response Language: English."
 
         context_str: str = ""
         if context.system_info.get("last_tool"):
-             context_str += f"\n\n[🟢 SYSTEM STATUS: ACTION COMPLETED]\nTool: {context.system_info.get('last_tool')}\nResult: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput Snippet:\n{str(context.system_info.get('last_output', ''))[:4000]}\n[END STATUS]\n"
+            context_str += f"\n\n[🟢 SYSTEM STATUS: ACTION COMPLETED]\nTool: {context.system_info.get('last_tool')}\nResult: {'Success' if context.system_info.get('last_success') else 'Failed'}\nOutput Snippet:\n{str(context.system_info.get('last_output', ''))[:4000]}\n[END STATUS]\n"
 
         return f"""### SYSTEM IDENTITY: DRAKBEN (VILLAGER-CLASS ORCHESTRATOR)
 You are DRAKBEN, an elite AI Cyber Warfare Operator inspired by the Villager Framework.
@@ -601,8 +688,10 @@ User Input: """
         """Detect user intent from input"""
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
-             user_input = user_input.get("command") or user_input.get("input") or str(user_input)
-        
+            user_input = (
+                user_input.get("command") or user_input.get("input") or str(user_input)
+            )
+
         if not isinstance(user_input, str):
             user_input = str(user_input)
 
@@ -1049,9 +1138,9 @@ class DrakbenBrain:
         # Get the actual response to show user
         # Priority: response > llm_response > reasoning
         actual_response = (
-            result.get("response") or 
-            result.get("llm_response") or 
-            result.get("reasoning", "")
+            result.get("response")
+            or result.get("llm_response")
+            or result.get("reasoning", "")
         )
 
         # Format response
@@ -1101,36 +1190,36 @@ class DrakbenBrain:
         This allows the Brain to 'see' what happened in the terminal.
         """
         logger.info(f"Brain observing tool {tool} (success={success})")
-        
+
         # Create a history entry (for specialized history if needed)
         entry = {
             "type": "observation",
             "tool": tool,
-            "output": output,  
+            "output": output,
             "success": success,
-            "timestamp": "recent"
+            "timestamp": "recent",
         }
-        
+
         # Update context manager
         if self.context_mgr:
             # We add it to context history
             self.context_mgr.context_history.append(entry)
-            
+
             # Update current context with latest tool info
             current_update = {
                 "last_tool": tool,
                 # Store truncated output in current context to avoid bloating every prompt
                 # But keep it somewhat long for immediate next turn
-                "last_output": output[:10000], 
-                "last_success": success
+                "last_output": output[:10000],
+                "last_success": success,
             }
-            
+
             # Executed tools list
             prev_tools = self.context_mgr.get("executed_tools", []) or []
             if tool not in prev_tools:
                 prev_tools.append(tool)
                 current_update["executed_tools"] = prev_tools
-            
+
             self.context_mgr.update(current_update)
 
     def get_stats(self) -> Dict:
@@ -1198,14 +1287,14 @@ class DrakbenBrain:
         # Build minimal prompt for LLM
         prompt: str = f"""You are DRAKBEN penetration testing agent. {lang_instruction}
 Current state:
-- Phase: {context.get('phase')}
-- Iteration: {context.get('state_snapshot', {}).get('iteration')}
-- Open services: {context.get('state_snapshot', {}).get('open_services_count')}
-- Remaining to test: {context.get('state_snapshot', {}).get('remaining_count')}
-- Last observation: {context.get('last_observation', 'None')[:100]}
+- Phase: {context.get("phase")}
+- Iteration: {context.get("state_snapshot", {}).get("iteration")}
+- Open services: {context.get("state_snapshot", {}).get("open_services_count")}
+- Remaining to test: {context.get("state_snapshot", {}).get("remaining_count")}
+- Last observation: {context.get("last_observation", "None")[:100]}
 
-Allowed tools: {', '.join(context.get('allowed_tools', [])[:5])}
-Remaining surfaces: {', '.join(context.get('remaining_surfaces', [])[:3])}
+Allowed tools: {", ".join(context.get("allowed_tools", [])[:5])}
+Remaining surfaces: {", ".join(context.get("remaining_surfaces", [])[:3])}
 
 Select ONE tool to execute next. Respond ONLY in JSON format:
 {{"tool": "tool_name", "args": {{"param": "value"}}}}"""
@@ -1215,7 +1304,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             response = self.llm_client.query(
                 prompt,
                 system_prompt="You are a penetration testing AI. Respond only in JSON.",
-                timeout=20
+                timeout=20,
             )
 
             # Parse JSON using reasoning module's parser
@@ -1226,27 +1315,24 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             # Fallback to rule-based
             return None
 
-
         except Exception:
             return None
 
     def ask_coder(self, instruction: str, context: Optional[Dict] = None) -> Dict:
         """
         Delegate coding task to AICoder.
-        
+
         Args:
             instruction: What to code
             context: Additional context
-            
+
         Returns:
             Result dict from AICoder
         """
-        from core.coder import AICoder
-        
+
         # Since AICoder is stateful, we might need a persistent instance in Brain
         # checking if we have one, if not create
-        if not hasattr(self, 'coder'):
+        if not hasattr(self, "coder"):
             self.coder: AICoder = AICoder(self)
-            
-        return self.coder.create_tool("dynamic_tool", instruction, context or "")
 
+        return self.coder.create_tool("dynamic_tool", instruction, context or "")

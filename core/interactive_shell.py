@@ -5,9 +5,8 @@
 import logging
 import os
 import shlex
-import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -20,14 +19,16 @@ logger = logging.getLogger(__name__)
 # Cross-platform readline support
 try:
     import readline as readline_mod
+
     READLINE_AVAILABLE = True
 except ImportError:
     # Windows fallback
     try:
-        import pyreadline3 as readline_mod # type: ignore
+        import pyreadline3 as readline_mod  # type: ignore
+
         READLINE_AVAILABLE = True
     except ImportError:
-        readline_mod = None # type: ignore
+        readline_mod = None  # type: ignore
         READLINE_AVAILABLE = False
         logger.debug("readline not available - history and completion disabled")
 
@@ -35,6 +36,7 @@ except ImportError:
 @dataclass
 class CommandResult:
     """Result of an interactive command"""
+
     success: bool
     output: str = ""
     error: Optional[str] = None
@@ -81,7 +83,7 @@ class InteractiveShell:
         config_manager=None,
         agent=None,
         enable_history: bool = True,
-        history_file: str = ".drakben_history"
+        history_file: str = ".drakben_history",
     ):
         self.config = config_manager
         self.agent = agent
@@ -171,11 +173,7 @@ class InteractiveShell:
             "config": self._cmd_config,
         }
 
-    def register_command(
-            self,
-            name: str,
-            handler: Callable,
-            description: str = ""):
+    def register_command(self, name: str, handler: Callable, description: str = ""):
         """Register a custom command"""
         self.command_handlers[name] = handler
         self.BUILTIN_COMMANDS[name] = description
@@ -317,15 +315,14 @@ class InteractiveShell:
             # Show response
             if result.get("reply"):
                 self.console.print(
-                    Panel(
-                        result["reply"],
-                        title="DRAKBEN",
-                        border_style="green"))
+                    Panel(result["reply"], title="DRAKBEN", border_style="green")
+                )
 
             # Show command if generated
             if result.get("command"):
                 self.console.print(
-                    f"[cyan]Suggested command:[/cyan] {result['command']}")
+                    f"[cyan]Suggested command:[/cyan] {result['command']}"
+                )
 
                 # Ask for confirmation
                 confirm = input("Execute? (y/n): ").strip().lower()
@@ -336,11 +333,7 @@ class InteractiveShell:
             if result.get("steps") and len(result["steps"]) > 1:
                 self.console.print("\n[bold]Proposed steps:[/bold]")
                 for i, step in enumerate(result["steps"], 1):
-                    self.console.print(
-                        f"  {i}. {
-                            step.get(
-                                'action',
-                                'unknown')}")
+                    self.console.print(f"  {i}. {step.get('action', 'unknown')}")
 
         except Exception as e:
             logger.exception(f"NLP processing error: {e}")
@@ -358,8 +351,7 @@ class InteractiveShell:
             table.add_row(f"/{cmd}", desc)
 
         self.console.print(table)
-        self.console.print(
-            "\n[dim]You can also type natural language commands.[/dim]")
+        self.console.print("\n[dim]You can also type natural language commands.[/dim]")
 
         return CommandResult(success=True, output="")
 
@@ -371,7 +363,7 @@ class InteractiveShell:
 
     def _cmd_clear(self, args: List[str]) -> CommandResult:
         """Clear the screen"""
-        os.system('cls' if os.name == 'nt' else 'clear')  # nosec B605
+        os.system("cls" if os.name == "nt" else "clear")  # nosec B605
         return CommandResult(success=True, output="")
 
     def _cmd_history(self, args: List[str]) -> CommandResult:
@@ -393,9 +385,7 @@ class InteractiveShell:
         """Set or show target"""
         if args:
             self.current_target = args[0]
-            self.console.print(
-                f"[green]Target set to: {
-                    self.current_target}[/green]")
+            self.console.print(f"[green]Target set to: {self.current_target}[/green]")
 
             # Initialize agent if available
             if self.agent:
@@ -403,11 +393,12 @@ class InteractiveShell:
         else:
             if self.current_target:
                 self.console.print(
-                    f"Current target: [cyan]{
-                        self.current_target}[/cyan]")
+                    f"Current target: [cyan]{self.current_target}[/cyan]"
+                )
             else:
                 self.console.print(
-                    "[yellow]No target set. Use /target <ip/domain>[/yellow]")
+                    "[yellow]No target set. Use /target <ip/domain>[/yellow]"
+                )
 
         return CommandResult(success=True, output="")
 
@@ -425,9 +416,7 @@ class InteractiveShell:
             table.add_row("Phase", state.phase.value)
             table.add_row("Services Found", str(len(state.open_services)))
             table.add_row("Vulnerabilities", str(len(state.vulnerabilities)))
-            table.add_row(
-                "Has Foothold",
-                "Yes" if state.has_foothold else "No")
+            table.add_row("Has Foothold", "Yes" if state.has_foothold else "No")
 
         self.console.print(table)
         return CommandResult(success=True, output="")
@@ -435,8 +424,7 @@ class InteractiveShell:
     def _cmd_run(self, args: List[str]) -> CommandResult:
         """Run a specific action"""
         if not args:
-            self.console.print(
-                "[yellow]Usage: /run <action> [args...][/yellow]")
+            self.console.print("[yellow]Usage: /run <action> [args...][/yellow]")
             self.console.print("Actions: scan, exploit, recon, payload")
             return CommandResult(success=False, error="No action specified")
 
@@ -459,43 +447,37 @@ class InteractiveShell:
         if not target:
             return CommandResult(
                 success=False,
-                error="No target specified. Use /target first or /scan <target>")
+                error="No target specified. Use /target first or /scan <target>",
+            )
 
         self.console.print(f"[cyan]Starting scan on {target}...[/cyan]")
 
         if self.agent:
             # Use agent's execution
-            result = self.agent._execute_tool(
-                "nmap_port_scan", {"target": target})
+            result = self.agent._execute_tool("nmap_port_scan", {"target": target})
             if result.get("success"):
                 self.console.print("[green]Scan completed![/green]")
                 if result.get("stdout"):
                     self.console.print(Syntax(result["stdout"][:1000], "text"))
             else:
                 self.console.print(
-                    f"[red]Scan failed: {
-                        result.get(
-                            'error',
-                            'Unknown error')}[/red]")
-            return CommandResult(
-                success=result.get(
-                    "success", False), output="")
+                    f"[red]Scan failed: {result.get('error', 'Unknown error')}[/red]"
+                )
+            return CommandResult(success=result.get("success", False), output="")
 
         return CommandResult(success=False, error="No agent available")
 
     def _cmd_exploit(self, args: List[str]) -> CommandResult:
         """Run exploit module"""
         if not args:
-            self.console.print(
-                "[yellow]Usage: /exploit <module> [args...][/yellow]")
+            self.console.print("[yellow]Usage: /exploit <module> [args...][/yellow]")
             return CommandResult(success=False, error="No exploit specified")
 
         module = args[0]
         self.console.print(f"[yellow]Running exploit: {module}[/yellow]")
 
         # Would integrate with exploit modules here
-        return CommandResult(success=True,
-                             output="Exploit execution placeholder")
+        return CommandResult(success=True, output="Exploit execution placeholder")
 
     def _cmd_shell(self, args: List[str]) -> CommandResult:
         """Execute a system shell command"""
@@ -518,18 +500,19 @@ class InteractiveShell:
             return CommandResult(
                 success=result.exit_code == 0,
                 output="",
-                error=result.stderr if result.exit_code != 0 else None
+                error=result.stderr if result.exit_code != 0 else None,
             )
         else:
             # Fallback to direct execution (less safe)
             import subprocess
+
             try:
                 result = subprocess.run(
                     command,
                     shell=True,  # nosec B602
                     capture_output=True,
                     text=True,
-                    timeout=60
+                    timeout=60,
                 )
                 if result.stdout:
                     self.console.print(result.stdout)
@@ -585,6 +568,7 @@ class InteractiveShell:
 
         if self.agent and self.agent.state:
             from core.state import reset_state
+
             self.agent.state = reset_state()
 
         self.console.print("[green]Session reset.[/green]")
@@ -595,6 +579,7 @@ class InteractiveShell:
         filename = args[0] if args else "drakben_export.json"
 
         import json
+
         export_data = {
             "target": self.current_target,
             "session_vars": self.session_vars,
@@ -621,28 +606,19 @@ class InteractiveShell:
                 table.add_column("Setting", style="cyan")
                 table.add_column("Value")
 
+                table.add_row("Language", getattr(self.config, "language", "tr"))
                 table.add_row(
-                    "Language", getattr(
-                        self.config, "language", "tr"))
-                table.add_row(
-                    "LLM Available", str(
-                        bool(
-                            getattr(
-                                self.config, "llm_client", None))))
+                    "LLM Available", str(bool(getattr(self.config, "llm_client", None)))
+                )
 
-                if hasattr(
-                        self.config,
-                        "llm_client") and self.config.llm_client:
+                if hasattr(self.config, "llm_client") and self.config.llm_client:
                     info = self.config.llm_client.get_provider_info()
-                    table.add_row(
-                        "LLM Provider", info.get(
-                            "provider", "unknown"))
+                    table.add_row("LLM Provider", info.get("provider", "unknown"))
                     table.add_row("LLM Model", info.get("model", "unknown"))
 
                 self.console.print(table)
             else:
-                self.console.print(
-                    "[yellow]No configuration available[/yellow]")
+                self.console.print("[yellow]No configuration available[/yellow]")
         else:
             # Set config value
             if len(args) >= 2:
@@ -651,7 +627,7 @@ class InteractiveShell:
                     current_val = getattr(self.config, key)
                     # Type inference
                     if isinstance(current_val, bool):
-                        value = value.lower() in ('true', '1', 'yes', 'on')
+                        value = value.lower() in ("true", "1", "yes", "on")
                     elif isinstance(current_val, int):
                         try:
                             value = int(value)
@@ -664,7 +640,7 @@ class InteractiveShell:
                         except ValueError:
                             self.console.print(f"[red]Invalid float for {key}[/red]")
                             return CommandResult(success=False, error="Invalid type")
-                            
+
                     setattr(self.config, key, value)
                     self.console.print(f"[green]Set {key} = {value}[/green]")
                 else:

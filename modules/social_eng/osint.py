@@ -5,33 +5,35 @@ Description: Gathers target intelligence (personnel, emails) from public sources
 """
 
 import logging
-import re
 import random
-from typing import List, Dict, Optional, Set
+from typing import List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TargetPerson:
     """Represents a human target"""
+
     full_name: str
     role: str = "Unknown"
     email: Optional[str] = None
     social_profiles: Optional[List[str]] = None
     psych_profile: Optional[str] = None
 
+
 class OSINTSpider:
     """
     Crawls open sources to build a target list.
     """
-    
+
     def __init__(self):
         self.common_formats = [
             "{first}.{last}@{domain}",
             "{first}{last}@{domain}",
             "{f}{last}@{domain}",
-            "{first}.{l}@{domain}"
+            "{first}.{l}@{domain}",
         ]
         logger.info("OSINT Spider initialized")
 
@@ -42,32 +44,38 @@ class OSINTSpider:
         """
         logger.info(f"Harvesting intelligence for: {domain}")
         targets = []
-        
+
         # 1. Search Engine Recon (Simulation of Google Dorking)
         # "site:linkedin.com/in/ 'Company Name'"
         # In a real tool, this would use a SERP API (Serper, SerpApi, or custom scraper)
         # Here we mock realistic results for demonstration if no API key provided
-        
+
         simulated_names = [
             ("John Doe", "IT Administrator"),
             ("Jane Smith", "HR Manager"),
             ("Robert Brown", "Finance Director"),
-            ("Emily White", "Security Analyst")
+            ("Emily White", "Security Analyst"),
         ]
-        
+
         for name, role in simulated_names:
             email = self.predict_email(name, domain)
-            targets.append(TargetPerson(
-                full_name=name,
-                role=role,
-                email=email,
-                social_profiles=[f"linkedin.com/in/{name.lower().replace(' ', '')}"]
-            ))
-            
+            targets.append(
+                TargetPerson(
+                    full_name=name,
+                    role=role,
+                    email=email,
+                    social_profiles=[
+                        f"linkedin.com/in/{name.lower().replace(' ', '')}"
+                    ],
+                )
+            )
+
         logger.info(f"Found {len(targets)} potential targets")
         return targets
 
-    def predict_email(self, full_name: str, domain: str, format_str: str = "{first}.{last}@{domain}") -> str:
+    def predict_email(
+        self, full_name: str, domain: str, format_str: str = "{first}.{last}@{domain}"
+    ) -> str:
         """
         Predict email address based on name and domain.
         """
@@ -76,12 +84,10 @@ class OSINTSpider:
             if len(parts) >= 2:
                 first, last = parts[0], parts[-1]
                 f, l = first[0], last[0]
-                
+
                 # Use a specific format or default
                 email = format_str.format(
-                    first=first, last=last,
-                    f=f, l=l,
-                    domain=domain
+                    first=first, last=last, f=f, l=l, domain=domain
                 )
                 return email
             return f"{parts[0]}@{domain}"

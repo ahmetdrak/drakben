@@ -38,11 +38,7 @@ class KaliDetector:
         """Check if command is available in PATH"""
         try:
             # Use list form for safer execution (no shell=True)
-            check_cmd = [
-                "which",
-                cmd] if self.system != "Windows" else [
-                "where",
-                cmd]
+            check_cmd = ["which", cmd] if self.system != "Windows" else ["where", cmd]
             result = subprocess.run(
                 check_cmd,
                 capture_output=True,
@@ -75,7 +71,7 @@ class KaliDetector:
             "webapp": ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"],
             "network": ["nmap", "hydra", "metasploit"],
             "host": ["nmap", "hydra", "metasploit"],
-            "password": ["hashcat", "john", "hydra"]
+            "password": ["hashcat", "john", "hydra"],
         }
 
         # Get potential tools for the target type
@@ -91,9 +87,7 @@ class KaliDetector:
     def run_tool(self, tool: str, args: str) -> dict:
         """Kali aracını çalıştır"""
         if tool not in self.available_tools:
-            return {
-                "success": False,
-                "error": f"❌ '{tool}' aracı Kali'de bulunamadı"}
+            return {"success": False, "error": f"❌ '{tool}' aracı Kali'de bulunamadı"}
 
         try:
             # Parse arguments safely using shlex

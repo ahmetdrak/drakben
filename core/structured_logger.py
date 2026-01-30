@@ -1,11 +1,9 @@
-
 import json
 import logging
-import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 
 class DrakbenLogger:
@@ -20,8 +18,7 @@ class DrakbenLogger:
 
         # Current session log file
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = self.log_dir / \
-            f"drakben_session_{self.session_id}.jsonl"
+        self.log_file = self.log_dir / f"drakben_session_{self.session_id}.jsonl"
 
         self.logger = logging.getLogger("DrakbenStructured")
 
@@ -31,7 +28,7 @@ class DrakbenLogger:
         phase: str,
         context: Dict[str, Any],
         decision: Dict[str, Any],
-        reasoning: str = ""
+        reasoning: str = "",
     ):
         """Log an AI decision point"""
         entry = {
@@ -41,32 +38,29 @@ class DrakbenLogger:
             "phase": phase,
             "context_snapshot": context,
             "decision": decision,
-            "reasoning": reasoning
+            "reasoning": reasoning,
         }
         self._write(entry)
 
-    def log_action(
-        self,
-        tool: str,
-        args: Dict[str, Any],
-        result: Dict[str, Any]
-    ):
+    def log_action(self, tool: str, args: Dict[str, Any], result: Dict[str, Any]):
         """Log a tool execution action and result"""
         # Clean result to avoid storing massive outputs
         cleaned_result = result.copy()
         if "stdout" in cleaned_result:
-            cleaned_result["stdout"] = cleaned_result["stdout"][:500] + \
-                "... (truncated)"
+            cleaned_result["stdout"] = (
+                cleaned_result["stdout"][:500] + "... (truncated)"
+            )
         if "stderr" in cleaned_result:
-            cleaned_result["stderr"] = cleaned_result["stderr"][:500] + \
-                "... (truncated)"
+            cleaned_result["stderr"] = (
+                cleaned_result["stderr"][:500] + "... (truncated)"
+            )
 
         entry = {
             "timestamp": datetime.fromtimestamp(time.time()).isoformat(),
             "type": "ACTION",
             "tool": tool,
             "args": args,
-            "result": cleaned_result
+            "result": cleaned_result,
         }
         self._write(entry)
 
@@ -76,7 +70,7 @@ class DrakbenLogger:
             "timestamp": datetime.fromtimestamp(time.time()).isoformat(),
             "type": "ERROR",
             "message": message,
-            "traceback": traceback
+            "traceback": traceback,
         }
         self._write(entry)
 

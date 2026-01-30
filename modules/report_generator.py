@@ -2,11 +2,8 @@
 # DRAKBEN Report Generator - PDF/HTML/Markdown/JSON Export
 # Professional penetration test report generation
 
-import asyncio
-import base64
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ReportFormat(Enum):
     """Supported report formats"""
+
     HTML = "html"
     MARKDOWN = "markdown"
     JSON = "json"
@@ -28,6 +26,7 @@ class ReportFormat(Enum):
 
 class FindingSeverity(Enum):
     """Finding severity levels"""
+
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
@@ -38,6 +37,7 @@ class FindingSeverity(Enum):
 @dataclass
 class Finding:
     """Security finding data structure"""
+
     title: str
     severity: FindingSeverity
     description: str
@@ -47,7 +47,7 @@ class Finding:
     cve_id: Optional[str] = None
     cvss_score: Optional[float] = None
     references: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "title": self.title,
@@ -58,13 +58,14 @@ class Finding:
             "remediation": self.remediation,
             "cve_id": self.cve_id,
             "cvss_score": self.cvss_score,
-            "references": self.references
+            "references": self.references,
         }
 
 
 @dataclass
 class ScanResult:
     """Scan result data structure"""
+
     target: str
     scan_type: str
     timestamp: str
@@ -72,7 +73,7 @@ class ScanResult:
     findings: List[Finding] = field(default_factory=list)
     raw_output: str = ""
     tool_used: str = ""
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "target": self.target,
@@ -81,13 +82,14 @@ class ScanResult:
             "duration_seconds": self.duration_seconds,
             "findings": [f.to_dict() for f in self.findings],
             "raw_output": self.raw_output,
-            "tool_used": self.tool_used
+            "tool_used": self.tool_used,
         }
 
 
 @dataclass
 class ReportConfig:
     """Report configuration"""
+
     title: str = "DRAKBEN Penetration Test Report"
     author: str = "DRAKBEN AI Framework"
     company: str = ""
@@ -103,7 +105,7 @@ class ReportConfig:
 class ReportGenerator:
     """
     Professional penetration test report generator.
-    
+
     Features:
     - Multiple output formats (HTML, Markdown, JSON, PDF)
     - Executive summary generation
@@ -111,11 +113,11 @@ class ReportGenerator:
     - Evidence and remediation sections
     - Professional styling
     """
-    
+
     def __init__(self, config: Optional[ReportConfig] = None):
         """
         Initialize report generator.
-        
+
         Args:
             config: Report configuration
         """
@@ -126,59 +128,59 @@ class ReportGenerator:
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         logger.info("ReportGenerator initialized")
-    
+
     def set_target(self, target: str) -> None:
         """Set target for the report"""
         self.target = target
         logger.info(f"Report target set: {target}")
-    
+
     def start_assessment(self) -> None:
         """Mark assessment start time"""
         self.start_time = datetime.now()
         logger.info("Assessment started")
-    
+
     def end_assessment(self) -> None:
         """Mark assessment end time"""
         self.end_time = datetime.now()
         logger.info("Assessment ended")
-    
+
     def add_finding(self, finding: Finding) -> None:
         """Add a security finding"""
         self.findings.append(finding)
         logger.info(f"Finding added: {finding.title} ({finding.severity.value})")
-    
+
     def add_scan_result(self, result: ScanResult) -> None:
         """Add a scan result"""
         self.scan_results.append(result)
         self.findings.extend(result.findings)
         logger.info(f"Scan result added: {result.scan_type}")
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         """Calculate finding statistics"""
         severity_counts = {s.value: 0 for s in FindingSeverity}
         for finding in self.findings:
             severity_counts[finding.severity.value] += 1
-        
+
         total = len(self.findings)
         risk_score = (
-            severity_counts["critical"] * 10 +
-            severity_counts["high"] * 7 +
-            severity_counts["medium"] * 4 +
-            severity_counts["low"] * 1
+            severity_counts["critical"] * 10
+            + severity_counts["high"] * 7
+            + severity_counts["medium"] * 4
+            + severity_counts["low"] * 1
         )
-        
+
         # Normalize risk score (0-100)
         max_possible = total * 10 if total > 0 else 1
         normalized_risk = min(100, int((risk_score / max_possible) * 100))
-        
+
         return {
             "total_findings": total,
             "severity_breakdown": severity_counts,
             "risk_score": normalized_risk,
             "scans_performed": len(self.scan_results),
-            "assessment_duration": self._get_duration()
+            "assessment_duration": self._get_duration(),
         }
-    
+
     def _get_duration(self) -> str:
         """Get assessment duration string"""
         if self.start_time and self.end_time:
@@ -187,20 +189,20 @@ class ReportGenerator:
             minutes, seconds = divmod(remainder, 60)
             return f"{hours}h {minutes}m {seconds}s"
         return "N/A"
-    
+
     def generate(self, format: ReportFormat, output_path: str) -> str:
         """
         Generate report in specified format.
-        
+
         Args:
             format: Output format
             output_path: Output file path
-            
+
         Returns:
             Path to generated report
         """
         logger.info(f"Generating {format.value} report: {output_path}")
-        
+
         if format == ReportFormat.HTML:
             content = self._generate_html()
         elif format == ReportFormat.MARKDOWN:
@@ -211,17 +213,17 @@ class ReportGenerator:
             pdf_content = self._generate_pdf()
             # PDF is binary, handle separately
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(pdf_content)
             logger.info(f"Report saved: {output_path}")
             return output_path
         else:
             raise ValueError(f"Unsupported format: {format}")
-        
+
         # Text-based formats (HTML, Markdown, JSON)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"Report saved: {output_path}")
             return output_path
@@ -231,17 +233,19 @@ class ReportGenerator:
         except OSError as e:
             logger.error(f"OS error writing report to {output_path}: {e}")
             raise
-    
+
     def _generate_html(self) -> str:
         """Generate HTML report"""
         stats = self.get_statistics()
-        
+
         # Sort findings by severity
         sorted_findings = sorted(
             self.findings,
-            key=lambda f: ["critical", "high", "medium", "low", "info"].index(f.severity.value)
+            key=lambda f: ["critical", "high", "medium", "low", "info"].index(
+                f.severity.value
+            ),
         )
-        
+
         findings_html = ""
         for i, finding in enumerate(sorted_findings, 1):
             severity_class = f"severity-{finding.severity.value}"
@@ -255,13 +259,13 @@ class ReportGenerator:
                 <div class="finding-body">
                     <p><strong>Affected Asset:</strong> {finding.affected_asset}</p>
                     <p><strong>Description:</strong> {finding.description}</p>
-                    {f'<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>' if finding.cve_id else ''}
-                    {f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>' if finding.evidence else ''}
-                    {f'<p><strong>Remediation:</strong> {finding.remediation}</p>' if finding.remediation else ''}
+                    {f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>" if finding.cve_id else ""}
+                    {f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>' if finding.evidence else ""}
+                    {f"<p><strong>Remediation:</strong> {finding.remediation}</p>" if finding.remediation else ""}
                 </div>
             </div>
             """
-        
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -499,15 +503,15 @@ class ReportGenerator:
             </div>
             <div class="meta-card">
                 <h3>Assessment Date</h3>
-                <p>{self.start_time.strftime('%Y-%m-%d') if self.start_time else 'N/A'}</p>
+                <p>{self.start_time.strftime("%Y-%m-%d") if self.start_time else "N/A"}</p>
             </div>
             <div class="meta-card">
                 <h3>Duration</h3>
-                <p>{stats['assessment_duration']}</p>
+                <p>{stats["assessment_duration"]}</p>
             </div>
             <div class="meta-card">
                 <h3>Total Findings</h3>
-                <p>{stats['total_findings']}</p>
+                <p>{stats["total_findings"]}</p>
             </div>
         </div>
         
@@ -515,69 +519,69 @@ class ReportGenerator:
             <h2>Findings Summary</h2>
             <div class="stats-grid">
                 <div class="stat-card critical">
-                    <div class="stat-number">{stats['severity_breakdown']['critical']}</div>
+                    <div class="stat-number">{stats["severity_breakdown"]["critical"]}</div>
                     <div>Critical</div>
                 </div>
                 <div class="stat-card high">
-                    <div class="stat-number">{stats['severity_breakdown']['high']}</div>
+                    <div class="stat-number">{stats["severity_breakdown"]["high"]}</div>
                     <div>High</div>
                 </div>
                 <div class="stat-card medium">
-                    <div class="stat-number">{stats['severity_breakdown']['medium']}</div>
+                    <div class="stat-number">{stats["severity_breakdown"]["medium"]}</div>
                     <div>Medium</div>
                 </div>
                 <div class="stat-card low">
-                    <div class="stat-number">{stats['severity_breakdown']['low']}</div>
+                    <div class="stat-number">{stats["severity_breakdown"]["low"]}</div>
                     <div>Low</div>
                 </div>
                 <div class="stat-card info">
-                    <div class="stat-number">{stats['severity_breakdown']['info']}</div>
+                    <div class="stat-number">{stats["severity_breakdown"]["info"]}</div>
                     <div>Info</div>
                 </div>
             </div>
             
-            <h3>Risk Score: {stats['risk_score']}/100</h3>
+            <h3>Risk Score: {stats["risk_score"]}/100</h3>
             <div class="risk-meter">
-                <div class="risk-indicator" style="left: {stats['risk_score']}%;"></div>
+                <div class="risk-indicator" style="left: {stats["risk_score"]}%;"></div>
             </div>
         </div>
         
-        {self._generate_executive_summary_html(stats) if self.config.include_executive_summary else ''}
+        {self._generate_executive_summary_html(stats) if self.config.include_executive_summary else ""}
         
         <div class="section">
             <h2>Detailed Findings</h2>
-            {findings_html if findings_html else '<p>No findings recorded.</p>'}
+            {findings_html if findings_html else "<p>No findings recorded.</p>"}
         </div>
         
         <div class="footer">
             <p>Generated by DRAKBEN AI Framework</p>
-            <p>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         </div>
     </div>
 </body>
 </html>"""
-        
+
         return html
-    
+
     def _generate_executive_summary_html(self, stats: Dict[str, Any]) -> str:
         """Generate executive summary section with Optional AI Insight"""
-        total = stats['total_findings']
-        critical = stats['severity_breakdown']['critical']
-        high = stats['severity_breakdown']['high']
-        
+        total = stats["total_findings"]
+        critical = stats["severity_breakdown"]["critical"]
+        high = stats["severity_breakdown"]["high"]
+
         risk_level = "LOW"
-        if stats['risk_score'] >= 70:
+        if stats["risk_score"] >= 70:
             risk_level = "CRITICAL"
-        elif stats['risk_score'] >= 50:
+        elif stats["risk_score"] >= 50:
             risk_level = "HIGH"
-        elif stats['risk_score'] >= 30:
+        elif stats["risk_score"] >= 30:
             risk_level = "MEDIUM"
-            
+
         # AI Insight Generation (Simulated for C-Level)
         ai_content = ""
         if self.config.use_llm_summary:
-            ai_content = self._generate_ai_insight(critical, high, stats['risk_score'])
-        
+            ai_content = self._generate_ai_insight(critical, high, stats["risk_score"])
+
         return f"""
         <div class="section">
             <h2>Executive Summary</h2>
@@ -589,7 +593,7 @@ class ReportGenerator:
                 including <strong>{critical} critical</strong> and <strong>{high} high</strong> severity issues.</p>
                 
                 <p>The overall risk level is assessed as <strong>{risk_level}</strong> 
-                with a risk score of <strong>{stats['risk_score']}/100</strong>.</p>
+                with a risk score of <strong>{stats["risk_score"]}/100</strong>.</p>
                 
                 {ai_content}
                 
@@ -609,39 +613,39 @@ class ReportGenerator:
         # In a real scenario, this communicates with UniversalAdapter's LLM
         insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
         insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
-        
+
         if risk > 80:
-             insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
-             insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
-             insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+            insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
+            insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
+            insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
         elif risk > 50:
-             insight += "Security posture is compromised with significant risks reachable from external networks. "
-             insight += "Potential for lateral movement is high. "
-             insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
+            insight += "Security posture is compromised with significant risks reachable from external networks. "
+            insight += "Potential for lateral movement is high. "
+            insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
         else:
-             insight += "Security posture is generally robust, though some hygiene issues remain. "
-             insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
-             
+            insight += "Security posture is generally robust, though some hygiene issues remain. "
+            insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
+
         insight += "</div>"
         return insight
-    
+
     def _generate_markdown(self) -> str:
         """Generate Markdown report"""
         stats = self.get_statistics()
-        
+
         md = f"""# {self.config.title}
 
 **Classification:** {self.config.classification}  
 **Author:** {self.config.author}  
-**Date:** {self.start_time.strftime('%Y-%m-%d') if self.start_time else 'N/A'}
+**Date:** {self.start_time.strftime("%Y-%m-%d") if self.start_time else "N/A"}
 
 ---
 
 ## Target Information
 
 - **Target:** {self.target}
-- **Assessment Duration:** {stats['assessment_duration']}
-- **Total Findings:** {stats['total_findings']}
+- **Assessment Duration:** {stats["assessment_duration"]}
+- **Total Findings:** {stats["total_findings"]}
 
 ---
 
@@ -649,13 +653,13 @@ class ReportGenerator:
 
 | Severity | Count |
 |----------|-------|
-| Critical | {stats['severity_breakdown']['critical']} |
-| High | {stats['severity_breakdown']['high']} |
-| Medium | {stats['severity_breakdown']['medium']} |
-| Low | {stats['severity_breakdown']['low']} |
-| Info | {stats['severity_breakdown']['info']} |
+| Critical | {stats["severity_breakdown"]["critical"]} |
+| High | {stats["severity_breakdown"]["high"]} |
+| Medium | {stats["severity_breakdown"]["medium"]} |
+| Low | {stats["severity_breakdown"]["low"]} |
+| Info | {stats["severity_breakdown"]["info"]} |
 
-**Risk Score:** {stats['risk_score']}/100
+**Risk Score:** {stats["risk_score"]}/100
 
 ---
 
@@ -663,22 +667,24 @@ class ReportGenerator:
 
 A penetration test was conducted against **{self.target}** to identify security vulnerabilities.
 
-The assessment identified **{stats['total_findings']} findings**, including:
-- {stats['severity_breakdown']['critical']} Critical
-- {stats['severity_breakdown']['high']} High
-- {stats['severity_breakdown']['medium']} Medium
+The assessment identified **{stats["total_findings"]} findings**, including:
+- {stats["severity_breakdown"]["critical"]} Critical
+- {stats["severity_breakdown"]["high"]} High
+- {stats["severity_breakdown"]["medium"]} Medium
 
 ---
 
 ## Detailed Findings
 
 """
-        
+
         sorted_findings = sorted(
             self.findings,
-            key=lambda f: ["critical", "high", "medium", "low", "info"].index(f.severity.value)
+            key=lambda f: ["critical", "high", "medium", "low", "info"].index(
+                f.severity.value
+            ),
         )
-        
+
         for i, finding in enumerate(sorted_findings, 1):
             md += f"""### {i}. {finding.title}
 
@@ -691,7 +697,7 @@ The assessment identified **{stats['total_findings']} findings**, including:
 """
             if finding.cve_id:
                 md += f"**CVE:** {finding.cve_id} (CVSS: {finding.cvss_score})\n\n"
-            
+
             if finding.evidence:
                 md += f"""**Evidence:**
 ```
@@ -699,25 +705,25 @@ The assessment identified **{stats['total_findings']} findings**, including:
 ```
 
 """
-            
+
             if finding.remediation:
                 md += f"**Remediation:**  \n{finding.remediation}\n\n"
-            
+
             md += "---\n\n"
-        
+
         md += f"""
 ## Report Information
 
 - Generated by: DRAKBEN AI Framework
-- Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Generated at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
-        
+
         return md
-    
+
     def _generate_json(self) -> str:
         """Generate JSON report"""
         stats = self.get_statistics()
-        
+
         report = {
             "metadata": {
                 "title": self.config.title,
@@ -726,43 +732,44 @@ The assessment identified **{stats['total_findings']} findings**, including:
                 "generated_at": datetime.now().isoformat(),
                 "target": self.target,
                 "start_time": self.start_time.isoformat() if self.start_time else None,
-                "end_time": self.end_time.isoformat() if self.end_time else None
+                "end_time": self.end_time.isoformat() if self.end_time else None,
             },
             "statistics": stats,
             "findings": [f.to_dict() for f in self.findings],
-            "scan_results": [r.to_dict() for r in self.scan_results]
+            "scan_results": [r.to_dict() for r in self.scan_results],
         }
-        
+
         return json.dumps(report, indent=2, ensure_ascii=False)
-    
+
     def _generate_pdf(self) -> bytes:
         """
         Generate PDF report.
-        
+
         Falls back to HTML if weasyprint is not available.
         """
         html_content = self._generate_html()
-        
+
         try:
             from weasyprint import HTML
+
             pdf_bytes = HTML(string=html_content).write_pdf()
             return pdf_bytes
         except ImportError:
             logger.warning("weasyprint not installed, saving HTML instead")
             # Return HTML as bytes if PDF generation not available
-            return html_content.encode('utf-8')
+            return html_content.encode("utf-8")
         except Exception as e:
             logger.error(f"PDF generation error: {e}")
-            return html_content.encode('utf-8')
+            return html_content.encode("utf-8")
 
 
 def create_finding_from_vuln(vuln_data: Dict[str, Any]) -> Finding:
     """
     Create Finding from vulnerability data.
-    
+
     Args:
         vuln_data: Vulnerability dictionary
-        
+
     Returns:
         Finding object
     """
@@ -771,12 +778,12 @@ def create_finding_from_vuln(vuln_data: Dict[str, Any]) -> Finding:
         "high": FindingSeverity.HIGH,
         "medium": FindingSeverity.MEDIUM,
         "low": FindingSeverity.LOW,
-        "info": FindingSeverity.INFO
+        "info": FindingSeverity.INFO,
     }
-    
+
     severity_str = vuln_data.get("severity", "info").lower()
     severity = severity_map.get(severity_str, FindingSeverity.INFO)
-    
+
     return Finding(
         title=vuln_data.get("title", vuln_data.get("vuln_id", "Unknown")),
         severity=severity,
@@ -786,7 +793,7 @@ def create_finding_from_vuln(vuln_data: Dict[str, Any]) -> Finding:
         remediation=vuln_data.get("remediation", ""),
         cve_id=vuln_data.get("cve_id"),
         cvss_score=vuln_data.get("cvss_score"),
-        references=vuln_data.get("references", [])
+        references=vuln_data.get("references", []),
     )
 
 
@@ -795,44 +802,52 @@ def generate_report_from_state(
     state: "AgentState",
     output_path: str,
     format: ReportFormat = ReportFormat.HTML,
-    config: Optional[ReportConfig] = None
+    config: Optional[ReportConfig] = None,
 ) -> str:
     """
     Generate report from AgentState.
-    
+
     Args:
         state: AgentState instance
         output_path: Output file path
         format: Report format
         config: Report configuration
-        
+
     Returns:
         Path to generated report
     """
     generator = ReportGenerator(config)
     generator.set_target(state.target or "Unknown")
-    
+
     # Convert state vulnerabilities to findings
     # Convert state vulnerabilities to findings
     for vuln in state.vulnerabilities:
-        severity_val = FindingSeverity.HIGH if getattr(vuln, 'exploit_success', False) else FindingSeverity.MEDIUM
-        
+        severity_val = (
+            FindingSeverity.HIGH
+            if getattr(vuln, "exploit_success", False)
+            else FindingSeverity.MEDIUM
+        )
+
         # Determine strict severity from vuln.severity string if possible
-        if hasattr(vuln, 'severity') and isinstance(vuln.severity, str):
-             try:
-                 severity_val = FindingSeverity(vuln.severity.lower())
-             except ValueError:
-                 pass
+        if hasattr(vuln, "severity") and isinstance(vuln.severity, str):
+            try:
+                severity_val = FindingSeverity(vuln.severity.lower())
+            except ValueError:
+                pass
 
         finding = Finding(
             title=vuln.vuln_id,
             severity=severity_val,
-            description=getattr(vuln, 'description', f"Vulnerability detected on service {vuln.service} port {vuln.port}"),
+            description=getattr(
+                vuln,
+                "description",
+                f"Vulnerability detected on service {vuln.service} port {vuln.port}",
+            ),
             affected_asset=f"{state.target}:{vuln.port}" if state.target else "unknown",
             evidence=f"Exploitable: {vuln.exploitable}",
-            cve_id=getattr(vuln, 'cve_id', None),
-            cvss_score=getattr(vuln, 'cvss_score', None)
+            cve_id=getattr(vuln, "cve_id", None),
+            cvss_score=getattr(vuln, "cvss_score", None),
         )
         generator.add_finding(finding)
-    
+
     return generator.generate(format, output_path)

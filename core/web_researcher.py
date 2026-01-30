@@ -1,9 +1,5 @@
-
-import os
 import logging
 import urllib.parse
-import time
-import json
 from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
@@ -13,15 +9,18 @@ try:
 except ImportError:
     # Fallback if module missing (dev mode)
     import requests
-    StealthSession = requests.Session 
+
+    StealthSession = requests.Session
 
 try:
     from rich.console import Console
+
     console: Optional[Console] = Console()
 except ImportError:
     console = None
 
 logger = logging.getLogger("drakben.researcher")
+
 
 class WebResearcher:
     """
@@ -32,59 +31,64 @@ class WebResearcher:
     def __init__(self):
         # Initialize Persistent Stealth Session (Chrome 120 Fingerprint)
         self.session = StealthSession(impersonate="chrome120")
-        
+
         # Note: Headers are mostly handled by curl_cffi, but we add some semantic ones
-        self.session.headers.update({
-            "Referer": "https://www.google.com/",
-            "Cache-Control": "max-age=0",
-        })
+        self.session.headers.update(
+            {
+                "Referer": "https://www.google.com/",
+                "Cache-Control": "max-age=0",
+            }
+        )
 
     def search_tool(self, query: str, max_results=5):
         """Searches specific targets using DDG HTML endpoint."""
         results: List[Dict[str, Any]] = []
         try:
             logger.info(f"Stealth Search for: {query}")
-            
+
             # Method 1: DuckDuckGo HTML (No JS required)
             url = "https://html.duckduckgo.com/html/"
-            payload = {'q': query}
-            
+            payload = {"q": query}
+
             # Use stealth session
             resp = self.session.post(url, data=payload, timeout=15)
 
             if resp.status_code != 200:
-                logger.warning(f"DDG HTML failed ({resp.status_code}), trying Bing fallback.")
+                logger.warning(
+                    f"DDG HTML failed ({resp.status_code}), trying Bing fallback."
+                )
                 return self._search_bing_fallback(query, max_results)
 
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            
+            soup = BeautifulSoup(resp.text, "html.parser")
+
             # DDG HTML selectors
-            for link in soup.find_all('div', class_='result'):
+            for link in soup.find_all("div", class_="result"):
                 if len(results) >= max_results:
                     break
-                    
-                title_tag = link.find('a', class_='result__a')
-                if not title_tag: continue
-                
-                href = title_tag.get('href')
-                title = title_tag.get_text(strip=True)
-                
-                snippet_tag = link.find('a', class_='result__snippet')
-                body = snippet_tag.get_text(strip=True) if snippet_tag else "No description."
 
-                results.append({
-                    "title": title,
-                    "href": href,
-                    "body": body
-                })
+                title_tag = link.find("a", class_="result__a")
+                if not title_tag:
+                    continue
+
+                href = title_tag.get("href")
+                title = title_tag.get_text(strip=True)
+
+                snippet_tag = link.find("a", class_="result__snippet")
+                body = (
+                    snippet_tag.get_text(strip=True)
+                    if snippet_tag
+                    else "No description."
+                )
+
+                results.append({"title": title, "href": href, "body": body})
 
             if not results:
-                 # Last resort fallback if DDG structure changed or blocked
-                 logger.warning("DDG parsed but no results found. Trying Bing.")
-                 return self._search_bing_fallback(query, max_results)
+                # Last resort fallback if DDG structure changed or blocked
+                logger.warning("DDG parsed but no results found. Trying Bing.")
+                return self._search_bing_fallback(query, max_results)
 
             return results
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             return []
@@ -93,30 +97,33 @@ class WebResearcher:
         """Downloads a file using Stealth Session (Bypasses firewall blocks)."""
         try:
             logger.info(f"Stealth Downloading from {url} to {output_path}")
-            
+
             # Note: curl_cffi doesn't support stream=True in the same way requests does for file iteration
             # We download in memory then write for now (assuming files < 50MB)
             # For larger files, we might need requests fallback or chunked impl
-            
+
             # Check if session supports streaming (requests)
             is_requests = isinstance(self.session, requests.Session)
-            
+
             if is_requests:
                 with self.session.get(url, stream=True, timeout=60) as r:
                     r.raise_for_status()
-                    with open(output_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192): 
+                    with open(output_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=8192):
                             f.write(chunk)
             else:
                 # StealthSession (curl_cffi) doesn't stream well. Fallback to requests for large files.
                 # Just use requests directly for downloads to be safe on memory
                 import requests
-                with requests.get(url, stream=True, timeout=60, headers={'User-Agent': 'Mozilla/5.0'}) as r:
+
+                with requests.get(
+                    url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}
+                ) as r:
                     r.raise_for_status()
-                    with open(output_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192): 
-                             f.write(chunk)
-            
+                    with open(output_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            f.write(chunk)
+
             return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
@@ -126,8 +133,10 @@ class WebResearcher:
         """Extracts code from URL using Stealth Session."""
         try:
             if "github.com" in url and "/blob/" in url:
-                url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-            
+                url = url.replace("github.com", "raw.githubusercontent.com").replace(
+                    "/blob/", "/"
+                )
+
             resp = self.session.get(url, timeout=15)
             return resp.text
         except Exception as e:
@@ -140,53 +149,53 @@ class WebResearcher:
         try:
             url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}"
             resp = self.session.get(url, timeout=15)
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
             # Bing selectors (li.b_algo)
-            for item in soup.find_all('li', class_='b_algo'):
+            for item in soup.find_all("li", class_="b_algo"):
                 if len(results) >= max_results:
                     break
-                
-                h2 = item.find('h2')
-                if not h2: continue
-                
-                a_tag = h2.find('a')
-                if not a_tag: continue
-                
+
+                h2 = item.find("h2")
+                if not h2:
+                    continue
+
+                a_tag = h2.find("a")
+                if not a_tag:
+                    continue
+
                 title = a_tag.get_text(strip=True)
-                href = a_tag.get('href')
-                
+                href = a_tag.get("href")
+
                 # Snippet
                 snippet = "No description."
-                p_tag = item.find('p')
+                p_tag = item.find("p")
                 if p_tag:
                     snippet = p_tag.get_text(strip=True)
-                
-                results.append({
-                    "title": title,
-                    "href": href,
-                    "body": snippet
-                })
-                
+
+                results.append({"title": title, "href": href, "body": snippet})
+
             return results
         except Exception as e:
             logger.error(f"Bing fallback failed: {e}")
             return []
 
+
 # Simple test
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level=logging.INFO)
     researcher = WebResearcher()
-    
+
     q = "sqlmap github"
     if len(sys.argv) > 1:
         q = sys.argv[1]
-    
+
     print(f"Searching for: {q}")
     res = researcher.search_tool(q)
-    
+
     if not res:
         print("FAIL: No results returned.")
     else:

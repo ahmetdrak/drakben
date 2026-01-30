@@ -6,10 +6,11 @@ Description: Static analysis and LLM-guided target selection for fuzzing.
 
 import ast
 import logging
-from typing import List, Dict, Any
+from typing import List
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class CodeHotspot:
@@ -19,11 +20,12 @@ class CodeHotspot:
     risk_score: int
     reason: str
 
+
 class TargetAnalyzer:
     """
     Analyzes source code to find promising fuzzing targets.
     """
-    
+
     def __init__(self):
         self.dangerous_functions = {
             "eval": 10,
@@ -33,10 +35,10 @@ class TargetAnalyzer:
             "subprocess.run": 8,
             "pickle.loads": 9,
             "yaml.load": 7,
-            "input": 5
+            "input": 5,
         }
         logger.info("Target Analyzer initialized")
-        
+
     def analyze_file(self, file_path: str) -> List[CodeHotspot]:
         """
         Parse file AST and find dangerous sinks.
@@ -45,24 +47,26 @@ class TargetAnalyzer:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                
+
             tree = ast.parse(content)
-            
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     func_name = self._get_func_name(node)
                     if func_name in self.dangerous_functions:
-                        hotspots.append(CodeHotspot(
-                            file_path=file_path,
-                            line_number=node.lineno,
-                            function_name=func_name,
-                            risk_score=self.dangerous_functions[func_name],
-                            reason=f"Usage of dangerous function '{func_name}'"
-                        ))
-                        
+                        hotspots.append(
+                            CodeHotspot(
+                                file_path=file_path,
+                                line_number=node.lineno,
+                                function_name=func_name,
+                                risk_score=self.dangerous_functions[func_name],
+                                reason=f"Usage of dangerous function '{func_name}'",
+                            )
+                        )
+
         except Exception as e:
             logger.error(f"Analysis failed for {file_path}: {e}")
-            
+
         return sorted(hotspots, key=lambda x: x.risk_score, reverse=True)
 
     def _get_func_name(self, node: ast.Call) -> str:
@@ -89,4 +93,4 @@ class TargetAnalyzer:
         elif "pickle" in hotspot.function_name:
             # Dangerous pickle payload placeholder
             return [b"\x80\x03cposix\nsystem\n..."]
-        return ["A"*500]
+        return ["A" * 500]
