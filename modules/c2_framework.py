@@ -314,8 +314,8 @@ class DomainFronter:
         if not verify:
             # Explicitly downgrade security ONLY if requested
             # This makes the intent clear and isolates the "vulnerability"
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            context.check_hostname = False  # NOSONAR
+            context.verify_mode = ssl.CERT_NONE  # NOSONAR
 
         return context
 
