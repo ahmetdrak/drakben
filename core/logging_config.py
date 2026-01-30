@@ -242,8 +242,7 @@ def log_tool_execution(
     """Log tool execution with consistent format"""
     status = "SUCCESS" if success else "FAILED"
     logger.info(
-        f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {
-            duration:.2f}s"
+        f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {duration:.2f}s"
     )
 
 
