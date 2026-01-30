@@ -103,7 +103,7 @@ python modules/weapon_foundry.py --forge --shell reverse_tcp --lhost 10.0.0.99 -
 **DRAKBEN IS A MILITARY-GRADE OFFENSIVE FRAMEWORK FOR AUTHORIZED RED TEAMING ONLY.**
 
 *   **Intended Use:** Authorized security testing, educational research, and adversary simulation.
-*   **Liability:** The developers assume **NO LIABILITY** for misuse. Using this tool against systems without explicit permission is illegal and may result in severe criminal penalties.
+*   **Liability:** The developers assume **NO LIABILITY** for misuse. Using this tool against systems without explicit permission is illegal and may result in severe criminal penalties..
 
 ---
 
