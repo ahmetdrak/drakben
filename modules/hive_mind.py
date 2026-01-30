@@ -15,9 +15,9 @@ import ipaddress
 import logging
 import os
 import re
+import shlex
 import socket
 import subprocess
-import shlex
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple

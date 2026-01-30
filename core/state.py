@@ -3,11 +3,11 @@
 # REQUIRED: All modules access/update state ONLY through this API
 # Thread-safe implementation
 
-from _thread import RLock
 import hashlib
 import logging
 import threading
 import time
+from _thread import RLock
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
@@ -451,7 +451,7 @@ class AgentState:
     ):
         """Save captured credential to secure store"""
         try:
-            from core.security_utils import get_credential_store, CredentialStore
+            from core.security_utils import CredentialStore, get_credential_store
 
             store: CredentialStore = get_credential_store()
 

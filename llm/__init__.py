@@ -1,8 +1,8 @@
 # LLM module
-from .openrouter_client import OpenRouterClient, LLMCache, RateLimiter
-
 # DrakbenBrain is in core.brain, not llm.brain
 from typing import Any
+
+from .openrouter_client import LLMCache, OpenRouterClient, RateLimiter
 
 DrakbenBrain: Any = None
 try:

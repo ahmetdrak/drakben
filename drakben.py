@@ -25,7 +25,7 @@ if env_file.exists():
 from rich.console import Console  # noqa: E402
 
 from core.config import ConfigManager  # noqa: E402
-from core.logging_config import setup_logging, get_logger  # noqa: E402
+from core.logging_config import get_logger, setup_logging  # noqa: E402
 
 # Initialize logging
 # Initialize logging
@@ -36,7 +36,7 @@ setup_logging(
     log_to_console=False,  # Rich handles console output
     use_colors=True,
 )
-logger: Logger = get_logger("main")
+logger: logging.Logger = get_logger("main")
 
 
 def global_exception_handler(exc_type, exc_value, exc_traceback):
@@ -48,10 +48,11 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
-    from rich.console import Console
-    from rich.panel import Panel
     import traceback
     from datetime import datetime
+
+    from rich.console import Console
+    from rich.panel import Panel
 
     check_console = Console()
 

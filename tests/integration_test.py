@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """DRAKBEN Integration Test"""
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -11,8 +11,8 @@ passed = []
 
 # Test 1: Core imports
 try:
-    from core.state import AgentState
     from core.coder import ASTSecurityChecker
+    from core.state import AgentState
 
     passed.append("Core imports")
 except Exception as e:
@@ -81,7 +81,7 @@ except Exception as e:
 
 # Test 9: Recon functions
 try:
-    from modules.recon import extract_domain, detect_technologies
+    from modules.recon import detect_technologies, extract_domain
 
     assert extract_domain("https://example.com") == "example.com"
     techs = detect_technologies(

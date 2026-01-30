@@ -35,7 +35,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_initial_state(self):
         """Test initial state values"""
-        from core.state import reset_state, AttackPhase
+        from core.state import AttackPhase, reset_state
 
         state = reset_state()
         self.assertEqual(state.phase, AttackPhase.INIT)
@@ -45,7 +45,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_set_target(self):
         """Test target setting"""
-        from core.state import reset_state, AttackPhase
+        from core.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
         self.assertEqual(state.target, "192.168.1.1")
@@ -55,7 +55,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_add_service(self):
         """Test service addition"""
-        from core.state import reset_state, ServiceInfo
+        from core.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -68,7 +68,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_add_vulnerability(self):
         """Test vulnerability addition"""
-        from core.state import reset_state, VulnerabilityInfo
+        from core.state import VulnerabilityInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -92,7 +92,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_phase_transition(self):
         """Test phase transitions"""
-        from core.state import reset_state, AttackPhase
+        from core.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -104,7 +104,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_thread_safety(self):
         """Test thread-safe operations"""
-        from core.state import reset_state, ServiceInfo
+        from core.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -130,7 +130,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_reset(self):
         """Test state reset"""
-        from core.state import reset_state, AttackPhase
+        from core.state import AttackPhase, reset_state
 
         state1 = reset_state("192.168.1.1")
         self.assertEqual(state1.target, "192.168.1.1")
@@ -242,7 +242,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_record_action(self):
         """Test action recording"""
-        from core.evolution_memory import EvolutionMemory, ActionRecord
+        from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -266,7 +266,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_tool_penalty(self):
         """Test tool penalty system"""
-        from core.evolution_memory import EvolutionMemory, ActionRecord
+        from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -292,7 +292,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_strategy_profile(self):
         """Test strategy profile management"""
-        from core.evolution_memory import EvolutionMemory, ActionRecord
+        from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -370,9 +370,10 @@ class TestExecutionEngine(unittest.TestCase):
 
     def test_fuzzing_execution(self):
         """Fuzz testing for execution engine input handling"""
-        from core.execution_engine import CommandSanitizer, SecurityError
         import random
         import string
+
+        from core.execution_engine import CommandSanitizer, SecurityError
 
         # Generate garbage inputs
         for _ in range(100):
@@ -523,8 +524,8 @@ class TestToolSelector(unittest.TestCase):
 
     def test_tool_selection(self):
         """Test deterministic tool selection"""
-        from core.tool_selector import ToolSelector
         from core.state import reset_state
+        from core.tool_selector import ToolSelector
 
         # Reset state
         _ = reset_state("192.168.1.1")
@@ -701,8 +702,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        import tempfile
         import os
+        import tempfile
 
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.temp_db.close()
@@ -770,7 +771,7 @@ class TestLogging(unittest.TestCase):
 
     def test_logger_setup(self):
         """Test logger initialization"""
-        from core.logging_config import setup_logging, get_logger
+        from core.logging_config import get_logger, setup_logging
 
         setup_logging(level="DEBUG")
         logger = get_logger("test")

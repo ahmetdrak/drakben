@@ -6,9 +6,10 @@ Description: Orchestrates the self-improvement cycle: Synthesize -> Validate -> 
 
 import logging
 from typing import Optional
+
+from .mutation import MutationEngine
 from .synthesizer import CodeSynthesizer
 from .validator import CodeValidator
-from .mutation import MutationEngine
 
 logger = logging.getLogger(__name__)
 

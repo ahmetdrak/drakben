@@ -3,20 +3,20 @@ Performance and Stress Tests for Drakben
 Converted from scripts/stress_test.py
 """
 
-import unittest
+import logging
+import os
+import sys
 import threading
 import time
-import logging
-import sys
-import os
+import unittest
 from unittest.mock import MagicMock
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.execution_engine import SmartTerminal, CommandSanitizer
-from core.singularity.engine import SingularityEngine
 from core.brain import ContinuousReasoning, ExecutionContext
+from core.execution_engine import CommandSanitizer, SmartTerminal
+from core.singularity.engine import SingularityEngine
 
 # Setup Logger
 logging.basicConfig(level=logging.INFO)

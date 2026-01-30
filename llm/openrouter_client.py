@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Dict, Optional, Callable, Iterator
+from typing import Callable, Dict, Iterator, Optional
 
 import requests
 from requests.adapters import HTTPAdapter

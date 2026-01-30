@@ -1,27 +1,27 @@
 """Tests for C2 Framework module"""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.c2_framework import (
-    C2Protocol,
-    BeaconStatus,
-    C2Config,
+    DEFAULT_JITTER_MAX,
+    DEFAULT_JITTER_MIN,
+    DEFAULT_SLEEP_INTERVAL,
     BeaconMessage,
     BeaconResponse,
-    JitterEngine,
-    DomainFronter,
-    DNSTunneler,
-    HeartbeatManager,
+    BeaconStatus,
     C2Channel,
-    create_fronted_channel,
+    C2Config,
+    C2Protocol,
+    DNSTunneler,
+    DomainFronter,
+    HeartbeatManager,
+    JitterEngine,
     create_dns_channel,
-    DEFAULT_SLEEP_INTERVAL,
-    DEFAULT_JITTER_MIN,
-    DEFAULT_JITTER_MAX,
+    create_fronted_channel,
 )
 
 
@@ -288,8 +288,8 @@ class TestC2Channel(unittest.TestCase):
 
     def test_encryption_entropy(self):
         """Test that encryption produces high-entropy (random-looking) output"""
-        import math
         import base64
+        import math
         from collections import Counter
 
         def shannon_entropy(data):

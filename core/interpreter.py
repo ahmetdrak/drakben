@@ -5,7 +5,7 @@
 import io
 import logging
 import traceback
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from typing import Any, Dict, List, Optional
 
 # Global references with proper typing for Mypy
@@ -24,7 +24,8 @@ except ImportError:
 
 # Import CommandSanitizer for security
 try:
-    from core.execution_engine import CommandSanitizer as _CS, SecurityError as _SE
+    from core.execution_engine import CommandSanitizer as _CS
+    from core.execution_engine import SecurityError as _SE
 
     _CommandSanitizer_cls = _CS
     _SecurityError_cls = _SE
@@ -320,8 +321,8 @@ class UniversalInterpreter:
 
     def _execute_sanitized_command(self, sanitized: str) -> InterpreterResult:
         """Execute sanitized command"""
-        import subprocess
         import shlex
+        import subprocess
 
         try:
             # SECURITY FIX: Use shlex to split and shell=False

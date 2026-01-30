@@ -4,12 +4,11 @@
 # Enhanced: AST-based security check, logging, better validation
 
 import ast
-from importlib.machinery import ModuleSpec
 import importlib.util
 import logging
 import time
+from importlib.machinery import ModuleSpec
 from pathlib import Path
-
 from types import ModuleType
 from typing import Any, Dict, List, Optional
 

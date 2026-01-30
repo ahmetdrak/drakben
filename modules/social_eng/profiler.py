@@ -6,6 +6,7 @@ Description: Uses LLM to generate psychological profiles and phishing scenarios.
 
 import logging
 from typing import Dict
+
 from .osint import TargetPerson
 
 logger = logging.getLogger(__name__)

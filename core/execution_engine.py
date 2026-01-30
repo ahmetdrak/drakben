@@ -18,8 +18,8 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from core.sandbox_manager import SandboxManager, ContainerInfo
 
+from core.sandbox_manager import ContainerInfo, SandboxManager
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)

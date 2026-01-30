@@ -1,22 +1,22 @@
 """Tests for Universal Adapter module"""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.universal_adapter import (
-    UniversalAdapter,
+    TOOL_REGISTRY,
+    APIServer,
     DependencyResolver,
     MCPClient,
-    APIServer,
-    TOOL_REGISTRY,
-    ToolDefinition,
-    MCPTool,
     MCPResource,
+    MCPTool,
     PackageManager,
     ToolCategory,
+    ToolDefinition,
+    UniversalAdapter,
     get_universal_adapter,
     is_tool_available,
 )

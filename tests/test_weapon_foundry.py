@@ -1,20 +1,20 @@
 """Tests for Weapon Foundry module"""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.weapon_foundry import (
-    WeaponFoundry,
-    EncryptionEngine,
-    ShellcodeTemplates,
     AntiAnalysis,
     DecoderGenerator,
-    PayloadFormat,
+    EncryptionEngine,
     EncryptionMethod,
     GeneratedPayload,
+    PayloadFormat,
+    ShellcodeTemplates,
+    WeaponFoundry,
     quick_forge,
 )
 

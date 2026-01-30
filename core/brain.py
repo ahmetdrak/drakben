@@ -209,8 +209,8 @@ class ContinuousReasoning:
         - Retry LLM on transient errors (timeout, rate limit)
         - Fall back to rule-based analysis on persistent failure
         """
-        import time
         import logging
+        import time
 
         logger: logging.Logger = logging.getLogger(__name__)
 

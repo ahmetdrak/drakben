@@ -7,7 +7,8 @@ Description: Generates functional code using LLM prompts and AST validation.
 import ast
 import logging
 from typing import List
-from .base import ISynthesizer, CodeSnippet
+
+from .base import CodeSnippet, ISynthesizer
 
 logger = logging.getLogger(__name__)
 

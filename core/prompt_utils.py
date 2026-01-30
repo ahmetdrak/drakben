@@ -6,19 +6,19 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from rich.console import Console
+from rich.live import Live
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-from rich.live import Live
 from rich.table import Table
 
 logger = logging.getLogger(__name__)
@@ -32,14 +32,14 @@ try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
     from prompt_toolkit.completion import (
-        WordCompleter,
-        NestedCompleter,
         Completer,
         Completion,
+        NestedCompleter,
+        WordCompleter,
     )
+    from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory, InMemoryHistory
     from prompt_toolkit.styles import Style
-    from prompt_toolkit.formatted_text import HTML
 
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:

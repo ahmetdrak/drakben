@@ -1,6 +1,6 @@
 import cProfile
-import pstats
 import io
+import pstats
 import time
 from unittest.mock import MagicMock
 

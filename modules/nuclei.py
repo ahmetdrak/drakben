@@ -9,8 +9,8 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:

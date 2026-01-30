@@ -7,6 +7,7 @@ Description: Polymorphic code rewriting logic for evasion (AV/WAF Bypass).
 import hashlib
 import logging
 import random
+
 from .base import IMutationEngine, MutationResult
 
 # Late imports inside methods to prevent circular dependency

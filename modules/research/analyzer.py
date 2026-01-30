@@ -6,8 +6,8 @@ Description: Static analysis and LLM-guided target selection for fuzzing.
 
 import ast
 import logging
-from typing import List
 from dataclasses import dataclass
+from typing import List
 
 logger = logging.getLogger(__name__)
 

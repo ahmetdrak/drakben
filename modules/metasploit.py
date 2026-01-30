@@ -7,11 +7,12 @@ import logging
 import socket
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-from core.state import AgentState
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 import aiohttp
+
+from core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -678,7 +679,7 @@ async def auto_exploit(
 
                 # --- Post Exploitation Integration ---
                 try:
-                    from modules.post_exploit import PostExploitEngine, C2ShellWrapper
+                    from modules.post_exploit import C2ShellWrapper, PostExploitEngine
 
                     if result.session:
                         logger.info("Starting Post-Exploitation Phase...")

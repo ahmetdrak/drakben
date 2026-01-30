@@ -16,8 +16,8 @@ import json
 import logging
 import os
 import platform
-import shutil
 import shlex
+import shutil
 import socketserver
 import subprocess
 import threading

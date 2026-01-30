@@ -9,10 +9,10 @@ import time
 from typing import List, Optional, Tuple, Union
 
 try:
-    import pyautogui
-    import mss
     import cv2
+    import mss
     import numpy as np
+    import pyautogui
     from PIL import Image
 
     COMPUTER_AVAILABLE = True

@@ -1,22 +1,22 @@
 """Tests for Hive Mind module"""
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.hive_mind import (
-    HiveMind,
-    CredentialHarvester,
-    NetworkMapper,
     ADAnalyzer,
-    LateralMover,
-    Credential,
-    CredentialType,
-    NetworkHost,
     AttackPath,
+    Credential,
+    CredentialHarvester,
+    CredentialType,
+    HiveMind,
+    LateralMover,
     MovementTechnique,
+    NetworkHost,
+    NetworkMapper,
     get_hive_mind,
     quick_recon,
 )

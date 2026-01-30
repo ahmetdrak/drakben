@@ -1,6 +1,6 @@
+import logging
 import subprocess
 import sys
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("ultimate_audit")

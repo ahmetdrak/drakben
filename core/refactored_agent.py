@@ -5,14 +5,14 @@
 import asyncio
 import json
 import logging
-from re import Match
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from re import Match
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.self_healer import SelfHealer
-from modules.weapon_foundry import GeneratedPayload
 from core.singularity.base import CodeSnippet
-from modules.hive_mind import NetworkHost, AttackPath
+from modules.hive_mind import AttackPath, NetworkHost
+from modules.weapon_foundry import GeneratedPayload
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from core.agent.error_diagnostics import ErrorDiagnosticsMixin
 from core.brain import DrakbenBrain
 from core.coder import AICoder
 from core.config import ConfigManager
@@ -32,19 +33,18 @@ from core.evolution_memory import (
 )
 from core.execution_engine import ExecutionEngine, ExecutionResult
 from core.planner import Planner, PlanStep, StepStatus
-from core.state import AgentState, AttackPhase, reset_state, ServiceInfo
 from core.security_utils import audit_command
 from core.self_refining_engine import (
     Policy,
+    PolicyTier,
     SelfRefiningEngine,
     Strategy,
     StrategyProfile,
-    PolicyTier,
 )
-from core.tool_selector import ToolSelector, ToolSpec
-from core.tool_parsers import normalize_error_message
+from core.state import AgentState, AttackPhase, ServiceInfo, reset_state
 from core.structured_logger import DrakbenLogger
-from core.agent.error_diagnostics import ErrorDiagnosticsMixin
+from core.tool_parsers import normalize_error_message
+from core.tool_selector import ToolSelector, ToolSpec
 from modules.research.exploit_crafter import ExploitCrafter
 from modules.research.fuzzer import FuzzResult
 
@@ -2062,9 +2062,10 @@ Respond in JSON:
 
     def _handle_sqlmap_vulnerabilities(self, result: Dict) -> None:
         """Process SQLMap results and update state"""
-        from core.tool_parsers import parse_sqlmap_output
-        import time
         import random
+        import time
+
+        from core.tool_parsers import parse_sqlmap_output
 
         stdout = result.get("stdout", "")
         # Hybrid parsing with LLM fallback

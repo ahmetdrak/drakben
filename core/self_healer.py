@@ -4,7 +4,7 @@
 
 import logging
 import time
-from typing import Any, Dict, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from rich.console import Console
 

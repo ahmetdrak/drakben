@@ -1,6 +1,6 @@
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 # Setup logging

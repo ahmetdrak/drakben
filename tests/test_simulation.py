@@ -11,23 +11,23 @@ It tests the integration of all major modules:
 Objective: Prove that the agent can autonomously detect a target, weaponize, exploit, and exfiltrate data.
 """
 
-import unittest
-import logging
-import time
-import os
 import json
-from unittest.mock import patch
+import logging
+import os
 
 # Add project root to path
 import sys
+import time
+import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules.hive_mind import HiveMind, NetworkHost, Credential, CredentialType
-from modules.weapon_foundry import WeaponFoundry, PayloadFormat, EncryptionMethod
-from modules.c2_framework import C2Channel, C2Config, C2Protocol, BeaconMessage
-from core.ghost_protocol import GhostProtocol
 from core.execution_engine import ExecutionResult, ExecutionStatus
+from core.ghost_protocol import GhostProtocol
+from modules.c2_framework import BeaconMessage, C2Channel, C2Config, C2Protocol
+from modules.hive_mind import Credential, CredentialType, HiveMind, NetworkHost
+from modules.weapon_foundry import EncryptionMethod, PayloadFormat, WeaponFoundry
 
 # Setup Logger
 logging.basicConfig(level=logging.INFO)

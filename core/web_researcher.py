@@ -1,7 +1,8 @@
-import requests
 import logging
 import urllib.parse
 from typing import Any, Dict, List, Optional
+
+import requests
 from bs4 import BeautifulSoup
 
 try:
@@ -111,7 +112,7 @@ class WebResearcher:
             else:
                 # StealthSession (curl_cffi) doesn't stream well. Fallback to requests for large files.
                 # Just use requests directly for downloads to be safe on memory
-                import requests
+
 
                 with requests.get(
                     url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}

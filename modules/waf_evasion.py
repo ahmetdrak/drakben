@@ -8,8 +8,8 @@ Techniques:
 - RCE: String concatenation, Wildcard expansion, Tauthon evasion.
 """
 
-import random
 import binascii
+import random
 
 
 class WAFEvasion:

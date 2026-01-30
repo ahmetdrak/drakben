@@ -6,8 +6,9 @@ Description: Clones websites and generates weaponized landing pages.
 
 import logging
 import os
-import requests
 from urllib.parse import urljoin
+
+import requests
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)

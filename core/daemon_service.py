@@ -4,12 +4,12 @@ Author: @drak_ben
 Description: Full daemon mode for headless operation (systemd/Windows Service).
 """
 
+import atexit
 import logging
 import os
-import sys
 import signal
+import sys
 import time
-import atexit
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -164,8 +164,8 @@ WantedBy=multi-user.target
             return False
 
         try:
-            import win32serviceutil
             import win32service
+            import win32serviceutil
 
             # This would require a proper service class
             # For now, return instructions

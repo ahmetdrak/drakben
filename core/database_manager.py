@@ -4,11 +4,11 @@ Description: Centralized database connection manager supporting SQLite (default)
 Thread-safe singleton pattern.
 """
 
+import logging
 import sqlite3
 import threading
-import logging
-from typing import Optional, List
 from contextlib import contextmanager
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 

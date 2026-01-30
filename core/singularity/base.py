@@ -4,8 +4,8 @@ Defines the abstract base classes for self-improvement modules.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
 from dataclasses import dataclass
+from typing import List
 
 
 @dataclass

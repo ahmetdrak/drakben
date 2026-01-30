@@ -5,8 +5,8 @@ Description: Mathematical code path analysis using constraint solving.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

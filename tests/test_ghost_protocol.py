@@ -1,19 +1,19 @@
 """Tests for Ghost Protocol module"""
 
-import unittest
-import sys
 import os
+import sys
 import tempfile
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.ghost_protocol import (
-    PolymorphicTransformer,
-    StringEncryptor,
-    SecureCleanup,
     GhostProtocol,
-    obfuscate,
+    PolymorphicTransformer,
+    SecureCleanup,
+    StringEncryptor,
     get_ghost_protocol,
+    obfuscate,
 )
 
 
@@ -111,7 +111,7 @@ class TestSecureCleanup(unittest.TestCase):
 
     def test_secure_wipe_verification(self):
         """Verify that data is actually overwritten before deletion"""
-        from unittest.mock import patch, mock_open
+        from unittest.mock import mock_open, patch
 
         # We want to verify that open() is called with 'wb' multiple times (overwriting)
         # and that os.urandom or zeros are written to it.

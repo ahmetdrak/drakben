@@ -564,7 +564,7 @@ class SecureCleanup:
             # 2. Windows Specific: Change Creation Time using ctypes
             if os.name == "nt":
                 try:
-                    from ctypes import windll, wintypes, byref
+                    from ctypes import byref, windll, wintypes
 
                     # Filetime structure
                     timestamp = int(mtime * 10000000) + 116444736000000000
@@ -857,8 +857,8 @@ class MemoryOnlyExecutor:
             Tuple of (success, module_or_error)
         """
         try:
-            import types
             import sys
+            import types
 
             # Create module object
             module = types.ModuleType(module_name)

@@ -1,16 +1,17 @@
-import pytest
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
+
+import pytest
 
 # Fix PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.refactored_agent import RefactoredDrakbenAgent
 from core.config import ConfigManager
+from core.planner import PlanStep, StepStatus
+from core.refactored_agent import RefactoredDrakbenAgent
 from core.state import AgentState, AttackPhase
 from core.tool_selector import ToolSelector
-from core.planner import PlanStep, StepStatus
 
 # STRESS TEST PROTOCOL - DRAKBEN - ZERO DEFECT VALIDATION
 

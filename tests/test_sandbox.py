@@ -3,17 +3,17 @@ Tests for Sandbox Manager module.
 These tests work whether Docker is installed or not.
 """
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.sandbox_manager import (
-    SandboxManager,
     ContainerStatus,
-    is_sandbox_available,
+    SandboxManager,
     get_sandbox_manager,
+    is_sandbox_available,
 )
 
 

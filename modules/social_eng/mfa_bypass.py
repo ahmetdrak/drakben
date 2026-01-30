@@ -4,12 +4,12 @@ Author: @drak_ben
 Description: Man-in-the-Middle Proxy for 2FA/MFA bypass via session hijacking.
 """
 
-import logging
-import subprocess
-import os
 import json
-from typing import Dict, List
+import logging
+import os
+import subprocess
 from dataclasses import dataclass
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 

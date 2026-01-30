@@ -5,8 +5,9 @@ Description: Interface for Local LLMs (Ollama, LM Studio, etc.)
 """
 
 import logging
+from typing import Dict, List, Optional
+
 import requests
-from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 

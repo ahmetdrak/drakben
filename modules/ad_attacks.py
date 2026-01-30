@@ -5,17 +5,17 @@ Description: Pure Python implementation of AD attacks using Impacket library dir
 Author: @ahmetdrak
 """
 
-import logging
 import asyncio
-from typing import Dict, List, Any, Optional
+import logging
+from typing import Any, Dict, List, Optional
 
 # Impacket imports (Must be present in env)
 try:
     from impacket.krb5 import constants
-    from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
+    from impacket.krb5.kerberosv5 import getKerberosTGS, getKerberosTGT
     from impacket.krb5.types import Principal
-    from impacket.smbconnection import SMBConnection, SessionError
     from impacket.ldap import ldap as ldap_impacket
+    from impacket.smbconnection import SessionError, SMBConnection
 
     IMPACKET_AVAILABLE = True
 except ImportError:

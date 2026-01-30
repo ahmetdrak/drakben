@@ -7,8 +7,8 @@ Description: AI-guided mutation fuzzer for vulnerability discovery.
 import logging
 import random
 import time
-from typing import List, Any, Callable
 from dataclasses import dataclass
+from typing import Any, Callable, List
 
 logger = logging.getLogger(__name__)
 

@@ -1,19 +1,17 @@
-from typing import Any, Dict, LiteralString, Optional, TYPE_CHECKING, Callable
 import os
-
-from core.tool_selector import ToolSpec
-
-
-from core.execution_engine import ExecutionResult
-
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, LiteralString, Optional
 
+from core.execution_engine import ExecutionResult
 from core.state import AgentState
+from core.tool_selector import ToolSpec
 
 if TYPE_CHECKING:
-    from core.refactored_agent import RefactoredDrakbenAgent
+    from rich.table import Table
+
     from core.brain import DrakbenBrain
+    from core.refactored_agent import RefactoredDrakbenAgent
 
 from rich.console import Console
 from rich.prompt import Prompt
@@ -466,8 +464,8 @@ class DrakbenMenu:
 
     def _cmd_help(self, args: str = "") -> None:
         """Help command - Modern Dracula themed"""
-        from rich.table import Table
         from rich.panel import Panel
+        from rich.table import Table
 
         lang: str = self.config.language
 
@@ -862,6 +860,7 @@ class DrakbenMenu:
     def _create_plan_table(self) -> "Table":
         """Create a table showing current plan steps"""
         from rich.table import Table
+
         from core.planner import StepStatus
 
         table = Table(box=None, padding=(0, 1))
@@ -891,9 +890,10 @@ class DrakbenMenu:
     def _cmd_report(self, args: str = "") -> None:
         """Generate professional report"""
         from rich.panel import Panel
+
         from modules.report_generator import (
-            ReportFormat,
             ReportConfig,
+            ReportFormat,
             generate_report_from_state,
         )
 
@@ -1206,6 +1206,7 @@ class DrakbenMenu:
 
     def _save_llm_config(self, provider_key, selected_model, api_key):
         from pathlib import Path
+
         from rich.panel import Panel
 
         env_file = Path("config/api.env")

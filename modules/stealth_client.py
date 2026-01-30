@@ -4,10 +4,11 @@ Author: @ahmetdrak
 Description: State-of-the-art TLS Fingerprint Impersonation to bypass Cloudflare/Akamai.
 """
 
-from curl_cffi.requests import Session, AsyncSession
-from typing import Dict, Any
 import logging
 import random
+from typing import Any, Dict
+
+from curl_cffi.requests import AsyncSession, Session
 
 logger = logging.getLogger(__name__)
 
