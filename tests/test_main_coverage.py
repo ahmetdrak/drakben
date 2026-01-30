@@ -1,4 +1,3 @@
-import pytest
 import sys
 import os
 from unittest.mock import patch
@@ -15,14 +14,13 @@ def test_main_menu_launch():
         del sys.modules["drakben"]
         
     with patch("core.menu.DrakbenMenu") as MockMenu:
-        with patch("core.config.ConfigManager") as MockConfig:
-            with patch("core.plugin_loader.PluginLoader") as MockPlugins:
+        with patch("core.config.ConfigManager"):
+            with patch("core.plugin_loader.PluginLoader"):
                 # Setup mocks
                 mock_menu_instance = MockMenu.return_value
                 mock_menu_instance.run.return_value = None
                 
                 # Dynamic import AFTER patching
-                import drakben
                 from drakben import main
                 
                 # Run main

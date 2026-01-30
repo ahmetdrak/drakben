@@ -9,9 +9,7 @@ import time
 from typing import List, Optional, Tuple, Union
 
 try:
-    import cv2
     import mss
-    import numpy as np
     import pyautogui
     from PIL import Image
 

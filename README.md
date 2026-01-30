@@ -1,112 +1,149 @@
-# 🐉 DRAKBEN V2: Autonomous APT Simulation Agent
-![Class](https://img.shields.io/badge/Class-Autonomous_APT_Simulator-crimson?style=for-the-badge)
-![Architecture](https://img.shields.io/badge/Architecture-Zero_Error-brightgreen?style=for-the-badge)
-![Core](https://img.shields.io/badge/Engine-Self_Refining_Singularity-blueviolet?style=for-the-badge)
-![Capabilities](https://img.shields.io/badge/Capabilities-WAF%2FEDR_Evasion-orange?style=for-the-badge)
+<div align="center">
 
-> **"Drakben is NOT a scanner. It is an Autonomous APT Simulation Agent designed to bridge the gap between human expertise and machine speed."**
+# 🐉 DRAKBEN V2
+### The Autonomous A.I. Offensive Security Agent
 
-Built upon a **"Zero Error" architecture**, Drakben utilizes advanced cognitive reasoning, real-time adaptation, and persistent evolutionary memory to simulate sophisticated adversaries. Unlike static tools, it learns from every interaction, mutating its strategies to bypass modern security controls (WAF, EDR, AV) and achieve objective-oriented goals autonomously.
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker)
+![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
 
----
+**Drakben is not a scanner. It is an intelligent, self-evolving operator.**
+<br/>
+It bridges the gap between human expertise and machine speed by autonomously planning, executing, and refining offensive security operations.
 
-## 🧬 system.architecture (The Anatomy of a Predator)
+[Features](#-capabilities) • [Installation](#-quick-start) • [Usage](#-usage) • [Architecture](#-evolutionary-architecture)
 
-### 1. The Singularity Engine (The Factory)
-Located in `core/singularity/`, this is the heart of Drakben's generative power.
-*   **Synthesizer:** Uses LLMs to write custom exploit scripts and tools on-the-fly based on target analysis (e.g., *"Write a Python script to exploit CVE-2024-XYZ"*).
-*   **Validator:** Sandboxes generated code to ensure safety and functionality before deployment.
-*   **Mutator:** Applies polymorphic transformations to generated tools, ensuring unique file hashes and signatures for every instance.
-
-### 2. The Hive Mind (Network Intelligence)
-Located in `modules/hive_mind.py`, this module orchestrates complex network attacks.
-*   **BloodHound-Style Analysis:** Maps attack paths, identifying the shortest route to Domain Admin.
-*   **Lateral Movement:** Automates techniques like Pass-the-Hash, Pass-the-Ticket, and SSH Key Harvesting.
-*   **AD Enumeration:** Performs stealthy LDAP queries and Kerberoasting attacks.
-
-### 3. Ghost Protocol (Polymorphism & Evasion)
-Located in `core/ghost_protocol.py`, ensures invisibility.
-*   **AST Rewriting:** Modifies its own Python Abstract Syntax Tree in memory to defeat static analysis.
-*   **Fileless Loading:** Uses `memfd_create` and reflection to load modules directly into RAM, leaving no trace on disks.
-*   **Anti-Forensics:** Automatically cleans logs and timestomps artifacts.
-
-### 4. Weapon Foundry (The Arsenal)
-Located in `modules/weapon_foundry.py`, a dynamic payload generator.
-*   **Crypto-Grade:** All payloads uses **AES-256-GCM** and **ChaCha20** layered with random keys generated via `secrets`.
-*   **Multi-Format:** Generates EXE, ELF, DLL, PowerShell, HTA, and Python stubs.
-*   **Evasion:** Built-in Anti-VM, Anti-Debug, and "Sleep" heuristics to bypass EDRs.
-
-### 5. Self-Refining Brain (The Strategy)
-Located in `core/brain.py` and `core/self_refining_engine.py`.
-*   **Evolutionary Memory:** Stores success/failure metrics in a SQLite gene pool.
-*   **Strategy Mutation:** If an attack fails, the agent modifies its aggressiveness, timing, or tool choice and retries.
-*   **Master Orchestrator:** Manages the entire lifecycle from Recon -> Weaponization -> Delivery -> Exploitation.
+</div>
 
 ---
 
-## 🛡️ Integrity & Verification
-This project has undergone rigorous logical and security verification to achieve its "Zero Error" status.
+## ⚡ Quick Demo
 
-| Test Suite | Status | Description |
-| :--- | :--- | :--- |
-| **Integrity Gauntlet** | ✅ **PASSED** | Validated full integration of Brain, Ghost, Weapon, and C2 modules. |
-| **Logic Verification** | ✅ **PASSED** | 41/41 Unit Tests passed. No dead loops or logic bombs. |
-| **Security Audit** | ✅ **PASSED** | `Bandit` certified. Safe use of `secrets`, `subprocess`, and cryptography. |
-| **Type Safety** | ✅ **PASSED** | `MyPy` checked. Null-safety enforcement active. |
+Without memorizing complex flags, simply tell Drakben what you want to do.
+
+```console
+user@drakben:~$ ./drakben
+
+[?] What is your objective?
+> Scan target 10.10.11.23, stay stealthy, and if you find a website, look for SQL injection.
+
+[+] 🧠 SELF-REFINING ENGINE
+    └── Strategy Selected: STEALTH (Profile: Ghost_V2)
+    └── Policy Loaded: "Avoid WAF triggers", "Rate Limit: Low"
+
+[+] 👻 GHOST PROTOCOL
+    └── Rotating User-Agent...
+    └── Establishing Tor Circuit... [OK]
+
+[+] 🕵️ RECONNAISSANCE
+    └── Target: 10.10.11.23
+    └── Open Ports: 80 (HTTP), 22 (SSH)
+    └── Service: Apache 2.4.41
+
+[+] ⚔️ ATTACK VECTOR
+    └── Analyzing HTTP (Port 80)...
+    └── Vulnerability Found: SQL Injection in /login.php
+    └── Generating Polymorphic Exploit... [DONE]
+
+[?] Critical vulnerability confirmed. Proceed with exploitation? (y/n)
+> y
+```
 
 ---
 
-## 🚀 Deployment
+## 🚀 Capabilities
 
-### 🐳 Docker Deployment (Streamlined & Recommended)
-Running Drakben via Docker is the **fastest and most secure** way to deploy, ensuring all dependencies and isolation layers are correctly configured.
+| Feature | Description | State |
+| :--- | :--- | :---: |
+| **🧠 Self-Refining Mind** | Learns from failures. If a tool fails, it pivots strategy & creates policies. | ✅ |
+| **👻 Ghost Protocol** | AST-Polymorphic code generation & anti-forensics (Timestomping). | ✅ |
+| **🌌 Singularity Engine** | Writes its own Python exploits on the fly when tools fail. | ✅ |
+| **⚔️ Weapon Foundry** | Generates encrypted payloads (AES/ChaCha20) in (exe, elf, ps1). | ✅ |
+| **🕸️ Hive Mind** | Native Active Directory attacks (Kerberoasting, Bloodhound Analysis). | ✅ |
+| **🔌 Universal Adapter** | Auto-installs missing dependencies & hides C2 via Domain Fronting. | ✅ |
+| **🌐 Web Recon** | WAF Detection, Fuzzing, SQLi/XSS Automation. | ✅ |
+
+---
+
+## 🧬 Evolutionary Architecture
+
+Drakben's core is designed to mimic a biological evolution process. It doesn't just run scripts; it **adapts**.
+
+```mermaid
+graph TD
+    User-->|Natural Language| Adapter[Universal Adapter]
+    Adapter -->|Intent| Brain[🧠 Self-Refining Brain]
+    
+    subgraph "Evolution Cycle"
+    Brain -->|Plan| Singularity[🌌 Singularity CodeGen]
+    Brain -->|Strategy| Hive[🕸️ Hive Mind]
+    Singularity -->|Polymorphism| Ghost[👻 Ghost Protocol]
+    Ghost -->|Obfuscation| Weapon[⚔️ Weapon Foundry]
+    end
+    
+    Weapon -->|Attack| Target((Target System))
+    Target -->|Feedback| Memory[Evolution Memory]
+    Memory -->|Learning| Brain
+```
+
+---
+
+## � Quick Start
+
+### 🐳 Docker (Recommended)
+
+The safest and fastest way to run Drakben.
 
 ```bash
-# 1. Build the Container
+# 1. Build the image
 docker build -t drakben/core .
 
-# 2. Run in Autonomous Mode
-docker run -it --rm --network host drakben/core --target 10.0.0.5 --mode auto
-
-# 3. Mount Volumes for Persistence (Optional)
-docker run -v $(pwd)/data:/app/data -it drakben/core --interactive
+# 2. Run the agent (Host networking required for Nmap/Arp)
+docker run -it --network host drakben/core
 ```
 
-### Manual Installation (Advanced)
-*   **Prerequisites:** Python 3.10+, Admin/Root privileges.
-*   **API Key:** LLM API Key (OpenAI/Anthropic/OpenRouter) required for Singularity features.
+### 🐍 Manual Installation
 
 ```bash
-# 1. Install Dependencies
+# 1. Clone
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+
+# 2. Install
 pip install -r requirements.txt
 
-# 2. Start Drakben
-python drakben.py --interactive
-```
+# 3. Configure (Optional)
+cp .env.example .env  # Add your LLM API Keys here
 
-### Usage Examples
-
-**1. Autonomous Hunter Mode (Fire & Forget)**
-```bash
-python drakben.py --target 10.0.0.5 --mode auto --aggressiveness 0.9
-```
-
-**2. Generate a Custom Weapon**
-```bash
-python modules/weapon_foundry.py --forge --shell reverse_tcp --lhost 10.0.0.99 --enc aes
+# 4. Run
+python drakben.py
 ```
 
 ---
 
-## ⚠️ Legal Disclaimer
+## 💻 Natural Language Control
 
-**DRAKBEN IS A MILITARY-GRADE OFFENSIVE FRAMEWORK FOR AUTHORIZED RED TEAMING ONLY.**
+Drakben understands context. You don't need to speak "code".
 
-*   **Intended Use:** Authorized security testing, educational research, and adversary simulation.
-*   **Liability:** The developers assume **NO LIABILITY** for misuse. Using this tool against systems without explicit permission is illegal and may result in severe criminal penalties.
+### Scenario 1: The Lazy Red Teamer
+> "I have a list of IPs in targets.txt. Check them all for MS17-010 but don't crash the services."
+
+### Scenario 2: The CTF Player
+> "Analyze the binary running on port 1337. It looks like a buffer overflow. Write a fuzzer script for it."
+
+### Scenario 3: The Operator
+> "Generate a FUD Windows payload, use Domain Fronting via Azure, and wait for my signal."
 
 ---
 
-*Project maintainer: *DRAKBEN*  
-*Stability: "Zero Error" Production Ready*
-*Score: 100/100*
+## ⚠️ Disclaimer
+
+**Simulated Environment Only.**
+This tool performs actual offensive actions. The developers disclaim all responsibility for unauthorized use. Use strictly for authorized Penetration Testing and Educational Research.
+
+---
+
+<div align="center">
+    <sub>Developed by the Drakben Team • released under MIT License</sub>
+</div>

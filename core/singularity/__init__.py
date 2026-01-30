@@ -9,6 +9,6 @@ Modules:
 - engine: Main orchestrator
 """
 
-from .base import CodeSnippet, MutationResult
+from .base import CodeSnippet as CodeSnippet, MutationResult as MutationResult
 
 __version__ = "1.0.0"

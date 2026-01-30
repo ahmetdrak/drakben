@@ -12,9 +12,8 @@ from typing import Any, Dict, List, Optional
 # Impacket imports (Must be present in env)
 try:
     from impacket.krb5 import constants
-    from impacket.krb5.kerberosv5 import getKerberosTGS, getKerberosTGT
+    from impacket.krb5.kerberosv5 import getKerberosTGT
     from impacket.krb5.types import Principal
-    from impacket.ldap import ldap as ldap_impacket
     from impacket.smbconnection import SessionError, SMBConnection
 
     IMPACKET_AVAILABLE = True
@@ -139,7 +138,7 @@ class ActiveDirectoryAttacker:
             try:
                 def read_users():
                     with open(user_file, "r") as f:
-                        return [l.strip() for l in f if l.strip()]
+                        return [line.strip() for line in f if line.strip()]
 
                 users = await asyncio.to_thread(read_users)
             except Exception:

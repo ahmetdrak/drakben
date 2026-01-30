@@ -34,8 +34,6 @@ try:
     from prompt_toolkit.completion import (
         Completer,
         Completion,
-        NestedCompleter,
-        WordCompleter,
     )
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory, InMemoryHistory

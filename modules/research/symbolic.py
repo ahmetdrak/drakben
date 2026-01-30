@@ -45,7 +45,9 @@ class SymbolicExecutor:
     def _check_z3(self) -> bool:
         """Check if Z3 solver is available"""
         try:
-            import z3
+            import importlib.util
+            if not importlib.util.find_spec("z3"):
+                raise ImportError
 
             return True
         except ImportError:

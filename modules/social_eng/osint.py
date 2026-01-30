@@ -83,11 +83,11 @@ class OSINTSpider:
             parts = full_name.lower().split()
             if len(parts) >= 2:
                 first, last = parts[0], parts[-1]
-                f, l = first[0], last[0]
+                f_initial, l_initial = first[0], last[0]
 
                 # Use a specific format or default
                 email = format_str.format(
-                    first=first, last=last, f=f, l=l, domain=domain
+                    first=first, last=last, f=f_initial, l=l_initial, domain=domain
                 )
                 return email
             return f"{parts[0]}@{domain}"

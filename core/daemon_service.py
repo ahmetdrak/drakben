@@ -164,8 +164,9 @@ WantedBy=multi-user.target
             return False
 
         try:
-            import win32service
-            import win32serviceutil
+            import importlib.util
+            if not importlib.util.find_spec("win32service") or not importlib.util.find_spec("win32serviceutil"):
+                raise ImportError
 
             # This would require a proper service class
             # For now, return instructions
