@@ -39,13 +39,12 @@ def test_power_level():
     ]
 
     for name, raw in payloads:
-        obfuscated = (
-            waf.obfuscate_sql(raw)
-            if name == "SQLi"
-            else waf.obfuscate_xss(raw)
-            if name == "XSS"
-            else waf.obfuscate_shell(raw)
-        )
+        if name == "SQLi":
+            obfuscated = waf.obfuscate_sql(raw)
+        elif name == "XSS":
+            obfuscated = waf.obfuscate_xss(raw)
+        else:
+            obfuscated = waf.obfuscate_shell(raw)
 
         console.print(f"  [cyan]{name} Raw:[/cyan] {raw}")
         console.print(f"  [green]{name} Obf:[/green] {obfuscated}")

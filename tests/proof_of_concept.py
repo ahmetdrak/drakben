@@ -111,7 +111,7 @@ async def main():
         # Async Stress Test
         start_t = time.time()
         tasks = []
-        for i in range(100):
+        for _ in range(100):
 
             def log_task(d=db):
                 return d.execute("SELECT 1").fetchone()

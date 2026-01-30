@@ -12,7 +12,7 @@ from core.state import reset_state
 logger = logging.getLogger("chaos_test")
 
 
-async def test_state_stability():
+def test_state_stability():
     """Rapidly reset and update state to check for race conditions"""
     logger.info("Running State Stress Test...")
     try:
@@ -28,11 +28,11 @@ async def test_state_stability():
         return False
 
 
-async def main():
+def main():
     logger.info("Starting Chaos Test (Stress Test)...")
     start_time = time.time()
 
-    success = await test_state_stability()
+    success = test_state_stability()
 
     duration = time.time() - start_time
     if success:
@@ -44,4 +44,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
