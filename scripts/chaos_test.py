@@ -2,9 +2,12 @@ import asyncio
 import time
 import logging
 import sys
-from core.state import reset_state
+import os
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Ensure project root is in python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.state import reset_state
 logger = logging.getLogger("chaos_test")
 
 
