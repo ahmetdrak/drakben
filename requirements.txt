@@ -1,43 +1,33 @@
 # DRAKBEN Requirements
-# Kali Linux Optimized
+# Verified & Pinned for Stability (Zero Error Architecture)
 
-# ========== CORE (Required) ==========
-rich>=13.0.0              # Terminal UI - Dracula theme
-requests>=2.28.0          # HTTP client
-python-dotenv>=1.0.0      # Environment variables
-psutil>=5.9.0             # System monitoring
-aiohttp>=3.9.0            # Async HTTP
-aiofiles>=23.0.0          # Async File I/O
-z3-solver>=4.12.0         # Symbolic Execution Engine
+# ========== CORE ==========
+rich==14.2.0              # Terminal UI
+requests==2.32.5          # HTTP client
+python-dotenv==1.2.1      # Env vars
+psutil==7.2.1             # System monitoring
+aiohttp==3.13.3           # Async HTTP
+aiofiles==25.1.0          # Async File I/O
+typing_extensions==4.15.0 # Compatibility
 
-# ========== WEB/NETWORK ==========
-beautifulsoup4>=4.12.0    # HTML parsing
-dnspython>=2.4.0          # DNS queries
-python-whois>=0.8.0       # WHOIS lookups
+# ========== INTELLIGENCE & REASONING ==========
+z3-solver==4.15.4.0       # Symbolic Execution Engine
+scikit-learn==1.8.0       # ML/Clustering (Future usage for anomaly detection)
+numpy==2.3.5              # Numerical operations
 
-# ========== SECURITY ==========
-pycryptodome>=3.20.0      # Cryptography
+# ========== NETWORK & RECON ==========
+beautifulsoup4==4.14.3    # HTML parsing
+dnspython==2.8.0          # DNS queries
+python-whois==0.9.6       # WHOIS lookups
+
+# ========== SECURITY & CRYPTO ==========
+pycryptodome==3.23.0      # Cryptography (AES-GCM, etc.)
+keyring==25.7.0           # Secure credential storage
+curl_cffi==0.7.4          # Advanced TLS Fingerprint Impersonation
 
 # ========== ENHANCED FEATURES ==========
-prompt_toolkit>=3.0.0     # Advanced prompts with auto-complete
-keyring>=24.0.0           # Secure credential storage
+prompt_toolkit==3.0.52    # Advanced prompts
+pyreadline3==3.5.4; sys_platform == 'win32' # Windows compatibility
 
-# ========== COMPUTER & VISION (Open Interpreter Features) ==========
-pyautogui>=0.9.54         # Mouse/Keyboard control
-Pillow>=10.0.0            # Image processing
-mss>=9.0.0                # Fast screen capture
-opencv-python>=4.9.0      # Computer vision
-pyperclip>=1.8.0          # Clipboard access
-pysocks>=1.7.0            # SOCKS proxy support
-pyreadline3>=3.4.0; sys_platform == 'win32' # Readline for Windows
-
-# ========== OPTIONAL ==========
-# weasyprint>=60.0        # PDF report generation
-# msgpack>=1.0.0          # Metasploit RPC protocol
-
-# ========== DEVELOPMENT ==========
-# pytest>=8.0.0           # Testing
-# pytest-cov>=4.0.0       # Coverage
-# pytest-asyncio>=0.23.0  # Async tests
-# ruff>=0.1.0             # Linting
-# mypy>=1.8.0             # Type checking
+# Note: Removed heavy desktop automation libs (opencv, pyautogui) 
+# to align with "Headless APT Agent" philosophy.

@@ -99,6 +99,35 @@ class MasterOrchestrator:
         if analysis.get("llm_response"):
             decision["llm_response"] = analysis["llm_response"]
 
+        # CRITICAL SAFETY: Circuit Breaker for Infinite Loops
+        if len(self.context.history) >= 3:
+            last_3 = self.context.history[-3:]
+            current_action = decision.get("action") or decision.get("next_action", {}).get("type")
+            
+            repeated_count = 0
+            for hist in last_3:
+                # Assuming history structure {"step":..., "action": {"tool": "x"}...}
+                hist_action_obj = hist.get("action", {})
+                # Handle both dict and object/string cases defensively
+                if isinstance(hist_action_obj, dict):
+                     hist_action = hist_action_obj.get("tool") or hist_action_obj.get("type")
+                else:
+                     hist_action = str(hist_action_obj)
+
+                if hist_action and current_action and hist_action == current_action:
+                    repeated_count += 1
+            
+            if repeated_count >= 3:
+                import logging
+                logging.getLogger(__name__).critical("Infinite Loop Detected: Same action proposed 3+ times.")
+                return {
+                    "action": "error",
+                    "error": "Infinite Loop Detected. The agent is repeating the same action.",
+                    "needs_approval": True,
+                    "risks": ["Infinite Loop"]
+                }
+
+
         # Self-correction check
         if decision.get("has_risks"):
             corrected = self.self_correction.review(decision)
@@ -174,8 +203,8 @@ class ContinuousReasoning:
         import logging
         logger: logging.Logger = logging.getLogger(__name__)
         
-        MAX_RETRIES = 2
-        RETRYABLE_ERRORS: List[str] = ["Timeout", "Rate Limit", "Server Error", "Connection"]
+        MAX_RETRIES = 3
+        RETRYABLE_ERRORS: List[str] = ["Timeout", "Rate Limit", "Server Error", "Connection", "429", "502", "503"]
         
         # Try LLM-powered analysis first (with retry for transient errors)
         if self.use_llm and self.llm_client:
@@ -192,8 +221,9 @@ class ContinuousReasoning:
                 is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
                 
                 if is_retryable and attempt < MAX_RETRIES - 1:
-                    logger.warning(f"LLM transient error, retrying ({attempt + 1}/{MAX_RETRIES}): {error_msg}")
-                    time.sleep(1 + attempt)  # Exponential backoff
+                    delay = 5 * (2 ** attempt) # 5s, 10s, 20s
+                    logger.warning(f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}")
+                    time.sleep(delay)
                     continue
                 
                 last_error = error_msg

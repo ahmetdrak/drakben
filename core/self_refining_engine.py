@@ -871,7 +871,15 @@ class SelfRefiningEngine:
                 change = random.uniform(-self.MUTATION_PARAM_CHANGE, self.MUTATION_PARAM_CHANGE)
                 new_params[key] = max(1, new_params[key] * (1 + change))
                 if isinstance(params[key], int):
-                    new_params[key] = int(new_params[key])
+                    new_val = int(new_params[key])
+                    # Ensure minimal change for small integers
+                    if new_val == params[key]:
+                        # Force change: +1 if positive mutation, -1 if negative (but min 1)
+                        if change >= 0:
+                            new_val += 1
+                        else:
+                            new_val = max(1, new_val - 1)
+                    new_params[key] = new_val
         
         # Mutation 2: Shuffle step order
         new_steps = steps.copy()

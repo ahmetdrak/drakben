@@ -80,7 +80,9 @@ class PluginLoader:
                 return None
             
             module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
+            # Namespace isolation: Prevents shadowing standard libraries
+            isolated_name = f"drakben_plugins.{module_name}"
+            sys.modules[isolated_name] = module
             spec.loader.exec_module(module)
 
             # Verification: Must have register() function

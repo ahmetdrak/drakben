@@ -648,6 +648,23 @@ class InteractiveShell:
             if len(args) >= 2:
                 key, value = args[0], args[1]
                 if hasattr(self.config, key):
+                    current_val = getattr(self.config, key)
+                    # Type inference
+                    if isinstance(current_val, bool):
+                        value = value.lower() in ('true', '1', 'yes', 'on')
+                    elif isinstance(current_val, int):
+                        try:
+                            value = int(value)
+                        except ValueError:
+                            self.console.print(f"[red]Invalid integer for {key}[/red]")
+                            return CommandResult(success=False, error="Invalid type")
+                    elif isinstance(current_val, float):
+                        try:
+                            value = float(value)
+                        except ValueError:
+                            self.console.print(f"[red]Invalid float for {key}[/red]")
+                            return CommandResult(success=False, error="Invalid type")
+                            
                     setattr(self.config, key, value)
                     self.console.print(f"[green]Set {key} = {value}[/green]")
                 else:

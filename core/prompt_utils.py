@@ -489,6 +489,15 @@ class CommandHistory:
     def add(self, command: str):
         """Add command to history"""
         if command and not command.startswith('#'):
+            # SECURITY: Do not log commands with sensitive keywords
+            command_lower = command.lower()
+            sensitive_keywords = ["password", "key", "token", "secret", "auth", "credential"]
+            if any(k in command_lower for k in sensitive_keywords):
+                return
+            
+            if command.startswith("/login") or command.startswith("login"):
+                return
+
             self.entries.append({
                 "command": command,
                 "timestamp": time.time()

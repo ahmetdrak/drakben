@@ -12,6 +12,9 @@ from pathlib import Path
 PROJECT_ROOT: Path = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Anti-Forensics: Prevent creation of .pyc files
+sys.dont_write_bytecode = True
+
 # Load environment variables from config/api.env
 from dotenv import load_dotenv
 env_file: Path = PROJECT_ROOT / "config" / "api.env"
@@ -24,6 +27,7 @@ from core.config import ConfigManager  # noqa: E402
 from core.logging_config import setup_logging, get_logger  # noqa: E402
 
 # Initialize logging
+# Initialize logging
 setup_logging(
     level="INFO",
     log_dir="logs",
@@ -33,6 +37,98 @@ setup_logging(
 )
 logger: Logger = get_logger("main")
 
+
+def global_exception_handler(exc_type, exc_value, exc_traceback):
+    """
+    Global exception handler to capture unhandled exceptions (Crash Reporter).
+    Prevents 'Silent Death' by generating a detailed crash dump.
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    from rich.console import Console
+    from rich.panel import Panel
+    import traceback
+    from datetime import datetime
+
+    check_console = Console()
+    
+    # Generate crash ID
+    crash_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    crash_id = f"crash_{crash_time}.log"
+    log_dir = PROJECT_ROOT / "logs" / "crash_reports"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    crash_file = log_dir / crash_id
+
+    # Format traceback
+    tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    
+    # Write to file
+    with open(crash_file, "w", encoding="utf-8") as f:
+        f.write(f"DRAKBEN CRASH REPORT - {crash_time}\n")
+        f.write("=" * 50 + "\n")
+        f.write(f"Type: {exc_type.__name__}\n")
+        f.write(f"Message: {str(exc_value)}\n")
+        f.write("-" * 50 + "\n")
+        f.write(tb_text)
+        f.write("=" * 50 + "\n")
+        f.write("System Information:\n")
+        import platform
+        f.write(f"OS: {platform.system()} {platform.release()}\n")
+        f.write(f"Python: {sys.version}\n")
+
+    # Notify user
+    logger.critical(f"Unhandled exception caught! Crash dump saved to {crash_file}", exc_info=(exc_type, exc_value, exc_traceback))
+    
+    check_console.print(Panel(
+        f"[bold red]CRITICAL SYSTEM FAILURE[/bold red]\n\n"
+        f"An unhandled exception occurred and the agent must terminate.\n"
+        f"Crash dump written to: [yellow]{crash_file}[/yellow]\n\n"
+        f"Error: {exc_type.__name__}: {str(exc_value)}",
+        title="💀 DRAKBEN CRASH REPORTER",
+        border_style="red"
+    ))
+    sys.exit(1)
+
+# Install exception hook
+sys.excepthook = global_exception_handler
+
+import signal
+
+def cleanup_resources(signum=None, frame=None):
+    """
+    Gracefully cleanup resources on shutdown.
+    Closes DB connections and active threads.
+    """
+    try:
+        logger.info("Shutdown signal received. Cleaning up...")
+        
+        # Close Database (if initialized)
+        try:
+             # Dynamically close DB instances if accessible via core
+             from core.database_manager import SQLiteProvider
+             # We can't access specific instances easily unless tracked,
+             # but we can try to hint GC or rely on connection timeouts.
+             # For a cleaner approach, main components register cleanup hooks.
+             pass
+        except: pass
+        
+        # Flush logs
+        logging.shutdown()
+        
+        if signum:
+            from rich.console import Console
+            Console().print("\n[yellow]Graceful Shutdown Complete. Goodbye![/yellow]")
+            sys.exit(0)
+            
+    except Exception as e:
+        print(f"Error during cleanup: {e}")
+        sys.exit(1)
+
+# Register Signal Handlers
+signal.signal(signal.SIGINT, cleanup_resources)
+signal.signal(signal.SIGTERM, cleanup_resources)
 
 def clear_screen() -> None:
     """Clear terminal screen"""

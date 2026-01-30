@@ -189,7 +189,8 @@ class SelfHealer:
             self.console.print(
                 "🔐 İzin hatası - sudo ile deneniyor...",
                 style="yellow")
-            sudo_cmd = f"sudo {command}"
+            # Use -n to prevent blocking on password prompt
+            sudo_cmd = f"sudo -n {command}"
             retry_result = self.agent.executor.terminal.execute(
                 sudo_cmd, timeout=300)
             return retry_result.exit_code == 0, retry_result

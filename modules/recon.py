@@ -375,7 +375,13 @@ def get_dns_records(domain: str) -> Dict[str, Any]:
     
     for rtype in record_types:
         try:
-            answers = dns.resolver.resolve(domain, rtype)
+             # Paranoid: Use dedicated resolver to avoid local DNS/ISP logging
+            resolver = dns.resolver.Resolver()
+            resolver.nameservers = ['1.1.1.1', '8.8.8.8', '1.0.0.1']
+            resolver.timeout = 5.0
+            resolver.lifetime = 10.0
+            
+            answers = resolver.resolve(domain, rtype)
             records[rtype] = [str(r) for r in answers]
         except dns.resolver.NoAnswer:
             records[rtype] = []

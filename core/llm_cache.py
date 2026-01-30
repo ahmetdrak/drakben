@@ -89,6 +89,12 @@ class LLMCache:
         query_hash = self._hash_query(query)
         timestamp = time.time()
         
+        # SECURITY: Do not cache query/response with sensitive keywords
+        sensitive_keywords = ["password", "key", "token", "secret", "credential", "auth"]
+        if any(k in query.lower() for k in sensitive_keywords) or \
+           any(k in response.lower() for k in sensitive_keywords):
+            return
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(

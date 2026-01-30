@@ -326,8 +326,16 @@ class ConfigManager:
         with self._lock:
             try:
                 self.config_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                # SENSITIVE DATA PROTECTION
+                # Do not write API keys to settings.json (they belong in .env)
+                data = asdict(self.config)
+                keys_to_remove = [k for k in data.keys() if "_api_key" in k]
+                for k in keys_to_remove:
+                    data.pop(k, None)
+                    
                 with open(self.config_file, "w", encoding="utf-8") as f:
-                    json.dump(asdict(self.config), f, indent=2, ensure_ascii=False)
+                    json.dump(data, f, indent=2, ensure_ascii=False)
             except PermissionError as e:
                 logger.error(f"Config save error (permission denied): {e}")
                 raise  # Re-raise to allow caller to handle

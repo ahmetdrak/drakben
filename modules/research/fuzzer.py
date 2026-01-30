@@ -48,19 +48,19 @@ class SmartFuzzer:
             return b"A" * 100
             
         # Strategy 1: Bit Flip
-        if random.random() < 0.3:
+        if random.random() < 0.3:  # nosec B311
             pos = random.randint(0, length - 1)
             bit = random.randint(0, 7)
             mutable_data[pos] ^= (1 << bit)
             
         # Strategy 2: Byte Flip
-        if random.random() < 0.3:
+        if random.random() < 0.3:  # nosec B311
             pos = random.randint(0, length - 1)
             mutable_data[pos] = random.randint(0, 255)
             
         # Strategy 3: Magic Value Injection (Overlay)
-        if random.random() < 0.4:
-            magic = str(random.choice(self.magic_values)).encode()
+        if random.random() < 0.4:  # nosec B311
+            magic = str(random.choice(self.magic_values)).encode()  # nosec B311
             if len(magic) < length:
                 pos = random.randint(0, length - len(magic))
                 mutable_data[pos:pos+len(magic)] = magic
@@ -78,7 +78,7 @@ class SmartFuzzer:
         
         for i in range(iterations):
             # Select seed
-            seed = random.choice(seed_inputs)
+            seed = random.choice(seed_inputs)  # nosec B311
             
             # Mutate
             if isinstance(seed, str):
@@ -87,7 +87,7 @@ class SmartFuzzer:
                 fuzz_input = self.mutate(seed)
             else:
                 # For non-bytes, try to cast or inject raw values
-                fuzz_input = random.choice(self.magic_values)
+                fuzz_input = random.choice(self.magic_values)  # nosec B311
             
             # Execute
             start_time = time.time()

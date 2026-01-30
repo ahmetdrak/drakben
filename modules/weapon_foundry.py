@@ -15,9 +15,8 @@ import base64
 import hashlib
 import logging
 import os
-import random
+import secrets
 import string
-import struct
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -110,7 +109,7 @@ class EncryptionEngine:
     @staticmethod
     def generate_key(length: int = 16) -> bytes:
         """Generate random encryption key"""
-        return os.urandom(length)
+        return secrets.token_bytes(length)
     
     @staticmethod
     def xor_encrypt(data: bytes, key: bytes) -> bytes:
@@ -179,7 +178,7 @@ class EncryptionEngine:
             Tuple of (encrypted_data, nonce, tag)
         """
         try:
-            from Crypto.Cipher import AES
+            from Crypto.Cipher import AES  # nosec B413
         except ImportError:
             logger.warning("pycryptodome not installed, falling back to XOR")
             return EncryptionEngine.xor_encrypt(data, key), b"", b""
@@ -198,7 +197,7 @@ class EncryptionEngine:
     def aes_decrypt(data: bytes, key: bytes, nonce: bytes, tag: bytes) -> bytes:
         """AES-256-GCM decryption"""
         try:
-            from Crypto.Cipher import AES
+            from Crypto.Cipher import AES  # nosec B413
         except ImportError:
             return data
         

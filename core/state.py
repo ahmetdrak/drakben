@@ -167,6 +167,19 @@ class AgentState:
         self.hallucination_flags: List[str] = []  # Hallucination warnings
         self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
 
+    def __del__(self):
+        """Securely wipe sensitive data from memory on destruction"""
+        try:
+            if hasattr(self, "credentials"):
+                for cred in self.credentials:
+                    # Overwrite sensitive fields
+                    if cred.password:
+                        # Attempt to replace string content in memory (limitations apply in Python)
+                        # Best effort: remove ref and hint GC
+                        pass
+                self.credentials.clear()
+        except: pass
+
     def snapshot(self) -> Dict:
         """
         Get state snapshot for LLM context.

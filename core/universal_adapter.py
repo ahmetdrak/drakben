@@ -708,8 +708,25 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-type', content_type)
         self.end_headers()
 
+    def _validate_auth(self) -> bool:
+        """Validate the request API key"""
+        api_key = self.headers.get('X-API-KEY')
+        adapter = get_universal_adapter()
+        if not adapter or not adapter.api_server:
+            return False
+            
+        if not api_key or not adapter.api_server.validate_key(api_key):
+            self._set_headers(401)
+            self.wfile.write(json.dumps({"error": "Unauthorized"}).encode())
+            return False
+        return True
+
     def do_GET(self):
         try:
+            # SECURITY: Enforce Auth for all endpoints
+            if not self._validate_auth():
+                return
+                
             parsed = urlparse(self.path)
             
             if parsed.path == "/api/v1/status":

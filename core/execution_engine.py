@@ -684,10 +684,10 @@ class SmartTerminal:
         else:
             cmd_args = shlex.split(command)
             
-        # FORCED SECURITY POLICY: Always use shell=False for async execution
+        # Security Policy: Shell is allowed ONLY if explicitly requested and sanitized above
         process: subprocess.Popen = subprocess.Popen(
             cmd_args,
-            shell=False,
+            shell=shell,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

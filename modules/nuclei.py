@@ -158,20 +158,44 @@ class NucleiScanner:
     async def _execute_nuclei_scan(self, cmd: List[str]) -> List[NucleiResult]:
         """Execute nuclei scan and parse output"""
         results = []
+        process = None
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            stdout, _ = await process.communicate()
+            stdout, stderr = await process.communicate()
             
-            for line in stdout.decode().splitlines():
+            # Additional error logging from stderr
+            if stderr and b"error" in stderr.lower():
+                 logger.debug(f"Nuclei stderr: {stderr.decode(errors='replace')}")
+
+            for line in stdout.decode(errors='replace').splitlines():
                 res = self._parse_result(line)
                 if res: results.append(res)
                 
+        except asyncio.CancelledError:
+            logger.warning("Nuclei scan cancelled, killing subprocess...")
+            if process and process.returncode is None:
+                try:
+                    process.terminate()
+                    # Give it a tiny bit to terminate gracefully
+                    await asyncio.sleep(0.1)
+                    if process.returncode is None:
+                         process.kill()
+                except ProcessLookupError: pass
+            raise
         except Exception as e:
             logger.error(f"Nuclei scan failed: {e}")
+            if process and process.returncode is None:
+                try: process.kill() 
+                except: pass
+        finally:
+            # Ensure process is definitely dead
+             if process and process.returncode is None:
+                try: process.kill()
+                except: pass
             
         return results
     

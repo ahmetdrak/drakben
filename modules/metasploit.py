@@ -174,7 +174,16 @@ class MetasploitRPC:
             
             # Fallback: try msgpack RPC
             if MSGPACK_AVAILABLE:
-                return self._connect_msgpack(host, port, username, password)
+                if await self._connect_msgpack(host, port, username, password):
+                    # Verify functional connectivity with a simple call
+                    # Because msgpack auth uses a socket that closes, 
+                    # we must ensure the main communication channel works.
+                    try:
+                        ver = await self._call("core.version")
+                        if ver and "version" in ver:
+                            return True
+                    except Exception as e:
+                        logger.warning(f"Msgpack auth worked but RPC call failed: {e}")
             
             logger.warning("Could not connect to Metasploit RPC")
             return False
@@ -183,31 +192,38 @@ class MetasploitRPC:
             logger.error(f"Connection error: {e}")
             return False
 
-    def _connect_msgpack(
+    async def _connect_msgpack(
         self, 
         host: str, 
         port: int, 
         username: str, 
         password: str
     ) -> bool:
-        """Connect using msgpack RPC"""
-        sock = None
+        """Connect using msgpack RPC (Async)"""
+        writer = None
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(10)
-            sock.connect((host, port))
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), 
+                timeout=10
+            )
             
             # Send auth request
             request = msgpack.packb(["auth.login", username, password])
-            sock.send(request)
+            writer.write(request)
+            await writer.drain()
             
             # Receive response
-            response = sock.recv(65535)
+            response = await asyncio.wait_for(reader.read(65535), timeout=10)
             result = msgpack.unpackb(response, raw=False)
             
             if "token" in result:
                 self.token = result["token"]
                 self.connected = True
+                # Note: We close this temporary auth socket because MSFRPC 
+                # usually requires a new connection per request or HTTP persistence.
+                # Keeping raw socket open for RPC commands is complex 
+                # without a full async msgpack client implementation.
+                # For now, we assume if auth works, we fallback to HTTP/HTTPS which is supported.
                 return True
             
             return False
@@ -216,12 +232,12 @@ class MetasploitRPC:
             logger.error(f"Msgpack RPC error: {e}")
             return False
         finally:
-            # ALWAYS close socket to prevent leaks
-            if sock:
+            if writer:
                 try:
-                    sock.close()
-                except (OSError, AttributeError) as e:
-                    logger.debug(f"Error closing socket: {e}")
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
     
     async def disconnect(self) -> None:
         """Disconnect from Metasploit RPC"""
@@ -687,6 +703,43 @@ async def auto_exploit(
             # Update state if successful
             if result.status == ExploitStatus.SUCCESS:
                 state.set_foothold(exploit)
+                
+                # --- Post Exploitation Integration ---
+                try:
+                    from modules.post_exploit import PostExploitEngine, C2ShellWrapper
+                    
+                    if result.session:
+                        logger.info("Starting Post-Exploitation Phase...")
+                        
+                        # Create a wrapper for the MSF session to act as a shell
+                        # We need to adapt the MSF session to ShellInterface
+                        class MSFShellAdapter(C2ShellWrapper):
+                             def __init__(self, msf_client, session_id):
+                                 self.msf = msf_client
+                                 self.sid = session_id
+                             
+                             async def execute(self, cmd: str) -> str:
+                                 # Determine session type and use appropriate write/read
+                                 # Simplify: assume shell for now or implement meterpreter specific
+                                 return await self.msf.session_shell_write(self.sid, cmd) and \
+                                        await self.msf.session_shell_read(self.sid)
+
+                        adapter = MSFShellAdapter(msf, result.session.session_id)
+                        
+                        # Detect OS rudimentary way or use session info
+                        os_type = "linux" if "linux" in str(result.session.info).lower() else "windows"
+                        
+                        engine = PostExploitEngine(adapter, os_type)
+                        loot = await engine.run()
+                        
+                        logger.info(f"Post-Exploitation Loot: {len(loot)} items found")
+                        # Store loot in state (if we extend state to hold loot)
+                        # state.add_loot(loot) 
+                        
+                except Exception as e:
+                     logger.error(f"Post-Exploitation failed: {e}")
+                # -------------------------------------
+                
                 break
             
             lport += 1  # Increment port for next attempt

