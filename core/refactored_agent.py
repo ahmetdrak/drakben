@@ -2034,11 +2034,9 @@ Respond in JSON:
         self, tool_name: str, result: Dict, observation: str
     ) -> None:
         """Helper to process vulnerability scan results"""
-        if "vuln" in tool_name or "sqlmap" in tool_name:
-            if (
-                "vulnerable" in observation.lower()
-                or "injection" in observation.lower()
-            ):
+        if ("vuln" in tool_name or "sqlmap" in tool_name) and (
+            "vulnerable" in observation.lower() or "injection" in observation.lower()
+        ):
                 self._handle_sqlmap_vulnerabilities(result)
 
                 # AUTO-POC: Reanimate ExploitCrafter to generate reproduction scripts

@@ -278,11 +278,9 @@ class ASTSecurityChecker(ast.NodeVisitor):
         """Check if subprocess call uses whitelisted tool AND forbids shell=True"""
         # BAN SHELL=TRUE
         for keyword in node.keywords:
-            if keyword.arg == "shell":
-                if (
-                    isinstance(keyword.value, ast.Constant)
-                    and keyword.value.value is True
-                ):
+            if keyword.arg == "shell" and (
+                isinstance(keyword.value, ast.Constant) and keyword.value.value is True
+            ):
                     self.violations.append(
                         "Shell usage (shell=True) is FORBIDDEN in generated code"
                     )
