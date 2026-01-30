@@ -306,7 +306,7 @@ class SmartTerminal:
         self.execution_history: List[ExecutionResult] = []
         self.current_process: Optional[subprocess.Popen] = None
         self.sanitizer = CommandSanitizer()
-        self._history_lock: lock = threading.Lock()  # Thread safety for history
+        self._history_lock = threading.Lock()  # Thread safety for history
         self._confirmation_callback: Callable[[str, str], bool] | None = (
             confirmation_callback
         )
