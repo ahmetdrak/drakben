@@ -54,15 +54,31 @@ user@drakben:~$ ./drakben
 
 ## 🚀 Capabilities
 
+### 🧠 Core Intelligence
 | Feature | Description | State |
 | :--- | :--- | :---: |
-| **🧠 Self-Refining Mind** | Learns from failures. If a tool fails, it pivots strategy & creates policies. | ✅ |
-| **👻 Ghost Protocol** | AST-Polymorphic code generation & anti-forensics (Timestomping). | ✅ |
-| **🌌 Singularity Engine** | Writes its own Python exploits on the fly when tools fail. | ✅ |
-| **⚔️ Weapon Foundry** | Generates encrypted payloads (AES/ChaCha20) in (exe, elf, ps1). | ✅ |
-| **🕸️ Hive Mind** | Native Active Directory attacks (Kerberoasting, Bloodhound Analysis). | ✅ |
-| **🔌 Universal Adapter** | Auto-installs missing dependencies & hides C2 via Domain Fronting. | ✅ |
-| **🌐 Web Recon** | WAF Detection, Fuzzing, SQLi/XSS Automation. | ✅ |
+| **Self-Refining Mind** | Learns from failures. If a tool fails, it pivots strategy & creates policies. | ✅ |
+| **Singularity Engine** | Writes its own Python exploits on the fly when tools fail. | ✅ |
+| **Evolution Memory** | Persists learned strategies and success/failure patterns across restarts. | ✅ |
+| **Symbolic Reasoning** | Uses `z3-solver` for mathematical path analysis of vulnerabilities. | ✅ |
+
+### ⚔️ Offensive Modules
+| Feature | Description | State |
+| :--- | :--- | :---: |
+| **Ghost Protocol** | AST-Polymorphic code generation (Variable renaming, Dead code injection). | ✅ |
+| **Weapon Foundry** | Generates encrypted payloads (AES/ChaCha20) in (exe, elf, ps1). | ✅ |
+| **Hive Mind** | Native Active Directory attacks (Kerberoasting, SMB Spray, Bloodhound). | ✅ |
+| **Web Recon** | WAF Detection, Fuzzing, SQLi/XSS Automation. | ✅ |
+| **OSINT Spider** | Harvests emails & employees from public sources (LinkedIn/Google Dorks). | ✅ |
+| **Post-Exploit** | Auto-Looting (Triage), Linux/Windows PrivEsc checks, Container Breakout. | ✅ |
+
+### 🛡️ Evasion & Defense
+| Feature | Description | State |
+| :--- | :--- | :---: |
+| **WAF Evasion** | Polymorphic SQLi/XSS payloads (Hex encoding, Whitespace randomization). | ✅ |
+| **Anti-Forensics** | DoD 5220.22-M Secure Delete & Timestomping (File timestamp manipulation). | ✅ |
+| **Universal Adapter** | Hides C2 traffic via **Domain Fronting** and DNS Tunneling. | ✅ |
+| **Memory-Only** | Executes Python payloads directly in RAM without touching the disk. | ✅ |
 
 ---
 
