@@ -859,7 +859,7 @@ class DrakbenMenu:
         )
         self.console.print()
 
-    def _create_plan_table(self) -> Table:
+    def _create_plan_table(self) -> "Table":
         """Create a table showing current plan steps"""
         from rich.table import Table
         from core.planner import StepStatus

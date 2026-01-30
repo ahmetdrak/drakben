@@ -1,3 +1,4 @@
+import requests
 import logging
 import urllib.parse
 from typing import Any, Dict, List, Optional

@@ -931,7 +931,7 @@ class UniversalAdapter:
         """
         self.resolver = DependencyResolver()
         self.mcp = MCPClient()
-        self.api = APIServer(host=api_host, port=api_port)
+        self.api_server = APIServer(host=api_host, port=api_port)
 
         logger.info("Universal Adapter initialized")
 

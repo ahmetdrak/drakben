@@ -112,8 +112,10 @@ async def main():
         start_t = time.time()
         tasks = []
         for i in range(100):
+
             def log_task(d=db):
                 return d.execute("SELECT 1").fetchone()
+
             tasks.append(asyncio.to_thread(log_task))
 
         await asyncio.gather(*tasks)
