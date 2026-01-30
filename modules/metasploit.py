@@ -25,12 +25,7 @@ except ImportError:
     logger.info("msgpack not installed - using JSON fallback")
 
 # Optional requests for HTTP API
-try:
-    import requests
-
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
+REQUESTS_AVAILABLE = False
 
 
 class SessionType(Enum):

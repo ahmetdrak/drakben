@@ -233,7 +233,7 @@ class TestUniversalAdapter(unittest.TestCase):
         """Test adapter initialization"""
         self.assertIsNotNone(self.adapter.resolver)
         self.assertIsNotNone(self.adapter.mcp)
-        self.assertIsNotNone(self.adapter.api)
+        self.assertIsNotNone(self.adapter.api_server)
 
     def test_check_tools(self):
         """Test checking tool status"""

@@ -990,15 +990,15 @@ class UniversalAdapter:
 
     def start_api_server(self) -> None:
         """Start the REST API server"""
-        self.api.start()
+        self.api_server.start()
 
     def stop_api_server(self) -> None:
         """Stop the REST API server"""
-        self.api.stop()
+        self.api_server.stop()
 
     def get_api_key(self) -> str:
         """Get the default API key"""
-        return self.api.default_key
+        return self.api_server.default_key
 
     def get_status(self) -> Dict[str, Any]:
         """Get adapter status"""
@@ -1009,8 +1009,8 @@ class UniversalAdapter:
             ),
             "mcp_tools": len(self.mcp.tools),
             "mcp_resources": len(self.mcp.resources),
-            "api_running": self.api.running,
-            "api_endpoints": len(self.api.get_endpoints()),
+            "api_running": self.api_server.running,
+            "api_endpoints": len(self.api_server.get_endpoints()),
             "package_manager": self.resolver.package_manager.value
             if self.resolver.package_manager
             else None,

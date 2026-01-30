@@ -10,9 +10,18 @@ def run_pytest():
     """Run all tests using pytest"""
     logger.info("Starting Ultimate Audit (pytest)...")
     try:
-        # Run pytest with full project coverage reporting
+        # Run pytest with full project coverage reporting (portable approach)
         result = subprocess.run(
-            ["pytest", "--cov=.", "--cov-report=xml", "tests/", "-v", "--maxfail=5"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--cov=.",
+                "--cov-report=xml",
+                "tests/",
+                "-v",
+                "--maxfail=5",
+            ],
             capture_output=True,
             text=True,
         )

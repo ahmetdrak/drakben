@@ -4,13 +4,9 @@ import urllib.parse
 from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
-# Use Stealth Client for WAF/Bot Bypass
 try:
     from modules.stealth_client import StealthSession
 except ImportError:
-    # Fallback if module missing (dev mode)
-    import requests
-
     StealthSession = requests.Session
 
 try:
