@@ -4,7 +4,7 @@ Author: @drak_ben
 Description: 5 modules for intelligent command execution and monitoring
 """
 
-from _thread import lock
+
 import logging
 import os
 import platform
