@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐉 DRAKBEN V2
+# 🧛 DRAKBEN V2
 ### The Autonomous A.I. Offensive Security Agent
 
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
