@@ -80,3 +80,9 @@ session.json
 *.pyc
 *.pyo
 *.pyd
+
+# Specific Logs & Reports
+DRAKBEN_LOG.md
+coverage.xml
+drakben_evolution.db
+llm_cache.db
