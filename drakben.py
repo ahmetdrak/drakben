@@ -121,7 +121,7 @@ def cleanup_resources(signum=None, frame=None):
             # but we can try to hint GC or rely on connection timeouts.
             # For a cleaner approach, main components register cleanup hooks.
             pass
-        except:
+        except Exception:
             pass
 
         # Flush logs

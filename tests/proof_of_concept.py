@@ -128,7 +128,7 @@ async def main():
         # Cleanup
         try:
             db.close()
-        except:
+        except Exception:
             pass
 
         del db

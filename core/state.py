@@ -176,7 +176,7 @@ class AgentState:
                         # Best effort: remove ref and hint GC
                         pass
                 self.credentials.clear()
-        except:
+        except Exception:
             pass
 
     def snapshot(self) -> Dict:

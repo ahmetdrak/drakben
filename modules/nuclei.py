@@ -200,14 +200,14 @@ class NucleiScanner:
             if process and process.returncode is None:
                 try:
                     process.kill()
-                except:
+                except Exception:
                     pass
         finally:
             # Ensure process is definitely dead
             if process and process.returncode is None:
                 try:
                     process.kill()
-                except:
+                except Exception:
                     pass
 
         return results

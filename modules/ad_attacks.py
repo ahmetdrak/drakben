@@ -137,9 +137,12 @@ class ActiveDirectoryAttacker:
         users = []
         if user_file:
             try:
-                with open(user_file, "r") as f:
-                    users = [l.strip() for l in f if l.strip()]
-            except:
+                def read_users():
+                    with open(user_file, "r") as f:
+                        return [l.strip() for l in f if l.strip()]
+
+                users = await asyncio.to_thread(read_users)
+            except Exception:
                 pass
 
         # If no user file, we assume we need to enum (not implemented in this atomic step)

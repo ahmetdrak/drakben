@@ -658,20 +658,7 @@ class C2Channel:
 
         logger.info(f"C2 channel initialized (protocol: {config.protocol.value})")
 
-    @staticmethod
-    def _create_secure_context(verify: bool) -> ssl.SSLContext:
-        """Centralized Hardened SSL context factory for C2"""
-        # Always start with a secure default context to satisfy static analysis
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-        if not verify:
-            # Explicitly downgrade security ONLY if requested
-            # This makes the intent clear and isolates the "vulnerability"
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-
-        return context
 
     def _setup_protocol(self) -> None:
         """Setup protocol-specific components"""

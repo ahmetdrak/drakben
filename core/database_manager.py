@@ -31,13 +31,15 @@ class SQLiteProvider(DatabaseProvider):
 
     _instance = None
     _lock = threading.Lock()
+    DB_NAME = "drakben.db"
 
-    def __init__(self, db_path: str = "drakben.db"):
+    def __init__(self, db_path: str = DB_NAME):
         self.db_path = db_path
         self._local = threading.local()  # Thread-local storage for connections
 
     @classmethod
-    def get_instance(cls, db_path: str = "drakben.db"):
+    @classmethod
+    def get_instance(cls, db_path: str = DB_NAME):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls(db_path)
@@ -60,7 +62,7 @@ class SQLiteProvider(DatabaseProvider):
         if hasattr(self._local, "conn"):
             try:
                 self._local.conn.close()
-            except:
+            except Exception:
                 pass
             del self._local.conn
 
@@ -81,7 +83,7 @@ class SQLiteProvider(DatabaseProvider):
             # Only rollback if we were in a write operation context (simplified)
             try:
                 conn.rollback()
-            except:
+            except Exception:
                 pass
             raise
 
