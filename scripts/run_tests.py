@@ -1,5 +1,4 @@
 import sys
-import os
 import subprocess
 import time
 
@@ -10,7 +9,7 @@ def run_command(command):
         # Running via subprocess to ensure clean environment
         process = subprocess.run(command, shell=True, check=False) # check=False so we can handle exit code manually
         duration = time.time() - start_time
-        
+
         if process.returncode == 0:
             print(f"✅ Success ({duration:.2f}s)")
             return True
@@ -25,7 +24,7 @@ def main():
     print("========================================")
     print("   🧛 DRAKBEN V2 - SYSTEM INTEGRITY TEST")
     print("========================================")
-    
+
     # 1. Check Dependencies
     print("\n[Phase 1] Environment Check")
     # This assumes pip packages are installed.
@@ -36,7 +35,7 @@ def main():
     # Use python -m pytest to ensure path is picked up correctly if installed in site-packages or just use python context
     # -v for verbose
     success = run_command("python -m pytest tests/ -v")
-    
+
     # 3. Summary
     print("\n========================================")
     if success:

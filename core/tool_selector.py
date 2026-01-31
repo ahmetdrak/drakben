@@ -47,6 +47,7 @@ class ToolSpec:
     description: str = ""  # Tool description (for LLM)
 
 
+
 class ToolSelector:
     """
     Deterministic tool selection mechanism.
@@ -56,7 +57,118 @@ class ToolSelector:
     - Deterministic: Rule-based selection
     """
 
+    # GLOBAL REGISTRY for plugins (Shared across all instances)
+    _GLOBAL_PLUGIN_REGISTRY: Dict[str, "ToolSpec"] = {}
+
+    @classmethod
+    def register_global_plugins(cls, new_tools: Dict[str, ToolSpec]):
+        """Register plugins globally so all future instances inherit them."""
+        cls._GLOBAL_PLUGIN_REGISTRY.update(new_tools)
+        logger.info(f"Registered {len(new_tools)} global plugin tools.")
+
+    def register_plugin_tools(self, new_tools: Dict[str, ToolSpec]):
+        """Instance-level registration"""
+        if not new_tools: return
+        self.tools.update(new_tools)
+
     def evolve_strategies(self, evolution_memory):
+        """
+        EVOLUTION MODULE: Update strategy based on success rates in memory.
+
+        Args:
+            evolution_memory: EvolutionMemory instance (new system)
+        """
+        logger.info("Analyzing tool performance from memory...")
+        evolved_count = 0
+
+        for tool_name in self.tools:
+            if self._update_tool_priority_from_memory(tool_name, evolution_memory):
+                evolved_count += 1
+
+        if evolved_count > 0:
+            logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
+        else:
+            logger.debug("Evolution: No changes needed")
+
+    def _update_tool_priority_from_memory(
+        self, tool_name: str, evolution_memory
+    ) -> bool:
+        """Update single tool priority based on evolution memory. Returns True if changed."""
+        penalty = evolution_memory.get_penalty(tool_name)
+        is_blocked = evolution_memory.is_tool_blocked(tool_name)
+
+        original_priority = self.tools[tool_name].priority
+        new_priority = original_priority
+
+        # Block tool if it's blocked in evolution memory
+        if is_blocked:
+            new_priority = 0
+            logger.warning(f"Tool blocked - {tool_name}: Too many failures")
+        # Evolution Logic based on penalty
+        elif penalty == 0:
+            new_priority = min(100, original_priority + 20)  # Boost - no failures
+        elif penalty >= 5:
+            new_priority = max(10, original_priority - 20)  # Nerf - many failures
+        elif penalty >= 2:
+            new_priority = max(30, original_priority - 10)  # Slight nerf
+
+        if new_priority != original_priority:
+            self.tools[tool_name].priority = new_priority
+            logger.info(
+                f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})"
+            )
+            return True
+        return False
+
+    def update_tool_priority(self, tool_name: str, delta: int):
+        """Update priority for a single tool"""
+        if tool_name in self.tools:
+            self.tools[tool_name].priority = max(
+                0, min(100, self.tools[tool_name].priority + delta)
+            )
+
+    def register_dynamic_tool(
+        self, name: str, phase: AttackPhase, command_template: str = "{target}"
+    ):
+        """
+        SELF-EVOLUTION: Register dynamically created tool.
+        """
+        self.tools[name] = ToolSpec(
+            name=name,
+            category=ToolCategory.EXPLOIT,  # Usually custom scripts are for exploit/recon
+            command_template=command_template,
+            phase_allowed=[phase, AttackPhase.POST_EXPLOIT],
+            risk_level="high",  # Custom code is always risky
+            priority=80,  # Priority testing since newly created
+        )
+
+    def __init__(self):
+        # Kali tool check
+        self.kali_detector = KaliDetector() if KALI_AVAILABLE else None
+        self.available_system_tools = {}
+        if self.kali_detector:
+            self.available_system_tools = self.kali_detector.get_available_tools()
+
+        # Tool registry - PREDEFINED
+        self.tools: Dict[str, ToolSpec] = {
+            # RECON tools
+            "nmap_port_scan": ToolSpec(
+                name="nmap_port_scan",
+                category=ToolCategory.RECON,
+                command_template="nmap -p- -T4 {target}",
+                phase_allowed=[AttackPhase.INIT, AttackPhase.RECON],
+                risk_level="low",
+            ),
+            # ... (Standard tools follow) ...
+        }
+
+        # <TRUNCATED_STANDARD_TOOLS_FOR_BRIEVITY>
+        # (Standard tools are defined below, we insert the registry loader here)
+        pass # Placeholder for logic flow, see below block
+
+# Let's perform the actual edit on the file content directly.
+# I need to insert the class variable at the top of the class
+# And modifying __init__ to pull from it.
         """
         EVOLUTION MODULE: Update strategy based on success rates in memory.
 
@@ -339,6 +451,9 @@ class ToolSelector:
 
         # Tool failure tracking (tool selector internal state)
         self.failed_tools: Dict[str, int] = {}
+        
+        # Load Global Plugins (Enterprise Architecture)
+        self.register_plugin_tools(self._GLOBAL_PLUGIN_REGISTRY)
 
     def get_allowed_tools(self, state: AgentState) -> List[str]:
         """

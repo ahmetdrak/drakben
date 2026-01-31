@@ -88,6 +88,8 @@ class DrakbenMenu:
             "/exit": self._cmd_exit,
             "/research": self._cmd_research,
             "/report": self._cmd_report,
+            "/config": self._cmd_config,
+            "/untarget": lambda x: self._cmd_target("clear"),
         }
 
         # System detection
@@ -142,30 +144,47 @@ class DrakbenMenu:
             style=f"bold {self.COLORS['purple']}",
         )
         self.console.print(
-            "    [*] Kali Linux | AI-Powered | Auto-Exploit", style=self.COLORS["fg"]
+            "    [*] Kali Linux | AI-Powered | Autonomous Security Validation", style=self.COLORS["fg"]
         )
         self.console.print()
 
     def show_status_line(self) -> None:
-        """Minimal status line"""
-        lang: str = self.config.language
-        target: str = self.config.target or ("Yok" if lang == "tr" else "None")
-        lang_text: str = "TR" if lang == "tr" else "EN"
-        kali_status: Any | str = (
-            "Kali"
-            if self.system_info.get("is_kali")
-            else self.system_info.get("os", "?")
-        )
-        tools_count: int = len(self.system_info.get("available_tools", {}))
+        """Professional HUD Status Line (Next-Gen Design)"""
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich import box
 
-        self.console.print(
-            f"  [>] Target: {target}  |  Lang: {lang_text}  |  OS: {kali_status}  |  Tools: {tools_count}",
-            style=f"bold {self.COLORS['cyan']}",
+        lang = self.config.language
+        target = self.config.target or ("UNKNOWN" if lang != "tr" else "BELİRSİZ")
+        os_info = "Kali Linux 🐉" if self.system_info.get("is_kali") else f"{self.system_info.get('os')} 💻"
+        
+        # Get Stealth Mode (Default False if not set)
+        is_stealth = getattr(self.config, "stealth_mode", False)
+        stealth_icon = "🥷" if is_stealth else "📢"
+        stealth_text = "ON" if is_stealth else "OFF"
+        
+        # Status Bar Table
+        status_table = Table(show_header=False, box=None, expand=True, padding=(0, 1))
+        # Define 3 main columns with labels and values
+        status_table.add_column("Label1", justify="right", style="dim cyan", ratio=1)
+        status_table.add_column("Value1", justify="left", style="bold white", ratio=2)
+        status_table.add_column("Label2", justify="right", style="dim cyan", ratio=1)
+        status_table.add_column("Value2", justify="left", style="bold green", ratio=2)
+        status_table.add_column("Label3", justify="right", style="dim cyan", ratio=1)
+        status_table.add_column("Value3", justify="left", style="bold yellow", ratio=1)
+
+        status_table.add_row(
+            "TARGET:", target,
+            "SYSTEM:", os_info,
+            "MODE:", f"{stealth_icon} {stealth_text}"
         )
-        self.console.print(
-            "  /help /target /scan /shell /status /llm /clear /tr /en /exit",
-            style=f"bold {self.COLORS['cyan']}",
-        )
+        
+        # Command Hint
+        commands = "[dim cyan]/help[/] • [dim cyan]/target[/] • [dim cyan]/untarget[/] • [dim cyan]/scan[/] • [dim cyan]/config[/] • [dim cyan]/clear[/] • [dim cyan]/report[/] • [dim cyan]/exit[/]"
+        
+        # Render
+        self.console.print(Panel(status_table, style="blue", border_style="dim blue", padding=(0, 1)))
+        self.console.print(f"[center]{commands}[/center]")
         self.console.print()
 
     def run(self) -> None:
@@ -237,16 +256,9 @@ class DrakbenMenu:
                 )
                 self.console.print(f"[dim green]{msg}[/dim]")
 
-                # Dynamic ToolSelector update (Monkey Patching)
+                # Enterprise Plugin Registration (No Monkey Patching)
                 from core.tool_selector import ToolSelector
-
-                original_init: Callable[..., None] = ToolSelector.__init__
-
-                def patched_init(ts_self, *args, **kwargs) -> None:
-                    original_init(ts_self, *args, **kwargs)
-                    ts_self.register_plugin_tools(plugins)
-
-                ToolSelector.__init__ = patched_init
+                ToolSelector.register_global_plugins(plugins)
 
         except Exception as e:
             self.console.print(f"[dim red]Plugin Load Error: {e}[/dim]")
@@ -478,11 +490,14 @@ class DrakbenMenu:
             commands: list[tuple[str, str]] = [
                 ("❓ /help", "Yardım menüsü"),
                 ("🎯 /target <IP>", "Hedef belirle"),
-                ("🔍 /scan", "Otonom tarama başlat"),
+                ("� /untarget", "Hedefi temizle"),
+                ("�🔍 /scan", "Otonom tarama başlat"),
                 ("💻 /shell", "İnteraktif kabuk"),
                 ("📊 /status", "Durum bilgisi"),
                 ("🤖 /llm", "LLM/API ayarları"),
-                ("📝 /report", "Rapor oluştur"),
+                ("� /config", "Sistem yapılandırması"),
+                ("🌐 /research", "İnternet araştırması"),
+                ("�📝 /report", "Rapor oluştur"),
                 ("🧹 /clear", "Ekranı temizle"),
                 ("🇹🇷 /tr", "Türkçe mod"),
                 ("🇬🇧 /en", "English mode"),
@@ -490,15 +505,18 @@ class DrakbenMenu:
             ]
             title = "DRAKBEN Komutları"
             tip_title = "💡 İpucu"
-            tip_text = 'Doğal dilde konuşabilirsin:\n[dim]• "10.0.0.1 portlarını tara"\n• "sql injection test et"[/dim]'
+            tip_text = 'Doğal dilde konuşabilirsin:\n[dim]• "10.0.0.1 portlarını tara"\n• "sql injection test et"[/]'
         else:
             commands: list[tuple[str, str]] = [
                 ("❓ /help", "Help menu"),
                 ("🎯 /target <IP>", "Set target"),
-                ("🔍 /scan", "Start autonomous scan"),
+                ("� /untarget", "Clear target"),
+                ("�🔍 /scan", "Start autonomous scan"),
                 ("💻 /shell", "Interactive shell"),
                 ("📊 /status", "Status info"),
                 ("🤖 /llm", "LLM/API settings"),
+                ("🔧 /config", "System config"),
+                ("🌐 /research", "Web research"),
                 ("📝 /report", "Generate report"),
                 ("🧹 /clear", "Clear screen"),
                 ("🇹🇷 /tr", "Turkish mode"),
@@ -507,7 +525,7 @@ class DrakbenMenu:
             ]
             title = "DRAKBEN Commands"
             tip_title = "💡 Tip"
-            tip_text = 'Talk naturally:\n[dim]• "scan ports on 10.0.0.1"\n• "test sql injection"[/dim]'
+            tip_text = 'Talk naturally:\n[dim]• "scan ports on 10.0.0.1"\n• "test sql injection"[/]'
 
         for cmd, desc in commands:
             table.add_row(cmd, desc)
@@ -1288,6 +1306,44 @@ class DrakbenMenu:
 
         except Exception as e:
             self.console.print(f"\n[red]❌ Save error: {e}[/]")
+
+    def _cmd_config(self, args: str) -> None:
+        """System Configuration Menu"""
+        from rich.prompt import Confirm, IntPrompt
+        from rich.panel import Panel
+
+        self.console.print(Panel("[bold cyan]🔧 SYSTEM CONFIGURATION[/bold cyan]", border_style="cyan"))
+        
+        # 1. Stealth Mode (Dynamic Attribute)
+        current_stealth = getattr(self.config, "stealth_mode", False)
+        # 2. Max Threads
+        current_threads = getattr(self.config, "max_threads", 4)
+        # 3. Timeout
+        current_timeout = getattr(self.config, "timeout", 30)
+
+        new_stealth = Confirm.ask("Enable Stealth Mode (Slower but safer)", default=current_stealth)
+        new_threads = IntPrompt.ask("Max Threads (Parallel Actions)", default=current_threads)
+        new_timeout = IntPrompt.ask("Network Timeout (seconds)", default=current_timeout)
+        
+        # Update Config Object
+        self.config.stealth_mode = new_stealth
+        self.config.max_threads = new_threads
+        self.config.timeout = new_timeout
+
+        # Visual Feedback
+        self.console.print()
+        status_msg = (
+            f"[green]✅ Configuration Updated![/green]\n"
+            f"   Stealth Mode: {'[bold green]ON[/]' if new_stealth else '[bold red]OFF[/]'}\n"
+            f"   Threads: {new_threads}\n"
+            f"   Timeout: {new_timeout}s"
+        )
+        self.console.print(Panel(status_msg, border_style="green", padding=(0,1)))
+        
+        # Note: We are not persisting to file yet, just runtime update.
+        # To persist, we'd need to update ConfigManager to support arbitrary keys or add them to model.
+        
+        self.show_status_line()
 
     def _cmd_exit(self, args: str = "") -> None:
         """Çıkış"""

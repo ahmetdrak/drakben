@@ -78,6 +78,92 @@ class VulnerabilityMatch:
         }
 
 
+
+
+
+class AutoUpdater:
+    """
+    Real-Time CVE Feed Updater (Incremental).
+    Checks NVD for updates every 12 hours without blocking main thread.
+    """
+    def __init__(self, db_instance: 'CVEDatabase'):
+        self.db = db_instance
+        self.running = False
+
+    def start_background_update(self):
+        """Starts the update loop in a separate thread"""
+        import threading
+        t = threading.Thread(target=self._update_loop, daemon=True)
+        t.start()
+
+    def _update_loop(self):
+        """Infinite loop to keep DB fresh"""
+        import time
+        while True:
+            try:
+                self._perform_incremental_update()
+                # Sleep 6 hours (NVD limits)
+                time.sleep(6 * 3600)
+            except Exception as e:
+                logger.error(f"Auto-Update failed: {e}")
+                time.sleep(3600) # Retry in 1 hour
+
+    def _perform_incremental_update(self):
+        """
+        Fetch only CVEs modified since last sync.
+        """
+        # Get last update timestamp from DB or default to 30 days ago
+        last_sync = self.db.get_last_sync_time()
+        if not last_sync:
+            # First run: go back 90 days for recent threats
+            start_date = (datetime.now() - timedelta(days=90)).isoformat()
+        else:
+            start_date = last_sync
+
+        # NVD requires ISO8601 format: YYYY-MM-DDThh:mm:ss.s
+        # Adjust format if needed
+        if '.' not in start_date: start_date += '.000'
+        if not start_date.endswith('Z'): start_date += 'Z'
+
+        # Current time
+        end_date = datetime.now().isoformat()
+        if '.' not in end_date: end_date += '.000'
+        if not end_date.endswith('Z'): end_date += 'Z'
+
+        logger.info(f"Checking for CVE updates from {start_date} to {end_date}")
+
+        # Note: In a threaded context, we can't use async aiohttp easily if the loop is separate.
+        # We use 'requests' for the background thread to confirm simplicity.
+        try:
+            import urllib.request
+            import urllib.parse
+            
+            headers = {"User-Agent": "Drakben-Agent/2.0"}
+            if self.db.api_key: headers["apiKey"] = self.db.api_key
+
+            url = f"{self.db.NVD_API_BASE}?lastModStartDate={start_date}&lastModEndDate={end_date}"
+            req = urllib.request.Request(url, headers=headers)
+            
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode())
+                    vulns = data.get("vulnerabilities", [])
+                    logger.info(f"Found {len(vulns)} new/modified CVEs")
+
+                    for item in vulns:
+                        entry = self.db._parse_nvd_response(item)
+                        if entry:
+                            self.db._save_to_cache(entry)
+
+                    # Update sync time
+                    self.db.update_last_sync_time()
+                else:
+                    logger.warning(f"Update failed: HTTP {resp.status}")
+
+        except Exception as e:
+            logger.error(f"Incremental update error: {e}")
+
+
 class CVEDatabase:
     """
     CVE/NVD Database Manager with offline caching.
@@ -104,7 +190,12 @@ class CVEDatabase:
         self.db_path = Path(db_path)
         self.api_key = api_key
         self._init_database()
-        logger.info(f"CVE Database initialized: {db_path}")
+
+        # 2026 Auto-Update Mechanism
+        self.auto_updater = AutoUpdater(self)
+        self.auto_updater.start_background_update()
+
+        logger.info(f"CVE Database initialized: {db_path} (Real-Time Updates Active)")
 
     def _init_database(self) -> None:
         """Initialize SQLite database schema"""
@@ -138,7 +229,35 @@ class CVEDatabase:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_cpe ON cpe_index(cpe)
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_cpe ON cpe_index(cpe)
+            """)
+
+            # Metadata table for sync state
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS meta_info (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
             conn.commit()
+
+    def get_last_sync_time(self) -> Optional[str]:
+        """Get the timestamp of the last successful update"""
+        try:
+             with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute("SELECT value FROM meta_info WHERE key='last_sync'").fetchone()
+                return row[0] if row else None
+        except: return None
+
+    def update_last_sync_time(self):
+        """Set last sync time to now"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                now = datetime.now().isoformat()
+                conn.execute("INSERT OR REPLACE INTO meta_info (key, value) VALUES ('last_sync', ?)", (now,))
+                conn.commit()
+        except: pass
 
     def _get_severity(self, cvss_score: float) -> CVSSSeverity:
         """Get severity level from CVSS score"""

@@ -113,34 +113,28 @@ class TestSecureCleanup(unittest.TestCase):
         """Verify that data is actually overwritten before deletion"""
         from unittest.mock import mock_open, patch
 
-        # We want to verify that open() is called with 'wb' multiple times (overwriting)
-        # and that os.urandom or zeros are written to it.
-
-        mock_file = mock_open()
-        # Mock fileno for os.fsync
-        mock_file.return_value.fileno.return_value = 1
-
+        m_open = mock_open()
+        
         with (
-            patch("builtins.open", mock_file),
+            patch("builtins.open", m_open),
             patch("os.path.exists", return_value=True),
             patch("os.path.getsize", return_value=1024),
             patch("os.remove") as mock_remove,
+            patch("os.fsync"), # Mock fsync to avoid errors on mock file
         ):
             SecureCleanup.secure_delete("dummy_secret.txt", passes=3)
 
-            # Check if write was called (overwritten)
-            self.assertTrue(
-                mock_file().write.called, "Secure wipe failed: No overwrite detected!"
-            )
-
-            # Since we requested 3 passes, we expect multiple write cycles (at least 3 writes)
+            # Get the file handle returned by open()
+            handle = m_open.return_value
+            
+            # Check write count: range(3) -> write is called at least 3 times
             self.assertGreaterEqual(
-                mock_file().write.call_count,
+                handle.write.call_count,
                 3,
-                "Secure wipe failed: Insufficient overwrite passes!",
+                f"Secure wipe failed: write called {handle.write.call_count} times, expected >= 3",
             )
 
-            # Ideally verify removal happens AFTER writes
+            # Verify removal
             mock_remove.assert_called_once()
 
     def test_memory_cleanliness(self):

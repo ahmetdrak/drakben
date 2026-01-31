@@ -229,6 +229,60 @@ TOOL_REGISTRY: Dict[str, ToolDefinition] = {
     ),
 }
 
+# =============================================================================
+# DYNAMIC INSTALLER (SKILL ACQUISITION)
+# =============================================================================
+
+class DynamicInstaller:
+    """
+    Handles discovery and installation of tools not in the registry.
+    Searches GitHub/PyPI and requires Explicit User Approval.
+    """
+
+    @staticmethod
+    def search_tool(tool_name: str) -> Dict[str, Any]:
+        """
+        Search for a tool on PyPI (safer/easier) and GitHub.
+        Returns metadata about the potential tool.
+        """
+        # 1. Search PyPI (JSON API)
+        try:
+            import urllib.request
+            url = f"https://pypi.org/pypi/{tool_name}/json"
+            with urllib.request.urlopen(url, timeout=5) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    info = data.get("info", {})
+                    return {
+                        "found": True,
+                        "source": "pypi",
+                        "name": info.get("name"),
+                        "description": info.get("summary"),
+                        "url": info.get("package_url"),
+                        "version": info.get("version"),
+                        "install_cmd": f"pip install {tool_name}",
+                        "safety_score": "Unknown (Review Required)"
+                    }
+        except Exception:
+            pass # Not found on PyPI or error
+
+        # 2. Search GitHub (Simulated for this environment without auth token)
+        # In a real scenario, use GitHub API. Here we assume manual input or skip.
+        # Fallback: Check if tool_name looks like a git URL
+        if "github.com" in tool_name:
+             return {
+                "found": True,
+                "source": "github",
+                "name": tool_name.split("/")[-1].replace(".git", ""),
+                "description": "Direct Git Repository",
+                "url": tool_name,
+                "version": "HEAD",
+                "install_cmd": f"git clone {tool_name} tools/{tool_name.split('/')[-1].replace('.git', '')}",
+                "safety_score": "Low (Untrusted Source)"
+            }
+
+        return {"found": False}
+
 
 # =============================================================================
 # DEPENDENCY RESOLVER
@@ -410,7 +464,51 @@ class DependencyResolver:
         tool_def = TOOL_REGISTRY.get(tool_name)
 
         if not tool_def:
-            result["message"] = f"Unknown tool: {tool_name}"
+            # DYNAMIC DISCOVERY LOGIC
+            logger.info(f"Tool '{tool_name}' not in registry. Initiating dynamic search...")
+            discovery = DynamicInstaller.search_tool(tool_name)
+
+            if discovery["found"]:
+                # Check for FORCE/CONFIRM flag passed via args (simulated here via boolean)
+                # In real usage, the Agent must call this twice: check -> prompt -> install(force=True)
+
+                if force:
+                    result["message"] = f"Installing discovered tool: {discovery['name']}..."
+                    # Execute install command
+                    try:
+                        cmd = discovery["install_cmd"]
+                        if discovery["source"] == "github":
+                            # For git, we need to handle directory creation
+                            pass # Handled by git clone usually
+
+                        proc = subprocess.run(
+                            shlex.split(cmd),
+                            shell=False,
+                            capture_output=True,
+                            text=True,
+                            timeout=300
+                        )
+                        result["success"] = (proc.returncode == 0)
+                        result["message"] = f"Dynamic Installation Success: {discovery['name']}" if result["success"] else f"Install Failed: {proc.stderr}"
+                        result["method"] = discovery["source"]
+                        return result
+                    except Exception as e:
+                        result["message"] = f"Dynamic Install Error: {e}"
+                        return result
+                else:
+                    # RETURN PROMPT FOR APPROVAL
+                    result["success"] = False # Not installed yet
+                    result["requires_approval"] = True
+                    result["proposal"] = discovery
+                    result["message"] = (
+                        f"Tool '{tool_name}' found on {discovery['source']}.\n"
+                        f"Description: {discovery['description']}\n"
+                        f"Command: {discovery['install_cmd']}\n"
+                        f"⚠️ APPROVAL REQUIRED: Re-run with force=True to install."
+                    )
+                    return result
+
+            result["message"] = f"Unknown tool: {tool_name} (Not found in Registry or Public Sources)"
             return result
 
         if not force and self.is_tool_installed(tool_name):

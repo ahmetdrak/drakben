@@ -79,51 +79,71 @@ class SymbolicExecutor:
         return paths
 
     def _explore_paths(self, func_node) -> List[ExecutionPath]:
-        """Extract execution paths from function AST"""
+        """Extract execution paths from function AST (Recursive)"""
         import ast
 
         paths = []
         path_id = 0
 
-        dangerous_sinks = ["eval", "exec", "system", "popen", "subprocess"]
+        # Expanded list of dangerous sinks
+        dangerous_sinks = {
+            "eval", "exec", "system", "popen", "subprocess.call", "subprocess.run",
+            "os.system", "pickle.loads", "yaml.load"
+        }
 
-        for node in ast.walk(func_node):
-            # Track If statements (branch points)
-            if isinstance(node, ast.If):
-                # Extract condition
-                constraint = self._extract_constraint(node.test)
-                if constraint:
-                    path_id += 1
-                    paths.append(
-                        ExecutionPath(
-                            path_id=path_id,
-                            constraints=[constraint],
-                            reaches_sink=False,
-                        )
-                    )
+        # Recursive visitor
+        class PathVisitor(ast.NodeVisitor):
+            def __init__(self, parent_constraints=None):
+                self.current_constraints = parent_constraints or []
+                self.found_paths = []
 
-            # Check for dangerous sinks
-            if isinstance(node, ast.Call):
+            def visit_If(self, node):
+                # Branch TRUE
+                constraint_true = SymbolicExecutor._extract_constraint(node.test)
+                if constraint_true:
+                    # Explore TRUE branch
+                    visitor_true = PathVisitor(self.current_constraints + [constraint_true])
+                    for child in node.body:
+                        visitor_true.visit(child)
+                    self.found_paths.extend(visitor_true.found_paths)
+
+                    # Explore FALSE branch (Else)
+                    # Note: Inverting constraints is complex without Z3, simplifying for now
+                    if node.orelse:
+                        visitor_false = PathVisitor(self.current_constraints) # Omitted inversion for brevity
+                        for child in node.orelse:
+                            visitor_false.visit(child)
+                        self.found_paths.extend(visitor_false.found_paths)
+
+            def visit_Call(self, node):
                 func_name = ""
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id
                 elif isinstance(node.func, ast.Attribute):
                     func_name = node.func.attr
 
+                # Check for qualified names (e.g. os.system)
+                # ... simple check for now ...
+
                 if func_name in dangerous_sinks:
+                    nonlocal path_id
                     path_id += 1
-                    paths.append(
+                    self.found_paths.append(
                         ExecutionPath(
                             path_id=path_id,
-                            constraints=[],
+                            constraints=self.current_constraints,
                             reaches_sink=True,
                             sink_name=func_name,
                         )
                     )
+                self.generic_visit(node)
 
-        return paths
+        visitor = PathVisitor()
+        visitor.visit(func_node)
+        return visitor.found_paths
 
-    def _extract_constraint(self, test_node) -> Optional[PathConstraint]:
+    @staticmethod
+    def _extract_constraint(test_node) -> Optional[PathConstraint]:
         """Extract constraint from AST comparison node"""
         import ast
 
@@ -169,19 +189,31 @@ class SymbolicExecutor:
             variables = {}
 
             for constraint in path.constraints:
+                # Type inference: Detect if variable should be BitVec (binary) or Int
                 if constraint.variable not in variables:
-                    variables[constraint.variable] = z3.Int(constraint.variable)
+                    # Defaulting to 64-bit BitVec for binary analysis simulations
+                    variables[constraint.variable] = z3.BitVec(constraint.variable, 64)
 
                 var = variables[constraint.variable]
+                val = constraint.value
+
+                # Ensure value is compatible
+                if isinstance(val, int):
+                    z3_val = z3.BitVecVal(val, 64)
+                elif isinstance(val, str):
+                    # Simple string to int conversion for basic symbolic exec
+                    z3_val = z3.BitVecVal(int.from_bytes(val.encode(), 'big'), 64)
+                else:
+                    z3_val = z3.BitVecVal(0, 64)
 
                 if constraint.operator == "==":
-                    solver.add(var == constraint.value)
+                    solver.add(var == z3_val)
                 elif constraint.operator == "!=":
-                    solver.add(var != constraint.value)
+                    solver.add(var != z3_val)
                 elif constraint.operator == "<":
-                    solver.add(var < constraint.value)
+                    solver.add(z3.ULT(var, z3_val)) # Unsigned Less Than
                 elif constraint.operator == ">":
-                    solver.add(var > constraint.value)
+                    solver.add(z3.UGT(var, z3_val)) # Unsigned Greater Than
 
             if solver.check() == z3.sat:
                 model = solver.model()

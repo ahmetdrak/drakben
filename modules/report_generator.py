@@ -10,6 +10,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Third-party for PDF (Optional)
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError):
+    WEASYPRINT_AVAILABLE = False
+
 from core.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -210,13 +217,7 @@ class ReportGenerator:
         elif format == ReportFormat.JSON:
             content = self._generate_json()
         elif format == ReportFormat.PDF:
-            pdf_content = self._generate_pdf()
-            # PDF is binary, handle separately
-            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "wb") as f:
-                f.write(pdf_content)
-            logger.info(f"Report saved: {output_path}")
-            return output_path
+            return self._generate_pdf(output_path)
         else:
             raise ValueError(f"Unsupported format: {format}")
 
@@ -235,7 +236,7 @@ class ReportGenerator:
             raise
 
     def _generate_html(self) -> str:
-        """Generate HTML report"""
+        """Generate HTML report with Chart.js visualization"""
         stats = self.get_statistics()
 
         # Sort findings by severity
@@ -249,19 +250,29 @@ class ReportGenerator:
         findings_html = ""
         for i, finding in enumerate(sorted_findings, 1):
             severity_class = f"severity-{finding.severity.value}"
+
+            finding_body = f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
+            finding_body += f"<p><strong>Description:</strong> {finding.description}</p>"
+
+            if finding.cve_id:
+                finding_body += f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>"
+
+            if finding.evidence:
+                finding_body += f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>'
+
+            if finding.remediation:
+                finding_body += f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
+
             findings_html += f"""
             <div class="finding {severity_class}">
-                <div class="finding-header">
+                <div class="finding-header" onclick="this.parentElement.classList.toggle('active')">
                     <span class="finding-number">#{i}</span>
                     <span class="finding-title">{finding.title}</span>
                     <span class="severity-badge {severity_class}">{finding.severity.value.upper()}</span>
+                    <span class="toggle-icon">&#9660;</span>
                 </div>
                 <div class="finding-body">
-                    <p><strong>Affected Asset:</strong> {finding.affected_asset}</p>
-                    <p><strong>Description:</strong> {finding.description}</p>
-                    {f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>" if finding.cve_id else ""}
-                    {f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>' if finding.evidence else ""}
-                    {f"<p><strong>Remediation:</strong> {finding.remediation}</p>" if finding.remediation else ""}
+                    {finding_body}
                 </div>
             </div>
             """
@@ -272,18 +283,23 @@ class ReportGenerator:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{self.config.title}</title>
+    <!-- Chart.js for Visual Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+
         :root {{
-            --bg-primary: #1a1a2e;
-            --bg-secondary: #16213e;
-            --text-primary: #eee;
-            --text-secondary: #aaa;
-            --accent: #bd93f9;
-            --critical: #ff5555;
-            --high: #ff79c6;
-            --medium: #ffb86c;
-            --low: #50fa7b;
-            --info: #8be9fd;
+            --bg-primary: #0f111a;
+            --bg-secondary: #1a1e2e;
+            --text-primary: #e0e6ed;
+            --text-secondary: #94a3b8;
+            --accent: #7c3aed; /* Drakben Purple */
+            --critical: #dc2626;
+            --high: #ea580c;
+            --medium: #d97706;
+            --low: #22c55e;
+            --info: #3b82f6;
         }}
         
         * {{
@@ -293,10 +309,13 @@ class ReportGenerator:
         }}
         
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg-primary);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
             color: var(--text-primary);
+            margin: 0;
+            padding: 0;
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }}
         
         .container {{
@@ -419,6 +438,7 @@ class ReportGenerator:
             align-items: center;
             gap: 15px;
             border-bottom: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
         }}
         
         .finding-number {{
@@ -446,7 +466,12 @@ class ReportGenerator:
         
         .finding-body {{
             padding: 20px;
+            display: none; /* Hidden by default */
         }}
+        
+        .finding.active .finding-body {{ display: block; }}
+        .toggle-icon {{ transition: transform 0.3s; }}
+        .finding.active .toggle-icon {{ transform: rotate(180deg); }}
         
         .finding-body p {{
             margin: 10px 0;
@@ -485,24 +510,28 @@ class ReportGenerator:
         @media print {{
             body {{ background: white; color: black; }}
             .finding {{ break-inside: avoid; }}
+            .finding-body {{ display: block !important; }}
+            .chart-container {{ page-break-inside: avoid; }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header Section -->
         <div class="header">
             <h1>{self.config.title}</h1>
             <p>{self.config.author}</p>
             <div class="classification">{self.config.classification}</div>
         </div>
         
+        <!-- Meta Info Grid -->
         <div class="meta-info">
             <div class="meta-card">
                 <h3>Target</h3>
                 <p>{self.target}</p>
             </div>
             <div class="meta-card">
-                <h3>Assessment Date</h3>
+                <h3>Date</h3>
                 <p>{self.start_time.strftime("%Y-%m-%d") if self.start_time else "N/A"}</p>
             </div>
             <div class="meta-card">
@@ -510,37 +539,30 @@ class ReportGenerator:
                 <p>{stats["assessment_duration"]}</p>
             </div>
             <div class="meta-card">
-                <h3>Total Findings</h3>
+                <h3>Findings</h3>
                 <p>{stats["total_findings"]}</p>
             </div>
         </div>
         
+        <!-- Findings Summary & Charts -->
         <div class="section">
             <h2>Findings Summary</h2>
-            <div class="stats-grid">
-                <div class="stat-card critical">
-                    <div class="stat-number">{stats["severity_breakdown"]["critical"]}</div>
-                    <div>Critical</div>
+            <div style="display: flex; gap: 40px; align-items: center; justify-content: center; flex-wrap: wrap;">
+                <div style="flex: 1; max-width: 400px; min-width: 300px;">
+                     <canvas id="severityChart"></canvas>
                 </div>
-                <div class="stat-card high">
-                    <div class="stat-number">{stats["severity_breakdown"]["high"]}</div>
-                    <div>High</div>
-                </div>
-                <div class="stat-card medium">
-                    <div class="stat-number">{stats["severity_breakdown"]["medium"]}</div>
-                    <div>Medium</div>
-                </div>
-                <div class="stat-card low">
-                    <div class="stat-number">{stats["severity_breakdown"]["low"]}</div>
-                    <div>Low</div>
-                </div>
-                <div class="stat-card info">
-                    <div class="stat-number">{stats["severity_breakdown"]["info"]}</div>
-                    <div>Info</div>
+                <div style="flex: 1; min-width: 300px;">
+                     <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));">
+                        <div class="stat-card critical"><div class="stat-number">{stats["severity_breakdown"]["critical"]}</div><div>Critical</div></div>
+                        <div class="stat-card high"><div class="stat-number">{stats["severity_breakdown"]["high"]}</div><div>High</div></div>
+                        <div class="stat-card medium"><div class="stat-number">{stats["severity_breakdown"]["medium"]}</div><div>Medium</div></div>
+                        <div class="stat-card low"><div class="stat-number">{stats["severity_breakdown"]["low"]}</div><div>Low</div></div>
+                        <div class="stat-card info"><div class="stat-number">{stats["severity_breakdown"]["info"]}</div><div>Info</div></div>
+                     </div>
                 </div>
             </div>
             
-            <h3>Risk Score: {stats["risk_score"]}/100</h3>
+            <h3 style="margin-top:20px;">Overall Risk Score: {stats["risk_score"]}/100</h3>
             <div class="risk-meter">
                 <div class="risk-indicator" style="left: {stats["risk_score"]}%;"></div>
             </div>
@@ -549,7 +571,7 @@ class ReportGenerator:
         {self._generate_executive_summary_html(stats) if self.config.include_executive_summary else ""}
         
         <div class="section">
-            <h2>Detailed Findings</h2>
+            <h2>Detailed Findings (Click to Expand)</h2>
             {findings_html if findings_html else "<p>No findings recorded.</p>"}
         </div>
         
@@ -558,6 +580,43 @@ class ReportGenerator:
             <p>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         </div>
     </div>
+    
+    <script>
+        // Chart.js Configuration
+        const ctx = document.getElementById('severityChart').getContext('2d');
+        const severityChart = new Chart(ctx, {{
+            type: 'doughnut',
+            data: {{
+                labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+                datasets: [{{
+                    data: [
+                        {stats["severity_breakdown"]["critical"]},
+                        {stats["severity_breakdown"]["high"]},
+                        {stats["severity_breakdown"]["medium"]},
+                        {stats["severity_breakdown"]["low"]},
+                        {stats["severity_breakdown"]["info"]}
+                    ],
+                    backgroundColor: [
+                        '#ff5555', // Critical
+                        '#ff79c6', // High
+                        '#ffb86c', // Medium
+                        '#50fa7b', // Low
+                        '#8be9fd'  // Info
+                    ],
+                    borderWidth: 0
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                plugins: {{
+                    legend: {{
+                        position: 'right',
+                        labels: {{ color: '#eee' }}
+                    }}
+                }}
+            }}
+        }});
+    </script>
 </body>
 </html>"""
 
@@ -741,113 +800,88 @@ The assessment identified **{stats["total_findings"]} findings**, including:
 
         return json.dumps(report, indent=2, ensure_ascii=False)
 
-    def _generate_pdf(self) -> bytes:
+    def _generate_pdf(self, output_path: str) -> str:
         """
         Generate PDF report.
-
         Falls back to HTML if weasyprint is not available.
         """
         html_content = self._generate_html()
 
-        try:
-            from weasyprint import HTML
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-            pdf_bytes = HTML(string=html_content).write_pdf()
-            return pdf_bytes
-        except ImportError:
-            logger.warning("weasyprint not installed, saving HTML instead")
-            # Return HTML as bytes if PDF generation not available
-            return html_content.encode("utf-8")
-        except Exception as e:
-            logger.error(f"PDF generation error: {e}")
-            return html_content.encode("utf-8")
+        if WEASYPRINT_AVAILABLE:
+            try:
+                HTML(string=html_content).write_pdf(output_path)
+                logger.info(f"PDF Report saved: {output_path}")
+                return output_path
+            except Exception as e:
+                logger.error(f"PDF generation error: {e}")
+                # Fallback to HTML
+                html_path = output_path.replace(".pdf", ".html")
+                with open(html_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                logger.warning(f"Fallback: Saved as HTML to {html_path}")
+                return html_path
+        else:
+            logger.warning("WeasyPrint not installed. Saving as HTML.")
+            html_path = output_path.replace(".pdf", ".html")
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            return html_path
 
 
-def create_finding_from_vuln(vuln_data: Dict[str, Any]) -> Finding:
-    """
-    Create Finding from vulnerability data.
-
-    Args:
-        vuln_data: Vulnerability dictionary
-
-    Returns:
-        Finding object
-    """
-    severity_map = {
-        "critical": FindingSeverity.CRITICAL,
-        "high": FindingSeverity.HIGH,
-        "medium": FindingSeverity.MEDIUM,
-        "low": FindingSeverity.LOW,
-        "info": FindingSeverity.INFO,
-    }
-
-    severity_str = vuln_data.get("severity", "info").lower()
-    severity = severity_map.get(severity_str, FindingSeverity.INFO)
-
-    return Finding(
-        title=vuln_data.get("title", vuln_data.get("vuln_id", "Unknown")),
-        severity=severity,
-        description=vuln_data.get("description", ""),
-        affected_asset=vuln_data.get("target", vuln_data.get("affected_asset", "")),
-        evidence=vuln_data.get("evidence", vuln_data.get("proof", "")),
-        remediation=vuln_data.get("remediation", ""),
-        cve_id=vuln_data.get("cve_id"),
-        cvss_score=vuln_data.get("cvss_score"),
-        references=vuln_data.get("references", []),
-    )
+@dataclass
+class VulnerabilityData:
+    """Mock for state vulnerability"""
+    vuln_id: str
+    severity: str
+    description: str = ""
+    target: str = ""
 
 
 # Convenience function for state integration
-def generate_report_from_state(
-    state: "AgentState",
-    output_path: str,
-    format: ReportFormat = ReportFormat.HTML,
-    config: Optional[ReportConfig] = None,
-) -> str:
+def create_report_from_state(state: AgentState, output_dir: str = "reports") -> str:
     """
-    Generate report from AgentState.
+    Generate full report from AgentState.
 
     Args:
         state: AgentState instance
-        output_path: Output file path
-        format: Report format
-        config: Report configuration
+        output_dir: Directory to save report
 
     Returns:
         Path to generated report
     """
-    generator = ReportGenerator(config)
-    generator.set_target(state.target or "Unknown")
+    generator = ReportGenerator()
+    generator.set_target(state.target if hasattr(state, "target") else "Unknown")
 
-    # Convert state vulnerabilities to findings
-    # Convert state vulnerabilities to findings
-    for vuln in state.vulnerabilities:
-        severity_val = (
-            FindingSeverity.HIGH
-            if getattr(vuln, "exploit_success", False)
-            else FindingSeverity.MEDIUM
-        )
+    # Simulate time
+    generator.start_assessment()
+    generator.end_assessment()
 
-        # Determine strict severity from vuln.severity string if possible
-        if hasattr(vuln, "severity") and isinstance(vuln.severity, str):
-            try:
-                severity_val = FindingSeverity(vuln.severity.lower())
-            except ValueError:
-                pass
+    # Import vulnerabilities
+    if hasattr(state, "vulnerabilities"):
+        for vuln in state.vulnerabilities:
+            # Handle both dict and object
+            if isinstance(vuln, dict):
+                v_data = vuln
+            else:
+                v_data = vuln.__dict__
 
-        finding = Finding(
-            title=vuln.vuln_id,
-            severity=severity_val,
-            description=getattr(
-                vuln,
-                "description",
-                f"Vulnerability detected on service {vuln.service} port {vuln.port}",
-            ),
-            affected_asset=f"{state.target}:{vuln.port}" if state.target else "unknown",
-            evidence=f"Exploitable: {vuln.exploitable}",
-            cve_id=getattr(vuln, "cve_id", None),
-            cvss_score=getattr(vuln, "cvss_score", None),
-        )
-        generator.add_finding(finding)
+            finding = Finding(
+                title=v_data.get("vuln_id", "Unknown"),
+                severity=FindingSeverity(v_data.get("severity", "info").lower()),
+                description=v_data.get("description", ""),
+                affected_asset=v_data.get("target", generator.target),
+                cve_id=v_data.get("cve_id"),
+                cvss_score=v_data.get("cvss_score"),
+                evidence=v_data.get("evidence", ""),
+                remediation=v_data.get("remediation", ""),
+            )
+            generator.add_finding(finding)
 
-    return generator.generate(format, output_path)
+    # Generate
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"drakben_report_{timestamp}.html"
+    filepath = str(Path(output_dir) / filename)
+
+    return generator.generate(ReportFormat.HTML, filepath)

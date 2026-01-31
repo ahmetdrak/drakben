@@ -79,10 +79,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.coder: AICoder = AICoder(self.brain)
 
         # Additional Modules for Full System Test
-        from modules.ad_attacks import ActiveDirectoryAttacker
-
-        self.healer: SelfHealer = SelfHealer(self)
-        self.ad_attacker = ActiveDirectoryAttacker()
+        try:
+            from modules.ad_attacks import ActiveDirectoryAttacker
+            self.ad_attacker = ActiveDirectoryAttacker()
+        except ImportError:
+            logger.warning("ActiveDirectoryAttacker could not be initialized (missing imports).")
+            self.ad_attacker = None
 
         # Runtime state
         self.running = False
@@ -549,9 +551,32 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             error_type = "permission_denied"
         elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
             self.console.print(
-                f"🛑 CRITICAL: Tool '{step.tool}' not found! Please install it.",
-                style=self.STYLE_RED,
+                f"⚠️ Tool '{step.tool}' miss, attempting Auto-Recovery...",
+                style=self.STYLE_YELLOW,
             )
+            # DYNAMIC RECOVERY: Try to install missing tool
+            try:
+                from core.universal_adapter import get_universal_adapter, DynamicInstaller
+                adapter = get_universal_adapter()
+                if adapter:
+                    # Search and install
+                    install_result = adapter.install_tool(step.tool, force=True) # Force true for autonomous mode checks
+                    if install_result["success"]:
+                         self.console.print(f"✅ Tool {step.tool} installed/recovered! Retrying step...", style="green")
+                         # Re-queue the step to try again immediately
+                         self.planner.replan(step.step_id) 
+                         return True
+                    else:
+                        # Check if it requires approval (e.g. from GitHub)
+                         if install_result.get("requires_approval"):
+                             logger.warning(f"Tool {step.tool} requires manual approval: {install_result['message']}")
+                         
+                         self.console.print(f"❌ Recovery failed: {install_result['message']}", style="red")
+
+            except Exception as e:
+                logger.error(f"Dynamic recovery crashed: {e}")
+
+            self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
             self.running = False
             return False
 
@@ -859,12 +884,13 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return self._handle_system_evolution(args)
 
         # 3. Metasploit special case
+        # 3. Metasploit special case
         if tool_name == "metasploit_exploit":
-            return {
-                "success": False,
-                "error": "Metasploit integration blocked: no state-aware wrapper",
-                "args": args,
-            }
+            return self._execute_metasploit(args)
+
+        # 3.1 AD Attacks Special Case
+        if tool_name.startswith("ad_"):
+             return self._execute_ad_attacks(tool_name, args)
 
         # 3.5 Hive Mind Special Case
         # 3.5 Hive Mind Special Case
@@ -2360,3 +2386,78 @@ Respond in JSON:
 
         except Exception as e:
             return {"success": False, "error": f"Hive Mind Error: {str(e)}"}
+
+    def _execute_metasploit(self, args: Dict) -> Dict:
+        """Execute Metasploit module via wrapper"""
+        try:
+            from modules.metasploit import MetasploitBridge
+            
+            # Initialize if needed (singleton pattern preferred in real usage, but instantiating for now)
+            msf = MetasploitBridge()
+            
+            # 'module' and 'options' are expected in args
+            module = args.get("module")
+            options = args.get("options", {})
+            
+            if not module:
+                return {"success": False, "error": "Metasploit module name required"}
+                
+            self.console.print(f"🔥 Launching Metasploit: {module}", style="red")
+            result = msf.execute_module(module, options)
+            
+            return {
+                "success": result.get("success", False),
+                "output": result.get("output", ""),
+                "session_id": result.get("session_id")
+            }
+        except ImportError:
+             return {"success": False, "error": "modules.metasploit not found"}
+        except Exception as e:
+            logger.exception("Metasploit error")
+            return {"success": False, "error": f"Metasploit execution failed: {e}"}
+
+    def _execute_ad_attacks(self, tool_name: str, args: Dict) -> Dict:
+        """Execute Active Directory attacks (Native)"""
+        try:
+            from modules.ad_attacks import ActiveDirectoryAttacker
+            attacker = ActiveDirectoryAttacker()
+            
+            domain = args.get("domain")
+            target_ip = args.get("target_ip")
+            
+            if not domain or not target_ip:
+                 return {"success": False, "error": "Domain and Target IP required for AD attacks"}
+
+            result = {}
+            if tool_name == "ad_asreproast":
+                # Async shim
+                import asyncio
+                user_file = args.get("user_file")
+                result = asyncio.run(attacker.run_asreproast(domain, target_ip, user_file))
+                
+            elif tool_name == "ad_smb_spray":
+                # Async shim
+                import asyncio
+                user_file = args.get("user_file")
+                password = args.get("password")
+                if not user_file or not password:
+                    return {"success": False, "error": "User file and password required for spray"}
+                
+                # Check concurrency arg
+                concurrency = args.get("concurrency", 10)
+                result = asyncio.run(attacker.run_smb_spray(domain, target_ip, user_file, password, concurrency))
+            
+            else:
+                return {"success": False, "error": f"Unknown AD tool: {tool_name}"}
+                
+            return {
+                "success": result.get("success", False),
+                "output": json.dumps(result, indent=2),
+                "data": result
+            }
+
+        except ImportError:
+            return {"success": False, "error": "modules.ad_attacks not found"}
+        except Exception as e:
+            logger.exception("AD Attack error")
+            return {"success": False, "error": f"AD Attack failed: {e}"}

@@ -10,7 +10,7 @@ try:
     print("Checking Core Modules...")
     from core.refactored_agent import RefactoredDrakbenAgent
     print("✅ core.refactored_agent OK")
-    
+
     from core.universal_adapter import UniversalAdapter
     print("✅ core.universal_adapter OK")
 
@@ -23,10 +23,10 @@ try:
     print("Checking Offensive Modules...")
     from modules.weapon_foundry import WeaponFoundry
     print("✅ modules.weapon_foundry OK")
-    
+
     from modules.hive_mind import HiveMind
     print("✅ modules.hive_mind OK")
-    
+
     from modules.c2_framework import C2Channel
     print("✅ modules.c2_framework OK")
 

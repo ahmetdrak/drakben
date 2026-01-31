@@ -12,33 +12,33 @@ def test_main_menu_launch():
     # We strip drakben from sys.modules to ensure clean import with mocks active
     if "drakben" in sys.modules:
         del sys.modules["drakben"]
-        
+
     with patch("core.menu.DrakbenMenu") as MockMenu:
         with patch("core.config.ConfigManager"):
             with patch("core.plugin_loader.PluginLoader"):
                 # Setup mocks
                 mock_menu_instance = MockMenu.return_value
                 mock_menu_instance.run.return_value = None
-                
+
                 # Dynamic import AFTER patching
                 from drakben import main
-                
+
                 # Run main
                 try:
                     main()
                 except SystemExit:
                     pass
-                
+
                 # Now references in drakben module should point to our mocks
-                # But since imports happened at top level of drakben.py, we need to check if 
+                # But since imports happened at top level of drakben.py, we need to check if
                 # patching core.config.ConfigManager worked.
-                # If drakben.py does 'from core.config import ConfigManager' at top level, 
+                # If drakben.py does 'from core.config import ConfigManager' at top level,
                 # it binds early.
-                
+
                 # Check if Menu was initialized (because it is imported LOCALLY inside main)
                 MockMenu.assert_called()
                 mock_menu_instance.run.assert_called_once()
-                
+
                 # ConfigManager might fail if it was bound before patch.
                 # However, since we deleted 'drakben' from sys.modules, re-importing it
                 # should re-execute lines 'from core.config import ConfigManager',
@@ -50,6 +50,6 @@ def test_environment_check():
     import drakben
     with patch("pathlib.Path.exists", return_value=False):
         with patch("pathlib.Path.mkdir") as mock_mkdir:
-            with patch("sys.version_info", (3, 11)): 
+            with patch("sys.version_info", (3, 11)):
                  drakben.check_environment()
                  assert mock_mkdir.call_count >= 1

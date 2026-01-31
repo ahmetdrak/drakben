@@ -605,8 +605,9 @@ class Planner:
         alternatives = {
             "port_scan": ["nmap_port_scan"],
             "service_scan": ["nmap_service_scan"],
-            "vuln_scan": ["nmap_vuln_scan", "nikto_web_scan"],
-            "exploit": ["sqlmap_scan", "sqlmap_exploit"],
+            "vuln_scan": ["nmap_vuln_scan", "nikto_web_scan", "nuclei_scan"],
+            "exploit": ["sqlmap_scan", "metasploit_exploit"],
+            "ad_attack": ["ad_asreproast", "ad_smb_spray"],
         }
 
         candidates = alternatives.get(action, [])
