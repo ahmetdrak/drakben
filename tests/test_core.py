@@ -162,7 +162,7 @@ class TestConfigManager(unittest.TestCase):
         config = ConfigManager(config_file=self.config_path)
 
         self.assertEqual(config.config.llm_provider, "auto")
-        self.assertEqual(config.config.language, "tr")
+        self.assertEqual(config.config.language, "en")
 
     def test_set_and_get(self):
         """Test setting and getting values"""
