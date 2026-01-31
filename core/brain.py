@@ -74,6 +74,10 @@ class MasterOrchestrator:
         self.context_manager.update(system_context)
         # SYNC: Make sure ExecutionContext has access to the latest context manager data
         self.context.system_info.update(self.context_manager.current_context)
+        if "language" in system_context:
+            self.context.language = system_context["language"]
+        if "target" in system_context:
+            self.context.target = system_context["target"]
 
         # Continuous reasoning
         analysis = self.reasoning_engine.analyze(user_input, self.context)
@@ -558,19 +562,21 @@ IMPORTANT:
         if user_lang == "tr":
             language_instruction = """
 PROCESS: 
-1. ANALYZE intent deeply (Villager Logic). 
-2. SELECT best tool from 'Command Protocols'. 
-3. RESPOND in TURKISH (Türkçe). Professional, tactical tone.
+1. THINK & REASON in English for maximum technical accuracy.
+2. Select tools based on English reasoning.
+3. Deliver the final 'response' field in TURKISH (Türkçe) for the user.
 """
+            response_lang_hint = "In Turkish"
         elif user_lang == "en":
             language_instruction = """
 PROCESS: 
-1. ANALYZE intent deeply. 
-2. SELECT best tool from 'Command Protocols'. 
-3. RESPOND in English. Professional, tactical tone.
+1. THINK & REASON in English.
+2. Deliver the final 'response' in English.
 """
+            response_lang_hint = "In English"
         else:
             language_instruction = "Response Language: English."
+            response_lang_hint = "In English"
 
         context_str: str = ""
         if context.system_info.get("last_tool"):
@@ -580,6 +586,10 @@ PROCESS:
 You are DRAKBEN, a Senior Penetration Testing Lead (OSCP/CISSP level).
 Your mission is to conduct a systematic, rigorous, and professional security audit on the authorized target.
 You follow industry standards like PTES (Penetration Testing Execution Standard) and OWASP.
+
+### 🛡️ OPERATIONAL PROTOCOL: COGNITIVE DUALITY
+1.  **INTERNAL REASONING (THINKING)**: You must ALWAYS think, plan, and reason in **English**. English provides the highest technical precision for cybersecurity. The `reasoning` field in your JSON MUST be in English.
+2.  **EXTERNAL COMMUNICATION (RESPONSE)**: The final `response` field MUST be in the language requested by the user. If the user is in Turkish mode, speak Turkish professionally.
 
 ### 🧠 CORE REASONING ENGINE (PENTEST-GPT INSPIRED)
 1.  **Observation**: Analyze the current state and tool outputs deeply.
@@ -631,7 +641,7 @@ If a tool execution fails (Error/Timeout):
 {{
     "intent": "chat | scan | find_vulnerability | exploit | generate_payload | lateral_movement",
     "confidence": 0.0-1.0,
-    "response": "TACTICAL RESPONSE (In Turkish). Clear, actionable, hacker-persona.",
+    "response": f"TACTICAL RESPONSE ({response_lang_hint}). Clear, actionable, hacker-persona.",
     "reasoning": "Villager Logic: Why these tools? What is the attack path?",
     "steps": [
         {{
@@ -662,7 +672,8 @@ User Input: """
         steps = self._plan_steps(intent, context)
 
         # Reasoning explanation
-        reasoning: str = self._generate_reasoning(intent, steps, risks)
+        lang = context.language if hasattr(context, "language") else "en"
+        reasoning: str = self._generate_reasoning(intent, steps, risks, lang)
 
         analysis = {
             "intent": intent,
@@ -760,19 +771,29 @@ User Input: """
         return steps
 
     def _generate_reasoning(
-        self, intent: str, steps: List[Dict], risks: List[str]
+        self, intent: str, steps: List[Dict], risks: List[str], lang: str = "en"
     ) -> str:
         """Generate human-readable reasoning"""
         if intent == "scan":
-            return f"Port taraması yapılacak. {len(steps)} adım planlandı."
+            return (
+                f"Port taraması yapılacak. {len(steps)} adım planlandı."
+                if lang == "tr"
+                else f"Port scan will be performed. {len(steps)} steps planned."
+            )
         elif intent == "find_vulnerability":
             return (
                 "Zafiyet taraması yapılacak. Önce port taraması, sonra servis analizi."
+                if lang == "tr"
+                else "Vulnerability scan will be performed. First port scan, then service analysis."
             )
         elif intent == "get_shell":
-            return f"Shell erişimi için {len(steps)} adımlı plan. {'Riskli işlem!' if risks else ''}"
+            return (
+                f"Shell erişimi için {len(steps)} adımlı plan. {'Riskli işlem!' if risks else ''}"
+                if lang == "tr"
+                else f"{len(steps)}-step plan for shell access. {'Risky operation!' if risks else ''}"
+            )
         else:
-            return "Kullanıcı ile sohbet modu."
+            return "Kullanıcı ile sohbet modu." if lang == "tr" else "Chat mode with user."
 
     def re_evaluate(self, execution_result: Dict, context: ExecutionContext) -> Dict:
         """
@@ -1086,13 +1107,14 @@ class DrakbenBrain:
             self.reasoning, self.context_mgr, self.self_correction, self.decision_engine
         )
 
-    def think(self, user_input: str, target: Optional[str] = None) -> Dict:
+    def think(self, user_input: str, target: Optional[str] = None, language: str = "en") -> Dict:
         """
         AI-powered thinking - Ana giriş noktası
 
         Args:
             user_input: Kullanıcı komutu/sorusu
             target: Hedef IP/domain (opsiyonel)
+            language: Kullanıcı dili (tr/en)
 
         Returns:
             {
@@ -1107,6 +1129,7 @@ class DrakbenBrain:
         # Build context
         system_context = {
             "target": target,
+            "language": language,
             "llm_available": self.llm_client is not None,
         }
 
@@ -1128,12 +1151,16 @@ class DrakbenBrain:
             }
 
         # Get the actual response to show user
-        # Priority: response > llm_response > reasoning
+        # Priority: response > llm_response
         actual_response = (
             result.get("response")
             or result.get("llm_response")
-            or result.get("reasoning", "")
         )
+
+        # If it's a chat, we don't necessarily want to show reasoning as the main reply
+        # but if we have no response, we fallback to reasoning
+        if not actual_response:
+             actual_response = result.get("reasoning", "")
 
         # Format response
         return {

@@ -25,6 +25,12 @@ pycryptodome==3.23.0      # Cryptography (AES-GCM, etc.)
 keyring==25.7.0           # Secure credential storage
 curl_cffi==0.7.4          # Advanced TLS Fingerprint Impersonation
 
+# ========== VISUALIZATION & VECTOR MEMORY ==========
+packaging
+chromadb
+pyvis
+networkx
+
 # ========== ENHANCED FEATURES ==========
 prompt_toolkit==3.0.52    # Advanced prompts
 pyreadline3==3.5.4; sys_platform == 'win32' # Windows compatibility

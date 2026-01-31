@@ -13,6 +13,9 @@
   "target": null,
   "session_dir": "sessions",
   "log_dir": "logs",
+  "stealth_mode": false,
+  "max_threads": 4,
+  "timeout": 879,
   "tools_available": {},
   "system": {
     "safety_checks": true,

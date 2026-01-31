@@ -486,6 +486,21 @@ class InteractiveShell:
             return CommandResult(success=False, error="No command specified")
 
         command = " ".join(args)
+        
+        # --- RISK WARNING SYSTEM ---
+        risk_commands = ["rm ", "mkfs", "dd ", "> /dev/sda", "shutdown", "reboot", ":(){ :|:& };:"]
+        if any(rc in command for rc in risk_commands):
+            self.console.print(Panel(
+                f"[bold red]⚠ TEHLİKELİ KOMUT TESPİT EDİLDİ / DANGEROUS COMMAND DETECTED[/]\n\n"
+                f"Komut: [yellow]{command}[/]\n\n"
+                f"Bu komut sistemi bozabilir veya veri kaybına yol açabilir.",
+                title="[bold red]!!! SECURITY ALERT !!![/]",
+                border_style="red"
+            ))
+            confirm = input("Yine de devam etmek istiyor musunuz? / Continue anyway? (y/N): ").strip().lower()
+            if confirm != 'y':
+                return CommandResult(success=False, error="Aborted by user safety check")
+
         self.console.print(f"[dim]$ {command}[/dim]")
 
         # Execute with safety checks

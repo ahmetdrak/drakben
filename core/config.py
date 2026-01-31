@@ -74,7 +74,7 @@ class DrakbenConfig:
     llm_setup_complete: bool = False
 
     # UI Settings
-    language: str = "tr"  # tr, en
+    language: str = "en"  # tr, en
     use_colors: bool = True
     verbose: bool = False
 
@@ -86,6 +86,11 @@ class DrakbenConfig:
     target: Optional[str] = None
     session_dir: str = "sessions"
     log_dir: str = "logs"
+
+    # Engine Settings
+    stealth_mode: bool = False
+    max_threads: int = 4
+    timeout: int = 30
 
     # Tools
     tools_available: Optional[Dict[str, bool]] = None

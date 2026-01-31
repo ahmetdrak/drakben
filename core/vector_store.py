@@ -1,0 +1,119 @@
+
+# core/vector_store.py
+# Semantic Vector Memory for DRAKBEN (RAG System)
+
+import logging
+import os
+import uuid
+from typing import Dict, List, Optional, Any
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
+# Try to import ChromaDB gracefully
+DEPENDENCIES_AVAILABLE = False
+try:
+    import chromadb
+    from chromadb.config import Settings
+    DEPENDENCIES_AVAILABLE = True
+except ImportError:
+    logger.warning("ChromaDB not found. Vector memory disabled (falling back to exact match).")
+except Exception as e:
+    logger.warning(f"ChromaDB initialization error: {e}")
+
+
+class VectorStore:
+    """
+    Implements Semantic Search/Memory using ChromaDB.
+    Equivalent to PentAGI's pgvector + RAG.
+    """
+
+    def __init__(self, persist_dir: str = "drakben_vectors"):
+        self.persist_dir = persist_dir
+        self.client = None
+        self.collection = None
+        
+        if DEPENDENCIES_AVAILABLE:
+            try:
+                # Initialize persistent client
+                self.client = chromadb.PersistentClient(path=persist_dir)
+                
+                # Get or create collection
+                self.collection = self.client.get_or_create_collection(
+                    name="drakben_memory",
+                    metadata={"hnsw:space": "cosine"}
+                )
+                logger.info(f"Vector Store initialized at {persist_dir}")
+            except Exception as e:
+                logger.error(f"Failed to initialize Vector Store: {e}")
+                self.client = None
+
+    def add_memory(self, text: str, metadata: Dict[str, Any] = None) -> bool:
+        """
+        Add a text memory to the vector store.
+        """
+        if not self.collection:
+            return False
+
+        try:
+            doc_id = str(uuid.uuid4())
+            if metadata is None:
+                metadata = {}
+            
+            # Add timestamp
+            import time
+            metadata["timestamp"] = time.time()
+
+            self.collection.add(
+                documents=[text],
+                metadatas=[metadata],
+                ids=[doc_id]
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add memory: {e}")
+            return False
+
+    def search(self, query: str, n_results: int = 5) -> List[Dict]:
+        """
+        Semantic search for similar memories.
+        
+        Returns:
+            List of dicts with 'text', 'metadata', 'distance'
+        """
+        if not self.collection:
+            return []
+
+        try:
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=n_results
+            )
+            
+            output = []
+            if results["documents"]:
+                for i in range(len(results["documents"][0])):
+                    output.append({
+                        "text": results["documents"][0][i],
+                        "metadata": results["metadatas"][0][i],
+                        "distance": results["distances"][0][i] if results["distances"] else 0.0
+                    })
+            return output
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            return []
+
+    def count(self) -> int:
+        """Return total memories"""
+        if self.collection:
+            return self.collection.count()
+        return 0
+
+# Global Instance
+_vector_store = None
+
+def get_vector_store() -> VectorStore:
+    global _vector_store
+    if _vector_store is None:
+        _vector_store = VectorStore()
+    return _vector_store

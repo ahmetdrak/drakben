@@ -12,7 +12,14 @@ from typing import Any, Dict, List, Optional
 
 # Third-party for PDF (Optional)
 try:
-    from weasyprint import HTML
+    import os
+    import sys
+    from contextlib import redirect_stderr, redirect_stdout
+
+    # Silence WeasyPrint noise on import (especially on Windows)
+    with open(os.devnull, "w") as fnull:
+        with redirect_stderr(fnull), redirect_stdout(fnull):
+            from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
 except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
@@ -839,27 +846,34 @@ class VulnerabilityData:
     target: str = ""
 
 
-# Convenience function for state integration
-def create_report_from_state(state: AgentState, output_dir: str = "reports") -> str:
+# Convenience functions for state integration
+def generate_report_from_state(
+    state: AgentState,
+    output_path: str,
+    format: ReportFormat = ReportFormat.HTML,
+    config: Optional[ReportConfig] = None,
+) -> str:
     """
     Generate full report from AgentState.
 
     Args:
         state: AgentState instance
-        output_dir: Directory to save report
+        output_path: Where to save the report
+        format: Output format
+        config: Optional report configuration
 
     Returns:
         Path to generated report
     """
-    generator = ReportGenerator()
+    generator = ReportGenerator(config=config)
     generator.set_target(state.target if hasattr(state, "target") else "Unknown")
 
-    # Simulate time
+    # Time tracking
     generator.start_assessment()
     generator.end_assessment()
 
     # Import vulnerabilities
-    if hasattr(state, "vulnerabilities"):
+    if hasattr(state, "vulnerabilities") and state.vulnerabilities:
         for vuln in state.vulnerabilities:
             # Handle both dict and object
             if isinstance(vuln, dict):
@@ -867,21 +881,27 @@ def create_report_from_state(state: AgentState, output_dir: str = "reports") -> 
             else:
                 v_data = vuln.__dict__
 
-            finding = Finding(
-                title=v_data.get("vuln_id", "Unknown"),
-                severity=FindingSeverity(v_data.get("severity", "info").lower()),
-                description=v_data.get("description", ""),
-                affected_asset=v_data.get("target", generator.target),
-                cve_id=v_data.get("cve_id"),
-                cvss_score=v_data.get("cvss_score"),
-                evidence=v_data.get("evidence", ""),
-                remediation=v_data.get("remediation", ""),
-            )
-            generator.add_finding(finding)
+            try:
+                finding = Finding(
+                    title=v_data.get("title") or v_data.get("vuln_id") or "Finding",
+                    severity=FindingSeverity(v_data.get("severity", "info").lower()),
+                    description=v_data.get("description", "No description."),
+                    affected_asset=v_data.get("target", generator.target),
+                    evidence=v_data.get("evidence", ""),
+                    remediation=v_data.get("remediation", ""),
+                    cve_id=v_data.get("cve_id"),
+                    cvss_score=v_data.get("cvss_score"),
+                )
+                generator.add_finding(finding)
+            except Exception as e:
+                logger.debug(f"Skipping invalid finding: {e}")
 
-    # Generate
+    return generator.generate(format, output_path)
+
+
+def create_report_from_state(state: AgentState, output_dir: str = "reports") -> str:
+    """Legacy wrapper for simplified report generation"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"drakben_report_{timestamp}.html"
     filepath = str(Path(output_dir) / filename)
-
-    return generator.generate(ReportFormat.HTML, filepath)
+    return generate_report_from_state(state, filepath)

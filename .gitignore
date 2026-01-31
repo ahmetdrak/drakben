@@ -39,6 +39,9 @@ Thumbs.db
 
 # Test cache
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.benchmarks/
 .coverage
 htmlcov/
 .tox/
@@ -74,6 +77,7 @@ test_output.txt
 
 # Session files
 session.json
+.drakben_history
 *.pid
 
 # Build artifacts
