@@ -3,9 +3,8 @@
 # Semantic Vector Memory for DRAKBEN (RAG System)
 
 import logging
-import os
 import uuid
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 # Configure logger
 logger = logging.getLogger(__name__)

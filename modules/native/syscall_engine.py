@@ -10,7 +10,6 @@ import logging
 import platform
 import struct
 import sys
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

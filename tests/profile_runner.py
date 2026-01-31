@@ -9,7 +9,7 @@ import core.brain
 
 core.brain.OpenRouterClient = MagicMock()
 
-from core.refactored_agent import RefactoredDrakbenAgent
+from core.refactored_agent import RefactoredDrakbenAgent  # noqa: E402
 
 
 def profile_target():

@@ -155,7 +155,6 @@ class DrakbenMenu:
         self.console.print()
         from rich.table import Table
         from rich.panel import Panel
-        from rich import box
         from rich.text import Text
 
         lang = self.config.language
@@ -1162,7 +1161,6 @@ class DrakbenMenu:
 
     def _create_system_table(self, lang) -> "Table":
         from rich.table import Table
-        from rich.text import Text
         
         # Main container
         outer_table = Table(show_header=False, box=None, padding=(0, 2), expand=True)

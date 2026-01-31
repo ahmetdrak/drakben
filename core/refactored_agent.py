@@ -9,7 +9,6 @@ import time
 from re import Match
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.self_healer import SelfHealer
 from core.singularity.base import CodeSnippet
 from modules.hive_mind import AttackPath, NetworkHost
 from modules.weapon_foundry import GeneratedPayload
@@ -556,7 +555,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             )
             # DYNAMIC RECOVERY: Try to install missing tool
             try:
-                from core.universal_adapter import get_universal_adapter, DynamicInstaller
+                from core.universal_adapter import get_universal_adapter
                 adapter = get_universal_adapter()
                 if adapter:
                     # Search and install

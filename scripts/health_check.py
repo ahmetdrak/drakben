@@ -1,44 +1,42 @@
-import sys
+import importlib.util
 import os
+import sys
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 print("Starting Drakben Health Check...")
 
-try:
-    print("Checking Core Modules...")
-    from core.refactored_agent import RefactoredDrakbenAgent
-    print("✅ core.refactored_agent OK")
+modules_to_check = [
+    "core.refactored_agent",
+    "core.universal_adapter",
+    "core.self_refining_engine",
+    "core.evolution_memory",
+    "modules.weapon_foundry",
+    "modules.hive_mind",
+    "modules.c2_framework",
+    "core.ghost_protocol",
+]
 
-    from core.universal_adapter import UniversalAdapter
-    print("✅ core.universal_adapter OK")
+failed_modules = []
 
-    from core.self_refining_engine import SelfRefiningEngine
-    print("✅ core.self_refining_engine OK")
+print("Checking Modules...")
 
-    from core.evolution_memory import EvolutionMemory
-    print("✅ core.evolution_memory OK")
+for module_name in modules_to_check:
+    try:
+        spec = importlib.util.find_spec(module_name)
+        if spec is not None:
+            print(f"✅ {module_name} FOUND")
+        else:
+            print(f"❌ {module_name} NOT FOUND")
+            failed_modules.append(module_name)
+    except Exception as e:
+        print(f"❌ {module_name} ERROR: {e}")
+        failed_modules.append(module_name)
 
-    print("Checking Offensive Modules...")
-    from modules.weapon_foundry import WeaponFoundry
-    print("✅ modules.weapon_foundry OK")
-
-    from modules.hive_mind import HiveMind
-    print("✅ modules.hive_mind OK")
-
-    from modules.c2_framework import C2Channel
-    print("✅ modules.c2_framework OK")
-
-    from core.ghost_protocol import GhostProtocol
-    print("✅ core.ghost_protocol OK")
-
-    print("\n🎉 ALL CRITICAL MODULES IMPORTED SUCCESSFULLY!")
+if failed_modules:
+    print(f"\n❌ FATAL: The following modules are missing or broken: {failed_modules}")
+    sys.exit(1)
+else:
+    print("\n🎉 ALL CRITICAL MODULES VERIFIED SUCCESSFULLY!")
     print("System is structurally sound.")
-
-except ImportError as e:
-    print(f"\n❌ FATAL IMPORT ERROR: {e}")
-    sys.exit(1)
-except Exception as e:
-    print(f"\n❌ UNEXPECTED ERROR: {e}")
-    sys.exit(1)

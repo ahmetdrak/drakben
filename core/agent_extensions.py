@@ -1,3 +1,11 @@
+import logging
+import json
+from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
+
+class AgentExtensionsMixin:
+    """Extensions for the Drakben Agent (Mixin Pattern)"""
 
     def _execute_metasploit(self, args: Dict) -> Dict:
         """Execute Metasploit module via wrapper"""

@@ -14,8 +14,8 @@
   "session_dir": "sessions",
   "log_dir": "logs",
   "stealth_mode": false,
-  "max_threads": 4,
-  "timeout": 879,
+  "max_threads": 3,
+  "timeout": 6,
   "tools_available": {},
   "system": {
     "safety_checks": true,

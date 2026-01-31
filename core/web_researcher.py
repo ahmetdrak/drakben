@@ -1,6 +1,7 @@
 import logging
 import urllib.parse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+import sys
 
 import requests
 from bs4 import BeautifulSoup
@@ -12,10 +13,10 @@ except ImportError:
 
 try:
     from rich.console import Console
-
-    console: Optional[Console] = Console()
+    console = Console()
 except ImportError:
     console = None
+    Console = None
 
 logger = logging.getLogger("drakben.researcher")
 
@@ -28,7 +29,7 @@ class WebResearcher:
 
     def __init__(self):
         # Initialize Persistent Stealth Session (Chrome 120 Fingerprint)
-        self.session = StealthSession(impersonate="chrome120")
+        self.session = StealthSession(impersonate="chrome120", randomize_behavior=True)
 
         # Note: Headers are mostly handled by curl_cffi, but we add some semantic ones
         self.session.headers.update(

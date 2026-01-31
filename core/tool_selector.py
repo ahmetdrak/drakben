@@ -166,26 +166,6 @@ class ToolSelector:
         # (Standard tools are defined below, we insert the registry loader here)
         pass # Placeholder for logic flow, see below block
 
-# Let's perform the actual edit on the file content directly.
-# I need to insert the class variable at the top of the class
-# And modifying __init__ to pull from it.
-        """
-        EVOLUTION MODULE: Update strategy based on success rates in memory.
-
-        Args:
-            evolution_memory: EvolutionMemory instance (new system)
-        """
-        logger.info("Analyzing tool performance from memory...")
-        evolved_count = 0
-
-        for tool_name in self.tools:
-            if self._update_tool_priority_from_memory(tool_name, evolution_memory):
-                evolved_count += 1
-
-        if evolved_count > 0:
-            logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
-        else:
-            logger.debug("Evolution: No changes needed")
 
     def _update_tool_priority_from_memory(
         self, tool_name: str, evolution_memory

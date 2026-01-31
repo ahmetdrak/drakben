@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+import urllib.request
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -247,7 +248,6 @@ class DynamicInstaller:
         """
         # 1. Search PyPI (JSON API)
         try:
-            import urllib.request
             url = f"https://pypi.org/pypi/{tool_name}/json"
             with urllib.request.urlopen(url, timeout=5) as response:
                 if response.status == 200:

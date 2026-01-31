@@ -8,7 +8,7 @@ import asyncio
 import logging
 import random
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from curl_cffi.requests import AsyncSession, Session
 
