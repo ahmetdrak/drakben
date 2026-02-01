@@ -1934,12 +1934,6 @@ Respond in JSON:
                 f"⚠️  Async task timeout after {timeout}s", style="yellow"
             )
             return {"success": False, "error": f"Async task timed out after {timeout}s"}
-        except asyncio.TimeoutError:
-            # asyncio.wait_for raises asyncio.TimeoutError (Python < 3.11)
-            self.console.print(
-                f"⚠️  Async task timeout after {timeout}s", style="yellow"
-            )
-            return {"success": False, "error": f"Async task timed out after {timeout}s"}
         except Exception as e:
             logger.exception(f"Async execution error: {e}")
             self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
