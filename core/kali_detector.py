@@ -48,7 +48,8 @@ class KaliDetector:
         except Exception:
             return False
 
-    def is_kali(self) -> bool:
+    @staticmethod
+    def is_kali() -> bool:
         """Kali Linux üzerinde çalışıyor mu?"""
         try:
             with open("/etc/os-release") as f:

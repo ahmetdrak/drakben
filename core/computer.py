@@ -24,7 +24,6 @@ if COMPUTER_AVAILABLE:
     pyautogui.FAILSAFE = True
     pyautogui.PAUSE = 0.5  # Add delay between actions
 
-
 class ComputerError(Exception):
     """Custom exception for computer control errors"""
 
@@ -49,7 +48,8 @@ class Computer:
         if COMPUTER_AVAILABLE:
             self.width, self.height = pyautogui.size()
 
-    def check_availability(self):
+    @staticmethod
+    def check_availability():
         """Check if dependencies are available"""
         if not COMPUTER_AVAILABLE:
             raise ComputerError(

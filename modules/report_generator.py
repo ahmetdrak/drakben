@@ -654,57 +654,59 @@ class ReportGenerator:
             ai_content = self._generate_ai_insight(critical, high, stats["risk_score"])
 
         return f"""
-        <div class="section">
-            <h2>Executive Summary</h2>
-            <div class="executive-summary">
-                <p>A penetration test was conducted against <strong>{self.target}</strong>
-                to identify security vulnerabilities and assess the overall security posture.</p>
+            <div class="section">
+                <h2>Executive Summary</h2>
+                <div class="executive-summary">
+                    <p>A penetration test was conducted against <strong>{self.target}</strong>
+                    to identify security vulnerabilities and assess the overall security posture.</p>
 
-                <p>The assessment identified <strong>{total} security findings</strong>,
-                including <strong>{critical} critical</strong> and <strong>{high} high</strong> severity issues.</p>
+                    <p>The assessment identified <strong>{total} security findings</strong>,
+                    including <strong>{critical} critical</strong> and <strong>{high} high</strong> severity issues.</p>
 
-                <p>The overall risk level is assessed as <strong>{risk_level}</strong>
-                with a risk score of <strong>{stats["risk_score"]}/100</strong>.</p>
+                    <p>The overall risk level is assessed as <strong>{risk_level}</strong>
+                    with a risk score of <strong>{stats["risk_score"]}/100</strong>.</p>
 
-                {ai_content}
+                    {ai_content}
 
-                <p><strong>Key Recommendations:</strong></p>
-                <ul>
-                    <li>Address all critical and high severity findings immediately</li>
-                    <li>Implement regular security assessments</li>
-                    <li>Review and update security policies</li>
-                    <li>Conduct security awareness training</li>
-                </ul>
+                    <p><strong>Key Recommendations:</strong></p>
+                    <ul>
+                        <li>Address all critical and high severity findings immediately</li>
+                        <li>Implement regular security assessments</li>
+                        <li>Review and update security policies</li>
+                        <li>Conduct security awareness training</li>
+                    </ul>
+                </div>
             </div>
-        </div>
-        """
+            """
 
-    def _generate_ai_insight(self, _critical: int, _high: int, risk: int) -> str:
-        """Generate C-Level insight using simulated LLM logic"""
-        # In a real scenario, this communicates with UniversalAdapter's LLM
-        insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
-        insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
+        @staticmethod
+        def _generate_ai_insight(_critical: int, _high: int, risk: int) -> str:
+            """Generate C-Level insight using simulated LLM logic"""
+            # In a real scenario, this communicates with UniversalAdapter's LLM
+            insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
+            insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
 
-        if risk > 80:
-            insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
-            insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
-            insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
-        elif risk > 50:
-            insight += "Security posture is compromised with significant risks reachable from external networks. "
-            insight += "Potential for lateral movement is high. "
-            insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
-        else:
-            insight += "Security posture is generally robust, though some hygiene issues remain. "
-            insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
+            if risk > 80:
+                insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
+                insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
+                insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+            elif risk > 50:
+                insight += "Security posture is compromised with significant risks reachable from external networks. "
+                insight += "Potential for lateral movement is high. "
+                insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
+            else:
+                insight += "Security posture is generally robust, though some hygiene issues remain. "
+                insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
 
-        insight += "</div>"
-        return insight
+            insight += "</div>"
+            return insight
 
-    def _generate_markdown(self) -> str:
-        """Generate Markdown report"""
-        stats = self.get_statistics()
+        def _generate_markdown(self) -> str:
+            """Generate Markdown report"""
+            stats = self.get_statistics()
 
-        md = f"""# {self.config.title}
+            md = f"""# {self.config.title}
+    ```"
 
 **Classification:** {self.config.classification}
 **Author:** {self.config.author}

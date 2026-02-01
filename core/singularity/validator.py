@@ -56,7 +56,8 @@ class CodeValidator(IValidator):
         else:
             return self._validate_subprocess(snippet)
 
-    def _validate_docker(self, _snippet: CodeSnippet) -> bool:
+    @staticmethod
+    def _validate_docker(_snippet: CodeSnippet) -> bool:
         """Execute via Docker Sandbox"""
         # Placeholder for integration with core.sandbox_manager
         # Assuming sandbox.run_code(code, lang) exists
@@ -155,7 +156,8 @@ class CodeValidator(IValidator):
             logger.error(f"Validation error: {e}")
             return False
 
-    def _cleanup_temp_file(self, f_path: str):
+    @staticmethod
+    def _cleanup_temp_file(f_path: str):
         """Clean up temporary validation file"""
         try:
             if os.path.exists(f_path):

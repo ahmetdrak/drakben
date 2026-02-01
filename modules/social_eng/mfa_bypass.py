@@ -172,7 +172,8 @@ login:
         self.captured_sessions = sessions
         return sessions
 
-    def replay_session(self, session: CapturedSession) -> dict[str, str]:
+    @staticmethod
+    def replay_session(session: CapturedSession) -> dict[str, str]:
         """
         Generate curl command or requests code to replay captured session.
         """
@@ -182,7 +183,7 @@ login:
 import requests
 
 session = requests.Session()
-session.cookies.update({{{", ".join([f'"{c["name"]}": "{c["value"]}"' for c in session.cookies])}}})
+session.cookies.update({{{", ".join([f'\"{c["name"]}\": \"{c["value"]}\"' for c in session.cookies])}}})
 
 # You now have authenticated session
 response = session.get("{session.target_url}")

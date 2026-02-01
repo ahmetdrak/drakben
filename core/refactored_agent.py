@@ -773,15 +773,18 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 self._handle_llm_retry(attempt, max_retries)
             return None
 
-    def _should_retry(self, attempt: int, max_retries: int) -> bool:
+    @staticmethod
+    def _should_retry(attempt: int, max_retries: int) -> bool:
         """Check if we should retry based on attempt number"""
         return attempt < max_retries - 1
 
-    def _is_valid_llm_result(self, result: Any) -> bool:
+    @staticmethod
+    def _is_valid_llm_result(result: Any) -> bool:
         """Check if LLM result is valid"""
         return isinstance(result, dict) and "tool" in result
 
-    def _extract_llm_error(self, result: Any) -> str | None:
+    @staticmethod
+    def _extract_llm_error(result: Any) -> str | None:
         """Extract error message from LLM result"""
         if isinstance(result, dict) and result.get("error"):
             return result.get("error")
@@ -1945,7 +1948,8 @@ Respond in JSON:
             self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
             return {"success": False, "error": f"Async execution failed: {str(e)}"}
 
-    def _create_observation(self, tool_name: str, result: dict) -> str:
+    @staticmethod
+    def _create_observation(tool_name: str, result: dict) -> str:
         """
         Tool sonucundan ÖZET observation oluştur
 
@@ -2149,7 +2153,8 @@ Respond in JSON:
                     ):
                         self.state.vulnerabilities.append(vuln)
 
-    def _extract_port_from_result(self, result: dict) -> int:
+    @staticmethod
+    def _extract_port_from_result(result: dict) -> int:
         """Extract port number from tool result arguments"""
         args_port = result.get("args", {}).get("port")
         if args_port:
@@ -2412,7 +2417,6 @@ Respond in JSON:
         """Execute Metasploit module via wrapper"""
         try:
             from modules.metasploit import MetasploitBridge
-
             # Initialize if needed (singleton pattern preferred in real usage, but instantiating for now)
             msf = MetasploitBridge()
 
@@ -2437,7 +2441,8 @@ Respond in JSON:
             logger.exception("Metasploit error")
             return {"success": False, "error": f"Metasploit execution failed: {e}"}
 
-    def _execute_ad_attacks(self, tool_name: str, args: dict) -> dict:
+    @staticmethod
+    def _execute_ad_attacks(tool_name: str, args: dict) -> dict:
         """Execute Active Directory attacks (Native)"""
         try:
             from modules.ad_attacks import ActiveDirectoryAttacker

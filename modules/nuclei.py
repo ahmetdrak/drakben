@@ -133,7 +133,8 @@ class NucleiScanner:
         """Check if nuclei is available"""
         return shutil.which(self.nuclei_path) is not None
 
-    def _parse_severity(self, severity_str: str) -> NucleiSeverity:
+    @staticmethod
+    def _parse_severity(severity_str: str) -> NucleiSeverity:
         """Parse severity string to enum"""
         severity_map = {
             "info": NucleiSeverity.INFO,

@@ -117,8 +117,9 @@ class Planner:
             steps.append(step)
         return steps
 
+    @staticmethod
     def _create_step_dict(
-        self, plan_id: str, index: int, action: str, tool: str, target: str
+        plan_id: str, index: int, action: str, tool: str, target: str
     ) -> dict:
         """Create a single step dictionary structure"""
         return {
@@ -143,7 +144,8 @@ class Planner:
         self.steps = [self._dict_to_step(s) for s in steps]
         self.current_step_index = 0
 
-    def _generate_plan_id(self) -> str:
+    @staticmethod
+    def _generate_plan_id() -> str:
         return f"plan_{uuid.uuid4().hex[:8]}"
 
     # ... (other create_plan methods refactored similarly if needed) ...
@@ -260,7 +262,8 @@ class Planner:
         self._persist_steps()
         return True
 
-    def _format_replan_reason(self, context: dict) -> str:
+    @staticmethod
+    def _format_replan_reason(context: dict) -> str:
         """Format human-readable reason for replan"""
         if context["is_timeout"]:
             return "Adaptive Replan: Timeout detected. "
@@ -637,7 +640,8 @@ class Planner:
             steps_data = [self._step_to_dict(s) for s in self.steps]
             self.memory.update_plan_steps(self.current_plan_id, steps_data)
 
-    def _dict_to_step(self, d: dict) -> PlanStep:
+    @staticmethod
+    def _dict_to_step(d: dict) -> PlanStep:
         """Convert dict to PlanStep"""
         return PlanStep(
             step_id=d["step_id"],
@@ -654,7 +658,8 @@ class Planner:
             error=d.get("error", ""),
         )
 
-    def _step_to_dict(self, step: PlanStep) -> dict:
+    @staticmethod
+    def _step_to_dict(step: PlanStep) -> dict:
         """Convert PlanStep to dict"""
         return {
             "step_id": step.step_id,

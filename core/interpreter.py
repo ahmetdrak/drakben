@@ -269,7 +269,8 @@ class UniversalInterpreter:
         else:
             return self._sanitize_fallback(command)
 
-    def _sanitize_with_sanitizer(self, command: str) -> str | None:
+    @staticmethod
+    def _sanitize_with_sanitizer(command: str) -> str | None:
         """Sanitize using CommandSanitizer"""
         sanitizer = CommandSanitizer()
         risk = sanitizer.get_risk_level(command)
@@ -291,7 +292,8 @@ class UniversalInterpreter:
             logger.warning(f"Security violation: {e}")
             return None
 
-    def _sanitize_fallback(self, command: str) -> str | None:
+    @staticmethod
+    def _sanitize_fallback(command: str) -> str | None:
         """Fallback sanitization without CommandSanitizer"""
         dangerous_patterns = [
             "rm -rf /",
@@ -319,7 +321,8 @@ class UniversalInterpreter:
                 return None
         return command
 
-    def _execute_sanitized_command(self, sanitized: str) -> InterpreterResult:
+    @staticmethod
+    def _execute_sanitized_command(sanitized: str) -> InterpreterResult:
         """Execute sanitized command"""
         import shlex
         import subprocess

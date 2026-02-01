@@ -261,7 +261,8 @@ class EvolutionMemory:
             self._close_conn(conn)
 
     # ==================== PENALTY SYSTEM ====================
-    def _run_with_retry(self, func, *args, **kwargs):
+    @staticmethod
+    def _run_with_retry(func, *args, **kwargs):
         """Helper to retry DB operations on lock"""
         for i in range(5):
             try:

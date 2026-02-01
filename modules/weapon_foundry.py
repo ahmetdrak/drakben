@@ -991,7 +991,8 @@ class WeaponFoundry:
 
         return ""
 
-    def get_final_payload(self, generated: GeneratedPayload) -> str:
+    @staticmethod
+    def get_final_payload(generated: GeneratedPayload) -> str:
         """
         Get final payload ready for delivery.
 
@@ -1016,7 +1017,8 @@ class WeaponFoundry:
 
         return encoded
 
-    def list_capabilities(self) -> dict[str, list[str]]:
+    @staticmethod
+    def list_capabilities() -> dict[str, list[str]]:
         """List all available capabilities"""
         return {
             "shell_types": [s.value for s in ShellType],

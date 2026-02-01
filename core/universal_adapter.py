@@ -314,7 +314,6 @@ class DependencyResolver:
 
         self.system = platform.system().lower()
         self.package_manager = self._detect_package_manager()
-
         logger.info(
             f"DependencyResolver initialized (OS: {self.system}, PM: {self.package_manager})"
         )
@@ -339,7 +338,8 @@ class DependencyResolver:
 
         return None
 
-    def is_tool_installed(self, tool_name: str) -> bool:
+    @staticmethod
+    def is_tool_installed(tool_name: str) -> bool:
         """
         Check if a tool is installed.
 
@@ -366,7 +366,8 @@ class DependencyResolver:
         except Exception:
             return False
 
-    def get_tool_version(self, tool_name: str) -> str | None:
+    @staticmethod
+    def get_tool_version(tool_name: str) -> str | None:
         """
         Get installed tool version.
 
@@ -431,8 +432,9 @@ class DependencyResolver:
             return True
         return False
 
+    @staticmethod
     def _install_via_pip(
-        self, tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
+        tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
     ):
         """Helper to install via pip"""
         if "pip" in install_commands:
@@ -770,7 +772,6 @@ class MCPClient:
         Args:
             name: Tool name
             arguments: Tool arguments
-
         Returns:
             Tool result
         """
@@ -795,7 +796,8 @@ class MCPClient:
             }
 
     # Built-in handlers
-    def _handle_scan(self, args: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _handle_scan(args: dict[str, Any]) -> dict[str, Any]:
         """Handle scan tool calls"""
         target = args.get("target", "")
         scan_type = args.get("scan_type", "quick")
@@ -807,7 +809,8 @@ class MCPClient:
             "message": f"Scan initiated for {target} ({scan_type})",
         }
 
-    def _handle_exploit(self, args: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _handle_exploit(args: dict[str, Any]) -> dict[str, Any]:
         """Handle exploit tool calls"""
         target = args.get("target", "")
         vuln = args.get("vulnerability", "")
@@ -819,7 +822,8 @@ class MCPClient:
             "message": f"Exploit for {vuln} queued against {target}",
         }
 
-    def _handle_report(self, args: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _handle_report(args: dict[str, Any]) -> dict[str, Any]:
         """Handle report tool calls"""
         fmt = args.get("format", "markdown")
 
@@ -948,7 +952,8 @@ class APIServer:
         """Validate an API key"""
         return self.api_keys.get(key)
 
-    def get_endpoints(self) -> list[dict[str, str]]:
+    @staticmethod
+    def get_endpoints() -> list[dict[str, str]]:
         """Get list of available API endpoints"""
         return [
             {

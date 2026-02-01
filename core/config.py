@@ -143,7 +143,8 @@ class ConfigManager:
         ):
             self.config.llm_setup_complete = True
 
-    def _read_env_file(self) -> dict[str, str]:
+    @staticmethod
+    def _read_env_file() -> dict[str, str]:
         """Read api.env into a dict"""
         env_path = Path(API_ENV_PATH)
         values: dict[str, str] = {}
@@ -160,7 +161,8 @@ class ConfigManager:
 
         return values
 
-    def _write_env_file(self, values: dict[str, str]):
+    @staticmethod
+    def _write_env_file(values: dict[str, str]):
         """Write api.env from a dict"""
         env_path = Path(API_ENV_PATH)
         env_path.parent.mkdir(parents=True, exist_ok=True)
@@ -239,7 +241,8 @@ class ConfigManager:
         self.config.llm_setup_complete = True
         self.save_config()
 
-    def _prompt_user_consent(self, console) -> bool:
+    @staticmethod
+    def _prompt_user_consent(console) -> bool:
         """Ask user if they want to configure LLM"""
         console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
         choice = input("> ").strip().lower()

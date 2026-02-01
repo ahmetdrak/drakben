@@ -68,7 +68,8 @@ class TargetAnalyzer:
 
         return sorted(hotspots, key=lambda x: x.risk_score, reverse=True)
 
-    def _get_func_name(self, node: ast.Call) -> str:
+    @staticmethod
+    def _get_func_name(node: ast.Call) -> str:
         """Helper to extract function name from AST node"""
         if isinstance(node.func, ast.Name):
             return node.func.id
@@ -81,7 +82,8 @@ class TargetAnalyzer:
                 return node.func.attr
         return ""
 
-    def suggest_fuzz_vectors(self, hotspot: CodeHotspot) -> list[str]:
+    @staticmethod
+    def suggest_fuzz_vectors(hotspot: CodeHotspot) -> list[str]:
         """
         Suggest initial seed inputs based on the sink type.
         """

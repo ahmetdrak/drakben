@@ -17,7 +17,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # =========================================
 # SECURE CREDENTIAL STORAGE
 # =========================================
@@ -53,7 +52,8 @@ class CredentialStore:
         except (keyring.errors.KeyringError, Exception):
             return False
 
-    def _derive_key(self, password: str, salt: bytes) -> bytes:
+    @staticmethod
+    def _derive_key(password: str, salt: bytes) -> bytes:
         """Derive encryption key from password"""
         # Use standard library implementation which acts as a fallback and is secure enough
         return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, dklen=32)
@@ -356,7 +356,8 @@ class AuditLogger:
             if not self._conn:
                 conn.close()
 
-    def _compute_hash(self, event: AuditEvent, prev_hash: str) -> str:
+    @staticmethod
+    def _compute_hash(event: AuditEvent, prev_hash: str) -> str:
         """Compute hash for event"""
         data = f"{event.timestamp}|{event.event_type.value}|{event.action}|{prev_hash}"
         return hashlib.sha256(data.encode()).hexdigest()
@@ -530,7 +531,6 @@ class ProxyConfig:
         if self.username and self.password:
             auth = f"{self.username}:{self.password}@"
         return f"{self.protocol}://{auth}{self.host}:{self.port}"
-
     def get_dict(self) -> dict[str, str]:
         """Get proxy dict for requests"""
         url = self.get_url()
@@ -555,7 +555,8 @@ class ProxyManager:
 
         logger.info(f"ProxyManager initialized (tor: {self.tor_available})")
 
-    def _check_tor(self) -> bool:
+    @staticmethod
+    def _check_tor() -> bool:
         """Check if Tor is available"""
         try:
             import socks
@@ -610,7 +611,8 @@ class ProxyManager:
         if proxy_dict:
             session.proxies.update(proxy_dict)
 
-    def test_proxy(self, proxy: ProxyConfig, timeout: int = 10) -> bool:
+    @staticmethod
+    def test_proxy(proxy: ProxyConfig, timeout: int = 10) -> bool:
         """
         Test proxy connectivity.
 

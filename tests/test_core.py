@@ -777,7 +777,8 @@ class TestLogging(unittest.TestCase):
 
         self.assertIsNotNone(logger)
 
-    def test_log_context(self):
+    @staticmethod
+    def test_log_context():
         """Test log context manager"""
         from core.logging_config import LogContext, get_logger
 

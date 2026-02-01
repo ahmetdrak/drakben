@@ -89,7 +89,6 @@ class LLMCache:
         """
         query_hash = self._hash_query(query)
         timestamp = time.time()
-
         # SECURITY: Do not cache query/response with sensitive keywords
         sensitive_keywords = [
             "password",
@@ -114,7 +113,8 @@ class LLMCache:
         except Exception as e:
             logger.error(f"Cache write error: {e}")
 
-    def _hash_query(self, query: str) -> str:
+    @staticmethod
+    def _hash_query(query: str) -> str:
         """Sorguyu MD5 ile hashle"""
         return hashlib.md5(query.encode("utf-8")).hexdigest()
 

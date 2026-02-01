@@ -310,12 +310,13 @@ class PsychoProfiler:
     # SYNTHETIC PRETEXT TEMPLATES (Dynamic)
     # =========================================================================
 
-    def _tmpl_dev_ticket(self, target, ticket_id):
+    @staticmethod
+    def _tmpl_dev_ticket(target, ticket_id):
         return f"""
 <div style="font-family: Arial; border-left: 4px solid #d04437; padding-left: 10px;">
     <h3>JIRA Software</h3>
     <p><b>{target.full_name}</b>, you were mentioned in a ticket:</p>
-    <a href="{{link}}"><b>{ticket_id}: NullPointer Exception in Auth Module</b></a>
+    <a href="{link}"><b>{ticket_id}: NullPointer Exception in Auth Module</b></a>
     <br>
     <p><i>"@ {target.full_name.split()[0]} can you check this? It's blocking the release. CI/CD is failing."</i></p>
     <br>
@@ -323,7 +324,8 @@ class PsychoProfiler:
 </div>
 """
 
-    def _tmpl_security_fear(self, target):
+    @staticmethod
+    def _tmpl_security_fear(target):
         return f"""
 <div style="font-family: Segoe UI, sans-serif;">
     <h2 style="color: #c00;">🛑 Zero-Trust Alert</h2>
@@ -334,11 +336,12 @@ class PsychoProfiler:
         <tr><td>Device:</td><td>Unknown Android 14</td></tr>
     </table>
     <p>If this wasn't you, you must <b>secure/quarantine</b> your workstation immediately.</p>
-    <p><a href="{{link}}">Review Activity Log</a></p>
+    <p><a href="{link}">Review Activity Log</a></p>
 </div>
 """
 
-    def _tmpl_authority(self, target):
+    @staticmethod
+    def _tmpl_authority(target):
         return """
 <p>Confidential,</p>
 <p>Please review the attached updated Employee Agreement (NDA) regarding the upcoming merger.</p>
@@ -347,10 +350,11 @@ class PsychoProfiler:
 <p>Regards,<br><b>Office of General Counsel</b></p>
 """
 
-    def _tmpl_generic_VIP(self, target):
+    @staticmethod
+    def _tmpl_generic_VIP(target):
         return f"""
 <p>Hi {target.full_name.split()[0]},</p>
 <p>The Director asked me to schedule a quick sync with you regarding the Q3 goals.</p>
 <p>Are you free next Tuesday? I've shared the tentative agenda below.</p>
-<p><a href="{{link}}">View Agenda.docx</a> (SharePoint)</p>
+<p><a href="{link}">View Agenda.docx</a> (SharePoint)</p>
 """

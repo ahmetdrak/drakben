@@ -241,18 +241,16 @@ class AgentState:
 
         self.open_services[svc.port] = self._select_best_service(svc, existing)
 
-    def _should_skip_unknown_service(
-        self, svc: ServiceInfo, existing: ServiceInfo
-    ) -> bool:
+    @staticmethod
+    def _should_skip_unknown_service(svc: ServiceInfo, existing: ServiceInfo) -> bool:
         """Rule 1: Don't overwrite known service with 'unknown'"""
         return svc.service in ["unknown", "tcpwrapped"] and existing.service not in [
             "unknown",
             "tcpwrapped",
         ]
 
-    def _select_best_service(
-        self, svc: ServiceInfo, existing: ServiceInfo
-    ) -> ServiceInfo:
+    @staticmethod
+    def _select_best_service(svc: ServiceInfo, existing: ServiceInfo) -> ServiceInfo:
         """Rule 2: Prefer versioned info, then better service name"""
         if svc.version and not existing.version:
             return svc
@@ -442,8 +440,8 @@ class AgentState:
                     return True
         return False
 
+    @staticmethod
     def _persist_credential(
-        self,
         username: str,
         password: str | None,
         hash_val: str | None,
