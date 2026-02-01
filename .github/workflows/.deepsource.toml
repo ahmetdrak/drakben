@@ -1,0 +1,22 @@
+version = 1
+
+# Python analizörü
+[[analyzers]]
+name = "python"
+runtime_version = "3.11"
+
+  [analyzers.rules]
+  # False positive verebilecek kuralları kapat
+  exclude = ["assert-used", "hardcoded-password"]
+
+# Rust analizörü
+[[analyzers]]
+name = "rust"
+
+# Docker analizörü
+[[analyzers]]
+name = "docker"
+
+# Terraform analizörü
+[[analyzers]]
+name = "terraform"
