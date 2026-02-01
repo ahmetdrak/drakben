@@ -170,7 +170,7 @@ class PhishingGenerator:
                     secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16)
                 )
                 input_tag = soup.new_tag(
-                    "input", type="hidden", name="req_id", value=req_id
+                    "input", attrs={"type": "hidden", "name": "req_id", "value": req_id}
                 )
                 form.append(input_tag)
 
