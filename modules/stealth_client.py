@@ -1,7 +1,8 @@
 """
 DRAKBEN Stealth Client - Powered by curl_cffi
 Author: @ahmetdrak
-Description: State-of-the-art TLS Fingerprint Impersonation with Proxy Rotation and Human Behavior Simulation.
+Description: State-of-the-art TLS Fingerprint Impersonation with Proxy Rotation
+and Human Behavior Simulation.
 """
 
 import asyncio
@@ -76,7 +77,10 @@ class StealthSession(Session):
             randomize_behavior (bool): Enable jitter and header randomization
         """
         # Pick random browser if not specified
-        self.impersonate_target = impersonate or secrets.choice(BROWSER_IMPERSONATIONS)
+        self.impersonate_target = (
+            impersonate
+            or secrets.choice(BROWSER_IMPERSONATIONS)
+        )
         self.proxy_manager = ProxyManager(proxies)
         self.randomize_behavior = randomize_behavior
         self.current_proxy = self.proxy_manager.get_proxy()
@@ -92,12 +96,16 @@ class StealthSession(Session):
 
         self.headers.update(self._get_default_headers())
         logger.debug(
-            f"StealthSession initialized: {self.impersonate_target} | Proxy: {bool(self.current_proxy)}"
+            f"StealthSession initialized: {self.impersonate_target} "
+            f"| Proxy: {bool(self.current_proxy)}"
         )
 
     def _get_default_headers(self) -> dict[str, str]:
         headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/avif,image/webp,*/*;q=0.8"
+            ),
             "Accept-Language": "en-US,en;q=0.9",
             # Note: User-Agent is handled by curl_cffi impersonate, but we can override if needed
             "sec-ch-ua-mobile": "?0",
@@ -113,20 +121,54 @@ class StealthSession(Session):
         # Ensure User-Agent is present (curl_cffi sometimes sets it late)
         if "User-Agent" not in headers:
             ua_map = {
-                "chrome120": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Windows", "Chromium"),
-                "chrome119": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36", "Windows", "Chromium"),
-                "safari17_0": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", "macOS", "Safari"),
-                "edge101": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.47", "Windows", "Chromium"),
+                "chrome120": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36",
+                    "Windows",
+                    "Chromium",
+                ),
+                "chrome119": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/119.0.0.0 Safari/537.36",
+                    "Windows",
+                    "Chromium",
+                ),
+                "safari17_0": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/17.0 Safari/605.1.15",
+                    "macOS",
+                    "Safari",
+                ),
+                "edge101": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/101.0.4951.64 Safari/537.36 "
+                    "Edg/101.0.1210.47",
+                    "Windows",
+                    "Chromium",
+                ),
             }
             ua_data = ua_map.get(
                 self.impersonate_target,
-                ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Windows", "Chromium"),
+                (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36",
+                    "Windows",
+                    "Chromium",
+                ),
             )
             headers["User-Agent"] = ua_data[0]
             # LOGIC FIX: Global consistency for platform and brand
             headers["sec-ch-ua-platform"] = f'"{ua_data[1]}"'
             if ua_data[2] == "Chromium":
-                headers["sec-ch-ua"] = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+                headers["sec-ch-ua"] = (
+                    '"Not_A Brand";v="8", "Chromium";v="120", '
+                    '"Google Chrome";v="120"'
+                )
             else:
                 # Safari doesn't use sec-ch-ua headers typically
                 headers.pop("sec-ch-ua", None)
@@ -157,7 +199,7 @@ class StealthSession(Session):
         # LOGIC FIX: Maintain stateful Referer chain
         if not kwargs.get("headers"):
             kwargs["headers"] = {}
-        
+
         if "Referer" not in kwargs["headers"] and hasattr(self, "_last_url"):
             # If same domain, use last URL as referer
             from urllib.parse import urlparse
@@ -165,13 +207,13 @@ class StealthSession(Session):
             last_domain = urlparse(self._last_url).netloc
             if curr_domain == last_domain:
                 kwargs["headers"]["Referer"] = self._last_url
-        
+
         try:
             if "impersonate" not in kwargs:
                 kwargs["impersonate"] = self.impersonate_target
 
             response = super().request(method, url, *args, **kwargs)
-            
+
             # LOGIC FIX: Track URL for referer stability
             self._last_url = url
 

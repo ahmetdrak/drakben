@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS policies (
     condition TEXT NOT NULL,        -- JSON: when this policy applies
     action TEXT NOT NULL,           -- JSON: what to do
     weight REAL DEFAULT 0.5,        -- 0.0 to 1.0, used within same tier
-    priority_tier INTEGER NOT NULL, -- 1=hard avoid, 2=strategy override, 3=tool bias, 4=soft pref
+    priority_tier INTEGER NOT NULL, -- 1=hard avoid, 2=strategy override,
+                                     -- 3=tool bias, 4=soft pref
     source TEXT NOT NULL,           -- "failure", "user", "system"
     created_at TEXT NOT NULL,
     expires_at TEXT,                -- Optional expiration
@@ -237,9 +238,9 @@ class SelfRefiningEngine:
                 self.db_path = "evolution.db"
         else:
             self.db_path = db_path
-        self._lock = threading.RLock() # Reentrant lock to prevent deadlocks
+        self._lock = threading.RLock()  # Reentrant lock to prevent deadlocks
         self._initialized = False
-        self._init_lock = threading.RLock() # Reentrant lock
+        self._init_lock = threading.RLock()  # Reentrant lock
 
         # LAZY INITIALIZATION: Don't initialize database in __init__
         # This prevents blocking during object creation
@@ -269,7 +270,8 @@ class SelfRefiningEngine:
         # Max 3 retry attempts
         if self._init_attempts >= 3:
             logger.warning(
-                "Max initialization attempts reached, skipping database init"
+                "Max initialization attempts reached, "
+                "skipping database init"
             )
             return
 
@@ -282,7 +284,8 @@ class SelfRefiningEngine:
 
             try:
                 logger.info(
-                    f"Initializing SelfRefiningEngine database (attempt {self._init_attempts}/3)..."
+                    f"Initializing SelfRefiningEngine database (attempt "
+                    f"{self._init_attempts}/3)..."
                 )
                 self._init_database()
                 self._seed_default_strategies()
@@ -409,13 +412,22 @@ class SelfRefiningEngine:
 
         if version < 1:
             pass
-        
+
         if version == 1:
-            logger.info("Migrating database from v1 to v2: Adding structural improvements")
+            logger.info(
+                "Migrating database from v1 to v2: Adding structural "
+                "improvements"
+            )
             # LOGIC FIX: Add parameter_hash to prevent duplicate profile mutations
             try:
-                conn.execute("ALTER TABLE strategy_profiles ADD COLUMN parameter_hash TEXT")
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_params ON strategy_profiles(strategy_name, parameter_hash)")
+                conn.execute(
+                    "ALTER TABLE strategy_profiles ADD COLUMN "
+                    "parameter_hash TEXT"
+                )
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_params "
+                    "ON strategy_profiles(strategy_name, parameter_hash)"
+                )
             except sqlite3.OperationalError:
                 pass
             conn.execute("PRAGMA user_version = 2")
@@ -582,10 +594,11 @@ class SelfRefiningEngine:
 
         if strategy_inserts:
             conn.executemany(
-                """
-                INSERT INTO strategies (strategy_id, name, target_type, description, base_parameters, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """,
+                (
+                    "INSERT INTO strategies (strategy_id, name, target_type, "
+                    "description, base_parameters, created_at) VALUES "
+                    "(?, ?, ?, ?, ?, ?)"
+                ),
                 strategy_inserts,
             )
 
@@ -639,7 +652,10 @@ class SelfRefiningEngine:
         for key in aggressive_params:
             if isinstance(aggressive_params[key], (int, float)):
                 # LOGIC FIX: Ensure mutation actually changes value even if it is 1
-                aggressive_params[key] = max(aggressive_params[key] + 1, int(aggressive_params[key] * 1.5))
+                aggressive_params[key] = max(
+                    aggressive_params[key] + 1,
+                    int(aggressive_params[key] * 1.5),
+                )
 
         profile2 = {
             "profile_id": self._generate_id("prof_"),
@@ -656,7 +672,11 @@ class SelfRefiningEngine:
             if isinstance(conservative_params[key], (int, float)):
                 # LOGIC FIX: Ensure conservative is actually different
                 val = int(conservative_params[key] * 0.5)
-                conservative_params[key] = max(1, val if val != aggressive_params.get(key) else max(1, val - 1))
+                conservative_params[key] = max(
+                    1,
+                    val if val != aggressive_params.get(key)
+                    else max(1, val - 1),
+                )
 
         profile3 = {
             "profile_id": self._generate_id("prof_"),
@@ -669,12 +689,12 @@ class SelfRefiningEngine:
 
         for profile in [profile1, profile2, profile3]:
             conn.execute(
-                """
-                INSERT INTO strategy_profiles
-                (profile_id, strategy_name, parameters, step_order, aggressiveness,
-                 tool_preferences, success_rate, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 0.4, ?)  -- LOGIC FIX: Start lower (0.4) to prefer tested ones
-            """,
+                (
+                    "INSERT INTO strategy_profiles "
+                    "(profile_id, strategy_name, parameters, step_order, aggressiveness, "
+                    "tool_preferences, success_rate, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 0.4, ?)  -- LOGIC FIX: Start lower (0.4) to prefer tested ones"
+                ),
                 (
                     profile["profile_id"],
                     profile["strategy_name"],
@@ -753,7 +773,8 @@ class SelfRefiningEngine:
                     )
                 else:
                     cursor = conn.execute(
-                        "SELECT * FROM strategy_profiles WHERE strategy_name = ? AND retired = 0",
+                        "SELECT * FROM strategy_profiles WHERE strategy_name = ? "
+                        "AND retired = 0",
                         (strategy_name,),
                     )
 
@@ -913,8 +934,9 @@ class SelfRefiningEngine:
         conn.execute(
             """
             INSERT INTO strategy_profiles
-            (profile_id, strategy_name, parameters, step_order, aggressiveness,
-             tool_preferences, success_rate, parent_profile_id, mutation_generation, created_at)
+            (profile_id, strategy_name, parameters, step_order,
+             aggressiveness, tool_preferences, success_rate,
+             parent_profile_id, mutation_generation, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 0.5, ?, ?, ?)
         """,
             (
@@ -1092,11 +1114,10 @@ class SelfRefiningEngine:
                 now = datetime.now().isoformat()
 
                 conn.execute(
-                    """
-                    INSERT INTO policies
-                    (policy_id, condition, action, weight, priority_tier, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
+                    "INSERT INTO policies "
+                    "(policy_id, condition, action, weight, "
+                    "priority_tier, source, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         policy_id,
                         json.dumps(condition),
@@ -1166,16 +1187,15 @@ class SelfRefiningEngine:
 
         if isinstance(value, list):
             return ctx_value in value
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return self._check_dict_condition(value, ctx_value)
-        else:
-            return ctx_value == value
+        return ctx_value == value
 
     def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:
         """Check dictionary-based condition (contains/not)"""
         if "contains" in value:
             return value["contains"] in str(ctx_value)
-        elif "not" in value:
+        if "not" in value:
             return ctx_value != value["not"]
         return False
 
@@ -1422,7 +1442,8 @@ class SelfRefiningEngine:
                 conn.execute(
                     """
                     INSERT INTO policies
-                    (policy_id, condition, action, weight, priority_tier, source, created_at)
+                    (policy_id, condition, action, weight, priority_tier,
+                     source, created_at)
                     VALUES (?, ?, ?, ?, ?, 'failure', ?)
                 """,
                     (
@@ -1613,15 +1634,21 @@ class SelfRefiningEngine:
 
         # Sort by success rate
         profiles.sort(key=lambda p: p.success_rate, reverse=True)
-        
+
         # LOGIC FIX: Select and VERIFY (Prevent TOCTOU race condition)
         # Another thread might have retired this profile just now
         selected = profiles[0]
         with self._db_operation() as conn:
-            cursor = conn.execute("SELECT retired FROM strategy_profiles WHERE profile_id = ?", (selected.profile_id,))
+            cursor = conn.execute(
+                "SELECT retired FROM strategy_profiles WHERE profile_id = ?",
+                (selected.profile_id,),
+            )
             row = cursor.fetchone()
             if row and row[0] == 1:
-                logger.warning(f"TOCTOU caught: Profile {selected.profile_id} was retired during selection. Falling back.")
+                logger.warning(
+                    f"TOCTOU caught: Profile {selected.profile_id} was retired during selection. "
+                    "Falling back."
+                )
                 # Recursively try again with retired profile excluded
                 return self._select_profile(strategy, context, start_time, max_duration)
 
@@ -1716,7 +1743,8 @@ class SelfRefiningEngine:
                 depth = 0
                 while depth < max_depth:
                     cursor = conn.execute(
-                        "SELECT parent_profile_id FROM strategy_profiles WHERE profile_id = ?",
+                        "SELECT parent_profile_id FROM strategy_profiles "
+                        "WHERE profile_id = ?",
                         (current_id,),
                     )
                     row = cursor.fetchone()
@@ -1728,7 +1756,8 @@ class SelfRefiningEngine:
                     # Check for circular reference
                     if parent_id in visited:
                         logger.warning(
-                            f"Circular reference detected in profile lineage: {parent_id}"
+                            f"Circular reference detected in profile lineage: "
+                            f"{parent_id}"
                         )
                         break
 
@@ -1739,7 +1768,8 @@ class SelfRefiningEngine:
 
                 if depth >= max_depth:
                     logger.warning(
-                        f"Profile lineage exceeded max depth ({max_depth}), truncating"
+                        f"Profile lineage exceeded max depth ({max_depth}), "
+                        f"truncating"
                     )
 
                 return lineage[::-1]  # Return from oldest to newest

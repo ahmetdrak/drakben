@@ -213,7 +213,6 @@ OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 def show_startup_info() -> None:
     """Show startup information - Dracula Theme"""
     # Startup panel removed - now combined in agent.py
-    pass
 
 
 def main() -> None:

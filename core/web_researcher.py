@@ -25,7 +25,8 @@ logger = logging.getLogger("drakben.researcher")
 class WebResearcher:
     """
     Drakben's eyes on the internet.
-    Uses Stealth Client to mimic Chrome 120 and bypass search engine anti-bot protection.
+    Uses Stealth Client to mimic Chrome 120 and bypass search engine
+    anti-bot protection.
     """
 
     def __init__(self):
@@ -106,10 +107,10 @@ class WebResearcher:
             is_requests = isinstance(self.session, requests.Session)
 
             if is_requests:
-                with self.session.get(url, stream=True, timeout=60) as r:
-                    r.raise_for_status()
+                with self.session.get(url, stream=True, timeout=60) as response:
+                    response.raise_for_status()
                     with open(output_path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=8192):
+                        for chunk in response.iter_content(chunk_size=8192):
                             f.write(chunk)
             else:
                 # StealthSession (curl_cffi) doesn't stream well. Fallback to requests for large files.
@@ -117,10 +118,10 @@ class WebResearcher:
 
                 with requests.get(
                     url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}
-                ) as r:
-                    r.raise_for_status()
+                ) as response:
+                    response.raise_for_status()
                     with open(output_path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=8192):
+                        for chunk in response.iter_content(chunk_size=8192):
                             f.write(chunk)
 
             return True

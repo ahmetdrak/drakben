@@ -182,7 +182,8 @@ class Planner:
             import logging
 
             logging.getLogger(__name__).warning(
-                f"Step {failed_step_id} exceeded replan limit ({step_replan_count}/{self.MAX_REPLAN_PER_STEP})"
+                f"Step {failed_step_id} exceeded replan limit "
+                f"({step_replan_count}/{self.MAX_REPLAN_PER_STEP})"
             )
             return self._skip_step(
                 step, f"Replan limit exceeded ({step_replan_count}x)"
@@ -192,7 +193,8 @@ class Planner:
             import logging
 
             logging.getLogger(__name__).warning(
-                f"Session replan limit exceeded ({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})"
+                f"Session replan limit exceeded "
+                f"({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})"
             )
             return self._skip_step(
                 step, f"Session replan limit exceeded ({self._total_replans}x)"
@@ -508,7 +510,10 @@ class Planner:
             # LOGIC FIX: Check if tool is blocked by penalty system (Per-Target)
             if self.memory.is_tool_blocked(step.tool, step.target):
                 step.status = StepStatus.SKIPPED
-                step.error = f"Tool {step.tool} blocked for target {step.target} due to high penalty"
+                step.error = (
+                    f"Tool {step.tool} blocked for target {step.target} "
+                    f"due to high penalty"
+                )
                 self._persist_steps()
                 continue
 
@@ -524,7 +529,7 @@ class Planner:
                     break
 
             if not deps_satisfied:
-                # LOGIC FIX: If a dependency FAILED (not skipped or success), 
+                # LOGIC FIX: If a dependency FAILED (not skipped or success),
                 # this step should also be skipped to prevent deadlock.
                 for dep_id in step.depends_on:
                     dep_step = self._find_step(dep_id)
@@ -577,10 +582,10 @@ class Planner:
             step.status = StepStatus.FAILED
             self._persist_steps()
             return True  # Trigger replan
-        else:
-            step.status = StepStatus.PENDING  # Will retry
-            self._persist_steps()
-            return False
+
+        step.status = StepStatus.PENDING  # Will retry
+        self._persist_steps()
+        return False
 
     # FIX: Removed duplicate replan() method - using the one defined at line 147
 
@@ -610,13 +615,22 @@ class Planner:
                 return step
         return None
 
-    def _find_alternative_tool(self, action: str, failed_tool: str, target: str = "global") -> str | None:
+    def _find_alternative_tool(
+        self,
+        action: str,
+        failed_tool: str,
+        target: str = "global",
+    ) -> str | None:
         """Find alternative tool for action"""
         # Mapping of actions to alternative tools
         alternatives = {
             "port_scan": ["nmap_port_scan"],
             "service_scan": ["nmap_service_scan"],
-            "vuln_scan": ["nmap_vuln_scan", "nikto_web_scan", "nuclei_scan"],
+            "vuln_scan": [
+                "nmap_vuln_scan",
+                "nikto_web_scan",
+                "nuclei_scan",
+            ],
             "exploit": ["sqlmap_scan", "metasploit_exploit"],
             "ad_attack": ["ad_asreproast", "ad_smb_spray"],
         }
@@ -625,7 +639,8 @@ class Planner:
 
         for tool in candidates:
             # LOGIC FIX: Target-aware alternative tool selection
-            if tool != failed_tool and not self.memory.is_tool_blocked(tool, target):
+            if (tool != failed_tool
+                    and not self.memory.is_tool_blocked(tool, target)):
                 return tool
 
         return None

@@ -8,12 +8,14 @@ from collections.abc import Callable
 from core.execution_engine import ExecutionResult
 from core.state import AgentState
 from core.tool_selector import ToolSpec
+from core.config import ConfigManager, DrakbenConfig
+from core.kali_detector import KaliDetector
 
 if TYPE_CHECKING:
-    from rich.table import Table
-
     from core.brain import DrakbenBrain
     from core.refactored_agent import RefactoredDrakbenAgent
+
+    from rich.table import Table
 
 from rich.console import Console
 from rich.prompt import Prompt
@@ -27,10 +29,6 @@ try:
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
-
-from core.config import ConfigManager, DrakbenConfig
-from core.kali_detector import KaliDetector
-
 
 class DrakbenMenu:
     """
@@ -211,7 +209,12 @@ class DrakbenMenu:
 
         # Command Hint (Bold Cyan)
         hint_lbl = "COMMANDS" if not is_tr else "KOMUTLAR"
-        commands = "[dim cyan]/help[/] • [dim cyan]/target[/] • [dim cyan]/scan[/] • [dim cyan]/status[/] • [dim cyan]/shell[/] • [dim cyan]/report[/] • [dim cyan]/llm[/] • [dim cyan]/config[/] • [dim cyan]/clear[/] • [dim cyan]/exit[/]"
+        commands = (
+            "[dim cyan]/help[/] • [dim cyan]/target[/] • [dim cyan]/scan[/] • "
+            "[dim cyan]/status[/] • [dim cyan]/shell[/] • [dim cyan]/report[/] • "
+            "[dim cyan]/llm[/] • [dim cyan]/config[/] • [dim cyan]/clear[/] • "
+            "[dim cyan]/exit[/]"
+        )
 
         self.console.print(f" [bold cyan]{hint_lbl}:[/] {commands}")
         self.console.print()
@@ -534,7 +537,11 @@ class DrakbenMenu:
             ]
             title = "DRAKBEN Kontrol Paneli"
             tip_title = "💡 İpucu"
-            tip_text = 'Benimle doğal dilde konuşabilirsin:\n[dim]• "10.0.0.1 portlarını tara"\n• "hedefte sql injection ara"[/]'
+            tip_text = (
+                'Benimle doğal dilde konuşabilirsin:\n'
+                '[dim]• "10.0.0.1 portlarını tara"\n'
+                '• "hedefte sql injection ara"[/]'
+            )
         else:
             commands: list[tuple[str, str]] = [
                 ("❓ /help", "Show this help menu"),
@@ -553,7 +560,11 @@ class DrakbenMenu:
             ]
             title = "DRAKBEN Control Panel"
             tip_title = "💡 Tip"
-            tip_text = 'You can talk to me in natural language:\n[dim]• "scan ports on 10.0.0.1"\n• "find vulnerabilities on target"[/]'
+            tip_text = (
+                'You can talk to me in natural language:\n'
+                '[dim]• "scan ports on 10.0.0.1"\n'
+                '• "find vulnerabilities on target"[/]'
+            )
 
         # Add rows to table
         for cmd, desc in commands:
@@ -564,7 +575,7 @@ class DrakbenMenu:
         self.console.print(
             Panel(
                 table,
-                title=f"[bold {self.COLORS['red']}]{title}[/]",
+                title=f"[bold {self.COLORS['red']}]{{title}}[/]",
                 border_style=self.COLORS["purple"],
                 padding=(1, 2),
                 expand=False,
@@ -575,10 +586,11 @@ class DrakbenMenu:
         self.console.print(
             Panel(
                 tip_text,
-                title=f"[bold {self.COLORS['yellow']}]{tip_title}[/]",
+                title=f"[bold {self.COLORS['yellow']}]{{tip_title}}[/]",
                 border_style=self.COLORS["green"],
                 padding=(0, 2),
             )
+        )
         )
         self.console.print()
 
@@ -587,7 +599,10 @@ class DrakbenMenu:
         # IP Regex
         ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
         # Domain Regex
-        domain_pattern = r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$"
+        domain_pattern = (
+            r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+            r"[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$"
+        )
 
         return bool(
             re.match(ip_pattern, target)
@@ -605,9 +620,11 @@ class DrakbenMenu:
             current_target = self.config.target
             if current_target:
                 msg = (
-                    f"🎯 Mevcut hedef: [bold white]{current_target}[/]\nDeğiştirmek için: /target <IP>"
+                    (f"🎯 Mevcut hedef: [bold white]{current_target}[/]\n"
+                     "Değiştirmek için: /target <IP>")
                     if lang == "tr"
-                    else f"🎯 Current target: [bold white]{current_target}[/]\nTo change: /target <IP>"
+                    else (f"🎯 Current target: [bold white]{current_target}[/]\n"
+                          "To change: /target <IP>")
                 )
                 title = "Hedef Bilgisi" if lang == "tr" else "Target Info"
                 border = "cyan"
@@ -706,7 +723,7 @@ class DrakbenMenu:
         args_lower: str = args.strip().lower()
         if args_lower in ["stealth", "sessiz", "silent", "quiet", "gizli"]:
             return "stealth"
-        elif args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
+        if args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
             return "aggressive"
         return "auto"
 
@@ -758,16 +775,24 @@ class DrakbenMenu:
         mode_label, mode_desc = mode_info.get(scan_mode, mode_info["auto"])
 
         if lang == "tr":
-            content: str = f"[bold]🔍 Otonom tarama başlatılıyor...[/]\n[dim]Hedef: {self.config.target}[/]\n[dim]Mod: {mode_label} - {mode_desc}[/]"
+            content: str = (
+                f"[bold]🔍 Otonom tarama başlatılıyor...[/]\n"
+                f"[dim]Hedef: {self.config.target}[/]\n"
+                f"[dim]Mod: {mode_label} - {mode_desc}[/]"
+            )
             title = "DRAKBEN Scanner"
         else:
-            content: str = f"[bold]🔍 Starting autonomous scan...[/]\n[dim]Target: {self.config.target}[/]\n[dim]Mode: {mode_label} - {mode_desc}[/]"
+            content: str = (
+                f"[bold]🔍 Starting autonomous scan...[/]\n"
+                f"[dim]Target: {self.config.target}[/]\n"
+                f"[dim]Mode: {mode_label} - {mode_desc}[/]"
+            )
             title = "DRAKBEN Scanner"
 
         self.console.print(
             Panel(
                 content,
-                title=f"[bold {self.COLORS['cyan']}]{title}[/]",
+                title=f"[bold {self.COLORS['cyan']}]" f"{title}[/]",
                 border_style=self.COLORS["cyan"],
                 padding=(0, 1),
             )
@@ -876,7 +901,10 @@ class DrakbenMenu:
         lang: str = self.config.language
 
         if lang == "tr":
-            msg = "[bold]💻 İnteraktif kabuk başlatılıyor...[/]\n[dim]Çıkmak için 'exit' yazın[/]"
+            msg = (
+                "[bold]💻 İnteraktif kabuk başlatılıyor...[/]\n"
+                "[dim]Çıkmak için 'exit' yazın[/]"
+            )
         else:
             msg = (
                 "[bold]💻 Starting interactive shell...[/]\n[dim]Type 'exit' to quit[/]"
@@ -893,7 +921,10 @@ class DrakbenMenu:
 
         from core.interactive_shell import InteractiveShell
 
-        shell = InteractiveShell(config_manager=self.config_manager, agent=self.agent)
+        shell = InteractiveShell(
+            config_manager=self.config_manager,
+            agent=self.agent,
+        )
         shell.current_target = self.config.target
         shell.start()
 
@@ -1317,12 +1348,15 @@ class DrakbenMenu:
         lbl_foothold = "🚩 Foothold" if not is_tr else "🚩 Erişim"
 
         agent_table.add_row(
-            lbl_phase, f"[{phase_color}]{phase_name.replace('_', ' ').title()}[/]"
+            lbl_phase,
+            f"[{phase_color}]"
+            f"{phase_name.replace('_', ' ').title()}[/]",
         )
         agent_table.add_row(lbl_svc, f"[cyan]{len(state.open_services)}[/]")
         agent_table.add_row(
             lbl_vulns,
-            f"[{'red' if state.vulnerabilities else 'dim'}]{len(state.vulnerabilities)}[/]",
+            f"[{'red' if state.vulnerabilities else 'dim'}]"
+            f"{len(state.vulnerabilities)}[/]",
         )
         agent_table.add_row(lbl_foothold, foothold_icon)
         return agent_table
@@ -1394,12 +1428,15 @@ class DrakbenMenu:
         )
         if self.brain and self.brain.llm_client:
             info = self.brain.llm_client.get_provider_info()
-            current_info: str = f"[green]●[/green] {info.get('provider', 'N/A')} / {info.get('model', 'N/A')}"
+            current_info: str = (
+                f"[green]●[/green] {info.get('provider', 'N/A')} / "
+                f"{info.get('model', 'N/A')}"
+            )
 
         self.console.print(
             Panel(
                 f"{'Mevcut' if lang == 'tr' else 'Current'}: {current_info}",
-                title=f"[bold {self.COLORS['cyan']}]{title}[/]",
+                title=f"[bold {self.COLORS['cyan']}]" + title + "[/]",
                 border_style=self.COLORS["purple"],
                 padding=(0, 1),
             )
@@ -1538,9 +1575,18 @@ class DrakbenMenu:
 
         # Configuration templates
         templates: dict[str, str] = {
-            "openrouter": f"OPENROUTER_API_KEY={api_key}\nOPENROUTER_MODEL={selected_model}",
-            "openai": f"OPENAI_API_KEY={api_key}\nOPENAI_MODEL={selected_model}",
-            "ollama": f"LOCAL_LLM_URL=http://localhost:11434\nLOCAL_LLM_MODEL={selected_model}",
+            "openrouter": (
+                f"OPENROUTER_API_KEY={api_key}\n"
+                f"OPENROUTER_MODEL={selected_model}"
+            ),
+            "openai": (
+                f"OPENAI_API_KEY={api_key}\n"
+                f"OPENAI_MODEL={selected_model}"
+            ),
+            "ollama": (
+                "LOCAL_LLM_URL=http://localhost:11434\n"
+                f"LOCAL_LLM_MODEL={selected_model}"
+            ),
         }
 
         config_body: str | None = templates.get(provider_key)
@@ -1548,7 +1594,11 @@ class DrakbenMenu:
             self.console.print(f"[red]❌ Unknown provider: {provider_key}[/red]")
             return
 
-        env_content: str = f"# DRAKBEN LLM Configuration\n# Auto-generated by /llm command\n\n{config_body}\n"
+        env_content: str = (
+            f"# DRAKBEN LLM Configuration\n"
+            f"# Auto-generated by /llm command\n\n"
+            f"{config_body}\n"
+        )
 
         try:
             env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1676,7 +1726,12 @@ class DrakbenMenu:
                 n_label = "h" if lang == "tr" else "n"
 
                 self.console.print(
-                    f"\n   [bold cyan]{'--- MANUEL AYARLAR ---' if lang == 'tr' else '--- MANUAL SETTINGS ---'}[/]"
+                    (
+                        "\n   [bold cyan]"
+                        + ("--- MANUEL AYARLAR ---" if lang == "tr"
+                           else "--- MANUAL SETTINGS ---")
+                        + "[/]"
+                    )
                 )
 
                 # 1. Ghost Protocol (Stealth Mode)
@@ -1687,7 +1742,8 @@ class DrakbenMenu:
                     else "Ghost Protocol (Stealth)"
                 )
                 self.console.print(
-                    f"   > {p_s} [{y_label}/{n_label}] ({y_label if curr_s else n_label}): ",
+                    f"   > {p_s} [{y_label}/{n_label}] "
+                    f"({y_label if curr_s else n_label}): ",
                     end="",
                 )
                 val = input().strip().lower()
@@ -1729,7 +1785,8 @@ class DrakbenMenu:
                     else "Neural Verbosity (Verbose)"
                 )
                 self.console.print(
-                    f"   > {p_v} [{y_label}/{n_label}] ({y_label if curr_v else n_label}): ",
+                    f"   > {p_v} [{y_label}/{n_label}] "
+                    f"({y_label if curr_v else n_label}): ",
                     end="",
                 )
                 val = input().strip().lower()
@@ -1745,7 +1802,8 @@ class DrakbenMenu:
                     else "Autonomous Approval (Auto)"
                 )
                 self.console.print(
-                    f"   > {p_a} [{y_label}/{n_label}] ({y_label if curr_a else n_label}): ",
+                    f"   > {p_a} [{y_label}/{n_label}] "
+                    f"({y_label if curr_a else n_label}): ",
                     end="",
                 )
                 val = input().strip().lower()

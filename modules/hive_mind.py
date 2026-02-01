@@ -318,7 +318,8 @@ class CredentialHarvester:
             ".my.cnf",
         ]
         password_regex = re.compile(
-            r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?([^"\'\s]+)',
+            r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?'
+            r'([^"\'\s]+)',
             re.IGNORECASE,
         )
 
@@ -525,16 +526,16 @@ class KerberosPacketFactory:
         }
 
         This implementation constructs the byte sequence manually using struct
-        to avoid bulky ASN.1 libraries, ensuring 'surgical' precision and zero-dependency.
+        to avoid bulky ASN.1 libraries, ensuring 'surgical' precision and
+        zero-dependency.
         """
 
         # 1. Basic ASN.1 Encoders (Minimalist)
         def encode_len(length):
             if length < 128:
                 return bytes([length])
-            else:
-                b = length.to_bytes((length.bit_length() + 7) // 8, "big")
-                return bytes([0x80 | len(b)]) + b
+            b = length.to_bytes((length.bit_length() + 7) // 8, "big")
+            return bytes([0x80 | len(b)]) + b
 
         def seq(tags, content):
             encoded_length = encode_len(len(content))
