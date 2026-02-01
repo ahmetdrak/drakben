@@ -1803,18 +1803,17 @@ Tool: {tool_name}
 Error Output: {error_output[:1000]}
 
 Respond in JSON:
-{{
+{
     "error_type": "brief error classification",
     "root_cause": "what caused this error",
     "fix_command": "shell command to fix (or null if not fixable)",
     "should_retry": true/false,
     "explanation": "brief explanation in Turkish"
-}}"""
+}"""
 
             result = self.brain.llm_client.query(prompt, timeout=15)
 
             # Try to parse JSON response
-            import json
             import re
 
             json_match: Match[str] | None = re.search(r"\{.*\}", result, re.DOTALL)
@@ -2109,7 +2108,6 @@ Respond in JSON:
 
     def _handle_sqlmap_vulnerabilities(self, result: dict) -> None:
         """Process SQLMap results and update state"""
-        import time
 
         from core.tool_parsers import parse_sqlmap_output
 
@@ -2465,7 +2463,6 @@ Respond in JSON:
 
             elif tool_name == "ad_smb_spray":
                 # Async shim
-                import asyncio
 
                 user_file = args.get("user_file")
                 password = args.get("password")

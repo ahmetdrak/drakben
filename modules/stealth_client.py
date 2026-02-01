@@ -44,7 +44,6 @@ class ProxyManager:
         available = [p for p in self.proxies if p not in self.bad_proxies]
         if not available:
             return None
-        import secrets
         return secrets.choice(available)
 
     def mark_bad(self, proxy: str):

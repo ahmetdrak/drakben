@@ -156,7 +156,6 @@ class DrakbenMenu:
         self.console.print()
         from rich.table import Table
         from rich.panel import Panel
-        from rich.text import Text
 
         lang = self.config.language
         is_tr = lang == "tr"
@@ -984,7 +983,7 @@ class DrakbenMenu:
         self.console.print(
             Panel(
                 self._create_llm_content(),
-                title=f"[bold {self.COLORS['green']}]{llm_title}[/]",
+                title=f"[bold {self.COLORS['green']}]" + llm_title + "[/]",
                 border_style=self.COLORS["green"],
                 padding=(0, 1),
             )
@@ -994,7 +993,6 @@ class DrakbenMenu:
     def _create_live_findings_table(self) -> "Table":
         """Create a table showing live ports and vulns"""
         from rich.table import Table
-        from core.state import AgentState
 
         lang = self.config.language
         is_tr = lang == "tr"
@@ -1534,8 +1532,6 @@ class DrakbenMenu:
         return selected_model, api_key
 
     def _save_llm_config(self, provider_key, selected_model, api_key):
-        from pathlib import Path
-
         from rich.panel import Panel
 
         env_file = Path("config/api.env")

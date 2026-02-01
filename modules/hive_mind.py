@@ -373,7 +373,6 @@ class NetworkMapper:
 
         try:
             # Get all network interfaces
-            import socket
 
             hostname = socket.gethostname()
 

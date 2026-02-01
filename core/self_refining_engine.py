@@ -437,7 +437,6 @@ class SelfRefiningEngine:
 
     def _seed_default_strategies(self):
         """Seed default strategies if none exist"""
-        import time
 
         max_duration = 10
         start_time = time.time()
@@ -561,7 +560,6 @@ class SelfRefiningEngine:
 
     def _batch_insert_strategies(self, conn, strategies, start_time, max_duration):
         """Insert strategies in batch"""
-        import time
 
         now = datetime.now().isoformat()
         strategy_inserts = []
@@ -593,8 +591,6 @@ class SelfRefiningEngine:
 
     def _create_profiles_batch(self, conn, strategies, start_time, max_duration):
         """Create profiles for strategies"""
-        import time
-
         now = datetime.now().isoformat()
 
         for strat in strategies:
@@ -1525,7 +1521,6 @@ class SelfRefiningEngine:
         """
         ENFORCED SELECTION ORDER with Timeout Protection.
         """
-        import time
 
         start_time = time.time()
         max_duration = 30
@@ -1564,7 +1559,6 @@ class SelfRefiningEngine:
 
     def _analyze_target_for_selection(self, target, start_time, max_duration):
         """Step 1: Classify and generate signature"""
-        import time
 
         if time.time() - start_time > max_duration:
             return None
@@ -1578,7 +1572,6 @@ class SelfRefiningEngine:
 
     def _select_strategy(self, context, start_time, max_duration):
         """Step 2: Select best strategy"""
-        import time
 
         if time.time() - start_time > max_duration:
             return None
@@ -1597,8 +1590,6 @@ class SelfRefiningEngine:
 
     def _select_profile(self, strategy, context, start_time, max_duration):
         """Step 3: Select, filter and mutate profile"""
-        import time
-
         # Get profiles
         if time.time() - start_time > max_duration:
             return None
