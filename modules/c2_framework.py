@@ -1024,7 +1024,6 @@ class C2Channel:
 
     def _generate_id(self) -> str:
         """Generate unique message ID"""
-        import secrets
         return hashlib.sha256(f"{time.time()}{secrets.randbelow(1_000_000)}".encode()).hexdigest()[
             :16
         ]

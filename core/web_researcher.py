@@ -183,8 +183,6 @@ class WebResearcher:
 
 # Simple test
 if __name__ == "__main__":
-    import sys
-
     logging.basicConfig(level=logging.INFO)
     researcher = WebResearcher()
 

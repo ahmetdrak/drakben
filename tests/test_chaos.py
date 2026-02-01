@@ -24,7 +24,6 @@ def test_state_stability():
 
 if __name__ == "__main__":
     # Allow manual execution
-    import time
     start_time = time.time()
     try:
         test_state_stability()

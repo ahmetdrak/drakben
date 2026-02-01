@@ -444,7 +444,6 @@ class Planner:
         Returns:
             plan_id
         """
-        import uuid
 
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
 
