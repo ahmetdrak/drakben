@@ -1156,10 +1156,7 @@ class SelfRefiningEngine:
 
     def _condition_matches(self, condition: dict, context: dict) -> bool:
         """Check if a condition matches a context"""
-        for key, value in condition.items():
-            if not self._check_condition_key(key, value, context):
-                return False
-        return True
+        return all(self._check_condition_key(key, value, context) for key, value in condition.items())
 
     def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:
         """Check if a single condition key matches context"""

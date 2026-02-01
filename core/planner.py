@@ -587,10 +587,7 @@ class Planner:
 
     def is_plan_complete(self) -> bool:
         """Check if plan is complete"""
-        for step in self.steps:
-            if step.status in [StepStatus.PENDING, StepStatus.EXECUTING]:
-                return False
-        return True
+        return all(step.status not in [StepStatus.PENDING, StepStatus.EXECUTING] for step in self.steps)
 
     def get_plan_status(self) -> dict:
         """Get current plan status"""
