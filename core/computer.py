@@ -6,7 +6,6 @@
 import logging
 import os
 import time
-from typing import List, Optional, Tuple, Union
 
 try:
     import mss
@@ -59,7 +58,7 @@ class Computer:
 
     # ============ VISION ============
 
-    def screenshot(self, filename: Optional[str] = None) -> str:
+    def screenshot(self, filename: str | None = None) -> str:
         """
         Take a screenshot and save it.
 
@@ -96,9 +95,7 @@ class Computer:
 
     # ============ MOUSE ============
 
-    def click(
-        self, x: Union[int, str], y: int = 0, button: str = "left", clicks: int = 1
-    ):
+    def click(self, x: int | str, y: int = 0, button: str = "left", clicks: int = 1):
         """
         Click at coordinates or on an image/text match.
 
@@ -168,7 +165,7 @@ class Computer:
         except Exception as e:
             raise ComputerError(f"Type failed: {e}")
 
-    def press(self, keys: Union[str, List[str]]):
+    def press(self, keys: str | list[str]):
         """
         Press a key or combination.
 
@@ -195,12 +192,12 @@ class Computer:
         """Check if coordinates are valid"""
         return 0 <= x < self.width and 0 <= y < self.height
 
-    def position(self) -> Tuple[int, int]:
+    def position(self) -> tuple[int, int]:
         """Get current mouse position"""
         self.check_availability()
         return pyautogui.position()
 
-    def size(self) -> Tuple[int, int]:
+    def size(self) -> tuple[int, int]:
         """Get screen size"""
         self.check_availability()
         return pyautogui.size()

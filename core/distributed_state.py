@@ -8,7 +8,7 @@ Description: Synchronizes agent state across distributed nodes using Redis.
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class DistributedStateManager:
         self,
         redis_host: str = "localhost",
         redis_port: int = 6379,
-        password: Optional[str] = None,
+        password: str | None = None,
     ):
         self.redis_host = redis_host
         self.redis_port = redis_port
@@ -59,7 +59,7 @@ class DistributedStateManager:
             logger.warning(f"Redis connection failed: {e}. Running in standalone mode.")
             self.connected = False
 
-    def sync_state(self, agent_id: str, state_data: Dict[str, Any]) -> bool:
+    def sync_state(self, agent_id: str, state_data: dict[str, Any]) -> bool:
         """
         Push local state to distributed store.
 
@@ -97,7 +97,7 @@ class DistributedStateManager:
             logger.error(f"Failed to sync state: {e}")
             return False
 
-    def get_swarm_state(self) -> Dict[str, Any]:
+    def get_swarm_state(self) -> dict[str, Any]:
         """
         Get states of all active agents in the swarm.
 

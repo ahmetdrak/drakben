@@ -2,12 +2,15 @@ import sys
 import subprocess
 import time
 
+
 def run_command(command):
     print(f"🚀 Executing: {command}...")
     start_time = time.time()
     try:
         # Running via subprocess to ensure clean environment
-        process = subprocess.run(command, shell=True, check=False) # check=False so we can handle exit code manually
+        process = subprocess.run(
+            command, shell=True, check=False
+        )  # check=False so we can handle exit code manually
         duration = time.time() - start_time
 
         if process.returncode == 0:
@@ -19,6 +22,7 @@ def run_command(command):
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
+
 
 def main():
     print("========================================")
@@ -46,6 +50,7 @@ def main():
         print("⚠️ RESULT: FAILURES DETECTED")
         print("Please review the logs above.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

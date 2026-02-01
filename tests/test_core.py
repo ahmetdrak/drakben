@@ -11,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import contextlib
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -221,10 +222,8 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def tearDown(self):
         """Cleanup temp database"""
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(self.temp_db.name)
-        except OSError:
-            pass
 
     def test_initialization(self):
         """Test database initialization"""
@@ -379,8 +378,8 @@ class TestExecutionEngine(unittest.TestCase):
         for _ in range(100):
             # Random bytes as string
             garbage = "".join(
-                random.choices(string.printable, k=random.randint(10, 500))
-            )
+                random.choices(string.printable, k=random.randint(10, 500))  # noqa: S311
+            )  # noqa: S311
 
             # Injection characters
             garbage += "; rm -rf /"

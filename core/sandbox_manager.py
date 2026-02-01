@@ -15,7 +15,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -63,8 +63,8 @@ class ContainerInfo:
     image: str
     status: ContainerStatus
     created_at: float
-    ports: Dict[str, str] = field(default_factory=dict)
-    volumes: List[str] = field(default_factory=list)
+    ports: dict[str, str] = field(default_factory=dict)
+    volumes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -118,9 +118,9 @@ class SandboxManager:
         self.image = image
         self.memory_limit = memory_limit
         self.cpu_limit = cpu_limit
-        self.active_containers: Dict[str, ContainerInfo] = {}
-        self._docker_available: Optional[bool] = None
-        self._docker_client: Optional[Any] = None
+        self.active_containers: dict[str, ContainerInfo] = {}
+        self._docker_available: bool | None = None
+        self._docker_client: Any | None = None
 
         logger.info(f"SandboxManager initialized with image: {image}")
 
@@ -163,7 +163,7 @@ class SandboxManager:
             logger.warning(f"Docker check error: {e}")
             return False
 
-    def _get_docker_client(self) -> Optional[Any]:
+    def _get_docker_client(self) -> Any | None:
         """
         Get or create Docker client.
 
@@ -188,10 +188,10 @@ class SandboxManager:
     def create_sandbox(
         self,
         name: str,
-        image: Optional[str] = None,
-        volumes: Optional[List[str]] = None,
-        environment: Optional[Dict[str, str]] = None,
-    ) -> Optional[ContainerInfo]:
+        image: str | None = None,
+        volumes: list[str] | None = None,
+        environment: dict[str, str] | None = None,
+    ) -> ContainerInfo | None:
         """
         Create a new sandbox container.
 
@@ -255,7 +255,7 @@ class SandboxManager:
         container_id: str,
         command: str,
         timeout: int = CONTAINER_TIMEOUT,
-        workdir: Optional[str] = None,
+        workdir: str | None = None,
     ) -> ExecutionResult:
         """
         Execute command inside a sandbox container.
@@ -406,7 +406,7 @@ class SandboxManager:
         except Exception:
             return ContainerStatus.ERROR
 
-    def list_active_containers(self) -> List[ContainerInfo]:
+    def list_active_containers(self) -> list[ContainerInfo]:
         """
         List all active sandbox containers.
 

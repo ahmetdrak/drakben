@@ -5,8 +5,15 @@
 
 import logging
 import os
+import signal
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+from rich.console import Console
+
+from core.config import ConfigManager
+from core.logging_config import get_logger, setup_logging
 
 # Add project root to path
 PROJECT_ROOT: Path = Path(__file__).parent
@@ -16,16 +23,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.dont_write_bytecode = True
 
 # Load environment variables from config/api.env
-from dotenv import load_dotenv
-
 env_file: Path = PROJECT_ROOT / "config" / "api.env"
 if env_file.exists():
     load_dotenv(env_file)
-
-from rich.console import Console  # noqa: E402
-
-from core.config import ConfigManager  # noqa: E402
-from core.logging_config import get_logger, setup_logging  # noqa: E402
 
 # Initialize logging
 # Initialize logging
@@ -103,8 +103,6 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
 # Install exception hook
 sys.excepthook = global_exception_handler
 
-import signal
-
 
 def cleanup_resources(signum=None, frame=None):
     """
@@ -121,8 +119,8 @@ def cleanup_resources(signum=None, frame=None):
             # but we can try to hint GC or rely on connection timeouts.
             # For a cleaner approach, main components register cleanup hooks.
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Cleanup error (non-critical): {e}")
 
         # Flush logs
         logging.shutdown()
@@ -178,12 +176,9 @@ def show_banner() -> None:
 
 def check_environment() -> None:
     """Check basic environment requirements"""
-    console = Console()
+    Console()
 
     # Check Python version
-    if sys.version_info < (3, 8):
-        console.print("❌ Python 3.8+ required", style="bold red")
-        sys.exit(1)
 
     # Check required directories
     required_dirs = ["core", "llm", "config", "logs", "sessions"]

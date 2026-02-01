@@ -8,12 +8,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Third-party for PDF (Optional)
 try:
     import os
-    import sys
     from contextlib import redirect_stderr, redirect_stdout
 
     # Silence WeasyPrint noise on import (especially on Windows)
@@ -58,11 +57,11 @@ class Finding:
     affected_asset: str
     evidence: str = ""
     remediation: str = ""
-    cve_id: Optional[str] = None
-    cvss_score: Optional[float] = None
-    references: List[str] = field(default_factory=list)
+    cve_id: str | None = None
+    cvss_score: float | None = None
+    references: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "severity": self.severity.value,
@@ -84,11 +83,11 @@ class ScanResult:
     scan_type: str
     timestamp: str
     duration_seconds: float
-    findings: List[Finding] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
     raw_output: str = ""
     tool_used: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "target": self.target,
             "scan_type": self.scan_type,
@@ -107,7 +106,7 @@ class ReportConfig:
     title: str = "DRAKBEN Penetration Test Report"
     author: str = "DRAKBEN AI Framework"
     company: str = ""
-    logo_path: Optional[str] = None
+    logo_path: str | None = None
     include_executive_summary: bool = True
     include_methodology: bool = True
     include_raw_output: bool = False
@@ -128,7 +127,7 @@ class ReportGenerator:
     - Professional styling
     """
 
-    def __init__(self, config: Optional[ReportConfig] = None):
+    def __init__(self, config: ReportConfig | None = None):
         """
         Initialize report generator.
 
@@ -136,11 +135,11 @@ class ReportGenerator:
             config: Report configuration
         """
         self.config = config or ReportConfig()
-        self.findings: List[Finding] = []
-        self.scan_results: List[ScanResult] = []
+        self.findings: list[Finding] = []
+        self.scan_results: list[ScanResult] = []
         self.target: str = ""
-        self.start_time: Optional[datetime] = None
-        self.end_time: Optional[datetime] = None
+        self.start_time: datetime | None = None
+        self.end_time: datetime | None = None
         logger.info("ReportGenerator initialized")
 
     def set_target(self, target: str) -> None:
@@ -169,7 +168,7 @@ class ReportGenerator:
         self.findings.extend(result.findings)
         logger.info(f"Scan result added: {result.scan_type}")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Calculate finding statistics"""
         severity_counts = {s.value: 0 for s in FindingSeverity}
         for finding in self.findings:
@@ -258,8 +257,12 @@ class ReportGenerator:
         for i, finding in enumerate(sorted_findings, 1):
             severity_class = f"severity-{finding.severity.value}"
 
-            finding_body = f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
-            finding_body += f"<p><strong>Description:</strong> {finding.description}</p>"
+            finding_body = (
+                f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
+            )
+            finding_body += (
+                f"<p><strong>Description:</strong> {finding.description}</p>"
+            )
 
             if finding.cve_id:
                 finding_body += f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>"
@@ -268,7 +271,9 @@ class ReportGenerator:
                 finding_body += f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>'
 
             if finding.remediation:
-                finding_body += f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
+                finding_body += (
+                    f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
+                )
 
             findings_html += f"""
             <div class="finding {severity_class}">
@@ -308,13 +313,13 @@ class ReportGenerator:
             --low: #22c55e;
             --info: #3b82f6;
         }}
-        
+
         * {{
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }}
-        
+
         body {{
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: var(--bg-primary);
@@ -324,26 +329,26 @@ class ReportGenerator:
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
         }}
-        
+
         .container {{
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }}
-        
+
         .header {{
             text-align: center;
             padding: 40px 0;
             border-bottom: 2px solid var(--accent);
             margin-bottom: 40px;
         }}
-        
+
         .header h1 {{
             color: var(--accent);
             font-size: 2.5em;
             margin-bottom: 10px;
         }}
-        
+
         .classification {{
             background: var(--critical);
             color: white;
@@ -352,68 +357,68 @@ class ReportGenerator:
             font-weight: bold;
             margin-top: 10px;
         }}
-        
+
         .meta-info {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin: 30px 0;
         }}
-        
+
         .meta-card {{
             background: var(--bg-secondary);
             padding: 20px;
             border-radius: 8px;
             border-left: 4px solid var(--accent);
         }}
-        
+
         .meta-card h3 {{
             color: var(--accent);
             margin-bottom: 5px;
         }}
-        
+
         .stats-grid {{
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 15px;
             margin: 30px 0;
         }}
-        
+
         .stat-card {{
             text-align: center;
             padding: 20px;
             border-radius: 8px;
             background: var(--bg-secondary);
         }}
-        
+
         .stat-card.critical {{ border-top: 4px solid var(--critical); }}
         .stat-card.high {{ border-top: 4px solid var(--high); }}
         .stat-card.medium {{ border-top: 4px solid var(--medium); }}
         .stat-card.low {{ border-top: 4px solid var(--low); }}
         .stat-card.info {{ border-top: 4px solid var(--info); }}
-        
+
         .stat-number {{
             font-size: 2.5em;
             font-weight: bold;
         }}
-        
+
         .stat-card.critical .stat-number {{ color: var(--critical); }}
         .stat-card.high .stat-number {{ color: var(--high); }}
         .stat-card.medium .stat-number {{ color: var(--medium); }}
         .stat-card.low .stat-number {{ color: var(--low); }}
         .stat-card.info .stat-number {{ color: var(--info); }}
-        
+
         .section {{
             margin: 40px 0;
         }}
-        
+
         .section h2 {{
             color: var(--accent);
             border-bottom: 1px solid var(--accent);
             padding-bottom: 10px;
             margin-bottom: 20px;
         }}
-        
+
         .risk-meter {{
             width: 100%;
             height: 30px;
@@ -422,7 +427,7 @@ class ReportGenerator:
             position: relative;
             margin: 20px 0;
         }}
-        
+
         .risk-indicator {{
             position: absolute;
             top: -5px;
@@ -431,14 +436,14 @@ class ReportGenerator:
             background: white;
             border-radius: 2px;
         }}
-        
+
         .finding {{
             background: var(--bg-secondary);
             border-radius: 8px;
             margin: 20px 0;
             overflow: hidden;
         }}
-        
+
         .finding-header {{
             padding: 15px 20px;
             display: flex;
@@ -447,50 +452,50 @@ class ReportGenerator:
             border-bottom: 1px solid rgba(255,255,255,0.1);
             cursor: pointer;
         }}
-        
+
         .finding-number {{
             color: var(--text-secondary);
             font-weight: bold;
         }}
-        
+
         .finding-title {{
             flex: 1;
             font-weight: bold;
         }}
-        
+
         .severity-badge {{
             padding: 5px 15px;
             border-radius: 20px;
             font-size: 0.85em;
             font-weight: bold;
         }}
-        
+
         .severity-badge.severity-critical {{ background: var(--critical); }}
         .severity-badge.severity-high {{ background: var(--high); color: #1a1a2e; }}
         .severity-badge.severity-medium {{ background: var(--medium); color: #1a1a2e; }}
         .severity-badge.severity-low {{ background: var(--low); color: #1a1a2e; }}
         .severity-badge.severity-info {{ background: var(--info); color: #1a1a2e; }}
-        
+
         .finding-body {{
             padding: 20px;
             display: none; /* Hidden by default */
         }}
-        
+
         .finding.active .finding-body {{ display: block; }}
         .toggle-icon {{ transition: transform 0.3s; }}
         .finding.active .toggle-icon {{ transform: rotate(180deg); }}
-        
+
         .finding-body p {{
             margin: 10px 0;
         }}
-        
+
         .evidence {{
             background: #0d1117;
             padding: 15px;
             border-radius: 5px;
             margin: 10px 0;
         }}
-        
+
         .evidence pre {{
             white-space: pre-wrap;
             word-wrap: break-word;
@@ -498,7 +503,7 @@ class ReportGenerator:
             font-size: 0.9em;
             color: var(--info);
         }}
-        
+
         .footer {{
             text-align: center;
             padding: 40px 0;
@@ -506,14 +511,14 @@ class ReportGenerator:
             margin-top: 40px;
             color: var(--text-secondary);
         }}
-        
+
         .executive-summary {{
             background: var(--bg-secondary);
             padding: 30px;
             border-radius: 8px;
             border-left: 4px solid var(--accent);
         }}
-        
+
         @media print {{
             body {{ background: white; color: black; }}
             .finding {{ break-inside: avoid; }}
@@ -530,7 +535,7 @@ class ReportGenerator:
             <p>{self.config.author}</p>
             <div class="classification">{self.config.classification}</div>
         </div>
-        
+
         <!-- Meta Info Grid -->
         <div class="meta-info">
             <div class="meta-card">
@@ -550,7 +555,7 @@ class ReportGenerator:
                 <p>{stats["total_findings"]}</p>
             </div>
         </div>
-        
+
         <!-- Findings Summary & Charts -->
         <div class="section">
             <h2>Findings Summary</h2>
@@ -568,26 +573,26 @@ class ReportGenerator:
                      </div>
                 </div>
             </div>
-            
+
             <h3 style="margin-top:20px;">Overall Risk Score: {stats["risk_score"]}/100</h3>
             <div class="risk-meter">
                 <div class="risk-indicator" style="left: {stats["risk_score"]}%;"></div>
             </div>
         </div>
-        
+
         {self._generate_executive_summary_html(stats) if self.config.include_executive_summary else ""}
-        
+
         <div class="section">
             <h2>Detailed Findings (Click to Expand)</h2>
             {findings_html if findings_html else "<p>No findings recorded.</p>"}
         </div>
-        
+
         <div class="footer">
             <p>Generated by DRAKBEN AI Framework</p>
             <p>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         </div>
     </div>
-    
+
     <script>
         // Chart.js Configuration
         const ctx = document.getElementById('severityChart').getContext('2d');
@@ -629,7 +634,7 @@ class ReportGenerator:
 
         return html
 
-    def _generate_executive_summary_html(self, stats: Dict[str, Any]) -> str:
+    def _generate_executive_summary_html(self, stats: dict[str, Any]) -> str:
         """Generate executive summary section with Optional AI Insight"""
         total = stats["total_findings"]
         critical = stats["severity_breakdown"]["critical"]
@@ -652,17 +657,17 @@ class ReportGenerator:
         <div class="section">
             <h2>Executive Summary</h2>
             <div class="executive-summary">
-                <p>A penetration test was conducted against <strong>{self.target}</strong> 
+                <p>A penetration test was conducted against <strong>{self.target}</strong>
                 to identify security vulnerabilities and assess the overall security posture.</p>
-                
-                <p>The assessment identified <strong>{total} security findings</strong>, 
+
+                <p>The assessment identified <strong>{total} security findings</strong>,
                 including <strong>{critical} critical</strong> and <strong>{high} high</strong> severity issues.</p>
-                
-                <p>The overall risk level is assessed as <strong>{risk_level}</strong> 
+
+                <p>The overall risk level is assessed as <strong>{risk_level}</strong>
                 with a risk score of <strong>{stats["risk_score"]}/100</strong>.</p>
-                
+
                 {ai_content}
-                
+
                 <p><strong>Key Recommendations:</strong></p>
                 <ul>
                     <li>Address all critical and high severity findings immediately</li>
@@ -701,8 +706,8 @@ class ReportGenerator:
 
         md = f"""# {self.config.title}
 
-**Classification:** {self.config.classification}  
-**Author:** {self.config.author}  
+**Classification:** {self.config.classification}
+**Author:** {self.config.author}
 **Date:** {self.start_time.strftime("%Y-%m-%d") if self.start_time else "N/A"}
 
 ---
@@ -754,10 +759,10 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         for i, finding in enumerate(sorted_findings, 1):
             md += f"""### {i}. {finding.title}
 
-**Severity:** {finding.severity.value.upper()}  
+**Severity:** {finding.severity.value.upper()}
 **Affected Asset:** {finding.affected_asset}
 
-**Description:**  
+**Description:**
 {finding.description}
 
 """
@@ -840,6 +845,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
 @dataclass
 class VulnerabilityData:
     """Mock for state vulnerability"""
+
     vuln_id: str
     severity: str
     description: str = ""
@@ -851,7 +857,7 @@ def generate_report_from_state(
     state: AgentState,
     output_path: str,
     format: ReportFormat = ReportFormat.HTML,
-    config: Optional[ReportConfig] = None,
+    config: ReportConfig | None = None,
 ) -> str:
     """
     Generate full report from AgentState.
@@ -876,10 +882,7 @@ def generate_report_from_state(
     if hasattr(state, "vulnerabilities") and state.vulnerabilities:
         for vuln in state.vulnerabilities:
             # Handle both dict and object
-            if isinstance(vuln, dict):
-                v_data = vuln
-            else:
-                v_data = vuln.__dict__
+            v_data = vuln if isinstance(vuln, dict) else vuln.__dict__
 
             try:
                 finding = Finding(

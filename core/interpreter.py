@@ -6,7 +6,7 @@ import io
 import logging
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Global references with proper typing for Mypy
 _computer_obj: Any = None
@@ -107,7 +107,7 @@ BLOCKED_MODULES = {
 
 
 class InterpreterResult:
-    def __init__(self, output: str, error: str, files: Optional[List[str]] = None):
+    def __init__(self, output: str, error: str, files: list[str] | None = None):
         self.output = output
         self.error = error
         self.files = files or []
@@ -124,7 +124,7 @@ class UniversalInterpreter:
     """
 
     def __init__(self):
-        self.locals: Dict[str, Any] = {}
+        self.locals: dict[str, Any] = {}
         self._initialize_context()
 
     def _initialize_context(self):
@@ -262,14 +262,14 @@ class UniversalInterpreter:
             logger.error(f"Shell execution error: {e}")
             return InterpreterResult("", str(e))
 
-    def _sanitize_command(self, command: str) -> Optional[str]:
+    def _sanitize_command(self, command: str) -> str | None:
         """Sanitize command using CommandSanitizer or fallback"""
         if SANITIZER_AVAILABLE and CommandSanitizer:
             return self._sanitize_with_sanitizer(command)
         else:
             return self._sanitize_fallback(command)
 
-    def _sanitize_with_sanitizer(self, command: str) -> Optional[str]:
+    def _sanitize_with_sanitizer(self, command: str) -> str | None:
         """Sanitize using CommandSanitizer"""
         sanitizer = CommandSanitizer()
         risk = sanitizer.get_risk_level(command)
@@ -291,7 +291,7 @@ class UniversalInterpreter:
             logger.warning(f"Security violation: {e}")
             return None
 
-    def _sanitize_fallback(self, command: str) -> Optional[str]:
+    def _sanitize_fallback(self, command: str) -> str | None:
         """Fallback sanitization without CommandSanitizer"""
         dangerous_patterns = [
             "rm -rf /",

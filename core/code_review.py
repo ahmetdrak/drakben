@@ -12,7 +12,8 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from rich.console import Console
 from rich.panel import Panel
@@ -54,9 +55,9 @@ class CodeChange:
     created_at: float
     status: ReviewStatus = ReviewStatus.PENDING
     reviewed_by: str = ""
-    reviewed_at: Optional[float] = None
+    reviewed_at: float | None = None
     review_notes: str = ""
-    diff_lines: List[str] = field(default_factory=list)
+    diff_lines: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -64,7 +65,7 @@ class ReviewSession:
     """A review session containing multiple changes"""
 
     session_id: str
-    changes: List[CodeChange]
+    changes: list[CodeChange]
     created_at: float
     status: ReviewStatus = ReviewStatus.PENDING
     auto_approve_low_risk: bool = False
@@ -126,7 +127,7 @@ class CodeAnalyzer:
     ]
 
     @classmethod
-    def analyze_code(cls, code: str) -> Tuple[RiskLevel, List[str]]:
+    def analyze_code(cls, code: str) -> tuple[RiskLevel, list[str]]:
         """
         Analyze code and return risk level with concerns.
 
@@ -181,11 +182,11 @@ class CodeAnalyzer:
             return RiskLevel.LOW, concerns
 
     @classmethod
-    def check_ast_safety(cls, code: str) -> Tuple[bool, List[str]]:
+    def check_ast_safety(cls, code: str) -> tuple[bool, list[str]]:
         """
         Perform AST-based safety check.
         """
-        issues: List[str] = []
+        issues: list[str] = []
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
@@ -197,7 +198,7 @@ class CodeAnalyzer:
         return len(issues) == 0, issues
 
     @classmethod
-    def _check_node_safety(cls, node: ast.AST, issues: List[str]):
+    def _check_node_safety(cls, node: ast.AST, issues: list[str]):
         """Helper to check individual AST nodes for safety"""
         # Check for dangerous function calls
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
@@ -240,12 +241,12 @@ class CodeReview:
         self.backup_dir = Path(backup_dir)
 
         # Review history
-        self.sessions: List[ReviewSession] = []
-        self.pending_changes: List[CodeChange] = []
+        self.sessions: list[ReviewSession] = []
+        self.pending_changes: list[CodeChange] = []
 
         # Callbacks
-        self.on_approval: Optional[Callable[[CodeChange], None]] = None
-        self.on_rejection: Optional[Callable[[CodeChange], None]] = None
+        self.on_approval: Callable[[CodeChange], None] | None = None
+        self.on_rejection: Callable[[CodeChange], None] | None = None
 
         # Create backup directory
         self.backup_dir.mkdir(parents=True, exist_ok=True)
@@ -279,10 +280,10 @@ class CodeReview:
         original_content = ""
         if os.path.exists(file_path):
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     original_content = f.read()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to read file for diff: {e}")
 
         # Analyze risk
         risk_level, _ = CodeAnalyzer.analyze_code(new_content)
@@ -335,9 +336,7 @@ class CodeReview:
             self.on_rejection(change)
         return False
 
-    def _handle_user_response(
-        self, change: CodeChange, response: str
-    ) -> Optional[bool]:
+    def _handle_user_response(self, change: CodeChange, response: str) -> bool | None:
         """Handle user response to review prompt"""
         if response == "a":
             return self._handle_approve(change)
@@ -390,7 +389,7 @@ class CodeReview:
             if result is not None:
                 return result
 
-    def review_all_pending(self, interactive: bool = True) -> Tuple[int, int]:
+    def review_all_pending(self, interactive: bool = True) -> tuple[int, int]:
         """
         Review all pending changes.
 
@@ -431,7 +430,7 @@ class CodeReview:
                     self.backup_dir
                     / f"{change.change_id}_{Path(change.file_path).name}.bak"
                 )
-                with open(change.file_path, "r", encoding="utf-8") as f:
+                with open(change.file_path, encoding="utf-8") as f:
                     with open(backup_path, "w", encoding="utf-8") as bf:
                         bf.write(f.read())
                 logger.info(f"Created backup: {backup_path}")
@@ -474,7 +473,7 @@ class CodeReview:
                 )
 
                 # Read backup content (simplified rollback - would need more context in production)
-                with open(backup_file, "r", encoding="utf-8") as f:
+                with open(backup_file, encoding="utf-8") as f:
                     _ = f.read()
                 self.console.print(
                     f"[yellow]Rollback content available for: {original_name}[/yellow]"
@@ -552,9 +551,9 @@ class CodeReview:
             else:
                 self.console.print(line)
 
-    def get_pending_summary(self) -> Dict:
+    def get_pending_summary(self) -> dict:
         """Get summary of pending changes"""
-        by_risk: Dict[RiskLevel, List[CodeChange]] = {level: [] for level in RiskLevel}
+        by_risk: dict[RiskLevel, list[CodeChange]] = {level: [] for level in RiskLevel}
 
         for change in self.pending_changes:
             if change.status == ReviewStatus.PENDING:
@@ -601,7 +600,7 @@ class CodeReviewMiddleware:
 
     def wrap_code_execution(
         self, code: str, executor: Callable[[str], Any], description: str = ""
-    ) -> Tuple[bool, Any]:
+    ) -> tuple[bool, Any]:
         """
         Wrap code execution with review.
 
@@ -661,7 +660,7 @@ if __name__ == "__main__":
 def scan_ports(target):
     """Scan ports on target"""
     import socket
-    
+
     open_ports = []
     for port in range(1, 100):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -670,7 +669,7 @@ def scan_ports(target):
         if result == 0:
             open_ports.append(port)
         sock.close()
-    
+
     return open_ports
 '''
 

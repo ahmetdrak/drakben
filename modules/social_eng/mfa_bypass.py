@@ -9,7 +9,6 @@ import logging
 import os
 import subprocess
 from dataclasses import dataclass
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +20,8 @@ class CapturedSession:
     target_url: str
     username: str
     password: str
-    session_tokens: Dict[str, str]
-    cookies: List[Dict]
+    session_tokens: dict[str, str]
+    cookies: list[dict]
     timestamp: str
 
 
@@ -37,7 +36,7 @@ class MFABypass:
         self.phishlets_dir = os.path.join(evilginx_path, "phishlets")
         self.available = self._check_installation()
         self.process = None
-        self.captured_sessions: List[CapturedSession] = []
+        self.captured_sessions: list[CapturedSession] = []
 
         logger.info(
             f"MFA Bypass initialized (Evilginx2: {'Available' if self.available else 'Not Found'})"
@@ -48,7 +47,7 @@ class MFABypass:
         binary_path = os.path.join(self.evilginx_path, "evilginx")
         return os.path.exists(binary_path)
 
-    def list_phishlets(self) -> List[str]:
+    def list_phishlets(self) -> list[str]:
         """List available phishlets (login page templates)"""
         phishlets = []
         if os.path.exists(self.phishlets_dir):
@@ -144,7 +143,7 @@ login:
 
     def parse_captured_sessions(
         self, log_file: str = "sessions.json"
-    ) -> List[CapturedSession]:
+    ) -> list[CapturedSession]:
         """
         Parse captured sessions from Evilginx2 output.
         """
@@ -153,7 +152,7 @@ login:
 
         if os.path.exists(log_path):
             try:
-                with open(log_path, "r") as f:
+                with open(log_path) as f:
                     data = json.load(f)
 
                 for entry in data.get("sessions", []):
@@ -173,7 +172,7 @@ login:
         self.captured_sessions = sessions
         return sessions
 
-    def replay_session(self, session: CapturedSession) -> Dict[str, str]:
+    def replay_session(self, session: CapturedSession) -> dict[str, str]:
         """
         Generate curl command or requests code to replay captured session.
         """

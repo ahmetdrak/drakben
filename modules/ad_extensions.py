@@ -17,7 +17,7 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class BloodHoundNode:
     object_id: str  # SID or unique ID
     name: str
     node_type: str  # User, Computer, Group, Domain, GPO, OU
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: dict[str, Any] = field(default_factory=dict)
 
     # Key properties for attack planning
     enabled: bool = True
@@ -99,7 +99,7 @@ class BloodHoundNode:
     high_value: bool = False
     owned: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ObjectId": self.object_id,
             "Name": self.name,
@@ -119,9 +119,9 @@ class BloodHoundEdge:
     source: str  # Source object ID
     target: str  # Target object ID
     relationship: BloodHoundRelationship
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "Source": self.source,
             "Target": self.target,
@@ -136,9 +136,9 @@ class AttackChain:
 
     source: BloodHoundNode
     target: BloodHoundNode
-    edges: List[BloodHoundEdge]
+    edges: list[BloodHoundEdge]
     cost: float  # Lower is better
-    techniques: List[str]
+    techniques: list[str]
 
     def __len__(self) -> int:
         return len(self.edges)
@@ -151,8 +151,8 @@ class TokenInfo:
     username: str
     domain: str
     sid: str
-    privileges: List[TokenPrivilege]
-    groups: List[str]
+    privileges: list[TokenPrivilege]
+    groups: list[str]
     impersonation_level: str
     is_elevated: bool = False
 
@@ -174,9 +174,9 @@ class BloodHoundAnalyzer:
     """
 
     def __init__(self):
-        self.nodes: Dict[str, BloodHoundNode] = {}
-        self.edges: List[BloodHoundEdge] = []
-        self._adjacency: Dict[str, List[BloodHoundEdge]] = {}
+        self.nodes: dict[str, BloodHoundNode] = {}
+        self.edges: list[BloodHoundEdge] = []
+        self._adjacency: dict[str, list[BloodHoundEdge]] = {}
 
         logger.info("BloodHound analyzer initialized")
 
@@ -291,9 +291,7 @@ class BloodHoundAnalyzer:
         )
         self.add_edge(edge)
 
-    def find_shortest_path(
-        self, source_id: str, target_id: str
-    ) -> Optional[AttackChain]:
+    def find_shortest_path(self, source_id: str, target_id: str) -> AttackChain | None:
         """
         Find shortest attack path using BFS.
 
@@ -336,7 +334,7 @@ class BloodHoundAnalyzer:
 
     def find_paths_to_high_value(
         self, source_id: str, max_depth: int = 5
-    ) -> List[AttackChain]:
+    ) -> list[AttackChain]:
         """
         Find all paths to high-value targets.
 
@@ -362,7 +360,7 @@ class BloodHoundAnalyzer:
 
         return paths
 
-    def get_kerberoastable(self) -> List[BloodHoundNode]:
+    def get_kerberoastable(self) -> list[BloodHoundNode]:
         """Get users with SPNs (Kerberoastable)"""
         kerberoastable = []
 
@@ -373,7 +371,7 @@ class BloodHoundAnalyzer:
 
         return kerberoastable
 
-    def get_asrep_roastable(self) -> List[BloodHoundNode]:
+    def get_asrep_roastable(self) -> list[BloodHoundNode]:
         """Get users without pre-auth (AS-REP Roastable)"""
         asrep = []
 
@@ -384,7 +382,7 @@ class BloodHoundAnalyzer:
 
         return asrep
 
-    def get_owned_nodes(self) -> List[BloodHoundNode]:
+    def get_owned_nodes(self) -> list[BloodHoundNode]:
         """Get all owned nodes"""
         return [n for n in self.nodes.values() if n.owned]
 
@@ -425,7 +423,7 @@ class BloodHoundAnalyzer:
         }
         return technique_map.get(edge.relationship, edge.relationship.value)
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get graph statistics"""
         node_types = {}
         for node in self.nodes.values():
@@ -469,7 +467,7 @@ class ImpacketWrapper:
             impacket_path: Path to impacket scripts (auto-detect if None)
         """
         self.impacket_path = impacket_path or self._find_impacket()
-        self.available_tools: List[ImpacketTool] = []
+        self.available_tools: list[ImpacketTool] = []
 
         if self.impacket_path:
             self._check_available_tools()
@@ -478,7 +476,7 @@ class ImpacketWrapper:
             f"Impacket wrapper initialized: {len(self.available_tools)} tools available"
         )
 
-    def _find_impacket(self) -> Optional[str]:
+    def _find_impacket(self) -> str | None:
         """Try to find impacket installation"""
         # Check common locations
         paths_to_check = [
@@ -499,8 +497,8 @@ class ImpacketWrapper:
             )
             if result.returncode == 0:
                 return os.path.dirname(result.stdout.strip())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to find impacket in PATH: {e}")
 
         return None
 
@@ -524,7 +522,7 @@ class ImpacketWrapper:
         password: str = None,
         ntlm_hash: str = None,
         kerberos: bool = False,
-        additional_args: List[str] = None,
+        additional_args: list[str] = None,
     ) -> str:
         """
         Generate Impacket command.
@@ -553,10 +551,7 @@ class ImpacketWrapper:
         cmd_parts.append(f"python3 {tool_path}")
 
         # Build credential string: domain/user:pass@target or domain/user@target
-        if domain:
-            user_spec = f"{domain}/{username}"
-        else:
-            user_spec = username
+        user_spec = f"{domain}/{username}" if domain else username
 
         if password:
             cmd_parts.append(f"'{user_spec}:{password}@{target}'")
@@ -690,11 +685,11 @@ class TokenImpersonator:
     """
 
     def __init__(self):
-        self.captured_tokens: List[TokenInfo] = []
-        self.current_token: Optional[TokenInfo] = None
+        self.captured_tokens: list[TokenInfo] = []
+        self.current_token: TokenInfo | None = None
         logger.info("Token impersonator initialized")
 
-    def get_current_token_info(self) -> Optional[TokenInfo]:
+    def get_current_token_info(self) -> TokenInfo | None:
         """
         Get information about current process token (Windows only).
 
@@ -805,7 +800,7 @@ class TokenImpersonator:
         """Generate PsExec command to get SYSTEM"""
         return f"psexec.exe -i -s {command}"
 
-    def get_impersonation_techniques(self) -> List[Dict[str, str]]:
+    def get_impersonation_techniques(self) -> list[dict[str, str]]:
         """Get list of available impersonation techniques"""
         return [
             {
@@ -850,9 +845,9 @@ class TokenImpersonator:
 # MODULE-LEVEL FUNCTIONS
 # =============================================================================
 
-_bloodhound_analyzer: Optional[BloodHoundAnalyzer] = None
-_impacket_wrapper: Optional[ImpacketWrapper] = None
-_token_impersonator: Optional[TokenImpersonator] = None
+_bloodhound_analyzer: BloodHoundAnalyzer | None = None
+_impacket_wrapper: ImpacketWrapper | None = None
+_token_impersonator: TokenImpersonator | None = None
 
 
 def get_bloodhound_analyzer() -> BloodHoundAnalyzer:
@@ -881,7 +876,7 @@ def get_token_impersonator() -> TokenImpersonator:
 
 def find_path_to_domain_admin(
     source_sid: str, analyzer: BloodHoundAnalyzer = None
-) -> Optional[AttackChain]:
+) -> AttackChain | None:
     """
     Convenience function to find path to Domain Admin.
 

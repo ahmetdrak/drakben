@@ -5,7 +5,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import aiohttp
@@ -81,7 +81,7 @@ class AsyncRetry:
         return wrapper
 
 
-async def fetch_url(session: aiohttp.ClientSession, url: str) -> Dict[str, Any]:
+async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
     """
     Fetch URL with proper error handling and logging.
 
@@ -124,7 +124,7 @@ def extract_domain(url: str) -> str:
 
 async def passive_recon(
     target: str, state: Optional["AgentState"] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     STATE-AWARE passive recon with full async support.
     Refactored to reduce Cognitive Complexity.
@@ -181,7 +181,7 @@ async def passive_recon(
         return result
 
 
-def _initialize_recon_result(target: str) -> Dict[str, Any]:
+def _initialize_recon_result(target: str) -> dict[str, Any]:
     return {
         "target": target,
         "title": None,
@@ -202,7 +202,7 @@ def _initialize_recon_result(target: str) -> Dict[str, Any]:
 
 
 async def _analyze_main_page(
-    session: aiohttp.ClientSession, target: str, result: Dict[str, Any]
+    session: aiohttp.ClientSession, target: str, result: dict[str, Any]
 ):
     """Fetch and parse the main page content."""
     logger.debug(f"Fetching main page: {target}")
@@ -220,7 +220,7 @@ async def _analyze_main_page(
         _parse_html_content(html, result)
 
 
-def _parse_html_content(html: str, result: Dict[str, Any]):
+def _parse_html_content(html: str, result: dict[str, Any]):
     """Parse HTML content for metadata, forms, scripts, etc."""
     soup = BeautifulSoup(html, "html.parser")
 
@@ -260,7 +260,7 @@ def _parse_html_content(html: str, result: Dict[str, Any]):
 
 
 async def _fetch_additional_resources(
-    session: aiohttp.ClientSession, target: str, result: Dict[str, Any]
+    session: aiohttp.ClientSession, target: str, result: dict[str, Any]
 ):
     """Fetch robots.txt, sitemap.xml, and favicon."""
     base_url = target.rstrip("/")
@@ -285,7 +285,7 @@ async def _fetch_additional_resources(
         logger.debug("Found sitemap.xml")
 
 
-async def _perform_external_lookups(domain: str, result: Dict[str, Any]):
+async def _perform_external_lookups(domain: str, result: dict[str, Any]):
     """Perform DNS and WHOIS lookups."""
     # DNS Records
     if DNS_AVAILABLE:
@@ -304,7 +304,7 @@ async def _perform_external_lookups(domain: str, result: Dict[str, Any]):
         result["whois"]["note"] = "WHOIS lookup not available"
 
 
-def detect_cms(html: str, headers: Dict[str, str]) -> Optional[str]:
+def detect_cms(html: str, headers: dict[str, str]) -> str | None:
     """
     Detect CMS from HTML content and headers.
 
@@ -346,7 +346,7 @@ def detect_cms(html: str, headers: Dict[str, str]) -> Optional[str]:
     return None
 
 
-def detect_technologies(html: str, headers: Dict[str, str]) -> List[str]:
+def detect_technologies(html: str, headers: dict[str, str]) -> list[str]:
     """
     Detect web technologies from HTML and headers.
 
@@ -386,7 +386,7 @@ def detect_technologies(html: str, headers: Dict[str, str]) -> List[str]:
     return technologies
 
 
-def get_dns_records(domain: str) -> Dict[str, Any]:
+def get_dns_records(domain: str) -> dict[str, Any]:
     """
     Get DNS records for domain (sync function).
 
@@ -396,7 +396,7 @@ def get_dns_records(domain: str) -> Dict[str, Any]:
     Returns:
         Dict with DNS records
     """
-    records: Dict[str, Any] = {}
+    records: dict[str, Any] = {}
 
     record_types = ["A", "AAAA", "MX", "TXT", "NS", "CNAME"]
 
@@ -422,7 +422,7 @@ def get_dns_records(domain: str) -> Dict[str, Any]:
     return records
 
 
-def get_whois_info(domain: str) -> Dict[str, Any]:
+def get_whois_info(domain: str) -> dict[str, Any]:
     """
     Get WHOIS information for domain (sync function).
 
@@ -453,7 +453,7 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
 # Synchronous wrapper for compatibility
 def passive_recon_sync(
     target: str, state: Optional["AgentState"] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Synchronous wrapper for passive_recon.
 

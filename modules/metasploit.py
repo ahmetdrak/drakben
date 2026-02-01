@@ -8,11 +8,12 @@ import socket
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiohttp
 
 from core.state import AgentState
+import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class MSFSession:
     username: str = ""
     info: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
             "session_type": self.session_type.value,
@@ -81,12 +82,12 @@ class ExploitResult:
     status: ExploitStatus
     exploit_name: str
     target: str
-    session: Optional[MSFSession] = None
+    session: MSFSession | None = None
     output: str = ""
     error: str = ""
     duration_seconds: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status.value,
             "exploit_name": self.exploit_name,
@@ -229,24 +230,22 @@ class MetasploitRPC:
                 try:
                     writer.close()
                     await writer.wait_closed()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error closing writer: {e}")
 
     async def disconnect(self) -> None:
         """Disconnect from Metasploit RPC"""
         if self.connected and self.token:
-            try:
+            with contextlib.suppress(Exception):
                 await self._call("auth.logout", [self.token])
-            except Exception:
-                pass
 
         self.connected = False
         self.token = ""
         logger.info("Disconnected from Metasploit RPC")
 
     async def _call(
-        self, method: str, params: Optional[List[Any]] = None
-    ) -> Dict[str, Any]:
+        self, method: str, params: list[Any] | None = None
+    ) -> dict[str, Any]:
         """
         Call RPC method.
 
@@ -284,7 +283,7 @@ class MetasploitRPC:
         result = await self._call("core.version")
         return result.get("result", {}).get("version", "unknown")
 
-    async def list_exploits(self, search: str = "") -> List[str]:
+    async def list_exploits(self, search: str = "") -> list[str]:
         """
         List available exploits.
 
@@ -302,7 +301,7 @@ class MetasploitRPC:
 
         return exploits
 
-    async def list_payloads(self, search: str = "") -> List[str]:
+    async def list_payloads(self, search: str = "") -> list[str]:
         """
         List available payloads.
 
@@ -320,7 +319,7 @@ class MetasploitRPC:
 
         return payloads
 
-    async def get_exploit_info(self, exploit_name: str) -> Dict[str, Any]:
+    async def get_exploit_info(self, exploit_name: str) -> dict[str, Any]:
         """
         Get exploit module information.
 
@@ -333,7 +332,7 @@ class MetasploitRPC:
         result = await self._call("module.info", ["exploit", exploit_name])
         return result.get("result", {})
 
-    async def get_exploit_options(self, exploit_name: str) -> Dict[str, Any]:
+    async def get_exploit_options(self, exploit_name: str) -> dict[str, Any]:
         """
         Get exploit options.
 
@@ -350,11 +349,11 @@ class MetasploitRPC:
         self,
         exploit_name: str,
         target_host: str,
-        target_port: Optional[int] = None,
+        target_port: int | None = None,
         payload: str = "generic/shell_reverse_tcp",
         lhost: str = "",
         lport: int = 4444,
-        options: Optional[Dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> ExploitResult:
         """
         Run an exploit against a target.
@@ -446,7 +445,7 @@ class MetasploitRPC:
                 duration_seconds=time.time() - start_time,
             )
 
-    async def _wait_for_session(self, target_host: str) -> Optional[MSFSession]:
+    async def _wait_for_session(self, target_host: str) -> MSFSession | None:
         """Wait for a session to be created"""
         timeout_seconds = 120  # Fixed timeout value
         start_time = time.time()
@@ -462,7 +461,7 @@ class MetasploitRPC:
 
         return None
 
-    async def list_sessions(self) -> List[MSFSession]:
+    async def list_sessions(self) -> list[MSFSession]:
         """
         List active sessions.
 
@@ -570,8 +569,8 @@ class MetasploitRPC:
         self,
         session_id: int,
         module_name: str,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Run post-exploitation module.
 
@@ -621,7 +620,7 @@ VULN_TO_EXPLOIT = {
 }
 
 
-def suggest_exploit_for_vuln(vuln_type: str) -> Optional[str]:
+def suggest_exploit_for_vuln(vuln_type: str) -> str | None:
     """
     Suggest Metasploit exploit for vulnerability type.
 
@@ -643,7 +642,7 @@ def suggest_exploit_for_vuln(vuln_type: str) -> Optional[str]:
 # State integration
 async def auto_exploit(
     state: "AgentState", msf: MetasploitRPC, lhost: str = "", lport: int = 4444
-) -> List[ExploitResult]:
+) -> list[ExploitResult]:
     """
     Automatically run exploits for vulnerabilities in state.
 

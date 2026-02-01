@@ -6,7 +6,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.evolution_memory import get_evolution_memory
 
@@ -27,8 +27,8 @@ class PlanStep:
     action: str  # Action type: scan, exploit, etc.
     tool: str  # Tool to use
     target: str  # Target for this step
-    params: Dict  # Additional parameters
-    depends_on: List[str]  # Step IDs this depends on
+    params: dict  # Additional parameters
+    depends_on: list[str]  # Step IDs this depends on
     status: StepStatus
     max_retries: int
     retry_count: int
@@ -73,10 +73,10 @@ class Planner:
 
     def __init__(self):
         self.memory = get_evolution_memory()
-        self.current_plan_id: Optional[str] = None
-        self.steps: List[PlanStep] = []
+        self.current_plan_id: str | None = None
+        self.steps: list[PlanStep] = []
         self.current_step_index: int = 0
-        self.current_strategy_name: Optional[str] = None
+        self.current_strategy_name: str | None = None
 
     def create_plan_from_strategy(
         self, target: str, strategy: Any, goal: str = "pentest"
@@ -108,7 +108,7 @@ class Planner:
 
         return plan_id
 
-    def _build_strategy_steps(self, strategy, plan_id: str, target: str) -> List[Dict]:
+    def _build_strategy_steps(self, strategy, plan_id: str, target: str) -> list[dict]:
         """Helper to build steps from strategy objects"""
         steps = []
         for i, action in enumerate(strategy.steps):
@@ -119,7 +119,7 @@ class Planner:
 
     def _create_step_dict(
         self, plan_id: str, index: int, action: str, tool: str, target: str
-    ) -> Dict:
+    ) -> dict:
         """Create a single step dictionary structure"""
         return {
             "step_id": f"{plan_id}_step_{index + 1}",
@@ -136,7 +136,7 @@ class Planner:
             "error": "",
         }
 
-    def _save_and_load_plan(self, plan_id: str, goal: str, steps: List[Dict]):
+    def _save_and_load_plan(self, plan_id: str, goal: str, steps: list[dict]):
         """Persist plan to memory and load into local state"""
         self.memory.create_plan(goal, steps, plan_id=plan_id)
         self.current_plan_id = plan_id
@@ -167,7 +167,7 @@ class Planner:
         # Initialize replan tracking if needed
         # (Already initialized in __init__, but kept for robustness)
         if not hasattr(self, "_replan_counts"):
-            self._replan_counts: Dict[str, int] = {}
+            self._replan_counts: dict[str, int] = {}
         if not hasattr(self, "_total_replans"):
             self._total_replans = 0
 
@@ -213,7 +213,7 @@ class Planner:
         # 3. Fallback
         return self._skip_step(step, "No alternative tool available")
 
-    def _analyze_failure(self, step: PlanStep) -> Dict:
+    def _analyze_failure(self, step: PlanStep) -> dict:
         """Analyze why a step failed"""
         error_lower = step.error.lower()
         return {
@@ -223,7 +223,7 @@ class Planner:
             "original_tool": step.tool,
         }
 
-    def _apply_adaptive_learning(self, step: PlanStep, context: Dict):
+    def _apply_adaptive_learning(self, step: PlanStep, context: dict):
         """Adjust system heuristics based on failure context"""
         if context["is_timeout"]:
             # Backend learning: Increase timeout tolerance
@@ -233,9 +233,9 @@ class Planner:
             # Local adaptation: Boost this step's timeout
             step.params["timeout"] = 120
 
-    def _try_switch_tool(self, step: PlanStep, context: Dict) -> bool:
+    def _try_switch_tool(self, step: PlanStep, context: dict) -> bool:
         """Try to find and switch to an alternative tool"""
-        alternative = self._find_alternative_tool(step.action, step.tool)
+        alternative = self._find_alternative_tool(step.action, step.tool, step.target)
 
         if not alternative:
             return False
@@ -260,7 +260,7 @@ class Planner:
         self._persist_steps()
         return True
 
-    def _format_replan_reason(self, context: Dict) -> str:
+    def _format_replan_reason(self, context: dict) -> str:
         """Format human-readable reason for replan"""
         if context["is_timeout"]:
             return "Adaptive Replan: Timeout detected. "
@@ -275,7 +275,7 @@ class Planner:
 
     def _generate_steps_from_profile(
         self, target: str, profile, plan_id: str
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Helper to generate steps from profile config"""
         step_order = profile.step_order
         profile_params = profile.parameters
@@ -483,7 +483,7 @@ class Planner:
 
         return True
 
-    def get_next_step(self) -> Optional[PlanStep]:
+    def get_next_step(self) -> PlanStep | None:
         """
         Get next executable step from current plan.
 
@@ -506,10 +506,10 @@ class Planner:
             if step.status in [StepStatus.SUCCESS, StepStatus.SKIPPED]:
                 continue
 
-            # Check if tool is blocked by penalty system
-            if self.memory.is_tool_blocked(step.tool):
+            # LOGIC FIX: Check if tool is blocked by penalty system (Per-Target)
+            if self.memory.is_tool_blocked(step.tool, step.target):
                 step.status = StepStatus.SKIPPED
-                step.error = "Tool blocked due to high penalty"
+                step.error = f"Tool {step.tool} blocked for target {step.target} due to high penalty"
                 self._persist_steps()
                 continue
 
@@ -523,6 +523,18 @@ class Planner:
                 ]:
                     deps_satisfied = False
                     break
+
+            if not deps_satisfied:
+                # LOGIC FIX: If a dependency FAILED (not skipped or success), 
+                # this step should also be skipped to prevent deadlock.
+                for dep_id in step.depends_on:
+                    dep_step = self._find_step(dep_id)
+                    if dep_step and dep_step.status == StepStatus.FAILED:
+                        step.status = StepStatus.SKIPPED
+                        step.error = f"Dependency {dep_id} failed. Skipping."
+                        self._persist_steps()
+                        deps_satisfied = False
+                        break
 
             if deps_satisfied:
                 self.current_step_index = i
@@ -580,7 +592,7 @@ class Planner:
                 return False
         return True
 
-    def get_plan_status(self) -> Dict:
+    def get_plan_status(self) -> dict:
         """Get current plan status"""
         return {
             "plan_id": self.current_plan_id,
@@ -592,14 +604,14 @@ class Planner:
             "current_step": self.current_step_index,
         }
 
-    def _find_step(self, step_id: str) -> Optional[PlanStep]:
+    def _find_step(self, step_id: str) -> PlanStep | None:
         """Find step by ID"""
         for step in self.steps:
             if step.step_id == step_id:
                 return step
         return None
 
-    def _find_alternative_tool(self, action: str, failed_tool: str) -> Optional[str]:
+    def _find_alternative_tool(self, action: str, failed_tool: str, target: str = "global") -> str | None:
         """Find alternative tool for action"""
         # Mapping of actions to alternative tools
         alternatives = {
@@ -613,7 +625,8 @@ class Planner:
         candidates = alternatives.get(action, [])
 
         for tool in candidates:
-            if tool != failed_tool and not self.memory.is_tool_blocked(tool):
+            # LOGIC FIX: Target-aware alternative tool selection
+            if tool != failed_tool and not self.memory.is_tool_blocked(tool, target):
                 return tool
 
         return None
@@ -624,7 +637,7 @@ class Planner:
             steps_data = [self._step_to_dict(s) for s in self.steps]
             self.memory.update_plan_steps(self.current_plan_id, steps_data)
 
-    def _dict_to_step(self, d: Dict) -> PlanStep:
+    def _dict_to_step(self, d: dict) -> PlanStep:
         """Convert dict to PlanStep"""
         return PlanStep(
             step_id=d["step_id"],
@@ -641,7 +654,7 @@ class Planner:
             error=d.get("error", ""),
         )
 
-    def _step_to_dict(self, step: PlanStep) -> Dict:
+    def _step_to_dict(self, step: PlanStep) -> dict:
         """Convert PlanStep to dict"""
         return {
             "step_id": step.step_id,

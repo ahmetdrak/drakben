@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class ErrorDiagnosticsMixin:
     - Unknown error logging for learning
     """
 
-    def _diagnose_error(self, output: str, exit_code: int) -> Dict[str, Any]:
+    def _diagnose_error(self, output: str, exit_code: int) -> dict[str, Any]:
         """
         Comprehensive error diagnosis from output and exit code.
         Covers 25+ error types in multiple languages.
@@ -57,7 +57,7 @@ class ErrorDiagnosticsMixin:
 
     def _run_error_checks(
         self, output_lower: str, exit_code: int, output: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Run all error checks in priority order"""
         checkers = [
             self._check_missing_tool,
@@ -87,7 +87,7 @@ class ErrorDiagnosticsMixin:
 
         return self._check_exit_code_error(exit_code, output)
 
-    def _check_missing_tool(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_missing_tool(self, output_lower: str) -> dict[str, Any] | None:
         """Check for missing tool/command errors"""
         patterns = [
             "not found",
@@ -112,7 +112,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
         return None
 
-    def _check_permission_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_permission_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for permission/access denied errors"""
         patterns = [
             "permission denied",
@@ -129,7 +129,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "permission_denied", "type_tr": "İzin hatası"}
         return None
 
-    def _check_python_module_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_python_module_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for Python module missing errors"""
         patterns = [
             "no module named",
@@ -150,7 +150,7 @@ class ErrorDiagnosticsMixin:
             }
         return None
 
-    def _check_library_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_library_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for missing library/shared object errors"""
         patterns = [
             "cannot open shared object",
@@ -172,7 +172,7 @@ class ErrorDiagnosticsMixin:
             }
         return None
 
-    def _check_network_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_network_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for connection/network errors"""
         patterns = [
             "connection refused",
@@ -187,7 +187,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
         return None
 
-    def _check_timeout_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_timeout_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for timeout errors"""
         patterns = [
             "timed out",
@@ -201,7 +201,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "timeout", "type_tr": "Zaman aşımı"}
         return None
 
-    def _check_syntax_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_syntax_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for syntax/argument errors"""
         patterns = [
             "invalid argument",
@@ -216,7 +216,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "invalid_argument", "type_tr": "Geçersiz argüman/sözdizimi"}
         return None
 
-    def _check_file_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_file_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for file not found errors"""
         patterns = [
             "no such file",
@@ -236,7 +236,7 @@ class ErrorDiagnosticsMixin:
             }
         return None
 
-    def _check_memory_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_memory_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for memory errors"""
         patterns = [
             "out of memory",
@@ -251,7 +251,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "memory_error", "type_tr": "Bellek hatası"}
         return None
 
-    def _check_disk_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_disk_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for disk space errors"""
         patterns = [
             "no space left",
@@ -264,7 +264,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
         return None
 
-    def _check_auth_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_auth_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for authentication errors"""
         patterns = [
             "authentication failed",
@@ -278,7 +278,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
         return None
 
-    def _check_port_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_port_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for port in use errors"""
         patterns = [
             "address already in use",
@@ -293,7 +293,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
         return None
 
-    def _check_database_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_database_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for database errors"""
         patterns = [
             "database",
@@ -309,7 +309,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "database_error", "type_tr": "Veritabanı hatası"}
         return None
 
-    def _check_parse_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_parse_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for JSON/XML parsing errors"""
         patterns = [
             "json",
@@ -323,7 +323,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
         return None
 
-    def _check_version_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_version_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for version/compatibility errors"""
         patterns = [
             "version",
@@ -337,7 +337,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
         return None
 
-    def _check_rate_limit_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_rate_limit_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for rate limiting errors"""
         patterns = [
             "rate limit",
@@ -351,7 +351,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
         return None
 
-    def _check_firewall_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_firewall_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for firewall/WAF blocked errors"""
         patterns = [
             "blocked",
@@ -366,7 +366,7 @@ class ErrorDiagnosticsMixin:
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 
-    def _check_resource_error(self, output_lower: str) -> Optional[Dict[str, Any]]:
+    def _check_resource_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for process/resource errors"""
         patterns = [
             "too many open files",
@@ -381,7 +381,7 @@ class ErrorDiagnosticsMixin:
 
     def _check_exit_code_error(
         self, exit_code: int, output: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Check for exit code based errors"""
         if exit_code != 0 and not output.strip():
             exit_code_map = {

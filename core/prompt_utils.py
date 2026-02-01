@@ -6,7 +6,8 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
 
 from rich.console import Console
 from rich.live import Live
@@ -248,7 +249,7 @@ class DrakbenProgress:
     - Status updates
     """
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         self.console = console or Console()
 
     def spinner(self, description: str = PROCESSING_TEXT, style: str = "bold cyan"):
@@ -305,7 +306,7 @@ class DrakbenProgress:
         return result
 
     def scan_progress(
-        self, targets: List[str], scan_func: Callable, description: str = "Scanning"
+        self, targets: list[str], scan_func: Callable, description: str = "Scanning"
     ):
         """
         Show progress for scanning multiple targets.
@@ -333,7 +334,7 @@ class DrakbenProgress:
 
     async def async_scan_progress(
         self,
-        targets: List[str],
+        targets: list[str],
         scan_func: Callable,
         description: str = "Scanning",
         concurrency: int = 5,
@@ -375,9 +376,9 @@ class DrakbenProgress:
 class StatusDisplay:
     """Real-time status display using Rich Live"""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         self.console = console or Console()
-        self.status_data: Dict[str, Any] = {}
+        self.status_data: dict[str, Any] = {}
         self._live = None
 
     def _generate_table(self) -> Table:
@@ -446,14 +447,14 @@ class CommandHistory:
     def __init__(self, history_file: str = ".drakben_history", max_entries: int = 1000):
         self.history_file = Path(history_file)
         self.max_entries = max_entries
-        self.entries: List[Dict[str, Any]] = []
+        self.entries: list[dict[str, Any]] = []
         self._load()
 
     def _load(self):
         """Load history from file"""
         if self.history_file.exists():
             try:
-                with open(self.history_file, "r") as f:
+                with open(self.history_file) as f:
                     for line in f:
                         line = line.strip()
                         if line:
@@ -492,11 +493,11 @@ class CommandHistory:
             self.entries.append({"command": command, "timestamp": time.time()})
             self._save()
 
-    def search(self, prefix: str) -> List[str]:
+    def search(self, prefix: str) -> list[str]:
         """Search history by prefix"""
         return [e["command"] for e in self.entries if e["command"].startswith(prefix)]
 
-    def get_recent(self, count: int = 10) -> List[str]:
+    def get_recent(self, count: int = 10) -> list[str]:
         """Get recent commands"""
         return [e["command"] for e in self.entries[-count:]]
 
@@ -517,7 +518,7 @@ def create_prompt() -> EnhancedPrompt:
     return EnhancedPrompt()
 
 
-def create_progress(console: Optional[Console] = None) -> DrakbenProgress:
+def create_progress(console: Console | None = None) -> DrakbenProgress:
     """Create progress instance"""
     return DrakbenProgress(console)
 

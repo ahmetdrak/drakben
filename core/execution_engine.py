@@ -4,7 +4,6 @@ Author: @drak_ben
 Description: 5 modules for intelligent command execution and monitoring
 """
 
-
 import logging
 import os
 import platform
@@ -17,7 +16,8 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from core.sandbox_manager import ContainerInfo, SandboxManager
 
@@ -56,7 +56,7 @@ class CommandSanitizer:
     """
 
     # Patterns that indicate shell injection attempts
-    SHELL_INJECTION_PATTERNS: List[str] = [
+    SHELL_INJECTION_PATTERNS: list[str] = [
         r";",  # Command separator
         r"\|",  # Pipe
         r"&&",  # AND operator
@@ -69,7 +69,7 @@ class CommandSanitizer:
     ]
 
     # Commands that are completely forbidden
-    FORBIDDEN_COMMANDS: List[str] = [
+    FORBIDDEN_COMMANDS: list[str] = [
         # Linux Destructive
         "rm -rf /",
         "rm -rf /*",
@@ -116,7 +116,7 @@ class CommandSanitizer:
     ]
 
     # Commands that require explicit confirmation
-    HIGH_RISK_PATTERNS: List[str] = [
+    HIGH_RISK_PATTERNS: list[str] = [
         r"rm\s+-[rf]+",  # rm with -r or -f flags
         r"chmod\s+[0-7]{3,4}\s+/(etc|bin|usr|var|boot|sbin)",  # Forbidden system chmod
         r"chown\s+.*?\s+/(etc|bin|usr|var|boot|sbin)",  # Forbidden system chown
@@ -134,7 +134,7 @@ class CommandSanitizer:
     ]
 
     # Regex patterns for more complex forbidden commands
-    FORBIDDEN_REGEX: List[str] = [
+    FORBIDDEN_REGEX: list[str] = [
         r"powershell.*-e(nc|ncod|ncoded)",  # Catch all encoded powershell variants
         r"format\s+[a-z]:",  # Format drive
         r"rd\s+/s\s+/q",  # Force delete dir
@@ -184,7 +184,7 @@ class CommandSanitizer:
         return command
 
     @classmethod
-    def requires_confirmation(cls, command: str) -> Tuple[bool, str]:
+    def requires_confirmation(cls, command: str) -> tuple[bool, str]:
         """
         Check if command requires user confirmation before execution.
 
@@ -242,7 +242,7 @@ class CommandSanitizer:
             return "high"
 
         # Check for medium-risk commands
-        medium_risk: List[str] = [
+        medium_risk: list[str] = [
             "curl",
             "wget",
             "nc",
@@ -293,7 +293,7 @@ class SmartTerminal:
     """Intelligent command executor with safety, monitoring, and user confirmation"""
 
     def __init__(
-        self, confirmation_callback: Optional[Callable[[str, str], bool]] = None
+        self, confirmation_callback: Callable[[str, str], bool] | None = None
     ) -> None:
         """
         Initialize SmartTerminal.
@@ -303,18 +303,18 @@ class SmartTerminal:
                                    Takes (command, reason) and returns True to allow, False to deny.
                                    If None, high-risk commands are blocked by default.
         """
-        self.execution_history: List[ExecutionResult] = []
-        self.current_process: Optional[subprocess.Popen] = None
+        self.execution_history: list[ExecutionResult] = []
+        self.current_process: subprocess.Popen | None = None
         self.sanitizer = CommandSanitizer()
         self._history_lock = threading.Lock()  # Thread safety for history
         self._confirmation_callback: Callable[[str, str], bool] | None = (
             confirmation_callback
         )
         self._auto_approve = False  # Set True to skip confirmations (dangerous!)
-        self._sandbox_container_id: Optional[str] = None  # Active sandbox container
+        self._sandbox_container_id: str | None = None  # Active sandbox container
 
     def set_confirmation_callback(
-        self, callback: Optional[Callable[[str, str], bool]]
+        self, callback: Callable[[str, str], bool] | None
     ) -> None:
         """Set or update the confirmation callback"""
         self._confirmation_callback: Callable[[str, str], bool] | None = callback
@@ -368,7 +368,7 @@ class SmartTerminal:
         timeout: int = 300,
         capture_output: bool = True,
         shell: bool = False,
-        callback: Optional[Callable[[ExecutionResult], None]] = None,
+        callback: Callable[[ExecutionResult], None] | None = None,
         skip_sanitization: bool = False,
         skip_confirmation: bool = False,
     ) -> ExecutionResult:
@@ -468,7 +468,7 @@ class SmartTerminal:
         self,
         command: str,
         timeout: int = 300,
-        sandbox_name: Optional[str] = None,
+        sandbox_name: str | None = None,
     ) -> ExecutionResult:
         """
         Execute command in an isolated Docker sandbox.
@@ -550,7 +550,7 @@ class SmartTerminal:
 
     def _prepare_command(
         self, command: str, shell: bool, skip_sanitization: bool
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """Prepare command for execution: sanitize and split"""
         # SECURITY: Sanitize command before execution
         if not skip_sanitization:
@@ -565,7 +565,7 @@ class SmartTerminal:
             logger.warning("Shell execution enabled - this is a security risk")
             cmd_args: str = command
         else:
-            cmd_args: List[str] = shlex.split(command)
+            cmd_args: list[str] = shlex.split(command)
 
         return command, cmd_args
 
@@ -573,9 +573,9 @@ class SmartTerminal:
         self, cmd_args, shell: bool, capture_output: bool
     ) -> subprocess.Popen:
         """Create and start the subprocess"""
-        popen_kwargs: Dict[str, bool] = {
+        popen_kwargs: dict[str, bool] = {
             "shell": shell,
-            "text": True if capture_output else False,
+            "text": bool(capture_output),
         }
 
         # Use process groups for better cleanup (Unix/Linux)
@@ -593,7 +593,7 @@ class SmartTerminal:
 
     def _wait_for_process(
         self, process: subprocess.Popen, timeout: int, command_preview: str
-    ) -> Tuple[str, str, int, ExecutionStatus]:
+    ) -> tuple[str, str, int, ExecutionStatus]:
         """
         Wait for process completion with DEADLOCK PREVENTION.
         Uses explicit communication handling and process group cleanup.
@@ -625,7 +625,7 @@ class SmartTerminal:
                 stdout, stderr = process.communicate(timeout=1)
             except subprocess.TimeoutExpired:
                 stdout, stderr = "", "Command timed out and output buffer was lost"
-            except (OSError, IOError, ValueError) as e:
+            except (OSError, ValueError) as e:
                 logger.debug(f"Error capturing output during timeout: {e}")
                 stdout, stderr = "", "Command timed out (output capture failed)"
 
@@ -733,7 +733,7 @@ class SmartTerminal:
             return True
         return False
 
-    def get_last_result(self) -> Optional[ExecutionResult]:
+    def get_last_result(self) -> ExecutionResult | None:
         """Get last execution result"""
         return self.execution_history[-1] if self.execution_history else None
 
@@ -748,8 +748,8 @@ class CommandGenerator:
         self,
         target: str,
         scan_type: str = "full",
-        ports: Optional[str] = None,
-        script: Optional[str] = None,
+        ports: str | None = None,
+        script: str | None = None,
     ) -> str:
         """Generate optimized nmap command"""
 
@@ -777,7 +777,7 @@ class CommandGenerator:
     def _sanitize_url(self, url: str) -> str:
         """Sanitize URL to prevent command injection"""
         # Remove dangerous characters that could break shell commands
-        dangerous_chars: List[str] = [
+        dangerous_chars: list[str] = [
             "'",
             '"',
             ";",
@@ -828,7 +828,7 @@ class CommandGenerator:
         self,
         url: str,
         wordlist: str = "/usr/share/wordlists/dirb/common.txt",
-        extensions: Optional[str] = None,
+        extensions: str | None = None,
     ) -> str:
         """Generate gobuster command with URL sanitization"""
         # SECURITY: Sanitize URL
@@ -886,7 +886,7 @@ class CommandGenerator:
 class OutputAnalyzer:
     """Analyzes and parses command output intelligently"""
 
-    def analyze(self, result: ExecutionResult) -> Dict:
+    def analyze(self, result: ExecutionResult) -> dict:
         """Analyze execution result and extract insights"""
         analysis = {
             "success": result.status == ExecutionStatus.SUCCESS,
@@ -911,14 +911,14 @@ class OutputAnalyzer:
 
         return analysis
 
-    def _analyze_nmap(self, output: str) -> Dict:
+    def _analyze_nmap(self, output: str) -> dict:
         """Analyze nmap output"""
         insights = []
         open_ports = []
 
         # Find open ports
         port_pattern = r"(\d+)/tcp\s+open\s+(\w+)"
-        matches: List[Any] = re.findall(port_pattern, output)
+        matches: list[Any] = re.findall(port_pattern, output)
 
         for port, service in matches:
             open_ports.append({"port": port, "service": service})
@@ -931,7 +931,7 @@ class OutputAnalyzer:
             "insights": insights,
         }
 
-    def _analyze_sqlmap(self, output: str) -> Dict:
+    def _analyze_sqlmap(self, output: str) -> dict:
         """Analyze sqlmap output"""
         insights = []
         vulnerable = False
@@ -945,14 +945,14 @@ class OutputAnalyzer:
 
         return {"tool": "sqlmap", "vulnerable": vulnerable, "insights": insights}
 
-    def _analyze_gobuster(self, output: str) -> Dict:
+    def _analyze_gobuster(self, output: str) -> dict:
         """Analyze gobuster output"""
         insights = []
         found_dirs = []
 
         # Find discovered directories
         dir_pattern = r"(/.+?)\s+\(Status:\s+(\d+)\)"
-        matches: List[Any] = re.findall(dir_pattern, output)
+        matches: list[Any] = re.findall(dir_pattern, output)
 
         for path, status in matches:
             found_dirs.append({"path": path, "status": status})
@@ -966,7 +966,7 @@ class OutputAnalyzer:
             "insights": insights,
         }
 
-    def _analyze_nikto(self, output: str) -> Dict:
+    def _analyze_nikto(self, output: str) -> dict:
         """Analyze nikto output"""
         insights = []
 
@@ -975,7 +975,7 @@ class OutputAnalyzer:
 
         return {"tool": "nikto", "insights": insights}
 
-    def _detect_error_type(self, stderr: str) -> Optional[str]:
+    def _detect_error_type(self, stderr: str) -> str | None:
         """Detect type of error from stderr"""
         if not stderr:
             return None
@@ -1011,12 +1011,12 @@ class StreamingMonitor:
     def monitor_process(
         self,
         process: subprocess.Popen,
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
         timeout: float = 300.0,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """Monitor process output in real-time with timeout protection"""
-        stdout_lines: List[str] = []
-        stderr_lines: List[str] = []
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
         stop_event = threading.Event()
 
         stdout_thread, stderr_thread = self._start_monitor_threads(
@@ -1032,10 +1032,10 @@ class StreamingMonitor:
         self,
         process: subprocess.Popen,
         stop_event: threading.Event,
-        stdout_lines: List[str],
-        stderr_lines: List[str],
-        callback: Optional[Callable],
-    ) -> Tuple[threading.Thread, threading.Thread]:
+        stdout_lines: list[str],
+        stderr_lines: list[str],
+        callback: Callable | None,
+    ) -> tuple[threading.Thread, threading.Thread]:
         """Start monitoring threads for stdout and stderr"""
         stdout_thread = threading.Thread(
             target=self._read_stdout,
@@ -1055,8 +1055,8 @@ class StreamingMonitor:
         self,
         process: subprocess.Popen,
         stop_event: threading.Event,
-        stdout_lines: List[str],
-        callback: Optional[Callable],
+        stdout_lines: list[str],
+        callback: Callable | None,
     ) -> None:
         """Read stdout from process"""
         try:
@@ -1074,8 +1074,8 @@ class StreamingMonitor:
         self,
         process: subprocess.Popen,
         stop_event: threading.Event,
-        stderr_lines: List[str],
-        callback: Optional[Callable],
+        stderr_lines: list[str],
+        callback: Callable | None,
     ) -> None:
         """Read stderr from process"""
         try:
@@ -1130,7 +1130,7 @@ class StreamingMonitor:
         """Stream output to queue"""
         self.output_queue.put((line_type, line, time.time()))
 
-    def get_latest_output(self) -> List[Tuple[str, str, float]]:
+    def get_latest_output(self) -> list[tuple[str, str, float]]:
         """Get all queued output"""
         output = []
         while not self.output_queue.empty():
@@ -1144,7 +1144,7 @@ class StreamingMonitor:
 class ExecutionValidator:
     """Validates execution results and checks success criteria"""
 
-    def validate(self, result: ExecutionResult, expected: Dict) -> Dict:
+    def validate(self, result: ExecutionResult, expected: dict) -> dict:
         """Validate execution result against expectations"""
         validation = {"valid": True, "checks": [], "failures": []}
 
@@ -1157,7 +1157,7 @@ class ExecutionValidator:
         return validation
 
     def _validate_exit_code(
-        self, result: ExecutionResult, expected: Dict, validation: Dict
+        self, result: ExecutionResult, expected: dict, validation: dict
     ) -> None:
         """Validate exit code matches expected value"""
         if expected.get("exit_code") is None:
@@ -1172,7 +1172,7 @@ class ExecutionValidator:
             )
 
     def _validate_output_contains(
-        self, result: ExecutionResult, expected: Dict, validation: Dict
+        self, result: ExecutionResult, expected: dict, validation: dict
     ) -> None:
         """Validate output contains expected patterns"""
         output_patterns = expected.get("output_contains")
@@ -1187,7 +1187,7 @@ class ExecutionValidator:
                 validation["failures"].append(f"Output missing '{pattern}'")
 
     def _validate_no_errors(
-        self, result: ExecutionResult, expected: Dict, validation: Dict
+        self, result: ExecutionResult, expected: dict, validation: dict
     ) -> None:
         """Validate no errors in stderr"""
         if not expected.get("no_errors", False):
@@ -1200,7 +1200,7 @@ class ExecutionValidator:
             validation["failures"].append("Stderr contains errors")
 
     def _validate_duration(
-        self, result: ExecutionResult, expected: Dict, validation: Dict
+        self, result: ExecutionResult, expected: dict, validation: dict
     ) -> None:
         """Validate execution duration within limit"""
         max_duration = expected.get("max_duration")
@@ -1219,11 +1219,11 @@ class ExecutionValidator:
         """Quick check if execution was successful"""
         return result.status == ExecutionStatus.SUCCESS and result.exit_code == 0
 
-    def extract_error_message(self, result: ExecutionResult) -> Optional[str]:
+    def extract_error_message(self, result: ExecutionResult) -> str | None:
         """Extract meaningful error message"""
         if result.stderr:
             # Get first meaningful line
-            lines: List[str] = result.stderr.strip().split("\n")
+            lines: list[str] = result.stderr.strip().split("\n")
             for line in lines:
                 if line.strip() and not line.startswith("#"):
                     return line.strip()
@@ -1248,8 +1248,8 @@ class ExecutionEngine:
         command: str,
         timeout: int = 300,
         optimize: bool = True,
-        callback: Optional[Callable] = None,
-    ) -> Dict:
+        callback: Callable | None = None,
+    ) -> dict:
         """Execute command with full intelligence"""
 
         # Optimize if requested
@@ -1275,8 +1275,8 @@ class ExecutionEngine:
         }
 
     def execute_with_monitoring(
-        self, command: str, progress_callback: Optional[Callable] = None
-    ) -> Dict:
+        self, command: str, progress_callback: Callable | None = None
+    ) -> dict:
         """Execute command with real-time monitoring"""
         process = self.terminal.execute_async(command)
 
@@ -1304,9 +1304,9 @@ class ExecutionEngine:
             "success": self.validator.is_successful(result),
         }
 
-    def get_execution_summary(self) -> Dict:
+    def get_execution_summary(self) -> dict:
         """Get summary of all executions"""
-        history: List[ExecutionResult] = self.terminal.execution_history
+        history: list[ExecutionResult] = self.terminal.execution_history
 
         return {
             "total_executions": len(history),

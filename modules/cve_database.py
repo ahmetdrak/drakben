@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
@@ -41,11 +41,11 @@ class CVEEntry:
     severity: CVSSSeverity
     published_date: str
     last_modified: str
-    references: List[str] = field(default_factory=list)
-    cpe_matches: List[str] = field(default_factory=list)
-    weaknesses: List[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
+    cpe_matches: list[str] = field(default_factory=list)
+    weaknesses: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "cve_id": self.cve_id,
             "description": self.description,
@@ -65,11 +65,11 @@ class VulnerabilityMatch:
     """Matched vulnerability with CVE"""
 
     detected_vuln: str
-    cve_entry: Optional[CVEEntry]
+    cve_entry: CVEEntry | None
     confidence: float  # 0.0 - 1.0
     match_method: str  # "exact", "keyword", "cpe", "fuzzy"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "detected_vuln": self.detected_vuln,
             "cve": self.cve_entry.to_dict() if self.cve_entry else None,
@@ -78,27 +78,27 @@ class VulnerabilityMatch:
         }
 
 
-
-
-
 class AutoUpdater:
     """
     Real-Time CVE Feed Updater (Incremental).
     Checks NVD for updates every 12 hours without blocking main thread.
     """
-    def __init__(self, db_instance: 'CVEDatabase'):
+
+    def __init__(self, db_instance: "CVEDatabase"):
         self.db = db_instance
         self.running = False
 
     def start_background_update(self):
         """Starts the update loop in a separate thread"""
         import threading
+
         t = threading.Thread(target=self._update_loop, daemon=True)
         t.start()
 
     def _update_loop(self):
         """Infinite loop to keep DB fresh"""
         import time
+
         while True:
             try:
                 self._perform_incremental_update()
@@ -106,7 +106,7 @@ class AutoUpdater:
                 time.sleep(6 * 3600)
             except Exception as e:
                 logger.error(f"Auto-Update failed: {e}")
-                time.sleep(3600) # Retry in 1 hour
+                time.sleep(3600)  # Retry in 1 hour
 
     def _perform_incremental_update(self):
         """
@@ -122,13 +122,17 @@ class AutoUpdater:
 
         # NVD requires ISO8601 format: YYYY-MM-DDThh:mm:ss.s
         # Adjust format if needed
-        if '.' not in start_date: start_date += '.000'
-        if not start_date.endswith('Z'): start_date += 'Z'
+        if "." not in start_date:
+            start_date += ".000"
+        if not start_date.endswith("Z"):
+            start_date += "Z"
 
         # Current time
         end_date = datetime.now().isoformat()
-        if '.' not in end_date: end_date += '.000'
-        if not end_date.endswith('Z'): end_date += 'Z'
+        if "." not in end_date:
+            end_date += ".000"
+        if not end_date.endswith("Z"):
+            end_date += "Z"
 
         logger.info(f"Checking for CVE updates from {start_date} to {end_date}")
 
@@ -137,13 +141,14 @@ class AutoUpdater:
         try:
             import urllib.request
             import urllib.parse
-            
+
             headers = {"User-Agent": "Drakben-Agent/2.0"}
-            if self.db.api_key: headers["apiKey"] = self.db.api_key
+            if self.db.api_key:
+                headers["apiKey"] = self.db.api_key
 
             url = f"{self.db.NVD_API_BASE}?lastModStartDate={start_date}&lastModEndDate={end_date}"
             req = urllib.request.Request(url, headers=headers)
-            
+
             with urllib.request.urlopen(req, timeout=60) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode())
@@ -179,7 +184,7 @@ class CVEDatabase:
     NVD_API_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     CACHE_EXPIRY_DAYS = 7
 
-    def __init__(self, db_path: str = "nvd_cache.db", api_key: Optional[str] = None):
+    def __init__(self, db_path: str = "nvd_cache.db", api_key: str | None = None):
         """
         Initialize CVE Database.
 
@@ -242,22 +247,29 @@ class CVEDatabase:
             """)
             conn.commit()
 
-    def get_last_sync_time(self) -> Optional[str]:
+    def get_last_sync_time(self) -> str | None:
         """Get the timestamp of the last successful update"""
         try:
-             with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute("SELECT value FROM meta_info WHERE key='last_sync'").fetchone()
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT value FROM meta_info WHERE key='last_sync'"
+                ).fetchone()
                 return row[0] if row else None
-        except: return None
+        except Exception:
+            return None
 
     def update_last_sync_time(self):
         """Set last sync time to now"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 now = datetime.now().isoformat()
-                conn.execute("INSERT OR REPLACE INTO meta_info (key, value) VALUES ('last_sync', ?)", (now,))
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta_info (key, value) VALUES ('last_sync', ?)",
+                    (now,),
+                )
                 conn.commit()
-        except: pass
+        except Exception as e:
+            logger.debug(f"Failed to update sync time: {e}")
 
     def _get_severity(self, cvss_score: float) -> CVSSSeverity:
         """Get severity level from CVSS score"""
@@ -272,7 +284,7 @@ class CVEDatabase:
         else:
             return CVSSSeverity.CRITICAL
 
-    def _parse_nvd_response(self, item: Dict[str, Any]) -> Optional[CVEEntry]:
+    def _parse_nvd_response(self, item: dict[str, Any]) -> CVEEntry | None:
         """Parse NVD API response item to CVEEntry"""
         try:
             cve_data = item.get("cve", {})
@@ -299,7 +311,7 @@ class CVEDatabase:
             logger.error(f"Error parsing NVD response: {e}")
             return None
 
-    def _extract_cve_description(self, cve_data: Dict) -> str:
+    def _extract_cve_description(self, cve_data: dict) -> str:
         """Extract CVE description (prefer English)"""
         descriptions = cve_data.get("descriptions", [])
         for desc in descriptions:
@@ -307,7 +319,7 @@ class CVEDatabase:
                 return desc.get("value", "")
         return descriptions[0].get("value", "") if descriptions else ""
 
-    def _extract_cvss_metrics(self, cve_data: Dict) -> Tuple[float, str]:
+    def _extract_cvss_metrics(self, cve_data: dict) -> tuple[float, str]:
         """Extract CVSS score and vector (prefer v3.1, then v3.0, then v2.0)"""
         metrics = cve_data.get("metrics", {})
         if "cvssMetricV31" in metrics:
@@ -318,16 +330,16 @@ class CVEDatabase:
             return self._get_cvss_from_metric(metrics["cvssMetricV2"][0])
         return 0.0, ""
 
-    def _get_cvss_from_metric(self, metric: Dict) -> Tuple[float, str]:
+    def _get_cvss_from_metric(self, metric: dict) -> tuple[float, str]:
         """Extract CVSS score and vector from metric"""
         cvss_data = metric.get("cvssData", {})
         return cvss_data.get("baseScore", 0.0), cvss_data.get("vectorString", "")
 
-    def _extract_cve_references(self, cve_data: Dict) -> List[str]:
+    def _extract_cve_references(self, cve_data: dict) -> list[str]:
         """Extract CVE references"""
         return [ref.get("url", "") for ref in cve_data.get("references", [])]
 
-    def _extract_cpe_matches(self, cve_data: Dict) -> List[str]:
+    def _extract_cpe_matches(self, cve_data: dict) -> list[str]:
         """Extract CPE matches from configurations"""
         cpe_matches = []
         for config in cve_data.get("configurations", []):
@@ -337,7 +349,7 @@ class CVEDatabase:
                         cpe_matches.append(match.get("criteria", ""))
         return cpe_matches
 
-    def _extract_cwe_weaknesses(self, cve_data: Dict) -> List[str]:
+    def _extract_cwe_weaknesses(self, cve_data: dict) -> list[str]:
         """Extract CWE weaknesses"""
         weaknesses = []
         for weakness in cve_data.get("weaknesses", []):
@@ -346,7 +358,7 @@ class CVEDatabase:
                     weaknesses.append(desc.get("value", ""))
         return weaknesses
 
-    async def fetch_cve(self, cve_id: str) -> Optional[CVEEntry]:
+    async def fetch_cve(self, cve_id: str) -> CVEEntry | None:
         """
         Fetch a specific CVE from NVD API or cache.
 
@@ -395,7 +407,7 @@ class CVEDatabase:
 
     async def search_cves(
         self, keyword: str, max_results: int = 20, min_cvss: float = 0.0
-    ) -> List[CVEEntry]:
+    ) -> list[CVEEntry]:
         """
         Search CVEs by keyword.
 
@@ -414,7 +426,7 @@ class CVEDatabase:
         api_results = await self._fetch_cves_from_api(keyword, max_results, min_cvss)
         return self._merge_cve_results(results, api_results, max_results)
 
-    def _search_cached_cves(self, keyword: str, min_cvss: float) -> List[CVEEntry]:
+    def _search_cached_cves(self, keyword: str, min_cvss: float) -> list[CVEEntry]:
         """Search CVEs in local cache"""
         results = []
         cached_results = self._search_cache(keyword)
@@ -425,7 +437,7 @@ class CVEDatabase:
 
     async def _fetch_cves_from_api(
         self, keyword: str, max_results: int, min_cvss: float
-    ) -> List[CVEEntry]:
+    ) -> list[CVEEntry]:
         """Fetch CVEs from NVD API"""
         logger.info(f"Searching NVD for: {keyword}")
         results = []
@@ -447,7 +459,7 @@ class CVEDatabase:
 
         return results
 
-    def _process_api_results(self, data: Dict, min_cvss: float) -> List[CVEEntry]:
+    def _process_api_results(self, data: dict, min_cvss: float) -> list[CVEEntry]:
         """Process API response and filter by CVSS"""
         results = []
         for item in data.get("vulnerabilities", []):
@@ -458,8 +470,8 @@ class CVEDatabase:
         return results
 
     def _merge_cve_results(
-        self, cached: List[CVEEntry], api: List[CVEEntry], max_results: int
-    ) -> List[CVEEntry]:
+        self, cached: list[CVEEntry], api: list[CVEEntry], max_results: int
+    ) -> list[CVEEntry]:
         """Merge cached and API results, removing duplicates"""
         seen_ids = {entry.cve_id for entry in cached}
         for entry in api:
@@ -468,7 +480,7 @@ class CVEDatabase:
                 seen_ids.add(entry.cve_id)
         return cached[:max_results]
 
-    async def search_by_cpe(self, cpe: str, max_results: int = 20) -> List[CVEEntry]:
+    async def search_by_cpe(self, cpe: str, max_results: int = 20) -> list[CVEEntry]:
         """
         Search CVEs by CPE (Common Platform Enumeration).
 
@@ -513,7 +525,7 @@ class CVEDatabase:
 
         return results[:max_results]
 
-    def _get_from_cache(self, cve_id: str) -> Optional[CVEEntry]:
+    def _get_from_cache(self, cve_id: str) -> CVEEntry | None:
         """Get CVE from local cache"""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -574,7 +586,7 @@ class CVEDatabase:
         except Exception as e:
             logger.error(f"Cache write error: {e}")
 
-    def _search_cache(self, keyword: str) -> List[CVEEntry]:
+    def _search_cache(self, keyword: str) -> list[CVEEntry]:
         """Search cache by keyword"""
         results = []
         try:
@@ -608,7 +620,7 @@ class CVEDatabase:
             logger.error(f"Cache search error: {e}")
         return results
 
-    def _search_cache_by_cpe(self, cpe: str) -> List[CVEEntry]:
+    def _search_cache_by_cpe(self, cpe: str) -> list[CVEEntry]:
         """Search cache by CPE"""
         results = []
         try:
@@ -642,7 +654,7 @@ class CVEDatabase:
             logger.error(f"CPE search error: {e}")
         return results
 
-    def _extract_keywords(self, text: str) -> List[str]:
+    def _extract_keywords(self, text: str) -> list[str]:
         """Extract indexable keywords from text"""
         import re
 
@@ -664,7 +676,7 @@ class CVEDatabase:
         }
         return [w for w in set(words) if w not in stopwords][:30]
 
-    def get_cache_stats(self) -> Dict[str, int]:
+    def get_cache_stats(self) -> dict[str, int]:
         """Get cache statistics"""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -740,9 +752,9 @@ class VulnerabilityMatcher:
     async def match_vulnerability(
         self,
         vuln_type: str,
-        product: Optional[str] = None,
-        version: Optional[str] = None,
-    ) -> List[VulnerabilityMatch]:
+        product: str | None = None,
+        version: str | None = None,
+    ) -> list[VulnerabilityMatch]:
         """
         Match a detected vulnerability with CVEs.
 
@@ -769,7 +781,7 @@ class VulnerabilityMatcher:
 
     async def _try_exact_cve_match(
         self, vuln_type: str, vuln_lower: str
-    ) -> Optional[List[VulnerabilityMatch]]:
+    ) -> list[VulnerabilityMatch] | None:
         """Try to match as exact CVE ID"""
         if not vuln_lower.startswith("cve-"):
             return None
@@ -787,10 +799,10 @@ class VulnerabilityMatcher:
         return None
 
     async def _try_cpe_match(
-        self, vuln_type: str, product: Optional[str], version: Optional[str]
-    ) -> List[VulnerabilityMatch]:
+        self, vuln_type: str, product: str | None, version: str | None
+    ) -> list[VulnerabilityMatch]:
         """Try CPE-based matching"""
-        matches: List[VulnerabilityMatch] = []
+        matches: list[VulnerabilityMatch] = []
         if not product:
             return matches
 
@@ -812,7 +824,7 @@ class VulnerabilityMatcher:
 
     async def _try_keyword_match(
         self, vuln_type: str, vuln_lower: str
-    ) -> List[VulnerabilityMatch]:
+    ) -> list[VulnerabilityMatch]:
         """Try keyword-based matching"""
         matches = []
         keywords = self._get_search_keywords(vuln_lower)
@@ -832,8 +844,8 @@ class VulnerabilityMatcher:
         return matches
 
     def _deduplicate_and_sort_matches(
-        self, matches: List[VulnerabilityMatch]
-    ) -> List[VulnerabilityMatch]:
+        self, matches: list[VulnerabilityMatch]
+    ) -> list[VulnerabilityMatch]:
         """Remove duplicates and sort by confidence"""
         seen_cves = set()
         unique_matches = []
@@ -843,7 +855,7 @@ class VulnerabilityMatcher:
                 unique_matches.append(match)
         return unique_matches[:10]  # Top 10 matches
 
-    def _get_search_keywords(self, vuln_type: str) -> List[str]:
+    def _get_search_keywords(self, vuln_type: str) -> list[str]:
         """Get search keywords for vulnerability type"""
         keywords = [vuln_type]
 
@@ -854,7 +866,7 @@ class VulnerabilityMatcher:
 
         return list(set(keywords))
 
-    def _build_cpe(self, product: str, version: Optional[str]) -> Optional[str]:
+    def _build_cpe(self, product: str, version: str | None) -> str | None:
         """Build CPE string from product/version"""
         if not product:
             return None
@@ -889,8 +901,8 @@ class VulnerabilityMatcher:
 
 # Convenience functions for state integration
 async def match_state_vulnerabilities(
-    state: "AgentState", cve_db: Optional[CVEDatabase] = None
-) -> List[VulnerabilityMatch]:
+    state: "AgentState", cve_db: CVEDatabase | None = None
+) -> list[VulnerabilityMatch]:
     """
     Match all vulnerabilities in AgentState with CVE database.
 

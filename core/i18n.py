@@ -1,11 +1,10 @@
 # core/i18n.py
 # DRAKBEN Internationalization - Turkish/English Language Support
 
-from typing import Dict
 
 DEFAULT_LANG = "tr"
 
-TRANSLATIONS: Dict[str, Dict[str, str]] = {
+TRANSLATIONS: dict[str, dict[str, str]] = {
     "tr": {
         # General
         "app_name": "DRAKBEN",

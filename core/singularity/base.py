@@ -5,7 +5,6 @@ Defines the abstract base classes for self-improvement modules.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -15,7 +14,7 @@ class CodeSnippet:
     code: str
     language: str
     purpose: str
-    dependencies: List[str]
+    dependencies: list[str]
     is_validated: bool = False
 
 
@@ -26,7 +25,7 @@ class MutationResult:
     original_hash: str
     new_hash: str
     success: bool
-    bypassed_engines: List[str]
+    bypassed_engines: list[str]
 
 
 class ISynthesizer(ABC):

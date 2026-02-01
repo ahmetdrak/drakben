@@ -5,11 +5,10 @@ Description: Uses LLM to generate psychological profiles and phishing scenarios.
 """
 
 import logging
-import random
 import re
+import secrets
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict
 
 from .osint import TargetPerson
 
@@ -20,29 +19,31 @@ logger = logging.getLogger(__name__)
 # COGNITIVE SCIENCE & NLP CORE
 # =============================================================================
 
+
 class CognitiveBias(Enum):
-    AUTHORITY = "authority"          # Obedience to power
-    SCARCITY = "scarcity"            # FOMO, Time pressure
-    RECIPROCITY = "reciprocity"      # "I did this for you, so..."
-    COMMITMENT = "commitment"        # Consistency with past actions
-    LIKING = "liking"                # Similarity, compliments
-    SOCIAL_PROOF = "social_proof"    # "Everyone else is doing it"
-    CURIOSITY = "curiosity"          # Information gap
-    FEAR = "fear"                    # Loss aversion (Strongest but risky)
+    AUTHORITY = "authority"  # Obedience to power
+    SCARCITY = "scarcity"  # FOMO, Time pressure
+    RECIPROCITY = "reciprocity"  # "I did this for you, so..."
+    COMMITMENT = "commitment"  # Consistency with past actions
+    LIKING = "liking"  # Similarity, compliments
+    SOCIAL_PROOF = "social_proof"  # "Everyone else is doing it"
+    CURIOSITY = "curiosity"  # Information gap
+    FEAR = "fear"  # Loss aversion (Strongest but risky)
+
 
 @dataclass
 class PsychologicalProfile:
     primary_bias: CognitiveBias
     secondary_bias: CognitiveBias
     tone: str  # Formal, urgent, casual, technical
-    vocabulary_level: int # 1-10
-    synthetic_context: str # "JIRA", "Slack", "Legal", "HR"
+    vocabulary_level: int  # 1-10
+    synthetic_context: str  # "JIRA", "Slack", "Legal", "HR"
 
 
 class NLPPayloadEngine:
     """
     2026/2027-Era NLP Engine for Behavioral Profiling.
-    Uses native statistical text analysis (TF-IDF + Jaccard) to map 
+    Uses native statistical text analysis (TF-IDF + Jaccard) to map
     targets to psychological archetypes without external API dependency.
     """
 
@@ -50,35 +51,113 @@ class NLPPayloadEngine:
         # 1. Zero-Shot Classification Anchors (Simulated)
         self.bias_anchors = {
             CognitiveBias.AUTHORITY: {
-                "keywords": {"ceo", "exec", "director", "legal", "audit", "compliance", "policy", "mandatory", "regulation", "vp"},
-                "weight": 1.5
+                "keywords": {
+                    "ceo",
+                    "exec",
+                    "director",
+                    "legal",
+                    "audit",
+                    "compliance",
+                    "policy",
+                    "mandatory",
+                    "regulation",
+                    "vp",
+                },
+                "weight": 1.5,
             },
             CognitiveBias.SCARCITY: {
-                "keywords": {"deadline", "expires", "immediate", "limited", "today", "urgent", "24h", "lockout", "final"},
-                "weight": 1.2
+                "keywords": {
+                    "deadline",
+                    "expires",
+                    "immediate",
+                    "limited",
+                    "today",
+                    "urgent",
+                    "24h",
+                    "lockout",
+                    "final",
+                },
+                "weight": 1.2,
             },
             CognitiveBias.RECIPROCITY: {
-                "keywords": {"help", "support", "gift", "favor", "bonus", "reward", "assistance", "guide", "free"},
-                "weight": 1.1
+                "keywords": {
+                    "help",
+                    "support",
+                    "gift",
+                    "favor",
+                    "bonus",
+                    "reward",
+                    "assistance",
+                    "guide",
+                    "free",
+                },
+                "weight": 1.1,
             },
             CognitiveBias.CURIOSITY: {
-                "keywords": {"news", "update", "announce", "leak", "secret", "confidential", "changes", "reveal", "discovery"},
-                "weight": 1.3
+                "keywords": {
+                    "news",
+                    "update",
+                    "announce",
+                    "leak",
+                    "secret",
+                    "confidential",
+                    "changes",
+                    "reveal",
+                    "discovery",
+                },
+                "weight": 1.3,
             },
             CognitiveBias.SOCIAL_PROOF: {
-                "keywords": {"team", "everyone", "join", "network", "community", "popular", "trending", "colleagues"},
-                "weight": 1.0
+                "keywords": {
+                    "team",
+                    "everyone",
+                    "join",
+                    "network",
+                    "community",
+                    "popular",
+                    "trending",
+                    "colleagues",
+                },
+                "weight": 1.0,
             },
             CognitiveBias.FEAR: {
-                "keywords": {"security", "breach", "alert", "hack", "danger", "risk", "fail", "error", "critical"},
-                "weight": 1.4
-            }
+                "keywords": {
+                    "security",
+                    "breach",
+                    "alert",
+                    "hack",
+                    "danger",
+                    "risk",
+                    "fail",
+                    "error",
+                    "critical",
+                },
+                "weight": 1.4,
+            },
         }
 
         # 2. Tone Analysis Vectors
         self.tone_vectors = {
-            "technical": {"api", "server", "code", "dev", "bug", "deploy", "log", "stack", "config"},
-            "corporate": {"strategy", "q1", "kpi", "roi", "synergy", "leverage", "stakeholder"},
+            "technical": {
+                "api",
+                "server",
+                "code",
+                "dev",
+                "bug",
+                "deploy",
+                "log",
+                "stack",
+                "config",
+            },
+            "corporate": {
+                "strategy",
+                "q1",
+                "kpi",
+                "roi",
+                "synergy",
+                "leverage",
+                "stakeholder",
+            },
             "casual": {"hey", "cool", "thanks", "weekend", "chat", "hangout", "coffee"},
         }
 
@@ -87,7 +166,7 @@ class NLPPayloadEngine:
         Perform deep psychometric analysis on target text (Role, Bio, Posts).
         """
         text = text.lower()
-        words = re.findall(r'\w+', text)
+        words = re.findall(r"\w+", text)
         word_set = set(words)
 
         # A. Bias Scoring
@@ -99,15 +178,23 @@ class NLPPayloadEngine:
             score = len(intersection) * data["weight"]
 
             # Contextual boosting
-            if bias == CognitiveBias.AUTHORITY and "chief" in text: score += 2.0
-            if bias == CognitiveBias.SCARCITY and "urgent" in text: score += 2.0
+            if bias == CognitiveBias.AUTHORITY and "chief" in text:
+                score += 2.0
+            if bias == CognitiveBias.SCARCITY and "urgent" in text:
+                score += 2.0
 
             scores[bias] = score
 
         # Select Top 2
         sorted_biases = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        primary = sorted_biases[0][0] if sorted_biases[0][1] > 0 else CognitiveBias.CURIOSITY
-        secondary = sorted_biases[1][0] if sorted_biases[1][1] > 0 else CognitiveBias.SOCIAL_PROOF
+        primary = (
+            sorted_biases[0][0] if sorted_biases[0][1] > 0 else CognitiveBias.CURIOSITY
+        )
+        secondary = (
+            sorted_biases[1][0]
+            if sorted_biases[1][1] > 0
+            else CognitiveBias.SOCIAL_PROOF
+        )
 
         # B. Context & Tone Detection
         detected_tone = "Formal"
@@ -122,7 +209,7 @@ class NLPPayloadEngine:
         synthetic_context = "Email"
         if "dev" in text or "engineer" in text:
             synthetic_context = "JIRA"
-            primary = CognitiveBias.CURIOSITY # Devs are curious about bugs
+            primary = CognitiveBias.CURIOSITY  # Devs are curious about bugs
         elif "hr" in text or "recruit" in text:
             synthetic_context = "LinkedIn"
         elif "sales" in text:
@@ -133,8 +220,8 @@ class NLPPayloadEngine:
             primary_bias=primary,
             secondary_bias=secondary,
             tone=detected_tone,
-            vocabulary_level=8, # static for now
-            synthetic_context=synthetic_context
+            vocabulary_level=8,  # static for now
+            synthetic_context=synthetic_context,
         )
 
 
@@ -148,7 +235,7 @@ class PsychoProfiler:
         self.engine = NLPPayloadEngine()
         logger.info("PsychoProfiler Brain (NLP Engine) initialized")
 
-    def generate_profile(self, target: TargetPerson) -> Dict[str, str]:
+    def generate_profile(self, target: TargetPerson) -> dict[str, str]:
         """
         Generate a psychometric profile using NLP engine.
         """
@@ -164,22 +251,22 @@ class PsychoProfiler:
             "personality_type": f"{psych_profile.primary_bias.value.upper()}-Dominant",
             "recommended_lure": f"Synthetic {psych_profile.synthetic_context} Notification",
             "emotional_trigger": f"{psych_profile.primary_bias.value} + {psych_profile.secondary_bias.value}",
-            "best_time_to_send": "09:42 AM (Local Target Time)", # Algorithmic timing
+            "best_time_to_send": "09:42 AM (Local Target Time)",  # Algorithmic timing
             "tone": psych_profile.tone,
-            "bias_vector": psych_profile.primary_bias.value
+            "bias_vector": psych_profile.primary_bias.value,
         }
 
         target.psych_profile = str(profile_dict)
         return profile_dict
 
     def craft_phishing_email(
-        self, target: TargetPerson, profile: Dict[str, str]
-    ) -> Dict[str, str]:
+        self, target: TargetPerson, profile: dict[str, str]
+    ) -> dict[str, str]:
         """
         Generate High-Fidelity Synthetic Pretext (Spear Phishing).
         """
         bias = profile.get("bias_vector", "curiosity")
-        tone = profile.get("tone", "Formal")
+        profile.get("tone", "Formal")
 
         # Synthetic Template Selection (2026 Style)
         # Instead of generic templates, we use 'Micro-Targeted' layouts
@@ -200,7 +287,7 @@ class PsychoProfiler:
 
         elif bias == "curiosity" or "dev" in target.role.lower():
             # JIRA / GitLab style
-            ticket_id = f"DEV-{random.randint(1000,9999)}"
+            ticket_id = f"DEV-{secrets.randbelow(8999) + 1000}"
             subject = f"[{ticket_id}] Critical Bug in Production API (Assigned to You)"
             body = self._tmpl_dev_ticket(target, ticket_id)
             spoof_sender = "jira-bot@automation.io"
@@ -216,7 +303,7 @@ class PsychoProfiler:
             "subject": subject,
             "body": body,
             "from_spoof": spoof_sender,
-            "generation_engine": "Create-v5-Turbo"
+            "generation_engine": "Create-v5-Turbo",
         }
 
     # =========================================================================

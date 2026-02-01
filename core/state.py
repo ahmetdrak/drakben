@@ -10,7 +10,7 @@ import time
 from _thread import RLock
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class ServiceInfo:
     port: int
     protocol: str
     service: str
-    version: Optional[str] = None
+    version: str | None = None
     tested: bool = False
     vulnerable: bool = False
     exploit_attempted: bool = False
@@ -64,8 +64,8 @@ class CredentialInfo:
 
     username: str
     service: str = ""
-    password: Optional[str] = None
-    hash: Optional[str] = None
+    password: str | None = None
+    hash: str | None = None
     verified: bool = False
 
 
@@ -102,12 +102,12 @@ class AgentState:
             with _state_lock:
                 if _state_instance is None:
                     # Create new instance and set global ref immediately
-                    instance = super(AgentState, cls).__new__(cls)
+                    instance = super().__new__(cls)
                     _state_instance = instance
                     return instance
         return _state_instance
 
-    def __init__(self, target: Optional[str] = None) -> None:
+    def __init__(self, target: str | None = None) -> None:
         """
         Initialize agent state.
 
@@ -122,7 +122,7 @@ class AgentState:
         self._lock: RLock = threading.RLock()
 
         # Core state
-        self.target: Optional[str] = target
+        self.target: str | None = target
         self.phase: AttackPhase = AttackPhase.INIT
         self.iteration_count: int = 0
         self.max_iterations: int = MAX_ITERATIONS
@@ -131,38 +131,38 @@ class AgentState:
         self._initialized = True
 
         # Attack surface tracking
-        self.open_services: Dict[int, ServiceInfo] = {}  # port -> ServiceInfo
-        self.tested_attack_surface: Set[str] = set()  # "port:service" tuples
-        self.remaining_attack_surface: Set[str] = set()  # "port:service" tuples
+        self.open_services: dict[int, ServiceInfo] = {}  # port -> ServiceInfo
+        self.tested_attack_surface: set[str] = set()  # "port:service" tuples
+        self.remaining_attack_surface: set[str] = set()  # "port:service" tuples
 
         # Vulnerability tracking
-        self.vulnerabilities: List[VulnerabilityInfo] = []
+        self.vulnerabilities: list[VulnerabilityInfo] = []
 
         # Credentials
-        self.credentials: List[CredentialInfo] = []
+        self.credentials: list[CredentialInfo] = []
 
         # Foothold state
         self.has_foothold: bool = False
-        self.foothold_method: Optional[str] = None
-        self.foothold_timestamp: Optional[float] = None
+        self.foothold_method: str | None = None
+        self.foothold_timestamp: float | None = None
 
         # Post-exploit state
-        self.post_exploit_completed: Set[str] = set()
+        self.post_exploit_completed: set[str] = set()
 
         # Execution tracking
         self.last_observation: str = ""  # Last tool observation (summary, not raw)
-        self.state_changes_history: List[Dict] = []  # Last state changes
+        self.state_changes_history: list[dict] = []  # Last state changes
 
         # Invariant violation tracking
-        self.invariant_violations: List[str] = []
+        self.invariant_violations: list[str] = []
         self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
 
         # Agentic loop protection
-        self.tool_call_history: List[str] = []  # Last tool calls
+        self.tool_call_history: list[str] = []  # Last tool calls
         self.last_state_hash: str = ""  # Last state hash
         self.consecutive_same_tool: int = 0  # Consecutive same tool count
         self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
-        self.hallucination_flags: List[str] = []  # Hallucination warnings
+        self.hallucination_flags: list[str] = []  # Hallucination warnings
         self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
 
     def __del__(self):
@@ -176,10 +176,10 @@ class AgentState:
                         # Best effort: remove ref and hint GC
                         pass
                 self.credentials.clear()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to clear credentials: {e}")
 
-    def snapshot(self) -> Dict:
+    def snapshot(self) -> dict:
         """
         Get state snapshot for LLM context.
 
@@ -199,7 +199,7 @@ class AgentState:
                 "last_observation": self.last_observation[:200],
             }
 
-    def update_services(self, services: List[ServiceInfo]) -> None:
+    def update_services(self, services: list[ServiceInfo]) -> None:
         """
         Update state after service discovery - SMART MERGE.
         Updates with more specific/detailed info, preserves existing.
@@ -216,7 +216,7 @@ class AgentState:
         with self._lock:
             self._update_services_internal(services)
 
-    def _update_services_internal(self, services: List[ServiceInfo]) -> None:
+    def _update_services_internal(self, services: list[ServiceInfo]) -> None:
         """
         Internal method for update_services (not thread-safe, call with lock).
 
@@ -404,8 +404,8 @@ class AgentState:
     def add_credential(
         self,
         username: str,
-        password: Optional[str] = None,
-        hash_val: Optional[str] = None,
+        password: str | None = None,
+        hash_val: str | None = None,
         service: str = "",
     ) -> None:
         """
@@ -445,8 +445,8 @@ class AgentState:
     def _persist_credential(
         self,
         username: str,
-        password: Optional[str],
-        hash_val: Optional[str],
+        password: str | None,
+        hash_val: str | None,
         service: str,
     ):
         """Save captured credential to secure store"""
@@ -527,7 +527,7 @@ class AgentState:
         Returns:
             True if allowed, False otherwise
         """
-        phase_order: Dict[str, int] = {
+        phase_order: dict[str, int] = {
             "init": 0,
             "recon": 1,
             "vulnerability_scan": 2,
@@ -573,7 +573,7 @@ class AgentState:
                 return False
         return True  # Unknown precondition = allow
 
-    def get_available_attack_surface(self) -> List[str]:
+    def get_available_attack_surface(self) -> list[str]:
         """
         Get untested attack surfaces.
 
@@ -582,7 +582,7 @@ class AgentState:
         """
         return list(self.remaining_attack_surface)
 
-    def should_halt(self) -> Tuple[bool, str]:
+    def should_halt(self) -> tuple[bool, str]:
         """
         Check if system should halt.
 
@@ -648,14 +648,14 @@ class AgentState:
             return False
         return True
 
-    def _check_foothold_invariant(self) -> List[str]:
+    def _check_foothold_invariant(self) -> list[str]:
         """Check foothold-related invariants"""
         violations = []
         if not self.has_foothold and self.post_exploit_completed:
             violations.append("Post-exploit attempted without foothold")
         return violations
 
-    def _check_exploit_invariants(self) -> List[str]:
+    def _check_exploit_invariants(self) -> list[str]:
         """Check exploit phase invariants"""
         violations = []
         if self.phase == AttackPhase.EXPLOIT:
@@ -671,14 +671,14 @@ class AgentState:
                     )
         return violations
 
-    def _check_iteration_invariant(self) -> List[str]:
+    def _check_iteration_invariant(self) -> list[str]:
         """Check iteration count invariant"""
         violations = []
         if self.iteration_count > self.max_iterations:
             violations.append("Max iteration exceeded")
         return violations
 
-    def _check_surface_invariants(self) -> List[str]:
+    def _check_surface_invariants(self) -> list[str]:
         """Check attack surface invariants"""
         violations = []
         violations.extend(
@@ -689,7 +689,7 @@ class AgentState:
         )
         return violations
 
-    def _validate_surface_set(self, surface_set: set, prefix: str) -> List[str]:
+    def _validate_surface_set(self, surface_set: set, prefix: str) -> list[str]:
         """Validate a surface set against open services"""
         violations = []
         for surface in surface_set:
@@ -704,7 +704,7 @@ class AgentState:
                 violations.append(f"Invalid {prefix.lower()} surface format: {surface}")
         return violations
 
-    def _check_limits_invariants(self) -> List[str]:
+    def _check_limits_invariants(self) -> list[str]:
         """Check limit-related invariants"""
         violations = []
         MAX_HALLUCINATIONS_THRESHOLD = 5
@@ -742,7 +742,7 @@ class AgentState:
                 -MAX_STATE_CHANGES_HISTORY:
             ]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """
         Convert full state to dict (for debug/logging).
 
@@ -767,7 +767,7 @@ class AgentState:
             "invariant_violations": self.invariant_violations,
         }
 
-    def from_dict(self, data: Dict) -> None:
+    def from_dict(self, data: dict) -> None:
         """
         Load state from dict (for session recovery).
 
@@ -799,7 +799,7 @@ def get_state() -> AgentState:
     return _state_instance
 
 
-def reset_state(target: Optional[str] = None) -> AgentState:
+def reset_state(target: str | None = None) -> AgentState:
     """
     Reset state for new run (thread-safe).
 

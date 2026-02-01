@@ -6,11 +6,11 @@
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 from .state import AgentState, AttackPhase
+
+logger = logging.getLogger(__name__)
 
 # Kali entegrasyonu
 try:
@@ -38,14 +38,13 @@ class ToolSpec:
     name: str
     category: ToolCategory
     command_template: str
-    phase_allowed: List[AttackPhase]
+    phase_allowed: list[AttackPhase]
     requires_foothold: bool = False
     risk_level: str = "low"
     max_failures: int = 2
     system_tool: str = ""  # System tool name (nmap, sqlmap etc.)
     priority: int = 50  # Priority score for Self-Evolution (0-100)
     description: str = ""  # Tool description (for LLM)
-
 
 
 class ToolSelector:
@@ -58,18 +57,14 @@ class ToolSelector:
     """
 
     # GLOBAL REGISTRY for plugins (Shared across all instances)
-    _GLOBAL_PLUGIN_REGISTRY: Dict[str, "ToolSpec"] = {}
+    _GLOBAL_PLUGIN_REGISTRY: dict[str, "ToolSpec"] = {}
 
     @classmethod
-    def register_global_plugins(cls, new_tools: Dict[str, ToolSpec]):
+    def register_global_plugins(cls, new_tools: dict[str, ToolSpec]):
         """Register plugins globally so all future instances inherit them."""
         cls._GLOBAL_PLUGIN_REGISTRY.update(new_tools)
         logger.info(f"Registered {len(new_tools)} global plugin tools.")
 
-    def register_plugin_tools(self, new_tools: Dict[str, ToolSpec]):
-        """Instance-level registration"""
-        if not new_tools: return
-        self.tools.update(new_tools)
 
     def evolve_strategies(self, evolution_memory):
         """
@@ -89,8 +84,6 @@ class ToolSelector:
             logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
         else:
             logger.debug("Evolution: No changes needed")
-
-
 
     def _update_tool_priority_from_memory(
         self, tool_name: str, evolution_memory
@@ -144,7 +137,7 @@ class ToolSelector:
             priority=80,  # Priority testing since newly created
         )
 
-    def register_plugin_tools(self, new_tools: Dict[str, ToolSpec]):
+    def register_plugin_tools(self, new_tools: dict[str, ToolSpec]):
         """
         PLUGIN INTEGRATION: Register tools loaded from external plugins.
         Overrides existing tools if names collide (user overriding system defaults).
@@ -168,7 +161,7 @@ class ToolSelector:
             self.available_system_tools = self.kali_detector.get_available_tools()
 
         # Tool registry - PREDEFINED
-        self.tools: Dict[str, ToolSpec] = {
+        self.tools: dict[str, ToolSpec] = {
             # RECON tools
             "nmap_port_scan": ToolSpec(
                 name="nmap_port_scan",
@@ -346,7 +339,7 @@ class ToolSelector:
 
         # Fallback map for when primary tools fail
         # "failed_tool" -> ["alternative1", "alternative2"]
-        self.fallback_map: Dict[str, List[str]] = {
+        self.fallback_map: dict[str, list[str]] = {
             "nmap_port_scan": [],
             "nmap_service_scan": [],
             "nikto_web_scan": [],
@@ -355,12 +348,12 @@ class ToolSelector:
         }
 
         # Tool failure tracking (tool selector internal state)
-        self.failed_tools: Dict[str, int] = {}
-        
+        self.failed_tools: dict[str, int] = {}
+
         # Load Global Plugins (Enterprise Architecture)
         self.register_plugin_tools(self._GLOBAL_PLUGIN_REGISTRY)
 
-    def get_allowed_tools(self, state: AgentState) -> List[str]:
+    def get_allowed_tools(self, state: AgentState) -> list[str]:
         """
         Return allowed tools based on state
 
@@ -392,13 +385,13 @@ class ToolSelector:
 
         return allowed
 
-    def filter_for_system_tools(self) -> List[str]:
+    def filter_for_system_tools(self) -> list[str]:
         """List tools that should be installed on system"""
         return [spec.system_tool for spec in self.tools.values() if spec.system_tool]
 
     def select_tool_for_surface(
         self, state: AgentState, surface: str
-    ) -> Optional[Tuple[str, Dict[str, Any]]]:
+    ) -> tuple[str, dict[str, Any]] | None:
         """
         Select appropriate tool for a specific attack surface.
 
@@ -444,7 +437,7 @@ class ToolSelector:
 
         return None
 
-    def get_fallback_tool(self, failed_tool: str, state: AgentState) -> Optional[str]:
+    def get_fallback_tool(self, failed_tool: str, state: AgentState) -> str | None:
         """
         Get fallback tool for failed tool - DETERMINISTIC
 
@@ -470,7 +463,7 @@ class ToolSelector:
 
     def validate_tool_selection(
         self, tool_name: str, state: AgentState
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Check if tool selection is valid
 
@@ -505,7 +498,7 @@ class ToolSelector:
         """Check if tool is blocked? (2 failures -> block)"""
         return self.failed_tools.get(tool_name, 0) >= max_failures
 
-    def get_next_phase_tools(self, state: AgentState) -> List[str]:
+    def get_next_phase_tools(self, state: AgentState) -> list[str]:
         """
         Suggest tools needed for next phase.
 
@@ -523,9 +516,7 @@ class ToolSelector:
 
         return phase_tools.get(state.phase, [])
 
-    def recommend_next_action(
-        self, state: AgentState
-    ) -> Optional[Tuple[str, str, Dict]]:
+    def recommend_next_action(self, state: AgentState) -> tuple[str, str, dict] | None:
         """
         Recommend next action based on state - DETERMINISTIC
 
@@ -555,7 +546,7 @@ class ToolSelector:
 
     def _recommend_surface_scan(
         self, state: AgentState, surface: str
-    ) -> Optional[Tuple[str, str, Dict]]:
+    ) -> tuple[str, str, dict] | None:
         """Recommend a scan action for a specific surface"""
         tool_result = self.select_tool_for_surface(state, surface)
         if tool_result:
@@ -565,7 +556,7 @@ class ToolSelector:
 
     def _recommend_phase_transition(
         self, state: AgentState
-    ) -> Optional[Tuple[str, str, Dict]]:
+    ) -> tuple[str, str, dict] | None:
         """Recommend a phase transition if applicable"""
         # No more surfaces to test in current phase
         if state.phase == AttackPhase.RECON and state.open_services:
@@ -585,7 +576,7 @@ class ToolSelector:
             )
         return None
 
-    def _recommend_exploit(self, state: AgentState) -> Optional[Tuple[str, str, Dict]]:
+    def _recommend_exploit(self, state: AgentState) -> tuple[str, str, dict] | None:
         """Recommend an exploit action"""
         for vuln in state.vulnerabilities:
             if vuln.exploitable and not vuln.exploit_attempted:
@@ -595,7 +586,7 @@ class ToolSelector:
                     return ("exploit_vuln", tool_name, {"vuln_id": vuln.vuln_id})
         return None
 
-    def _get_exploit_tool_for_vuln(self, vuln) -> Optional[str]:
+    def _get_exploit_tool_for_vuln(self, vuln) -> str | None:
         """Select appropriate exploit tool for vulnerability"""
         if "sql" in vuln.vuln_id.lower():
             return "sqlmap_exploit"

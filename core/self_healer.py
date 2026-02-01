@@ -4,7 +4,8 @@
 
 import logging
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from rich.console import Console
 
@@ -29,16 +30,16 @@ class SelfHealer:
         """
         self.agent = agent
         self.console = Console()
-        self._self_heal_attempts: Dict[str, int] = {}
+        self._self_heal_attempts: dict[str, int] = {}
 
     def handle_tool_failure(
         self,
         tool_name: str,
         command: str,
         result,
-        args: Dict,
+        args: dict,
         format_result_callback: Callable,
-    ) -> Dict:
+    ) -> dict:
         """
         Main entry point for healing a failed tool execution.
 
@@ -101,11 +102,11 @@ class SelfHealer:
 
     def _apply_error_specific_healing(
         self,
-        error_diagnosis: Dict[str, Any],
+        error_diagnosis: dict[str, Any],
         tool_name: str,
         command: str,
         combined_output: str,
-    ) -> Tuple[bool, Optional[Any]]:
+    ) -> tuple[bool, Any | None]:
         """Dispatch to specific healing methods"""
         error_type = error_diagnosis["type"]
 
@@ -133,8 +134,8 @@ class SelfHealer:
     # ==================== HEALING STRATEGIES ====================
 
     def _heal_missing_tool(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         """Heal missing tool error by auto-installing or synthesizing code"""
 
         # 1. Try standard installation
@@ -181,8 +182,8 @@ class SelfHealer:
         return False, None
 
     def _heal_permission_denied(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         import platform
 
         if platform.system().lower() != "windows" and not command.startswith("sudo"):
@@ -194,8 +195,8 @@ class SelfHealer:
         return False, None
 
     def _heal_python_module_missing(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         module_name = error_diagnosis.get("module")
         if module_name:
             self.console.print(
@@ -214,8 +215,8 @@ class SelfHealer:
         return False, None
 
     def _heal_connection_error(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print(
             "🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...",
             style="yellow",
@@ -225,8 +226,8 @@ class SelfHealer:
         return retry_result.exit_code == 0, retry_result
 
     def _heal_timeout(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print(
             "⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...", style="yellow"
         )
@@ -234,8 +235,8 @@ class SelfHealer:
         return retry_result.exit_code == 0, retry_result
 
     def _heal_library_missing(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         library = error_diagnosis.get("library", "")
         if not library:
             return False, None
@@ -269,16 +270,16 @@ class SelfHealer:
         return False, None
 
     def _heal_rate_limit(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
         time.sleep(30)
         retry_result = self.agent.executor.terminal.execute(command, timeout=300)
         return retry_result.exit_code == 0, retry_result
 
     def _heal_port_in_use(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         port = error_diagnosis.get("port")
         if not port:
             return False, None
@@ -300,8 +301,8 @@ class SelfHealer:
         return retry_result.exit_code == 0, retry_result
 
     def _heal_disk_full(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print(
             "💾 Disk alanı yetersiz - temizlik yapılıyor...", style="yellow"
         )
@@ -317,8 +318,8 @@ class SelfHealer:
         return retry_result.exit_code == 0, retry_result
 
     def _heal_firewall_blocked(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print(
             "🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...",
             style="yellow",
@@ -332,8 +333,8 @@ class SelfHealer:
         return retry_result.exit_code == 0, retry_result
 
     def _heal_database_error(
-        self, tool_name: str, command: str, error_diagnosis: Dict
-    ) -> Tuple[bool, Optional[Any]]:
+        self, tool_name: str, command: str, error_diagnosis: dict
+    ) -> tuple[bool, Any | None]:
         self.console.print(
             "🗄️ Veritabanı hatası - düzeltme deneniyor...", style="yellow"
         )
@@ -417,7 +418,7 @@ Respond in JSON:
 
     # ==================== DIAGNOSTIC LOGIC ====================
 
-    def _diagnose_error(self, output: str, exit_code: int) -> Dict:
+    def _diagnose_error(self, output: str, exit_code: int) -> dict:
         """Comprehensive error diagnosis"""
         output_lower = output.lower()
         diagnosis = self._run_error_checks(output_lower, exit_code, output)
@@ -433,7 +434,7 @@ Respond in JSON:
 
     def _run_error_checks(
         self, output_lower: str, exit_code: int, output: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Run all error checks in priority order"""
         checkers = [
             self._check_missing_tool,
@@ -464,7 +465,7 @@ Respond in JSON:
         return self._check_exit_code_error(exit_code, output)
 
     # ... Helper Checker Methods ...
-    def _check_missing_tool(self, output_lower: str) -> Optional[Dict]:
+    def _check_missing_tool(self, output_lower: str) -> dict | None:
         import re
 
         patterns = [
@@ -482,7 +483,7 @@ Respond in JSON:
             return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
         return None
 
-    def _check_permission_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_permission_error(self, output_lower: str) -> dict | None:
         patterns = [
             "permission denied",
             "access denied",
@@ -493,7 +494,7 @@ Respond in JSON:
             return {"type": "permission_denied", "type_tr": "İzin hatası"}
         return None
 
-    def _check_python_module_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_python_module_error(self, output_lower: str) -> dict | None:
         import re
 
         patterns = ["no module named", "modulenotfounderror", "importerror"]
@@ -507,7 +508,7 @@ Respond in JSON:
             }
         return None
 
-    def _check_library_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_library_error(self, output_lower: str) -> dict | None:
         import re
 
         patterns = [
@@ -527,7 +528,7 @@ Respond in JSON:
             }
         return None
 
-    def _check_network_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_network_error(self, output_lower: str) -> dict | None:
         patterns = [
             "connection refused",
             "network unreachable",
@@ -538,19 +539,19 @@ Respond in JSON:
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
         return None
 
-    def _check_timeout_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_timeout_error(self, output_lower: str) -> dict | None:
         patterns = ["timed out", "timeout", "zaman aşımı"]
         if any(x in output_lower for x in patterns):
             return {"type": "timeout", "type_tr": "Zaman aşımı"}
         return None
 
-    def _check_syntax_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_syntax_error(self, output_lower: str) -> dict | None:
         patterns = ["invalid argument", "syntax error", "usage:"]
         if any(x in output_lower for x in patterns):
             return {"type": "invalid_argument", "type_tr": "Geçersiz argüman"}
         return None
 
-    def _check_file_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_file_error(self, output_lower: str) -> dict | None:
         import re
 
         patterns = ["no such file", "file not found", "dosya bulunamadı"]
@@ -564,19 +565,19 @@ Respond in JSON:
             }
         return None
 
-    def _check_memory_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_memory_error(self, output_lower: str) -> dict | None:
         patterns = ["out of memory", "memory error", "segmentation fault"]
         if any(x in output_lower for x in patterns):
             return {"type": "memory_error", "type_tr": "Bellek hatası"}
         return None
 
-    def _check_disk_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_disk_error(self, output_lower: str) -> dict | None:
         patterns = ["disk full", "no space left"]
         if any(x in output_lower for x in patterns):
             return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
         return None
 
-    def _check_auth_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_auth_error(self, output_lower: str) -> dict | None:
         patterns = [
             "authentication failed",
             "invalid credentials",
@@ -587,7 +588,7 @@ Respond in JSON:
             return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
         return None
 
-    def _check_port_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_port_error(self, output_lower: str) -> dict | None:
         import re
 
         patterns = ["address already in use", "port already in use", "bind failed"]
@@ -597,43 +598,43 @@ Respond in JSON:
             return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
         return None
 
-    def _check_database_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_database_error(self, output_lower: str) -> dict | None:
         patterns = ["database", "sqlite", "db error", "locked"]
         if any(x in output_lower for x in patterns):
             return {"type": "database_error", "type_tr": "Veritabanı hatası"}
         return None
 
-    def _check_parse_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_parse_error(self, output_lower: str) -> dict | None:
         patterns = ["json", "xml", "parsing error"]
         if any(x in output_lower for x in patterns):
             return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
         return None
 
-    def _check_version_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_version_error(self, output_lower: str) -> dict | None:
         patterns = ["version", "incompatible", "unsupported"]
         if any(x in output_lower for x in patterns):
             return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
         return None
 
-    def _check_rate_limit_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_rate_limit_error(self, output_lower: str) -> dict | None:
         patterns = ["rate limit", "too many requests", "429"]
         if any(x in output_lower for x in patterns):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
         return None
 
-    def _check_firewall_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_firewall_error(self, output_lower: str) -> dict | None:
         patterns = ["blocked", "firewall", "waf", "filtered"]
         if any(x in output_lower for x in patterns):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 
-    def _check_resource_error(self, output_lower: str) -> Optional[Dict]:
+    def _check_resource_error(self, output_lower: str) -> dict | None:
         patterns = ["too many open files", "resource temporarily unavailable"]
         if any(x in output_lower for x in patterns):
             return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
         return None
 
-    def _check_exit_code_error(self, exit_code: int, output: str) -> Optional[Dict]:
+    def _check_exit_code_error(self, exit_code: int, output: str) -> dict | None:
         if exit_code != 0 and not output.strip():
             exit_code_map = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},

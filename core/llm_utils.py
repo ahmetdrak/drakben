@@ -2,10 +2,9 @@
 
 import json
 import re
-from typing import Dict, Optional
 
 
-def parse_llm_json_response(response: str) -> Optional[Dict]:
+def parse_llm_json_response(response: str) -> dict | None:
     """
     Parse JSON from LLM response with fallback strategies.
 

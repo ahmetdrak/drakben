@@ -3,12 +3,12 @@
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_nmap_output(output: str, llm_client=None) -> List[Dict]:
+def parse_nmap_output(output: str, llm_client=None) -> list[dict]:
     """
     Parse nmap output to extract open ports and services.
     Falls back to LLM parsing if regex fails.
@@ -72,7 +72,7 @@ Response (JSON only):"""
     return []
 
 
-def parse_sqlmap_output(output: str, llm_client=None) -> List[Dict]:
+def parse_sqlmap_output(output: str, llm_client=None) -> list[dict]:
     """
     Parse sqlmap output to extract SQL injection vulnerabilities.
 
@@ -96,7 +96,7 @@ def _has_sqlmap_vulnerability(output: str) -> bool:
     return "is vulnerable" in output_lower or "sqlmap identified" in output_lower
 
 
-def _parse_sqlmap_vulnerabilities(output: str) -> List[Dict]:
+def _parse_sqlmap_vulnerabilities(output: str) -> list[dict]:
     """Parse vulnerability blocks from sqlmap output"""
     results = []
     current_vuln = {}
@@ -110,7 +110,7 @@ def _parse_sqlmap_vulnerabilities(output: str) -> List[Dict]:
     return results
 
 
-def _process_sqlmap_line(line: str, current_vuln: Dict, results: List[Dict]) -> Dict:
+def _process_sqlmap_line(line: str, current_vuln: dict, results: list[dict]) -> dict:
     """Process a single line of sqlmap output"""
     param_match = re.search(r"Parameter:\s*#?(\S+)", line)
     if param_match:
@@ -136,7 +136,7 @@ def _process_sqlmap_line(line: str, current_vuln: Dict, results: List[Dict]) -> 
     return current_vuln
 
 
-def _try_llm_parse_sqlmap(output: str, llm_client) -> List[Dict]:
+def _try_llm_parse_sqlmap(output: str, llm_client) -> list[dict]:
     """Try LLM fallback for sqlmap parsing"""
     if not llm_client or "vulnerable" not in output.lower():
         return []
@@ -158,7 +158,7 @@ Response (JSON only):"""
         return []
 
 
-def _extract_json_from_llm_response(response: str) -> List[Dict]:
+def _extract_json_from_llm_response(response: str) -> list[dict]:
     """Extract JSON array from LLM response"""
     import json
 
@@ -170,7 +170,7 @@ def _extract_json_from_llm_response(response: str) -> List[Dict]:
     return []
 
 
-def parse_nikto_output(output: str, llm_client=None) -> List[Dict]:
+def parse_nikto_output(output: str, llm_client=None) -> list[dict]:
     """
     Parse nikto output to extract web vulnerabilities.
 
@@ -204,7 +204,7 @@ def _should_skip_nikto_line(line: str) -> bool:
     )
 
 
-def _build_nikto_vulnerability(match: re.Match) -> Dict:
+def _build_nikto_vulnerability(match: re.Match) -> dict:
     """Build vulnerability dict from nikto match"""
     vuln = {
         "vulnerability": match.group(1) or "Unknown",
@@ -225,7 +225,7 @@ def _determine_nikto_severity(description: str) -> str:
     return "LOW"
 
 
-def parse_gobuster_output(output: str, llm_client=None) -> List[Dict]:
+def parse_gobuster_output(output: str, llm_client=None) -> list[dict]:
     """
     Parse gobuster output to extract discovered paths.
 
@@ -251,7 +251,7 @@ def parse_gobuster_output(output: str, llm_client=None) -> List[Dict]:
     return results
 
 
-def parse_hydra_output(output: str, llm_client=None) -> List[Dict]:
+def parse_hydra_output(output: str, llm_client=None) -> list[dict]:
     """
     Parse hydra output to extract cracked credentials.
 
@@ -306,7 +306,7 @@ def normalize_error_message(stdout: str, stderr: str, exit_code: int) -> str:
     return result
 
 
-def _normalize_connection_error(combined_lower: str) -> Optional[str]:
+def _normalize_connection_error(combined_lower: str) -> str | None:
     """Normalize connection-related errors"""
     if "connection refused" in combined_lower:
         return "Connection refused - target may be down or port closed"
@@ -319,7 +319,7 @@ def _normalize_connection_error(combined_lower: str) -> Optional[str]:
     return None
 
 
-def _normalize_permission_error(combined_lower: str) -> Optional[str]:
+def _normalize_permission_error(combined_lower: str) -> str | None:
     """Normalize permission-related errors"""
     if "permission denied" in combined_lower:
         return "Permission denied - try running with sudo"
@@ -328,35 +328,35 @@ def _normalize_permission_error(combined_lower: str) -> Optional[str]:
     return None
 
 
-def _normalize_tool_error(combined_lower: str) -> Optional[str]:
+def _normalize_tool_error(combined_lower: str) -> str | None:
     """Normalize tool/command errors"""
     if "command not found" in combined_lower or "not recognized" in combined_lower:
         return "Command not found - tool may not be installed"
     return None
 
 
-def _normalize_timeout_error(combined_lower: str) -> Optional[str]:
+def _normalize_timeout_error(combined_lower: str) -> str | None:
     """Normalize timeout errors"""
     if "timed out" in combined_lower or "timeout" in combined_lower:
         return "Operation timed out - target may be slow or unreachable"
     return None
 
 
-def _normalize_rate_limit_error(combined_lower: str) -> Optional[str]:
+def _normalize_rate_limit_error(combined_lower: str) -> str | None:
     """Normalize rate limiting errors"""
     if "too many" in combined_lower or "rate limit" in combined_lower:
         return "Rate limited - too many requests"
     return None
 
 
-def _normalize_firewall_error(combined_lower: str) -> Optional[str]:
+def _normalize_firewall_error(combined_lower: str) -> str | None:
     """Normalize firewall/WAF errors"""
     if "blocked" in combined_lower or "forbidden" in combined_lower:
         return "Request blocked - possible WAF or firewall"
     return None
 
 
-def _normalize_generic_error(combined: str, exit_code: int) -> Optional[str]:
+def _normalize_generic_error(combined: str, exit_code: int) -> str | None:
     """Normalize generic errors based on exit code"""
     if exit_code != 0:
         for line in combined.split("\n"):
@@ -367,7 +367,7 @@ def _normalize_generic_error(combined: str, exit_code: int) -> Optional[str]:
     return None
 
 
-def parse_tool_output(tool_name: str, output: str, llm_client=None) -> List[Dict]:
+def parse_tool_output(tool_name: str, output: str, llm_client=None) -> list[dict]:
     """
     Generic entry point for parsing tool output.
     Selects the correct parser strategy based on tool name.
@@ -429,7 +429,7 @@ def _smart_truncate(
 
 
 def _filter_lines_by_keywords(
-    lines: List[str], keywords: List[str], max_lines: int = 50
+    lines: list[str], keywords: list[str], max_lines: int = 50
 ) -> str:
     """Helper for _smart_truncate to filter lines based on keywords"""
     kept_lines = []

@@ -6,7 +6,6 @@ import importlib.util
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Optional
 
 # Type checking imports
 from core.tool_selector import ToolSpec
@@ -42,14 +41,14 @@ class PluginLoader:
                 "Each file must have a 'register()' function returning a ToolSpec object.\n"
             )
 
-    def load_plugins(self) -> Dict[str, ToolSpec]:
+    def load_plugins(self) -> dict[str, ToolSpec]:
         """
         Scan and load valid plugins.
 
         Returns:
             Dict[str, ToolSpec]: Dictionary of successfully loaded tools.
         """
-        loaded_tools: Dict[str, ToolSpec] = {}
+        loaded_tools: dict[str, ToolSpec] = {}
 
         if not self.plugin_dir.exists():
             return loaded_tools
@@ -73,7 +72,7 @@ class PluginLoader:
 
         return loaded_tools
 
-    def _load_single_plugin(self, file_path: Path) -> Optional[ToolSpec]:
+    def _load_single_plugin(self, file_path: Path) -> ToolSpec | None:
         """Load a single plugin file safely"""
         module_name = file_path.stem
 

@@ -5,9 +5,8 @@ Description: Gathers target intelligence (personnel, emails) from public sources
 """
 
 import logging
-import random
 from dataclasses import dataclass
-from typing import List, Optional
+import secrets
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +17,9 @@ class TargetPerson:
 
     full_name: str
     role: str = "Unknown"
-    email: Optional[str] = None
-    social_profiles: Optional[List[str]] = None
-    psych_profile: Optional[str] = None
+    email: str | None = None
+    social_profiles: list[str] | None = None
+    psych_profile: str | None = None
 
 
 class OSINTSpider:
@@ -37,7 +36,7 @@ class OSINTSpider:
         ]
         logger.info("OSINT Spider initialized")
 
-    def harvest_domain(self, domain: str) -> List[TargetPerson]:
+    def harvest_domain(self, domain: str) -> list[TargetPerson]:
         """
         Main entry point: Harvest targets from a company domain.
         Uses search engines and public lookups (simulated hooks).
@@ -98,4 +97,4 @@ class OSINTSpider:
     def search_leaked_credentials(self, email: str) -> bool:
         """Check if email appears in known breaches (Mock: HaveIBeenPwned)"""
         # Placeholder for HIBP API
-        return random.random() < 0.3  # 30% chance of leak
+        return secrets.choice([True, False, False, False])  # 25% chance of leak

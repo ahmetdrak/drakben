@@ -84,10 +84,7 @@ class CodeValidator(IValidator):
         """Perform paranoid static analysis on the code"""
         try:
             tree = ast.parse(code)
-            for node in ast.walk(tree):
-                if not self._check_ast_node(node):
-                    return False
-            return True
+            return all(self._check_ast_node(node) for node in ast.walk(tree))
         except Exception as e:
             logger.error(f"Static analysis failed: {e}")
             return False
@@ -163,5 +160,5 @@ class CodeValidator(IValidator):
         try:
             if os.path.exists(f_path):
                 os.remove(f_path)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to cleanup temp file: {e}")

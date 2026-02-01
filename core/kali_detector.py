@@ -51,7 +51,7 @@ class KaliDetector:
     def is_kali(self) -> bool:
         """Kali Linux üzerinde çalışıyor mu?"""
         try:
-            with open("/etc/os-release", "r") as f:
+            with open("/etc/os-release") as f:
                 content = f.read().lower()
                 return "kali" in content
         except Exception:

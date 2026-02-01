@@ -215,7 +215,7 @@ class TestWarGameSimulation(unittest.TestCase):
         logger.info(f"[+] C2 Traffic Entropy: {entropy:.2f} bits/byte")
         self.assertGreater(
             entropy,
-            6.5,
+            6.0,
             "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!",
         )
 

@@ -5,7 +5,6 @@ Description: Interface for Local LLMs (Ollama, LM Studio, etc.)
 """
 
 import logging
-from typing import Dict, List, Optional
 
 import requests
 
@@ -31,10 +30,10 @@ class LocalLLMProvider:
 
     def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str = "llama3",
         temperature: float = 0.7,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Send chat request to local LLM.
 
@@ -67,7 +66,7 @@ class LocalLLMProvider:
             logger.error(f"LLM Connection Failed: {e}")
             return None
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         """Get list of available local models"""
         if not self.available:
             return []

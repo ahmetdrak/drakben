@@ -6,7 +6,7 @@ Description: Polymorphic code rewriting logic for evasion (AV/WAF Bypass).
 
 import hashlib
 import logging
-import random
+import secrets
 
 from .base import IMutationEngine, MutationResult
 
@@ -57,7 +57,7 @@ class MutationEngine(IMutationEngine):
 
             # 2. Additional Mutation (String Encryption)
             # Randomly decide to encrypt/decrypt strings layers
-            if random.choice([True, False]):
+            if secrets.choice([True, False]):
                 # Basic string manipulation simulation
                 # Real implementation relies on AST transformer within GhostProtocol
                 pass

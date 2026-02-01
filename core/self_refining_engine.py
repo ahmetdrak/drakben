@@ -15,16 +15,16 @@ import copy
 import hashlib
 import json
 import logging
-import random
+import secrets
 import sqlite3
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class Strategy:
     name: str
     target_type: str
     description: str
-    base_parameters: Dict[str, Any]
+    base_parameters: dict[str, Any]
     created_at: str
     is_active: bool = True
 
@@ -157,19 +157,19 @@ class StrategyProfile:
 
     profile_id: str
     strategy_name: str
-    parameters: Dict[str, Any]
-    step_order: List[str]
+    parameters: dict[str, Any]
+    step_order: list[str]
     aggressiveness: float
-    tool_preferences: List[str]
+    tool_preferences: list[str]
     success_rate: float = 0.5
     usage_count: int = 0
     success_count: int = 0
     failure_count: int = 0
     retired: bool = False
-    parent_profile_id: Optional[str] = None
+    parent_profile_id: str | None = None
     mutation_generation: int = 0
     created_at: str = ""
-    last_used_at: Optional[str] = None
+    last_used_at: str | None = None
 
 
 @dataclass
@@ -177,13 +177,13 @@ class Policy:
     """Learned behavioral constraint"""
 
     policy_id: str
-    condition: Dict[str, Any]  # {"target_type": "web", "error_type": "timeout"}
-    action: Dict[str, Any]  # {"avoid_tools": ["sqlmap"], "prefer_strategy": "stealth"}
+    condition: dict[str, Any]  # {"target_type": "web", "error_type": "timeout"}
+    action: dict[str, Any]  # {"avoid_tools": ["sqlmap"], "prefer_strategy": "stealth"}
     weight: float
     priority_tier: PolicyTier
     source: str
     created_at: str
-    expires_at: Optional[str] = None
+    expires_at: str | None = None
     is_active: bool = True
 
 
@@ -195,10 +195,10 @@ class FailureContext:
     target_signature: str
     strategy_name: str
     profile_id: str
-    tool_name: Optional[str]
+    tool_name: str | None
     error_type: str
     error_message: str
-    context_data: Dict[str, Any]
+    context_data: dict[str, Any]
     created_at: str
     policy_generated: bool = False
 
@@ -225,7 +225,7 @@ class SelfRefiningEngine:
     MIN_USAGE_FOR_RETIRE = 3  # Minimum uses before retirement
     MUTATION_PARAM_CHANGE = 0.2  # How much to change params on mutation
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         # Use consistent database naming with EvolutionMemory
         if db_path is None:
             # Check if drakben_evolution.db exists (for compatibility)
@@ -237,9 +237,9 @@ class SelfRefiningEngine:
                 self.db_path = "evolution.db"
         else:
             self.db_path = db_path
-        self._lock = threading.RLock()
+        self._lock = threading.RLock() # Reentrant lock to prevent deadlocks
         self._initialized = False
-        self._init_lock = threading.Lock()  # Separate lock for initialization
+        self._init_lock = threading.RLock() # Reentrant lock
 
         # LAZY INITIALIZATION: Don't initialize database in __init__
         # This prevents blocking during object creation
@@ -403,23 +403,22 @@ class SelfRefiningEngine:
         return False
 
     def _handle_schema_migration(self, conn: sqlite3.Connection):
-        """Check and migrate old schema if needed"""
-        if self._needs_migration(conn):
-            logger.info("Migrating database to new schema...")
-            conn.executescript("""
-                DROP TABLE IF EXISTS learned_patterns;
-                DROP TABLE IF EXISTS policy_conflicts;
-                DROP TABLE IF EXISTS policies;
-                DROP TABLE IF EXISTS failure_contexts;
-                DROP TABLE IF EXISTS strategy_profiles;
-                DROP TABLE IF EXISTS strategies;
-                DROP INDEX IF EXISTS idx_profiles_strategy;
-                DROP INDEX IF EXISTS idx_profiles_retired;
-                DROP INDEX IF EXISTS idx_policies_tier;
-                DROP INDEX IF EXISTS idx_failures_signature;
-                DROP INDEX IF EXISTS idx_patterns_type;
-                PRAGMA user_version = 2;
-            """)
+        """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)"""
+        cursor = conn.execute("PRAGMA user_version")
+        version = cursor.fetchone()[0]
+
+        if version < 1:
+            pass
+        
+        if version == 1:
+            logger.info("Migrating database from v1 to v2: Adding structural improvements")
+            # LOGIC FIX: Add parameter_hash to prevent duplicate profile mutations
+            try:
+                conn.execute("ALTER TABLE strategy_profiles ADD COLUMN parameter_hash TEXT")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_params ON strategy_profiles(strategy_name, parameter_hash)")
+            except sqlite3.OperationalError:
+                pass
+            conn.execute("PRAGMA user_version = 2")
             conn.commit()
 
     def _needs_migration(self, conn: sqlite3.Connection) -> bool:
@@ -491,7 +490,7 @@ class SelfRefiningEngine:
         cursor = conn.execute("SELECT COUNT(*) FROM strategies")
         return cursor.fetchone()[0] > 0
 
-    def _get_default_strategy_definitions(self) -> List[Dict]:
+    def _get_default_strategy_definitions(self) -> list[dict]:
         """Return list of default strategies"""
         return [
             {
@@ -625,7 +624,7 @@ class SelfRefiningEngine:
         self,
         conn: sqlite3.Connection,
         strategy_name: str,
-        base_params: Dict,
+        base_params: dict,
         created_at: str,
     ):
         """Create initial behavioral profiles for a strategy"""
@@ -643,7 +642,8 @@ class SelfRefiningEngine:
         aggressive_params = copy.deepcopy(base_params)
         for key in aggressive_params:
             if isinstance(aggressive_params[key], (int, float)):
-                aggressive_params[key] = int(aggressive_params[key] * 1.5)
+                # LOGIC FIX: Ensure mutation actually changes value even if it is 1
+                aggressive_params[key] = max(aggressive_params[key] + 1, int(aggressive_params[key] * 1.5))
 
         profile2 = {
             "profile_id": self._generate_id("prof_"),
@@ -658,7 +658,9 @@ class SelfRefiningEngine:
         conservative_params = copy.deepcopy(base_params)
         for key in conservative_params:
             if isinstance(conservative_params[key], (int, float)):
-                conservative_params[key] = max(1, int(conservative_params[key] * 0.5))
+                # LOGIC FIX: Ensure conservative is actually different
+                val = int(conservative_params[key] * 0.5)
+                conservative_params[key] = max(1, val if val != aggressive_params.get(key) else max(1, val - 1))
 
         profile3 = {
             "profile_id": self._generate_id("prof_"),
@@ -672,10 +674,10 @@ class SelfRefiningEngine:
         for profile in [profile1, profile2, profile3]:
             conn.execute(
                 """
-                INSERT INTO strategy_profiles 
-                (profile_id, strategy_name, parameters, step_order, aggressiveness, 
+                INSERT INTO strategy_profiles
+                (profile_id, strategy_name, parameters, step_order, aggressiveness,
                  tool_preferences, success_rate, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 0.5, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 0.4, ?)  -- LOGIC FIX: Start lower (0.4) to prefer tested ones
             """,
                 (
                     profile["profile_id"],
@@ -688,7 +690,7 @@ class SelfRefiningEngine:
                 ),
             )
 
-    def get_strategy(self, name: str) -> Optional[Strategy]:
+    def get_strategy(self, name: str) -> Strategy | None:
         """Get strategy by name"""
         with self._lock:
             conn = self._get_conn()
@@ -711,7 +713,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def get_strategies_for_target_type(self, target_type: str) -> List[Strategy]:
+    def get_strategies_for_target_type(self, target_type: str) -> list[Strategy]:
         """Get all active strategies for a target type"""
         with self._lock:
             conn = self._get_conn()
@@ -743,7 +745,7 @@ class SelfRefiningEngine:
 
     def get_profiles_for_strategy(
         self, strategy_name: str, include_retired: bool = False
-    ) -> List[StrategyProfile]:
+    ) -> list[StrategyProfile]:
         """Get all profiles for a strategy"""
         with self._lock:
             conn = self._get_conn()
@@ -786,7 +788,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def get_profile(self, profile_id: str) -> Optional[StrategyProfile]:
+    def get_profile(self, profile_id: str) -> StrategyProfile | None:
         """Get a specific profile by ID"""
         with self._lock:
             conn = self._get_conn()
@@ -821,8 +823,8 @@ class SelfRefiningEngine:
                 conn.close()
 
     def select_best_profile(
-        self, strategy_name: str, excluded_profile_ids: Optional[List[str]] = None
-    ) -> Optional[StrategyProfile]:
+        self, strategy_name: str, excluded_profile_ids: list[str] | None = None
+    ) -> StrategyProfile | None:
         """
         Select best non-retired profile for a strategy.
         If all profiles are retired, trigger mutation and return new profile.
@@ -835,7 +837,7 @@ class SelfRefiningEngine:
                 # Get all non-retired profiles
                 cursor = conn.execute(
                     """
-                    SELECT * FROM strategy_profiles 
+                    SELECT * FROM strategy_profiles
                     WHERE strategy_name = ? AND retired = 0
                     ORDER BY success_rate DESC, usage_count ASC
                 """,
@@ -849,8 +851,8 @@ class SelfRefiningEngine:
                     if row["profile_id"] not in excluded:
                         conn.execute(
                             """
-                            UPDATE strategy_profiles 
-                            SET last_used_at = ? 
+                            UPDATE strategy_profiles
+                            SET last_used_at = ?
                             WHERE profile_id = ?
                         """,
                             (datetime.now().isoformat(), row["profile_id"]),
@@ -885,11 +887,11 @@ class SelfRefiningEngine:
 
     def _mutate_from_retired(
         self, conn: sqlite3.Connection, strategy_name: str
-    ) -> Optional[StrategyProfile]:
+    ) -> StrategyProfile | None:
         """Create a mutated profile from the best retired profile"""
         cursor = conn.execute(
             """
-            SELECT * FROM strategy_profiles 
+            SELECT * FROM strategy_profiles
             WHERE strategy_name = ? AND retired = 1
             ORDER BY success_rate DESC
             LIMIT 1
@@ -914,7 +916,7 @@ class SelfRefiningEngine:
         now = datetime.now().isoformat()
         conn.execute(
             """
-            INSERT INTO strategy_profiles 
+            INSERT INTO strategy_profiles
             (profile_id, strategy_name, parameters, step_order, aggressiveness,
              tool_preferences, success_rate, parent_profile_id, mutation_generation, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 0.5, ?, ?, ?)
@@ -952,8 +954,8 @@ class SelfRefiningEngine:
         )
 
     def _apply_mutation(
-        self, params: Dict, steps: List[str], aggression: float
-    ) -> Dict:
+        self, params: dict, steps: list[str], aggression: float
+    ) -> dict:
         """Apply measurable mutation to create new profile"""
         new_id = self._generate_id("mut_")
 
@@ -962,9 +964,10 @@ class SelfRefiningEngine:
         for key in new_params:
             if isinstance(new_params[key], (int, float)):
                 # Change by ±20%
-                change = random.uniform(
-                    -self.MUTATION_PARAM_CHANGE, self.MUTATION_PARAM_CHANGE
-                )
+                # secrets doesn't have uniform, so we do randbelow and scale
+                # random.uniform(-limit, limit) is roughly:
+                u = (secrets.randbelow(200000) / 100000.0) - 1.0  # -1.0 to 1.0
+                change = u * self.MUTATION_PARAM_CHANGE
                 new_params[key] = max(1, new_params[key] * (1 + change))
                 if isinstance(params[key], int):
                     new_val = int(new_params[key])
@@ -981,11 +984,17 @@ class SelfRefiningEngine:
         new_steps = steps.copy()
         if len(new_steps) >= 2:
             # Swap two random steps
-            i, j = random.sample(range(len(new_steps)), 2)
-            new_steps[i], new_steps[j] = new_steps[j], new_steps[i]
+            # random.sample replacement
+            idxs = list(range(len(new_steps)))
+            # Fisher-Yates shuffle part or just pick two distinct
+            idx1 = secrets.choice(idxs)
+            idxs.remove(idx1)
+            idx2 = secrets.choice(idxs)
+            new_steps[idx1], new_steps[idx2] = new_steps[idx2], new_steps[idx1]
 
         # Mutation 3: Adjust aggressiveness
-        aggression_change = random.uniform(-0.2, 0.2)
+        # random.uniform(-0.2, 0.2)
+        aggression_change = ((secrets.randbelow(200) / 100.0) - 1.0) * 0.2
         new_aggression = max(0.0, min(1.0, aggression + aggression_change))
 
         return {
@@ -1011,7 +1020,7 @@ class SelfRefiningEngine:
 
     def update_profile_outcome(
         self, profile_id: str, success: bool
-    ) -> Optional[StrategyProfile]:
+    ) -> StrategyProfile | None:
         """
         Update profile metrics after execution.
         Returns the profile if it was retired due to low success rate.
@@ -1043,7 +1052,7 @@ class SelfRefiningEngine:
                 # Update
                 conn.execute(
                     """
-                    UPDATE strategy_profiles 
+                    UPDATE strategy_profiles
                     SET usage_count = ?, success_count = ?, failure_count = ?,
                         success_rate = ?, retired = ?, last_used_at = ?
                     WHERE profile_id = ?
@@ -1073,8 +1082,8 @@ class SelfRefiningEngine:
 
     def add_policy(
         self,
-        condition: Dict,
-        action: Dict,
+        condition: dict,
+        action: dict,
         priority_tier: PolicyTier,
         weight: float = 0.5,
         source: str = "system",
@@ -1088,7 +1097,7 @@ class SelfRefiningEngine:
 
                 conn.execute(
                     """
-                    INSERT INTO policies 
+                    INSERT INTO policies
                     (policy_id, condition, action, weight, priority_tier, source, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -1107,7 +1116,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def get_applicable_policies(self, context: Dict) -> List[Policy]:
+    def get_applicable_policies(self, context: dict) -> list[Policy]:
         """
         Get all policies that apply to a given context.
         Returns policies sorted by priority_tier (ASC), weight (DESC), created_at (ASC)
@@ -1116,7 +1125,7 @@ class SelfRefiningEngine:
             conn = self._get_conn()
             try:
                 cursor = conn.execute("""
-                    SELECT * FROM policies 
+                    SELECT * FROM policies
                     WHERE is_active = 1
                     ORDER BY priority_tier ASC, weight DESC, created_at ASC
                 """)
@@ -1145,14 +1154,14 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def _condition_matches(self, condition: Dict, context: Dict) -> bool:
+    def _condition_matches(self, condition: dict, context: dict) -> bool:
         """Check if a condition matches a context"""
         for key, value in condition.items():
             if not self._check_condition_key(key, value, context):
                 return False
         return True
 
-    def _check_condition_key(self, key: str, value: Any, context: Dict) -> bool:
+    def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:
         """Check if a single condition key matches context"""
         if key not in context:
             return False
@@ -1166,7 +1175,7 @@ class SelfRefiningEngine:
         else:
             return ctx_value == value
 
-    def _check_dict_condition(self, value: Dict, ctx_value: Any) -> bool:
+    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:
         """Check dictionary-based condition (contains/not)"""
         if "contains" in value:
             return value["contains"] in str(ctx_value)
@@ -1174,7 +1183,7 @@ class SelfRefiningEngine:
             return ctx_value != value["not"]
         return False
 
-    def resolve_policy_conflicts(self, policies: List[Policy]) -> List[Dict]:
+    def resolve_policy_conflicts(self, policies: list[Policy]) -> list[dict]:
         """
         Resolve conflicts between policies.
 
@@ -1189,9 +1198,9 @@ class SelfRefiningEngine:
             return []
 
         # Group by action type to detect conflicts
-        action_groups: Dict[str, List[Policy]] = {}
+        action_groups: dict[str, list[Policy]] = {}
         for policy in policies:
-            for action_key in policy.action.keys():
+            for action_key in policy.action:
                 if action_key not in action_groups:
                     action_groups[action_key] = []
                 action_groups[action_key].append(policy)
@@ -1222,8 +1231,8 @@ class SelfRefiningEngine:
         return resolved_actions
 
     def apply_policies_to_strategies(
-        self, strategies: List[Strategy], context: Dict
-    ) -> List[Strategy]:
+        self, strategies: list[Strategy], context: dict
+    ) -> list[Strategy]:
         """Apply policies to filter/reorder strategies"""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
@@ -1251,8 +1260,8 @@ class SelfRefiningEngine:
         return filtered
 
     def apply_policies_to_profiles(
-        self, profiles: List[StrategyProfile], context: Dict
-    ) -> List[StrategyProfile]:
+        self, profiles: list[StrategyProfile], context: dict
+    ) -> list[StrategyProfile]:
         """Apply policies to filter/reorder profiles"""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
@@ -1274,7 +1283,7 @@ class SelfRefiningEngine:
 
         return filtered
 
-    def apply_policies_to_tools(self, tools: List[str], context: Dict) -> List[str]:
+    def apply_policies_to_tools(self, tools: list[str], context: dict) -> list[str]:
         """Apply policies to filter/reorder tools"""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
@@ -1317,8 +1326,8 @@ class SelfRefiningEngine:
         profile_id: str,
         error_type: str,
         error_message: str = "",
-        tool_name: Optional[str] = None,
-        context_data: Optional[Dict[Any, Any]] = None,
+        tool_name: str | None = None,
+        context_data: dict[Any, Any] | None = None,
     ) -> str:
         """Record a failure context"""
         with self._lock:
@@ -1351,7 +1360,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def learn_policy_from_failure(self, context_id: str) -> Optional[str]:
+    def learn_policy_from_failure(self, context_id: str) -> str | None:
         """
         Learn a policy from a failure context.
         Returns policy_id if a new policy was created.
@@ -1416,7 +1425,7 @@ class SelfRefiningEngine:
 
                 conn.execute(
                     """
-                    INSERT INTO policies 
+                    INSERT INTO policies
                     (policy_id, condition, action, weight, priority_tier, source, created_at)
                     VALUES (?, ?, ?, ?, ?, 'failure', ?)
                 """,
@@ -1458,7 +1467,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def get_failed_profiles_for_target(self, target_signature: str) -> List[str]:
+    def get_failed_profiles_for_target(self, target_signature: str) -> list[str]:
         """Get all profile IDs that have failed for a target"""
         with self._lock:
             conn = self._get_conn()
@@ -1512,7 +1521,7 @@ class SelfRefiningEngine:
 
     def select_strategy_and_profile(
         self, target: str
-    ) -> Tuple[Optional[Strategy], Optional[StrategyProfile]]:
+    ) -> tuple[Strategy | None, StrategyProfile | None]:
         """
         ENFORCED SELECTION ORDER with Timeout Protection.
         """
@@ -1613,7 +1622,19 @@ class SelfRefiningEngine:
 
         # Sort by success rate
         profiles.sort(key=lambda p: p.success_rate, reverse=True)
-        return profiles[0]
+        
+        # LOGIC FIX: Select and VERIFY (Prevent TOCTOU race condition)
+        # Another thread might have retired this profile just now
+        selected = profiles[0]
+        with self._db_operation() as conn:
+            cursor = conn.execute("SELECT retired FROM strategy_profiles WHERE profile_id = ?", (selected.profile_id,))
+            row = cursor.fetchone()
+            if row and row[0] == 1:
+                logger.warning(f"TOCTOU caught: Profile {selected.profile_id} was retired during selection. Falling back.")
+                # Recursively try again with retired profile excluded
+                return self._select_profile(strategy, context, start_time, max_duration)
+
+        return selected
 
     def _handle_no_profiles(self, strategy, failed_profiles):
         """Handle case where all profiles are exhausted"""
@@ -1625,16 +1646,14 @@ class SelfRefiningEngine:
 
     def _release_lock_safe(self):
         """Safely release lock"""
-        try:
+        with suppress(Exception):
             self._lock.release()
-        except Exception:
-            pass
 
     # =========================================================================
     # EVOLUTION STATUS & DEBUG
     # =========================================================================
 
-    def get_evolution_status(self) -> Dict:
+    def get_evolution_status(self) -> dict:
         """Get current evolution status for debugging"""
         with self._lock:
             conn = self._get_conn()
@@ -1670,7 +1689,7 @@ class SelfRefiningEngine:
                 status["active_policies"] = cursor.fetchone()[0]
 
                 cursor = conn.execute("""
-                    SELECT priority_tier, COUNT(*) FROM policies 
+                    SELECT priority_tier, COUNT(*) FROM policies
                     WHERE is_active = 1 GROUP BY priority_tier
                 """)
                 status["policies_by_tier"] = {
@@ -1690,7 +1709,7 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
-    def get_profile_lineage(self, profile_id: str) -> List[str]:
+    def get_profile_lineage(self, profile_id: str) -> list[str]:
         """Get the mutation lineage of a profile
 
         Includes protection against circular references to prevent infinite loops.

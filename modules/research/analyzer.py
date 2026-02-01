@@ -7,7 +7,6 @@ Description: Static analysis and LLM-guided target selection for fuzzing.
 import ast
 import logging
 from dataclasses import dataclass
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +38,13 @@ class TargetAnalyzer:
         }
         logger.info("Target Analyzer initialized")
 
-    def analyze_file(self, file_path: str) -> List[CodeHotspot]:
+    def analyze_file(self, file_path: str) -> list[CodeHotspot]:
         """
         Parse file AST and find dangerous sinks.
         """
         hotspots = []
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             tree = ast.parse(content)
@@ -82,7 +81,7 @@ class TargetAnalyzer:
                 return node.func.attr
         return ""
 
-    def suggest_fuzz_vectors(self, hotspot: CodeHotspot) -> List[str]:
+    def suggest_fuzz_vectors(self, hotspot: CodeHotspot) -> list[str]:
         """
         Suggest initial seed inputs based on the sink type.
         """

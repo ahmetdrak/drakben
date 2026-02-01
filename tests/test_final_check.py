@@ -39,68 +39,42 @@ except ImportError:
 # -----------------------------------------------------------------------------
 
 
-def check_modules():
-    print("\n[1] Checking Core Modules...")
-    
+def test_final_check():
+    """Verify all critical modules can be instantiated"""
     # 1. Agent
-    print("[*] Testing RefactoredDrakbenAgent...", end=" ")
     if RefactoredDrakbenAgent and ConfigManager:
-        try:
-            _ = RefactoredDrakbenAgent(ConfigManager())
-            print("✅ OK")
-        except Exception as e:
-            print(f"❌ FAIL: {e}")
+        _ = RefactoredDrakbenAgent(ConfigManager())
     else:
-        print("❌ FAIL: Module not found")
+        assert False, "RefactoredDrakbenAgent or ConfigManager missing"
 
     # 2. Universal Adapter
-    print("[*] Testing UniversalAdapter...", end=" ")
     if UniversalAdapter:
-        try:
-            _ = UniversalAdapter()
-            print("✅ OK")
-        except Exception as e:
-            print(f"❌ FAIL: {e}")
+        _ = UniversalAdapter()
     else:
-        print("❌ FAIL: Module not found")
+        assert False, "UniversalAdapter missing"
 
     # 3. Weapon Foundry
-    print("[*] Testing WeaponFoundry...", end=" ")
     if WeaponFoundry:
-        try:
-            _ = WeaponFoundry()
-            print("✅ OK")
-        except Exception as e:
-            print(f"❌ FAIL: {e}")
+        _ = WeaponFoundry()
     else:
-        print("❌ FAIL: Module not found")
+        assert False, "WeaponFoundry missing"
 
     # 4. Hive Mind
-    print("[*] Testing HiveMind...", end=" ")
     if CredentialHarvester:
-        try:
-            _ = CredentialHarvester()
-            print("✅ OK")
-        except Exception as e:
-            print(f"❌ FAIL: {e}")
+        _ = CredentialHarvester()
     else:
-        print("❌ FAIL: Module not found")
+        assert False, "CredentialHarvester (HiveMind) missing"
 
     # 5. Report Generator
-    print("[*] Testing ReportGenerator...", end=" ")
     if ReportGenerator and ReportConfig:
-        try:
-            _ = ReportGenerator(ReportConfig(title="Test Report"))
-            print("✅ OK")
-        except Exception as e:
-            print(f"❌ FAIL: {e}")
+        _ = ReportGenerator(ReportConfig(title="Test Report"))
     else:
-        print("❌ FAIL: Module not found")
+        assert False, "ReportGenerator missing"
 
 
 if __name__ == "__main__":
     try:
-        check_modules()
+        test_final_check()
         print("\n🎉 Final Check Complete: System is Ready!")
     except Exception as e:
         print(f"\n❌ Final Check Failed: {e}")

@@ -7,8 +7,7 @@ Thread-safe singleton pattern.
 import logging
 import sqlite3
 import threading
-from contextlib import contextmanager
-from typing import List, Optional
+from contextlib import contextmanager, suppress
 
 logger = logging.getLogger(__name__)
 
@@ -60,38 +59,47 @@ class SQLiteProvider(DatabaseProvider):
     def close(self):
         """Close connection for current thread"""
         if hasattr(self._local, "conn"):
-            try:
+            with suppress(Exception):
                 self._local.conn.close()
-            except Exception:
-                pass
             del self._local.conn
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
+        import time
         conn = self._get_conn()
-        try:
-            cur = conn.execute(query, params)
-            # Optimize: Only commit if query modifies data
-            if (
-                query.strip()
-                .upper()
-                .startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"))
-            ):
-                conn.commit()
-            return cur
-        except sqlite3.Error as e:
-            logger.error(f"DB Error: {e} | Query: {query}")
-            # Only rollback if we were in a write operation context (simplified)
+        last_error = None
+        for attempt in range(5):
             try:
-                conn.rollback()
-            except Exception:
-                pass
-            raise
+                cur = conn.execute(query, params)
+                # Optimize: Only commit if query modifies data
+                if (
+                    query.strip()
+                    .upper()
+                    .startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"))
+                ):
+                    conn.commit()
+                return cur
+            except sqlite3.OperationalError as e:
+                last_error = e
+                if "locked" in str(e).lower() and attempt < 4:
+                    time.sleep(0.1 * (attempt + 1))
+                    continue
+                # For other errors or final attempt, rollback and raise
+                with suppress(Exception):
+                    conn.rollback()
+                raise
+            except sqlite3.Error as e:
+                logger.error(f"DB Error: {e} | Query: {query}")
+                with suppress(Exception):
+                    conn.rollback()
+                raise
+        # This part should theoretically not be reached if continue/raise logic is correct
+        raise last_error
 
-    def fetch_all(self, query: str, params: tuple = ()) -> List[dict]:
+    def fetch_all(self, query: str, params: tuple = ()) -> list[dict]:
         cur = self.execute(query, params)
         return [dict(row) for row in cur.fetchall()]
 
-    def fetch_one(self, query: str, params: tuple = ()) -> Optional[dict]:
+    def fetch_one(self, query: str, params: tuple = ()) -> dict | None:
         cur = self.execute(query, params)
         row = cur.fetchone()
         return dict(row) if row else None

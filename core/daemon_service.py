@@ -10,7 +10,6 @@ import os
 import signal
 import sys
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,7 @@ class DaemonService:
         sys.stdout.flush()
         sys.stderr.flush()
 
-        with open("/dev/null", "r") as devnull:
+        with open("/dev/null") as devnull:
             os.dup2(devnull.fileno(), sys.stdin.fileno())  # pylint: disable=no-member
         with open("/tmp/drakben.log", "a+") as log:
             os.dup2(log.fileno(), sys.stdout.fileno())  # pylint: disable=no-member
@@ -94,10 +93,10 @@ class DaemonService:
         self._cleanup()
         sys.exit(0)
 
-    def get_pid(self) -> Optional[int]:
+    def get_pid(self) -> int | None:
         """Get running daemon PID"""
         try:
-            with open(self.pid_file, "r") as f:
+            with open(self.pid_file) as f:
                 return int(f.read().strip())
         except (OSError, ValueError):
             return None
@@ -165,7 +164,10 @@ WantedBy=multi-user.target
 
         try:
             import importlib.util
-            if not importlib.util.find_spec("win32service") or not importlib.util.find_spec("win32serviceutil"):
+
+            if not importlib.util.find_spec(
+                "win32service"
+            ) or not importlib.util.find_spec("win32serviceutil"):
                 raise ImportError
 
             # This would require a proper service class

@@ -54,7 +54,7 @@ def check_sensitive_leaks():
                     continue
 
                 try:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(path, encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                         for pattern in SENSITIVE_PATTERNS:
                             if pattern in content and "your_key_here" not in content:
@@ -67,27 +67,20 @@ def check_sensitive_leaks():
     return leaks
 
 
-def run_integrity_check():
+def test_integrity():
     """Run all integrity checks"""
-    errors = 0
-
     missing = check_required_files()
-    if missing:
-        errors += len(missing)
+    assert not missing, f"Missing core files: {missing}"
 
     leaks = check_sensitive_leaks()
     if leaks:
-        # We don't fail CI on potential leaks but we log them
-        # logger.warning("Potential leaks detected. Review logs.")
-        pass
-
-    if errors > 0:
-        logger.error(f"Integrity check FAILED with {errors} errors.")
-        sys.exit(1)
-    else:
-        logger.info("Integrity check PASSED.")
-        sys.exit(0)
+        logger.warning(f"Potential leaks detected in: {leaks}")
 
 
 if __name__ == "__main__":
-    run_integrity_check()
+    try:
+        test_integrity()
+        logger.info("Integrity check PASSED.")
+    except AssertionError as e:
+        logger.error(f"Integrity check FAILED: {e}")
+        sys.exit(1)

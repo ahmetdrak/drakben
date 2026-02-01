@@ -114,19 +114,19 @@ class TestSecureCleanup(unittest.TestCase):
         from unittest.mock import mock_open, patch
 
         m_open = mock_open()
-        
+
         with (
             patch("builtins.open", m_open),
             patch("os.path.exists", return_value=True),
             patch("os.path.getsize", return_value=1024),
             patch("os.remove") as mock_remove,
-            patch("os.fsync"), # Mock fsync to avoid errors on mock file
+            patch("os.fsync"),  # Mock fsync to avoid errors on mock file
         ):
             SecureCleanup.secure_delete("dummy_secret.txt", passes=3)
 
             # Get the file handle returned by open()
             handle = m_open.return_value
-            
+
             # Check write count: range(3) -> write is called at least 3 times
             self.assertGreaterEqual(
                 handle.write.call_count,

@@ -6,12 +6,13 @@ import logging
 import os
 import shlex
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
+import contextlib
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ class CommandResult:
 
     success: bool
     output: str = ""
-    error: Optional[str] = None
-    data: Optional[Dict] = None
+    error: str | None = None
+    data: dict | None = None
 
 
 class InteractiveShell:
@@ -91,20 +92,20 @@ class InteractiveShell:
         self.running = False
 
         # Command handlers
-        self.command_handlers: Dict[str, Callable] = {}
+        self.command_handlers: dict[str, Callable] = {}
         self._register_builtin_commands()
 
         # Session state
-        self.current_target: Optional[str] = None
-        self.session_vars: Dict[str, str] = {}
-        self.command_history: List[str] = []
+        self.current_target: str | None = None
+        self.session_vars: dict[str, str] = {}
+        self.command_history: list[str] = []
 
         # History management
         self.enable_history = enable_history
         self.history_file = history_file
 
         # Multi-line input state
-        self.multiline_buffer: List[str] = []
+        self.multiline_buffer: list[str] = []
         self.in_multiline: bool = False
 
         # Initialize readline
@@ -133,7 +134,7 @@ class InteractiveShell:
         except Exception as e:
             logger.warning(f"Could not initialize readline: {e}")
 
-    def _completer(self, text: str, state: int) -> Optional[str]:
+    def _completer(self, text: str, state: int) -> str | None:
         """Tab completion for commands"""
         options = []
 
@@ -238,10 +239,8 @@ class InteractiveShell:
     def _save_history(self):
         """Save command history on exit"""
         if self.enable_history and READLINE_AVAILABLE and readline_mod is not None:
-            try:
+            with contextlib.suppress(Exception):
                 readline_mod.write_history_file(self.history_file)
-            except Exception:
-                pass
 
     def _show_banner(self):
         """Show welcome banner"""
@@ -341,7 +340,7 @@ class InteractiveShell:
 
     # ==================== COMMAND HANDLERS ====================
 
-    def _cmd_help(self, args: List[str]) -> CommandResult:
+    def _cmd_help(self, args: list[str]) -> CommandResult:
         """Show help message"""
         table = Table(title="Available Commands")
         table.add_column("Command", style="cyan")
@@ -355,25 +354,23 @@ class InteractiveShell:
 
         return CommandResult(success=True, output="")
 
-    def _cmd_exit(self, args: List[str]) -> CommandResult:
+    def _cmd_exit(self, args: list[str]) -> CommandResult:
         """Exit the shell"""
         self.running = False
         self.console.print("Goodbye!", style="bold green")
         return CommandResult(success=True, output="")
 
-    def _cmd_clear(self, args: List[str]) -> CommandResult:
+    def _cmd_clear(self, args: list[str]) -> CommandResult:
         """Clear the screen"""
         os.system("cls" if os.name == "nt" else "clear")  # nosec B605
         return CommandResult(success=True, output="")
 
-    def _cmd_history(self, args: List[str]) -> CommandResult:
+    def _cmd_history(self, args: list[str]) -> CommandResult:
         """Show command history"""
         count = 20
         if args:
-            try:
+            with contextlib.suppress(ValueError):
                 count = int(args[0])
-            except ValueError:
-                pass
 
         history = self.command_history[-count:]
         for i, cmd in enumerate(history, 1):
@@ -381,7 +378,7 @@ class InteractiveShell:
 
         return CommandResult(success=True, output="")
 
-    def _cmd_target(self, args: List[str]) -> CommandResult:
+    def _cmd_target(self, args: list[str]) -> CommandResult:
         """Set or show target"""
         if args:
             self.current_target = args[0]
@@ -402,7 +399,7 @@ class InteractiveShell:
 
         return CommandResult(success=True, output="")
 
-    def _cmd_status(self, args: List[str]) -> CommandResult:
+    def _cmd_status(self, args: list[str]) -> CommandResult:
         """Show current status"""
         table = Table(title="Session Status")
         table.add_column("Property", style="cyan")
@@ -421,7 +418,7 @@ class InteractiveShell:
         self.console.print(table)
         return CommandResult(success=True, output="")
 
-    def _cmd_run(self, args: List[str]) -> CommandResult:
+    def _cmd_run(self, args: list[str]) -> CommandResult:
         """Run a specific action"""
         if not args:
             self.console.print("[yellow]Usage: /run <action> [args...][/yellow]")
@@ -440,7 +437,7 @@ class InteractiveShell:
 
         return CommandResult(success=False, error=f"Unknown action: {action}")
 
-    def _cmd_scan(self, args: List[str]) -> CommandResult:
+    def _cmd_scan(self, args: list[str]) -> CommandResult:
         """Run a scan"""
         target = args[0] if args else self.current_target
 
@@ -467,7 +464,7 @@ class InteractiveShell:
 
         return CommandResult(success=False, error="No agent available")
 
-    def _cmd_exploit(self, args: List[str]) -> CommandResult:
+    def _cmd_exploit(self, args: list[str]) -> CommandResult:
         """Run exploit module"""
         if not args:
             self.console.print("[yellow]Usage: /exploit <module> [args...][/yellow]")
@@ -479,27 +476,43 @@ class InteractiveShell:
         # Would integrate with exploit modules here
         return CommandResult(success=True, output="Exploit execution placeholder")
 
-    def _cmd_shell(self, args: List[str]) -> CommandResult:
+    def _cmd_shell(self, args: list[str]) -> CommandResult:
         """Execute a system shell command"""
         if not args:
             self.console.print("[yellow]Usage: /shell <command>[/yellow]")
             return CommandResult(success=False, error="No command specified")
 
         command = " ".join(args)
-        
+
         # --- RISK WARNING SYSTEM ---
-        risk_commands = ["rm ", "mkfs", "dd ", "> /dev/sda", "shutdown", "reboot", ":(){ :|:& };:"]
+        risk_commands = [
+            "rm ",
+            "mkfs",
+            "dd ",
+            "> /dev/sda",
+            "shutdown",
+            "reboot",
+            ":(){ :|:& };:",
+        ]
         if any(rc in command for rc in risk_commands):
-            self.console.print(Panel(
-                f"[bold red]⚠ TEHLİKELİ KOMUT TESPİT EDİLDİ / DANGEROUS COMMAND DETECTED[/]\n\n"
-                f"Komut: [yellow]{command}[/]\n\n"
-                f"Bu komut sistemi bozabilir veya veri kaybına yol açabilir.",
-                title="[bold red]!!! SECURITY ALERT !!![/]",
-                border_style="red"
-            ))
-            confirm = input("Yine de devam etmek istiyor musunuz? / Continue anyway? (y/N): ").strip().lower()
-            if confirm != 'y':
-                return CommandResult(success=False, error="Aborted by user safety check")
+            self.console.print(
+                Panel(
+                    f"[bold red]⚠ TEHLİKELİ KOMUT TESPİT EDİLDİ / DANGEROUS COMMAND DETECTED[/]\n\n"
+                    f"Komut: [yellow]{command}[/]\n\n"
+                    f"Bu komut sistemi bozabilir veya veri kaybına yol açabilir.",
+                    title="[bold red]!!! SECURITY ALERT !!![/]",
+                    border_style="red",
+                )
+            )
+            confirm = (
+                input("Yine de devam etmek istiyor musunuz? / Continue anyway? (y/N): ")
+                .strip()
+                .lower()
+            )
+            if confirm != "y":
+                return CommandResult(
+                    success=False, error="Aborted by user safety check"
+                )
 
         self.console.print(f"[dim]$ {command}[/dim]")
 
@@ -537,7 +550,7 @@ class InteractiveShell:
             except Exception as e:
                 return CommandResult(success=False, error=str(e))
 
-    def _cmd_python(self, args: List[str]) -> CommandResult:
+    def _cmd_python(self, args: list[str]) -> CommandResult:
         """Execute Python code"""
         if not args:
             self.console.print("[yellow]Usage: /python <code>[/yellow]")
@@ -576,7 +589,7 @@ class InteractiveShell:
         except Exception as e:
             return CommandResult(success=False, error=str(e))
 
-    def _cmd_reset(self, args: List[str]) -> CommandResult:
+    def _cmd_reset(self, args: list[str]) -> CommandResult:
         """Reset session state"""
         self.current_target = None
         self.session_vars = {}
@@ -589,7 +602,7 @@ class InteractiveShell:
         self.console.print("[green]Session reset.[/green]")
         return CommandResult(success=True, output="")
 
-    def _cmd_export(self, args: List[str]) -> CommandResult:
+    def _cmd_export(self, args: list[str]) -> CommandResult:
         """Export results"""
         filename = args[0] if args else "drakben_export.json"
 
@@ -612,7 +625,7 @@ class InteractiveShell:
         except Exception as e:
             return CommandResult(success=False, error=str(e))
 
-    def _cmd_config(self, args: List[str]) -> CommandResult:
+    def _cmd_config(self, args: list[str]) -> CommandResult:
         """Show or edit configuration"""
         if not args:
             # Show current config

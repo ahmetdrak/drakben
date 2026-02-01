@@ -22,8 +22,9 @@ if platform.system() == "Windows":
     TARGET_DIR = "release"
 else:
     # On Kali/Linux, we might be cross-compiling or running locally
-    DLL_NAME = "libdrakben_syscalls.so" 
+    DLL_NAME = "libdrakben_syscalls.so"
     TARGET_DIR = "release"
+
 
 class SyscallLoader:
     """
@@ -33,7 +34,7 @@ class SyscallLoader:
     def __init__(self):
         self.dll_path = self._find_dll()
         self.lib = None
-        
+
         if self.dll_path:
             try:
                 self.lib = ctypes.cdll.LoadLibrary(str(self.dll_path))
@@ -42,7 +43,9 @@ class SyscallLoader:
             except Exception as e:
                 logger.error(f"Failed to load Syscall DLL: {e}")
         else:
-            logger.warning("Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls")
+            logger.warning(
+                "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls"
+            )
 
     def _find_dll(self) -> Path:
         """Search for the compiled DLL/SO file"""
@@ -50,7 +53,7 @@ class SyscallLoader:
         cargo_out = RUST_PROJECT_PATH / "target" / TARGET_DIR / DLL_NAME
         if cargo_out.exists():
             return cargo_out.resolve()
-        
+
         # 2. Check current directory (for deployed agents)
         local_dll = Path(DLL_NAME)
         if local_dll.exists():
@@ -91,8 +94,10 @@ class SyscallLoader:
             return self.lib.allocate_rwx(size)
         return 0
 
+
 # Singleton
 _loader = None
+
 
 def get_syscall_loader() -> SyscallLoader:
     global _loader

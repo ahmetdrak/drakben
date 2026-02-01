@@ -1,6 +1,6 @@
 import logging
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any
 import sys
 
 import requests
@@ -13,6 +13,7 @@ except ImportError:
 
 try:
     from rich.console import Console
+
     console = Console()
 except ImportError:
     console = None
@@ -41,7 +42,7 @@ class WebResearcher:
 
     def search_tool(self, query: str, max_results=5):
         """Searches specific targets using DDG HTML endpoint."""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         try:
             logger.info(f"Stealth Search for: {query}")
 
@@ -113,7 +114,6 @@ class WebResearcher:
             else:
                 # StealthSession (curl_cffi) doesn't stream well. Fallback to requests for large files.
                 # Just use requests directly for downloads to be safe on memory
-
 
                 with requests.get(
                     url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}

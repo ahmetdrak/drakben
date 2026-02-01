@@ -2,7 +2,6 @@ import hashlib
 import logging
 import sqlite3
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class LLMCache:
         except Exception as e:
             logger.error(f"Cache init error: {e}")
 
-    def get(self, query: str) -> Optional[str]:
+    def get(self, query: str) -> str | None:
         """
         Önbellekten yanıt getir
 

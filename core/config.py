@@ -8,7 +8,7 @@ import os
 import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -63,11 +63,11 @@ class DrakbenConfig:
 
     # LLM Settings
     llm_provider: str = "auto"  # auto, openrouter, ollama, openai
-    openrouter_api_key: Optional[str] = None
+    openrouter_api_key: str | None = None
     openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
-    openai_api_key: Optional[str] = None
+    openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
 
     # Setup
@@ -83,7 +83,7 @@ class DrakbenConfig:
     approved_once: bool = False
 
     # Session
-    target: Optional[str] = None
+    target: str | None = None
     session_dir: str = "sessions"
     log_dir: str = "logs"
 
@@ -93,10 +93,10 @@ class DrakbenConfig:
     timeout: int = 30
 
     # Tools
-    tools_available: Optional[Dict[str, bool]] = None
+    tools_available: dict[str, bool] | None = None
 
     # System Settings (Added to match config.json)
-    system: Optional[Dict[str, Any]] = None
+    system: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.tools_available is None:
@@ -143,10 +143,10 @@ class ConfigManager:
         ):
             self.config.llm_setup_complete = True
 
-    def _read_env_file(self) -> Dict[str, str]:
+    def _read_env_file(self) -> dict[str, str]:
         """Read api.env into a dict"""
         env_path = Path(API_ENV_PATH)
-        values: Dict[str, str] = {}
+        values: dict[str, str] = {}
 
         if not env_path.exists():
             return values
@@ -160,7 +160,7 @@ class ConfigManager:
 
         return values
 
-    def _write_env_file(self, values: Dict[str, str]):
+    def _write_env_file(self, values: dict[str, str]):
         """Write api.env from a dict"""
         env_path = Path(API_ENV_PATH)
         env_path.parent.mkdir(parents=True, exist_ok=True)
@@ -245,7 +245,7 @@ class ConfigManager:
         choice = input("> ").strip().lower()
         return choice in ["e", "y", "evet", "yes"]
 
-    def _configure_provider(self, choice: str, env_values: Dict[str, str]) -> bool:
+    def _configure_provider(self, choice: str, env_values: dict[str, str]) -> bool:
         """Configure specific provider based on user choice"""
         if choice == "1":
             self.config.llm_provider = "openrouter"
@@ -318,7 +318,7 @@ class ConfigManager:
         with self._lock:
             if self.config_file.exists():
                 try:
-                    with open(self.config_file, "r", encoding="utf-8") as f:
+                    with open(self.config_file, encoding="utf-8") as f:
                         data = json.load(f)
                         return DrakbenConfig(**data)
                 except Exception as e:
@@ -340,7 +340,7 @@ class ConfigManager:
                 # SENSITIVE DATA PROTECTION
                 # Do not write API keys to settings.json (they belong in .env)
                 data = asdict(self.config)
-                keys_to_remove = [k for k in data.keys() if "_api_key" in k]
+                keys_to_remove = [k for k in data if "_api_key" in k]
                 for k in keys_to_remove:
                     data.pop(k, None)
 
@@ -363,13 +363,13 @@ class ConfigManager:
                 self.config.language = lang
                 self.save_config()
 
-    def set_target(self, target: Optional[str]):
+    def set_target(self, target: str | None):
         """Set target (thread-safe)"""
         with self._lock:
             self.config.target = target
             self.save_config()
 
-    def get_llm_config(self) -> Dict[str, Any]:
+    def get_llm_config(self) -> dict[str, Any]:
         """Get LLM configuration (thread-safe)"""
         with self._lock:
             return {
@@ -405,14 +405,14 @@ class SessionManager:
         self._lock = threading.RLock()
         self.session_dir = Path(session_dir)
         self.session_dir.mkdir(parents=True, exist_ok=True)
-        self.current_session: Dict[str, Any] = {
+        self.current_session: dict[str, Any] = {
             "target": None,
             "commands": [],
             "findings": [],
             "notes": [],
         }
 
-    def save_session(self, target: str) -> Optional[Path]:
+    def save_session(self, target: str) -> Path | None:
         """Save current session (thread-safe)"""
         with self._lock:
             try:
@@ -432,13 +432,13 @@ class SessionManager:
                 logger.error(f"Session save error: {e}")
                 return None
 
-    def load_session(self, filename: str) -> Optional[Dict]:
+    def load_session(self, filename: str) -> dict | None:
         """Load a session (thread-safe)"""
         with self._lock:
             try:
                 filepath = self.session_dir / filename
                 if filepath.exists():
-                    with open(filepath, "r", encoding="utf-8") as f:
+                    with open(filepath, encoding="utf-8") as f:
                         return json.load(f)
             except Exception as e:
                 logger.error(f"Session load error: {e}")

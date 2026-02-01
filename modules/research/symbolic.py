@@ -6,7 +6,7 @@ Description: Mathematical code path analysis using constraint solving.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class ExecutionPath:
     """A possible execution path through code"""
 
     path_id: int
-    constraints: List[PathConstraint]
+    constraints: list[PathConstraint]
     reaches_sink: bool
     sink_name: str = ""
 
@@ -46,6 +46,7 @@ class SymbolicExecutor:
         """Check if Z3 solver is available"""
         try:
             import importlib.util
+
             if not importlib.util.find_spec("z3"):
                 raise ImportError
 
@@ -56,7 +57,7 @@ class SymbolicExecutor:
 
     def analyze_function(
         self, source_code: str, target_func: str
-    ) -> List[ExecutionPath]:
+    ) -> list[ExecutionPath]:
         """
         Symbolically execute a function to find all paths to dangerous sinks.
         """
@@ -78,17 +79,23 @@ class SymbolicExecutor:
 
         return paths
 
-    def _explore_paths(self, func_node) -> List[ExecutionPath]:
+    def _explore_paths(self, func_node) -> list[ExecutionPath]:
         """Extract execution paths from function AST (Recursive)"""
         import ast
 
-        paths = []
         path_id = 0
 
         # Expanded list of dangerous sinks
         dangerous_sinks = {
-            "eval", "exec", "system", "popen", "subprocess.call", "subprocess.run",
-            "os.system", "pickle.loads", "yaml.load"
+            "eval",
+            "exec",
+            "system",
+            "popen",
+            "subprocess.call",
+            "subprocess.run",
+            "os.system",
+            "pickle.loads",
+            "yaml.load",
         }
 
         # Recursive visitor
@@ -102,7 +109,9 @@ class SymbolicExecutor:
                 constraint_true = SymbolicExecutor._extract_constraint(node.test)
                 if constraint_true:
                     # Explore TRUE branch
-                    visitor_true = PathVisitor(self.current_constraints + [constraint_true])
+                    visitor_true = PathVisitor(
+                        self.current_constraints + [constraint_true]
+                    )
                     for child in node.body:
                         visitor_true.visit(child)
                     self.found_paths.extend(visitor_true.found_paths)
@@ -110,7 +119,9 @@ class SymbolicExecutor:
                     # Explore FALSE branch (Else)
                     # Note: Inverting constraints is complex without Z3, simplifying for now
                     if node.orelse:
-                        visitor_false = PathVisitor(self.current_constraints) # Omitted inversion for brevity
+                        visitor_false = PathVisitor(
+                            self.current_constraints
+                        )  # Omitted inversion for brevity
                         for child in node.orelse:
                             visitor_false.visit(child)
                         self.found_paths.extend(visitor_false.found_paths)
@@ -143,7 +154,7 @@ class SymbolicExecutor:
         return visitor.found_paths
 
     @staticmethod
-    def _extract_constraint(test_node) -> Optional[PathConstraint]:
+    def _extract_constraint(test_node) -> PathConstraint | None:
         """Extract constraint from AST comparison node"""
         import ast
 
@@ -163,18 +174,15 @@ class SymbolicExecutor:
                 }.get(type(op), "?")
 
                 right = test_node.comparators[0]
-                if isinstance(right, ast.Constant):
-                    value = right.value
-                else:
-                    value = "?"
+                value = right.value if isinstance(right, ast.Constant) else "?"
 
                 return PathConstraint(var_name, op_str, value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to extract constraint: {e}")
 
         return None
 
-    def solve_constraints(self, path: ExecutionPath) -> Optional[Dict[str, Any]]:
+    def solve_constraints(self, path: ExecutionPath) -> dict[str, Any] | None:
         """
         Use Z3 to find concrete inputs satisfying path constraints.
         """
@@ -202,7 +210,7 @@ class SymbolicExecutor:
                     z3_val = z3.BitVecVal(val, 64)
                 elif isinstance(val, str):
                     # Simple string to int conversion for basic symbolic exec
-                    z3_val = z3.BitVecVal(int.from_bytes(val.encode(), 'big'), 64)
+                    z3_val = z3.BitVecVal(int.from_bytes(val.encode(), "big"), 64)
                 else:
                     z3_val = z3.BitVecVal(0, 64)
 
@@ -211,9 +219,9 @@ class SymbolicExecutor:
                 elif constraint.operator == "!=":
                     solver.add(var != z3_val)
                 elif constraint.operator == "<":
-                    solver.add(z3.ULT(var, z3_val)) # Unsigned Less Than
+                    solver.add(z3.ULT(var, z3_val))  # Unsigned Less Than
                 elif constraint.operator == ">":
-                    solver.add(z3.UGT(var, z3_val)) # Unsigned Greater Than
+                    solver.add(z3.UGT(var, z3_val))  # Unsigned Greater Than
 
             if solver.check() == z3.sat:
                 model = solver.model()
@@ -224,7 +232,7 @@ class SymbolicExecutor:
 
         return None
 
-    def _heuristic_solve(self, path: ExecutionPath) -> Dict[str, Any]:
+    def _heuristic_solve(self, path: ExecutionPath) -> dict[str, Any]:
         """Fallback solver without Z3"""
         result = {}
         for c in path.constraints:

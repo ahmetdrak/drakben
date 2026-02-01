@@ -3,7 +3,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 
 class DrakbenLogger:
@@ -26,8 +26,8 @@ class DrakbenLogger:
         self,
         step_id: str,
         phase: str,
-        context: Dict[str, Any],
-        decision: Dict[str, Any],
+        context: dict[str, Any],
+        decision: dict[str, Any],
         reasoning: str = "",
     ):
         """Log an AI decision point"""
@@ -42,7 +42,7 @@ class DrakbenLogger:
         }
         self._write(entry)
 
-    def log_action(self, tool: str, args: Dict[str, Any], result: Dict[str, Any]):
+    def log_action(self, tool: str, args: dict[str, Any], result: dict[str, Any]):
         """Log a tool execution action and result"""
         # Clean result to avoid storing massive outputs
         cleaned_result = result.copy()
@@ -74,7 +74,7 @@ class DrakbenLogger:
         }
         self._write(entry)
 
-    def _write(self, data: Dict[str, Any]):
+    def _write(self, data: dict[str, Any]):
         """Write entry to JSONL file"""
         try:
             with open(self.log_file, "a", encoding="utf-8") as f:

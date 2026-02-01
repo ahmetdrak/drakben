@@ -5,7 +5,6 @@ Description: Orchestrates the self-improvement cycle: Synthesize -> Validate -> 
 """
 
 import logging
-from typing import Optional
 
 from .mutation import MutationEngine
 from .synthesizer import CodeSynthesizer
@@ -34,7 +33,7 @@ class SingularityEngine:
 
     def create_capability(
         self, description: str, language: str = "python"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Create a new diverse capability (tool) from scratch.
 

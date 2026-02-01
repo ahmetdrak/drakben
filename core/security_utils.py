@@ -8,11 +8,12 @@ import logging
 import os
 import secrets
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class CredentialStore:
     def __init__(self, storage_path: str = ".credentials.enc"):
         self.storage_path = Path(storage_path)
         self._keyring_available = self._check_keyring()
-        self._encryption_key: Optional[bytes] = None
+        self._encryption_key: bytes | None = None
 
         logger.info(f"CredentialStore initialized (keyring: {self._keyring_available})")
 
@@ -99,9 +100,7 @@ class CredentialStore:
                 "Install with: pip install pycryptodome"
             )
 
-    def store(
-        self, key: str, value: str, master_password: Optional[str] = None
-    ) -> bool:
+    def store(self, key: str, value: str, master_password: str | None = None) -> bool:
         """
         Store credential securely.
 
@@ -146,9 +145,7 @@ class CredentialStore:
             logger.error(f"Failed to store credential: {e}")
             return False
 
-    def retrieve(
-        self, key: str, master_password: Optional[str] = None
-    ) -> Optional[str]:
+    def retrieve(self, key: str, master_password: str | None = None) -> str | None:
         """
         Retrieve credential.
 
@@ -183,7 +180,7 @@ class CredentialStore:
             logger.error(f"Failed to retrieve credential: {e}")
             return None
 
-    def delete(self, key: str, master_password: Optional[str] = None) -> bool:
+    def delete(self, key: str, master_password: str | None = None) -> bool:
         """Delete credential"""
         try:
             if self._keyring_available:
@@ -208,7 +205,7 @@ class CredentialStore:
             logger.error(f"Failed to delete credential: {e}")
             return False
 
-    def _load_file(self, password: str) -> Dict[str, str]:
+    def _load_file(self, password: str) -> dict[str, str]:
         """Load credentials from encrypted file"""
         if not self.storage_path.exists():
             return {}
@@ -224,7 +221,7 @@ class CredentialStore:
         except Exception:
             return {}
 
-    def _save_file(self, credentials: Dict[str, str], password: str):
+    def _save_file(self, credentials: dict[str, str], password: str):
         """Save credentials to encrypted file"""
         salt = secrets.token_bytes(16)
         key = self._derive_key(password, salt)
@@ -267,11 +264,11 @@ class AuditEvent:
     source_ip: str
     target: str
     action: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     success: bool = True
     risk_level: str = "low"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "event_type": self.event_type.value,
@@ -378,7 +375,7 @@ class AuditLogger:
             try:
                 conn.execute(
                     """
-                    INSERT INTO audit_log 
+                    INSERT INTO audit_log
                     (timestamp, event_type, user, source_ip, target, action, details, success, risk_level, hash, prev_hash)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -410,7 +407,7 @@ class AuditLogger:
         command: str,
         target: str = "",
         success: bool = True,
-        details: Optional[Dict[Any, Any]] = None,
+        details: dict[Any, Any] | None = None,
     ):
         """Convenience method for logging commands"""
         event = AuditEvent(
@@ -428,12 +425,12 @@ class AuditLogger:
 
     def query(
         self,
-        event_type: Optional[AuditEventType] = None,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
-        target: Optional[str] = None,
+        event_type: AuditEventType | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        target: str | None = None,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit logs.
 
@@ -477,7 +474,7 @@ class AuditLogger:
 
         return results
 
-    def verify_integrity(self) -> Tuple[bool, str]:
+    def verify_integrity(self) -> tuple[bool, str]:
         """
         Verify audit log integrity using hash chain.
 
@@ -524,8 +521,8 @@ class ProxyConfig:
     host: str
     port: int
     protocol: str = "http"  # http, https, socks4, socks5
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
 
     def get_url(self) -> str:
         """Get proxy URL"""
@@ -534,7 +531,7 @@ class ProxyConfig:
             auth = f"{self.username}:{self.password}@"
         return f"{self.protocol}://{auth}{self.host}:{self.port}"
 
-    def get_dict(self) -> Dict[str, str]:
+    def get_dict(self) -> dict[str, str]:
         """Get proxy dict for requests"""
         url = self.get_url()
         return {"http": url, "https": url}
@@ -552,7 +549,7 @@ class ProxyManager:
     """
 
     def __init__(self):
-        self.proxies: List[ProxyConfig] = []
+        self.proxies: list[ProxyConfig] = []
         self.current_index = 0
         self.tor_available = self._check_tor()
 
@@ -582,7 +579,7 @@ class ProxyManager:
         """Add Tor as proxy"""
         self.add_proxy(ProxyConfig(host=host, port=port, protocol="socks5"))
 
-    def get_next(self) -> Optional[ProxyConfig]:
+    def get_next(self) -> ProxyConfig | None:
         """Get next proxy in rotation"""
         if not self.proxies:
             return None
@@ -591,18 +588,18 @@ class ProxyManager:
         self.current_index = (self.current_index + 1) % len(self.proxies)
         return proxy
 
-    def get_current(self) -> Optional[ProxyConfig]:
+    def get_current(self) -> ProxyConfig | None:
         """Get current proxy without rotation"""
         if not self.proxies:
             return None
         return self.proxies[self.current_index]
 
-    def get_requests_proxy(self) -> Optional[Dict[str, str]]:
+    def get_requests_proxy(self) -> dict[str, str] | None:
         """Get proxy dict for requests library"""
         proxy = self.get_current()
         return proxy.get_dict() if proxy else None
 
-    def get_aiohttp_proxy(self) -> Optional[str]:
+    def get_aiohttp_proxy(self) -> str | None:
         """Get proxy URL for aiohttp"""
         proxy = self.get_current()
         return proxy.get_url() if proxy else None
@@ -648,11 +645,9 @@ class ProxyManager:
 # CONVENIENCE FUNCTIONS (Thread-Safe Singletons)
 # =========================================
 
-import threading
-
-_credential_store: Optional[CredentialStore] = None
-_audit_logger: Optional[AuditLogger] = None
-_proxy_manager: Optional[ProxyManager] = None
+_credential_store: CredentialStore | None = None
+_audit_logger: AuditLogger | None = None
+_proxy_manager: ProxyManager | None = None
 
 # Thread-safe locks for singleton instantiation
 _credential_store_lock = threading.Lock()
@@ -697,7 +692,7 @@ def audit_command(
     command: str,
     target: str = "",
     success: bool = True,
-    details: Optional[Dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ):
     """Quick audit logging for commands"""
     get_audit_logger().log_command(command, target, success, details)

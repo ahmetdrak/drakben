@@ -1,4 +1,3 @@
-
 # core/visualizer.py
 # Network Visualization Module for DRAKBEN
 
@@ -14,9 +13,12 @@ logger = logging.getLogger(__name__)
 try:
     import networkx as nx
     from pyvis.network import Network
+
     DEPENDENCIES_AVAILABLE = True
 except ImportError:
-    logger.warning("Visualization dependencies (pyvis, networkx) not found. Visualization disabled.")
+    logger.warning(
+        "Visualization dependencies (pyvis, networkx) not found. Visualization disabled."
+    )
     DEPENDENCIES_AVAILABLE = False
 
 
@@ -43,7 +45,7 @@ class NetworkVisualizer:
             return ""
 
         state = get_state()
-        
+
         # Create Graph
         G = nx.Graph()
 
@@ -58,20 +60,16 @@ class NetworkVisualizer:
                 label = f"{port}/{svc.protocol}\n{svc.service}"
                 if svc.version:
                     label += f"\n{svc.version}"
-                
+
                 # Determine color based on status
-                color = "#00ff00" # Green (Safe)
+                color = "#00ff00"  # Green (Safe)
                 if svc.vulnerable:
-                    color = "#ff4444" # Red (Vulnerable)
+                    color = "#ff4444"  # Red (Vulnerable)
                 elif svc.version:
-                    color = "#ffff00" # Yellow (Version Identified)
+                    color = "#ffff00"  # Yellow (Version Identified)
 
                 G.add_node(
-                    service_id, 
-                    label=label, 
-                    title=str(svc), 
-                    color=color, 
-                    shape="box"
+                    service_id, label=label, title=str(svc), color=color, shape="box"
                 )
                 G.add_edge(target_label, service_id)
 
@@ -83,15 +81,17 @@ class NetworkVisualizer:
 
         # Generate HTML
         try:
-            net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
+            net = Network(
+                height="750px", width="100%", bgcolor="#222222", font_color="white"
+            )
             net.from_nx(G)
-            
+
             # Physics settings for stability
             net.toggle_physics(True)
-            
+
             output_path = os.path.join(self.output_dir, filename)
             abs_path = os.path.abspath(output_path)
-            
+
             net.save_graph(abs_path)
             logger.info(f"Network map generated: {abs_path}")
             return abs_path
@@ -110,7 +110,7 @@ class NetworkVisualizer:
                     label=vuln.vuln_id,
                     title=f"Severity: {vuln.severity}",
                     color="#ff0000",
-                    shape="diamond"
+                    shape="diamond",
                 )
                 G.add_edge(parent_id, vuln_id)
 
@@ -123,14 +123,20 @@ class NetworkVisualizer:
                     cred_id,
                     label=f"User: {cred.username}",
                     title="Credential",
-                    color="#00ffff", # Cyan
+                    color="#00ffff",  # Cyan
                     shape="icon",
-                    icon={'code': '\uf084', 'size': 50, 'color': '#00ffff'} # Key icon (if fontawesome supported) or fallback
+                    icon={
+                        "code": "\uf084",
+                        "size": 50,
+                        "color": "#00ffff",
+                    },  # Key icon (if fontawesome supported) or fallback
                 )
                 G.add_edge(parent_id, cred_id)
 
+
 # Global Instance
 _visualizer = None
+
 
 def get_visualizer() -> NetworkVisualizer:
     global _visualizer

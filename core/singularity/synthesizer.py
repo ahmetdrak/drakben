@@ -6,7 +6,6 @@ Description: Generates functional code using LLM prompts and AST validation.
 
 import ast
 import logging
-from typing import List
 
 from .base import CodeSnippet, ISynthesizer
 
@@ -22,7 +21,7 @@ class CodeSynthesizer(ISynthesizer):
     def __init__(self, model: str = "gpt-4o"):
         self.model = model
         self.system_prompt = """
-        You are Drakben's Code Architect. 
+        You are Drakben's Code Architect.
         Your goal is to write highly optimized, stealthy, and functional security tools.
         - Output ONLY pure code (Python, Bash, or Go).
         - No markdown formatting, no explanations.
@@ -114,13 +113,13 @@ if __name__ == "__main__":
             logger.error(f"Syntax Error: {e}")
             return False
 
-    def _extract_dependencies(self, code: str, language: str) -> List[str]:
+    def _extract_dependencies(self, code: str, language: str) -> list[str]:
         """Extract imports/requirements"""
         if language == "python":
             return self._extract_python_deps(code)
         return []
 
-    def _extract_python_deps(self, code: str) -> List[str]:
+    def _extract_python_deps(self, code: str) -> list[str]:
         """Helper to extract Python imports"""
         deps = []
         try:

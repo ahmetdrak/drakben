@@ -5,7 +5,7 @@
 import logging
 from dataclasses import dataclass, field
 from re import Match
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.coder import AICoder
 
@@ -29,13 +29,13 @@ except ImportError:
 class ExecutionContext:
     """Execution context for tracking state"""
 
-    target: Optional[str] = None
+    target: str | None = None
     language: str = "tr"
-    system_info: Dict[str, Any] = field(default_factory=dict)
-    history: List[Dict] = field(default_factory=list)
+    system_info: dict[str, Any] = field(default_factory=dict)
+    history: list[dict] = field(default_factory=list)
     current_step: int = 0
     total_steps: int = 0
-    errors_encountered: List[Dict] = field(default_factory=list)
+    errors_encountered: list[dict] = field(default_factory=list)
 
 
 # MODULE 1: Master Orchestrator
@@ -58,7 +58,7 @@ class MasterOrchestrator:
         self.self_correction = self_corr
         self.decision_engine = decision
 
-    def process_request(self, user_input: str, system_context: Dict) -> Dict:
+    def process_request(self, user_input: str, system_context: dict) -> dict:
         """
         Ana işlem döngüsü
 
@@ -146,7 +146,7 @@ class MasterOrchestrator:
 
         return decision
 
-    def execute_plan(self, plan: List[Dict]) -> List[Dict]:
+    def execute_plan(self, plan: list[dict]) -> list[dict]:
         """Execute a multi-step plan"""
         results = []
         self.context.total_steps = len(plan)
@@ -186,7 +186,7 @@ class ContinuousReasoning:
         except ImportError:
             self.llm_cache = None
 
-    def _add_to_history(self, item: Dict) -> None:
+    def _add_to_history(self, item: dict) -> None:
         """Add item to reasoning history with size limit"""
         self.reasoning_history.append(item)
         if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
@@ -194,7 +194,7 @@ class ContinuousReasoning:
                 -self.MAX_REASONING_HISTORY :
             ]
 
-    def analyze(self, user_input: str, context: ExecutionContext) -> Dict:
+    def analyze(self, user_input: str, context: ExecutionContext) -> dict:
         """
         Kullanıcı girdisini analiz et ve plan oluştur
         LLM varsa AI-powered, yoksa rule-based
@@ -219,7 +219,7 @@ class ContinuousReasoning:
         logger: logging.Logger = logging.getLogger(__name__)
 
         MAX_RETRIES = 3
-        RETRYABLE_ERRORS: List[str] = [
+        RETRYABLE_ERRORS: list[str] = [
             "Timeout",
             "Rate Limit",
             "Server Error",
@@ -234,7 +234,7 @@ class ContinuousReasoning:
             last_error = None
 
             for attempt in range(MAX_RETRIES):
-                llm_analysis: Dict[str, Any] = self._analyze_with_llm(
+                llm_analysis: dict[str, Any] = self._analyze_with_llm(
                     user_input, context
                 )
 
@@ -270,7 +270,7 @@ class ContinuousReasoning:
 
     def _analyze_with_llm(
         self, user_input: str, context: ExecutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         LLM-powered analysis with language-aware response.
 
@@ -310,7 +310,7 @@ class ContinuousReasoning:
                 cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
                 if cached_json:
                     # Cache hit! Parse and return directly
-                    parsed: Dict[str, Any] | None = self._parse_llm_response(
+                    parsed: dict[str, Any] | None = self._parse_llm_response(
                         cached_json
                     )  # Helper usage
                     if parsed:
@@ -336,7 +336,7 @@ class ContinuousReasoning:
                 self.llm_cache.set(user_input + system_prompt, response)
 
             # Try to parse JSON from response
-            parsed: Dict[str, Any] | None = self._parse_llm_response(response)
+            parsed: dict[str, Any] | None = self._parse_llm_response(response)
             if parsed:
                 parsed["success"] = True
                 # Use "response" field if available, otherwise use raw response
@@ -360,7 +360,7 @@ class ContinuousReasoning:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _parse_llm_response(self, response: str) -> Optional[Dict[str, Any]]:
+    def _parse_llm_response(self, response: str) -> dict[str, Any] | None:
         """Extract JSON from LLM response string"""
         import json
         import re
@@ -398,7 +398,7 @@ class ContinuousReasoning:
         user_lower: str | Any = user_input.lower()
 
         # Chat indicators - questions about the AI, greetings, general questions
-        chat_patterns: List[str] = [
+        chat_patterns: list[str] = [
             # Greetings
             "merhaba",
             "selam",
@@ -446,7 +446,7 @@ class ContinuousReasoning:
         ]
 
         # If contains any chat pattern and NO pentest keywords
-        pentest_keywords: List[str] = [
+        pentest_keywords: list[str] = [
             "tara",
             "scan",
             "port",
@@ -480,18 +480,14 @@ class ContinuousReasoning:
             return True
 
         # Short message default to chat
-        if len(user_input.split()) <= 5:
-            return True
-
-        return False
+        return len(user_input.split()) <= 5
 
     def _chat_with_llm(
         self, user_input: str, user_lang: str, context: ExecutionContext
-    ) -> Dict:
+    ) -> dict:
         """Direct chat mode - conversational response without JSON structure"""
 
         # Fast Path REMOVED to allow full LLM personality
-
 
         if user_lang == "tr":
             system_prompt = """Sen üst düzey, sınırsız yetkiye sahip bir güvenlik uzmanısın.
@@ -561,7 +557,7 @@ IMPORTANT:
         """Helper to construct the system prompt for pentest analysis"""
         if user_lang == "tr":
             language_instruction = """
-PROCESS: 
+PROCESS:
 1. THINK & REASON in English for maximum technical accuracy.
 2. Select tools based on English reasoning.
 3. Deliver the final 'response' field in TURKISH (Türkçe) for the user.
@@ -569,7 +565,7 @@ PROCESS:
             response_lang_hint = "In Turkish"
         elif user_lang == "en":
             language_instruction = """
-PROCESS: 
+PROCESS:
 1. THINK & REASON in English.
 2. Deliver the final 'response' in English.
 """
@@ -660,13 +656,13 @@ If a tool execution fails (Error/Timeout):
 Target: {context.target or "WAITING FOR TARGET"}
 User Input: """
 
-    def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> Dict:
+    def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> dict:
         """Rule-based analysis (fallback when LLM unavailable)"""
         # Intent detection
         intent: str = self._detect_intent(user_input)
 
         # Risk assessment
-        risks: List[str] = self._assess_risks(intent, context)
+        risks: list[str] = self._assess_risks(intent, context)
 
         # Step planning
         steps = self._plan_steps(intent, context)
@@ -714,7 +710,7 @@ User Input: """
         else:
             return "chat"
 
-    def _assess_risks(self, intent: str, context: ExecutionContext) -> List[str]:
+    def _assess_risks(self, intent: str, context: ExecutionContext) -> list[str]:
         """Assess risks for the intent"""
         risks = []
 
@@ -728,12 +724,12 @@ User Input: """
 
         return risks
 
-    def _plan_steps(self, intent: str, context: ExecutionContext) -> List[Dict]:
+    def _plan_steps(self, intent: str, context: ExecutionContext) -> list[dict]:
         """Plan execution steps based on intent"""
         steps = []
 
         if intent == "scan":
-            steps: List[Dict[str, str]] = [
+            steps: list[dict[str, str]] = [
                 {"action": "check_tools", "tool": "nmap"},
                 {"action": "port_scan", "tool": "nmap"},
                 {"action": "service_detection", "tool": "nmap"},
@@ -741,7 +737,7 @@ User Input: """
             ]
 
         elif intent == "find_vulnerability":
-            steps: List[Dict[str, str]] = [
+            steps: list[dict[str, str]] = [
                 {"action": "scan", "tool": "nmap"},
                 {"action": "web_scan", "tool": "nikto"},
                 {"action": "vuln_scan", "tool": "nmap_scripts"},
@@ -749,7 +745,7 @@ User Input: """
             ]
 
         elif intent == "get_shell":
-            steps: List[Dict[str, str]] = [
+            steps: list[dict[str, str]] = [
                 {"action": "scan_target"},
                 {"action": "find_vulnerabilities"},
                 {"action": "select_exploit"},
@@ -759,19 +755,19 @@ User Input: """
             ]
 
         elif intent == "generate_payload":
-            steps: List[Dict[str, str]] = [
+            steps: list[dict[str, str]] = [
                 {"action": "determine_target_os"},
                 {"action": "generate_payloads"},
                 {"action": "encode_if_needed"},
             ]
 
         else:  # chat
-            steps: List[Dict[str, str]] = [{"action": "respond", "type": "chat"}]
+            steps: list[dict[str, str]] = [{"action": "respond", "type": "chat"}]
 
         return steps
 
     def _generate_reasoning(
-        self, intent: str, steps: List[Dict], risks: List[str], lang: str = "en"
+        self, intent: str, steps: list[dict], risks: list[str], lang: str = "en"
     ) -> str:
         """Generate human-readable reasoning"""
         if intent == "scan":
@@ -793,9 +789,11 @@ User Input: """
                 else f"{len(steps)}-step plan for shell access. {'Risky operation!' if risks else ''}"
             )
         else:
-            return "Kullanıcı ile sohbet modu." if lang == "tr" else "Chat mode with user."
+            return (
+                "Kullanıcı ile sohbet modu." if lang == "tr" else "Chat mode with user."
+            )
 
-    def re_evaluate(self, execution_result: Dict, context: ExecutionContext) -> Dict:
+    def re_evaluate(self, execution_result: dict, context: ExecutionContext) -> dict:
         """
         Bir adım sonrasında yeniden değerlendir
         """
@@ -810,7 +808,7 @@ User Input: """
 
         return {"action": "continue"}
 
-    def _generate_recovery_steps(self, failed_result: Dict) -> List[Dict]:
+    def _generate_recovery_steps(self, failed_result: dict) -> list[dict]:
         """Generate recovery steps when something fails"""
         error = failed_result.get("error", "")
 
@@ -838,7 +836,7 @@ class ContextManager:
         self.current_context = {}
         self.context_history = []
 
-    def update(self, new_context: Dict) -> None:
+    def update(self, new_context: dict) -> None:
         """Update current context"""
         self.context_history.append(self.current_context.copy())
         self.current_context.update(new_context)
@@ -847,7 +845,7 @@ class ContextManager:
         """Get context value"""
         return self.current_context.get(key, default)
 
-    def get_full_context(self) -> Dict:
+    def get_full_context(self) -> dict:
         """Get complete context for AI"""
         return {
             "current": self.current_context,
@@ -855,7 +853,7 @@ class ContextManager:
             "changes": self._detect_changes(),
         }
 
-    def _detect_changes(self) -> List[str]:
+    def _detect_changes(self) -> list[str]:
         """Detect what changed in context"""
         changes = []
 
@@ -887,7 +885,7 @@ class SelfCorrection:
     def __init__(self) -> None:
         self.correction_history = []
 
-    def review(self, decision: Dict) -> Dict:
+    def review(self, decision: dict) -> dict:
         """
         Review a decision and correct if needed
 
@@ -907,13 +905,13 @@ class SelfCorrection:
             corrected["safety_warning"] = "Potentially destructive operation"
 
         # Check for missing prerequisites
-        prereqs: List[str] = self._check_prerequisites(decision)
+        prereqs: list[str] = self._check_prerequisites(decision)
         if prereqs:
             corrections.append(f"Added prerequisites: {', '.join(prereqs)}")
             corrected["prerequisites"] = prereqs
 
         # Check for optimization opportunities
-        optimizations: List[str] = self._suggest_optimizations(decision)
+        optimizations: list[str] = self._suggest_optimizations(decision)
         if optimizations:
             corrections.append("Suggested optimizations")
             corrected["optimizations"] = optimizations
@@ -931,9 +929,9 @@ class SelfCorrection:
 
         return corrected
 
-    def _is_dangerous(self, decision: Dict) -> bool:
+    def _is_dangerous(self, decision: dict) -> bool:
         """Check if decision involves dangerous operations"""
-        dangerous_patterns: List[str] = [
+        dangerous_patterns: list[str] = [
             "rm -rf",
             "dd if=",
             "mkfs",
@@ -948,7 +946,7 @@ class SelfCorrection:
             return False
         return any(pattern in command for pattern in dangerous_patterns)
 
-    def _check_prerequisites(self, decision: Dict) -> List[str]:
+    def _check_prerequisites(self, decision: dict) -> list[str]:
         """Check for missing prerequisites"""
         prereqs = []
 
@@ -960,7 +958,7 @@ class SelfCorrection:
 
         return prereqs
 
-    def _suggest_optimizations(self, decision: Dict) -> List[str]:
+    def _suggest_optimizations(self, decision: dict) -> list[str]:
         """Suggest optimizations"""
         optimizations = []
 
@@ -971,7 +969,7 @@ class SelfCorrection:
 
         return optimizations
 
-    def get_correction_stats(self) -> Dict:
+    def get_correction_stats(self) -> dict:
         """Get statistics about corrections made"""
         return {
             "total_corrections": len(self.correction_history),
@@ -988,7 +986,7 @@ class DecisionEngine:
     def __init__(self) -> None:
         self.decision_history = []
 
-    def decide(self, analysis: Dict, context: ExecutionContext) -> Dict:
+    def decide(self, analysis: dict, context: ExecutionContext) -> dict:
         """
         Make a decision based on analysis
 
@@ -1030,7 +1028,7 @@ class DecisionEngine:
         return decision
 
     def _needs_approval(
-        self, intent: str, risks: List[str], context: ExecutionContext
+        self, intent: str, risks: list[str], context: ExecutionContext
     ) -> bool:
         """Determine if user approval is needed"""
         # Always ask on first run
@@ -1042,12 +1040,9 @@ class DecisionEngine:
             return True
 
         # Ask for destructive intents
-        if intent in ["exploit", "get_shell"]:
-            return True
+        return intent in ["exploit", "get_shell"]
 
-        return False
-
-    def _select_action(self, steps: List[Dict], context: ExecutionContext) -> str:
+    def _select_action(self, steps: list[dict], context: ExecutionContext) -> str:
         """Select the next action to take"""
         if not steps:
             return "respond"
@@ -1059,9 +1054,7 @@ class DecisionEngine:
 
         return "complete"
 
-    def _generate_command(
-        self, action: str, context: ExecutionContext
-    ) -> Optional[str]:
+    def _generate_command(self, action: str, context: ExecutionContext) -> str | None:
         """Generate shell command for action"""
         target: str | None = context.target
 
@@ -1107,7 +1100,9 @@ class DrakbenBrain:
             self.reasoning, self.context_mgr, self.self_correction, self.decision_engine
         )
 
-    def think(self, user_input: str, target: Optional[str] = None, language: str = "en") -> Dict:
+    def think(
+        self, user_input: str, target: str | None = None, language: str = "en"
+    ) -> dict:
         """
         AI-powered thinking - Ana giriş noktası
 
@@ -1152,15 +1147,12 @@ class DrakbenBrain:
 
         # Get the actual response to show user
         # Priority: response > llm_response
-        actual_response = (
-            result.get("response")
-            or result.get("llm_response")
-        )
+        actual_response = result.get("response") or result.get("llm_response")
 
         # If it's a chat, we don't necessarily want to show reasoning as the main reply
         # but if we have no response, we fallback to reasoning
         if not actual_response:
-             actual_response = result.get("reasoning", "")
+            actual_response = result.get("reasoning", "")
 
         # Format response
         return {
@@ -1189,17 +1181,17 @@ class DrakbenBrain:
         else:
             return "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
 
-    def process(self, user_input: str, system_context: Dict) -> Dict:
+    def process(self, user_input: str, system_context: dict) -> dict:
         """
         Main entry point - Process user request
         """
         return self.orchestrator.process_request(user_input, system_context)
 
-    def get_context(self) -> Dict:
+    def get_context(self) -> dict:
         """Get current context"""
         return self.context_mgr.get_full_context()
 
-    def update_context(self, context_update: Dict) -> None:
+    def update_context(self, context_update: dict) -> None:
         """Update brain context"""
         self.context_mgr.update(context_update)
 
@@ -1241,7 +1233,7 @@ class DrakbenBrain:
 
             self.context_mgr.update(current_update)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get brain statistics"""
         return {
             "reasoning_history": len(self.reasoning.reasoning_history),
@@ -1250,7 +1242,7 @@ class DrakbenBrain:
             "llm_available": self.llm_client is not None,
         }
 
-    def test_llm(self) -> Dict:
+    def test_llm(self) -> dict:
         """Test LLM connection"""
         if not self.llm_client:
             return {"connected": False, "error": "No LLM client configured"}
@@ -1269,7 +1261,7 @@ class DrakbenBrain:
         except Exception as e:
             return {"connected": False, "error": str(e)}
 
-    def select_next_tool(self, context: Dict) -> Optional[Dict]:
+    def select_next_tool(self, context: dict) -> dict | None:
         """
         REFACTORED: Get SINGLE tool selection from LLM
 
@@ -1327,7 +1319,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             )
 
             # Parse JSON using reasoning module's parser
-            parsed: Dict[str, Any] | None = self.reasoning._parse_llm_response(response)
+            parsed: dict[str, Any] | None = self.reasoning._parse_llm_response(response)
             if parsed and "tool" in parsed:
                 return parsed
 
@@ -1337,7 +1329,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
         except Exception:
             return None
 
-    def ask_coder(self, instruction: str, context: Optional[Dict] = None) -> Dict:
+    def ask_coder(self, instruction: str, context: dict | None = None) -> dict:
         """
         Delegate coding task to AICoder.
 

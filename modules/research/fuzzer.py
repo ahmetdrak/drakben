@@ -5,10 +5,11 @@ Description: AI-guided mutation fuzzer for vulnerability discovery.
 """
 
 import logging
-import random
+import secrets
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Any
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -61,21 +62,21 @@ class SmartFuzzer:
             return b"A" * 100
 
         # Strategy 1: Bit Flip
-        if random.random() < 0.3:  # nosec B311
-            pos = random.randint(0, length - 1)
-            bit = random.randint(0, 7)
+        if secrets.choice([True, False, False]):  # ~33% chance (approx 0.3)
+            pos = secrets.randbelow(length)
+            bit = secrets.randbelow(8)
             mutable_data[pos] ^= 1 << bit
 
         # Strategy 2: Byte Flip
-        if random.random() < 0.3:  # nosec B311
-            pos = random.randint(0, length - 1)
-            mutable_data[pos] = random.randint(0, 255)
+        if secrets.choice([True, False, False]):  # ~33% chance
+            pos = secrets.randbelow(length)
+            mutable_data[pos] = secrets.randbelow(256)
 
         # Strategy 3: Magic Value Injection (Overlay)
-        if random.random() < 0.4:  # nosec B311
-            magic = str(random.choice(self.magic_values)).encode()  # nosec B311
+        if secrets.randbelow(10) < 4:  # 40% chance
+            magic = str(secrets.choice(self.magic_values)).encode()
             if len(magic) < length:
-                pos = random.randint(0, length - len(magic))
+                pos = secrets.randbelow(length - len(magic) + 1)
                 mutable_data[pos : pos + len(magic)] = magic
             else:
                 mutable_data = magic  # Replace completely
@@ -83,8 +84,8 @@ class SmartFuzzer:
         return bytes(mutable_data)
 
     def fuzz_function(
-        self, target_func: Callable, seed_inputs: List[Any], iterations: int = 1000
-    ) -> List[FuzzResult]:
+        self, target_func: Callable, seed_inputs: list[Any], iterations: int = 1000
+    ) -> list[FuzzResult]:
         """
         Fuzz a Python function directly.
         """
@@ -95,7 +96,7 @@ class SmartFuzzer:
 
         for i in range(iterations):
             # Select seed
-            seed = random.choice(seed_inputs)  # nosec B311
+            seed = secrets.choice(seed_inputs)
 
             # Mutate
             if isinstance(seed, str):
@@ -106,7 +107,7 @@ class SmartFuzzer:
                 fuzz_input = self.mutate(seed)
             else:
                 # For non-bytes, try to cast or inject raw values
-                fuzz_input = random.choice(self.magic_values)  # nosec B311
+                fuzz_input = secrets.choice(self.magic_values)
 
             # Execute
             start_time = time.time()

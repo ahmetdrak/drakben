@@ -10,8 +10,9 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+import contextlib
 
 if TYPE_CHECKING:
     from core.state import AgentState
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _get_default_port(scheme: Optional[str]) -> int:
+def _get_default_port(scheme: str | None) -> int:
     """Get default port for scheme"""
     return 443 if scheme == "https" else 80
 
@@ -60,13 +61,13 @@ class NucleiResult:
     severity: NucleiSeverity
     host: str
     matched_at: str
-    extracted_results: List[str] = field(default_factory=list)
+    extracted_results: list[str] = field(default_factory=list)
     curl_command: str = ""
     description: str = ""
-    reference: List[str] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
+    reference: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "template_id": self.template_id,
             "template_name": self.template_name,
@@ -85,17 +86,17 @@ class NucleiResult:
 class NucleiScanConfig:
     """Nuclei scan configuration"""
 
-    templates: List[str] = field(default_factory=list)
-    template_types: List[NucleiTemplateType] = field(default_factory=list)
-    severity: List[NucleiSeverity] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
-    exclude_tags: List[str] = field(default_factory=list)
+    templates: list[str] = field(default_factory=list)
+    template_types: list[NucleiTemplateType] = field(default_factory=list)
+    severity: list[NucleiSeverity] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    exclude_tags: list[str] = field(default_factory=list)
     rate_limit: int = 150
     bulk_size: int = 25
     concurrency: int = 25
     timeout: int = 10
     retries: int = 1
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     follow_redirects: bool = True
     max_host_errors: int = 30
 
@@ -120,7 +121,7 @@ class NucleiScanner:
             nuclei_path: Path to nuclei binary
         """
         self.nuclei_path = nuclei_path
-        self.templates_path: Optional[str] = None
+        self.templates_path: str | None = None
         self.available = self._check_nuclei()
 
         if self.available:
@@ -147,8 +148,8 @@ class NucleiScanner:
         self,
         targets_file: str,
         config: NucleiScanConfig,
-        output_file: Optional[str] = None,
-    ) -> List[str]:
+        output_file: str | None = None,
+    ) -> list[str]:
         """Build nuclei command line"""
         cmd = [self.nuclei_path, "-list", targets_file, "-json"]
 
@@ -164,7 +165,7 @@ class NucleiScanner:
 
         return cmd
 
-    async def _execute_nuclei_scan(self, cmd: List[str]) -> List[NucleiResult]:
+    async def _execute_nuclei_scan(self, cmd: list[str]) -> list[NucleiResult]:
         """Execute nuclei scan and parse output"""
         results = []
         process = None
@@ -198,21 +199,17 @@ class NucleiScanner:
         except Exception as e:
             logger.error(f"Nuclei scan failed: {e}")
             if process and process.returncode is None:
-                try:
+                with contextlib.suppress(Exception):
                     process.kill()
-                except Exception:
-                    pass
         finally:
             # Ensure process is definitely dead
             if process and process.returncode is None:
-                try:
+                with contextlib.suppress(Exception):
                     process.kill()
-                except Exception:
-                    pass
 
         return results
 
-    def _parse_result(self, line: str) -> Optional[NucleiResult]:
+    def _parse_result(self, line: str) -> NucleiResult | None:
         """Parse nuclei JSON output line"""
         try:
             data = json.loads(line)
@@ -237,10 +234,10 @@ class NucleiScanner:
 
     async def scan(
         self,
-        targets: List[str],
-        config: Optional[NucleiScanConfig] = None,
-        output_file: Optional[str] = None,
-    ) -> List[NucleiResult]:
+        targets: list[str],
+        config: NucleiScanConfig | None = None,
+        output_file: str | None = None,
+    ) -> list[NucleiResult]:
         """
         Run Nuclei scan.
 
@@ -269,7 +266,7 @@ class NucleiScanner:
             _cleanup_nuclei_temp_file(targets_file)
 
 
-async def _create_nuclei_targets_file(targets: List[str]) -> Optional[str]:
+async def _create_nuclei_targets_file(targets: list[str]) -> str | None:
     """Create temporary file with targets"""
 
     def _write_temp_file():
@@ -286,13 +283,11 @@ async def _create_nuclei_targets_file(targets: List[str]) -> Optional[str]:
 
 def _cleanup_nuclei_temp_file(targets_file: str) -> None:
     """Clean up temporary targets file"""
-    try:
+    with contextlib.suppress(OSError):
         os.unlink(targets_file)
-    except OSError:
-        pass
 
 
-def nuclei_results_to_findings(results: List[NucleiResult]) -> List[Dict[str, Any]]:
+def nuclei_results_to_findings(results: list[NucleiResult]) -> list[dict[str, Any]]:
     """
     Convert Nuclei results to finding dictionaries for report generation.
 
@@ -328,9 +323,9 @@ def nuclei_results_to_findings(results: List[NucleiResult]) -> List[Dict[str, An
 # State integration
 async def nuclei_scan_state_target(
     state: "AgentState",
-    scanner: Optional[NucleiScanner] = None,
-    severity_filter: Optional[List[NucleiSeverity]] = None,
-) -> List[NucleiResult]:
+    scanner: NucleiScanner | None = None,
+    severity_filter: list[NucleiSeverity] | None = None,
+) -> list[NucleiResult]:
     """
     Run Nuclei scan on state target.
 

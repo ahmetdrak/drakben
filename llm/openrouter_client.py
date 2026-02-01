@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Callable, Dict, Iterator, Optional
+from collections.abc import Callable, Iterator
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -56,7 +56,7 @@ class LLMCache:
             default_ttl: Default time-to-live for cache entries (seconds)
             max_entries: Maximum number of cache entries
         """
-        self._cache: Dict[str, CacheEntry] = {}
+        self._cache: dict[str, CacheEntry] = {}
         self._lock = Lock()
         self.default_ttl = default_ttl
         self.max_entries = max_entries
@@ -68,7 +68,7 @@ class LLMCache:
         content = f"{model}:{system_prompt}:{prompt}"
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def get(self, prompt: str, system_prompt: str, model: str) -> Optional[str]:
+    def get(self, prompt: str, system_prompt: str, model: str) -> str | None:
         """
         Get cached response if available and not expired.
 
@@ -98,7 +98,7 @@ class LLMCache:
         system_prompt: str,
         model: str,
         response: str,
-        ttl: Optional[float] = None,
+        ttl: float | None = None,
     ):
         """Store response in cache"""
         key = self._generate_key(prompt, system_prompt, model)
@@ -124,7 +124,7 @@ class LLMCache:
             self._hits = 0
             self._misses = 0
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get cache statistics"""
         with self._lock:
             total = self._hits + self._misses
@@ -159,7 +159,7 @@ class RateLimiter:
         self.last_update = time.time()
         self._lock = Lock()
         self._condition = threading.Condition(self._lock)
-        self._retry_after: Optional[float] = None
+        self._retry_after: float | None = None
 
     def acquire(self, timeout: float = 30.0) -> bool:
         """
@@ -326,7 +326,7 @@ class OpenRouterClient:
     def query(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         use_cache: bool = True,
         timeout: int = 20,  # Reduced from 30 to prevent long waits on WAF blocking
     ) -> str:
@@ -371,8 +371,8 @@ class OpenRouterClient:
     def query_streaming(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        callback: Optional[Callable] = None,
+        system_prompt: str | None = None,
+        callback: Callable | None = None,
         timeout: int = 60,
     ):
         """
@@ -413,7 +413,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system_prompt: str,
-        callback: Optional[Callable],
+        callback: Callable | None,
         timeout: int,
     ):
         """Query Ollama with streaming response"""
@@ -441,7 +441,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system_prompt: str,
-        callback: Optional[Callable],
+        callback: Callable | None,
         timeout: int,
     ):
         """Query OpenAI-compatible API with streaming response"""
@@ -482,7 +482,7 @@ class OpenRouterClient:
             logger.exception(f"API streaming error: {e}")
             yield f"[Error] {str(e)}"
 
-    def _build_headers(self) -> Dict[str, str]:
+    def _build_headers(self) -> dict[str, str]:
         """Build API headers"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -497,7 +497,7 @@ class OpenRouterClient:
 
     def _build_payload(
         self, prompt: str, system_prompt: str, stream: bool = False
-    ) -> Dict:
+    ) -> dict:
         """Build API payload"""
         return {
             "model": self.model,
@@ -554,8 +554,8 @@ class OpenRouterClient:
         return line
 
     def _extract_chunk_from_line(
-        self, line: str, callback: Optional[Callable]
-    ) -> Optional[str]:
+        self, line: str, callback: Callable | None
+    ) -> str | None:
         """Extract chunk from processed line"""
         import json
 
@@ -570,7 +570,7 @@ class OpenRouterClient:
             pass
         return None
 
-    def _extract_chunk(self, data: Dict) -> str:
+    def _extract_chunk(self, data: dict) -> str:
         """Extract content chunk from response data"""
         choices = data.get("choices", [])
         if choices:
@@ -609,7 +609,7 @@ class OpenRouterClient:
         }
         return self._session.post(self.base_url, json=payload, timeout=timeout)
 
-    def _handle_ollama_response(self, response, attempt: int) -> Optional[str]:
+    def _handle_ollama_response(self, response, attempt: int) -> str | None:
         """Handle Ollama response with retry logic"""
         if response.status_code == 200:
             return response.json().get("response", "")
@@ -618,7 +618,7 @@ class OpenRouterClient:
         else:
             return self._handle_ollama_error(response, attempt)
 
-    def _handle_ollama_rate_limit(self, response, attempt: int) -> Optional[str]:
+    def _handle_ollama_rate_limit(self, response, attempt: int) -> str | None:
         """Handle Ollama rate limiting"""
         retry_after = int(response.headers.get("Retry-After", 5))
         self._rate_limiter.set_retry_after(retry_after)
@@ -627,7 +627,7 @@ class OpenRouterClient:
             return None
         return "[Rate Limit] Ollama rate limited. Please wait."
 
-    def _handle_ollama_error(self, response, attempt: int) -> Optional[str]:
+    def _handle_ollama_error(self, response, attempt: int) -> str | None:
         """Handle Ollama error responses"""
         if attempt < self.max_retries - 1:
             time.sleep(2**attempt)
@@ -677,7 +677,7 @@ class OpenRouterClient:
 
         return "[Error] Max retries exceeded"
 
-    def _build_api_headers(self) -> Dict[str, str]:
+    def _build_api_headers(self) -> dict[str, str]:
         """Build API request headers"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -690,7 +690,7 @@ class OpenRouterClient:
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
 
-    def _build_api_payload(self, system_prompt: str, prompt: str) -> Dict:
+    def _build_api_payload(self, system_prompt: str, prompt: str) -> dict:
         """Build API request payload"""
         return {
             "model": self.model,
@@ -700,7 +700,7 @@ class OpenRouterClient:
             ],
         }
 
-    def _handle_api_response(self, response, attempt: int) -> Optional[str]:
+    def _handle_api_response(self, response, attempt: int) -> str | None:
         """Handle API response with status code logic"""
         if response.status_code == 200:
             data = response.json()
@@ -714,7 +714,7 @@ class OpenRouterClient:
         else:
             return f"[API Error] {response.status_code}: {response.text[:100]}"
 
-    def _handle_api_rate_limit(self, response, attempt: int) -> Optional[str]:
+    def _handle_api_rate_limit(self, response, attempt: int) -> str | None:
         """Handle API rate limiting"""
         retry_after = int(response.headers.get("Retry-After", 5))
         self._rate_limiter.set_retry_after(retry_after)
@@ -726,7 +726,7 @@ class OpenRouterClient:
             return None
         return "[Rate Limit] Too many requests. Please wait and retry."
 
-    def _handle_api_server_error(self, response, attempt: int) -> Optional[str]:
+    def _handle_api_server_error(self, response, attempt: int) -> str | None:
         """Handle API server errors (5xx)"""
         if attempt < self.max_retries - 1:
             wait_time = min(2**attempt, 5)
@@ -791,7 +791,7 @@ class OpenRouterClient:
             self._cache.clear()
             logger.info("LLM cache cleared")
 
-    def get_cache_stats(self) -> Optional[Dict]:
+    def get_cache_stats(self) -> dict | None:
         """Get cache statistics"""
         if self._cache:
             return self._cache.get_stats()
@@ -799,7 +799,7 @@ class OpenRouterClient:
 
     def _make_ollama_request(
         self, prompt: str, system_prompt: str, timeout: int
-    ) -> Optional[requests.Response]:
+    ) -> requests.Response | None:
         """Make request to Ollama local API"""
         url = "http://localhost:11434/api/generate"
         payload = {
@@ -815,7 +815,7 @@ class OpenRouterClient:
             return None
 
     def _process_ollama_stream(
-        self, response: requests.Response, callback: Optional[Callable]
+        self, response: requests.Response, callback: Callable | None
     ) -> Iterator[str]:
         """Process streaming response from Ollama API"""
         import json

