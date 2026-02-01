@@ -26,7 +26,6 @@ sys.dont_write_bytecode = True
 env_file: Path = PROJECT_ROOT / "config" / "api.env"
 if env_file.exists():
     load_dotenv(env_file)
-
 # Initialize logging
 # Initialize logging
 setup_logging(
@@ -51,7 +50,6 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
     import traceback
     from datetime import datetime
 
-    from rich.console import Console
     from rich.panel import Panel
 
     check_console = Console()
@@ -126,7 +124,6 @@ def cleanup_resources(signum=None, frame=None):
         logging.shutdown()
 
         if signum:
-            from rich.console import Console
 
             Console().print("\n[yellow]Graceful Shutdown Complete. Goodbye![/yellow]")
             sys.exit(0)
@@ -152,8 +149,6 @@ def show_banner() -> None:
 
     # Windows UTF-8 support
     if os.name == "nt":
-        import sys
-
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     banner = r"""

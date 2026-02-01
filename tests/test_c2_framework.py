@@ -323,8 +323,6 @@ class TestC2Channel(unittest.TestCase):
         payload = b"Z" * 1000
         # The tunneler should chunk this into multiple packets
         # We need to access the tunneler inside the channel (mocking or direct use)
-        from modules.c2_framework import DNSTunneler
-
         tunneler = DNSTunneler("example.com")
 
         # KEY FIX: Use a smaller chunk size to respect DNS limits

@@ -701,9 +701,6 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        import os
-        import tempfile
-
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.temp_db.close()
         # Use in-memory database for tests
@@ -711,7 +708,6 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def tearDown(self):
         """Cleanup"""
-        import os
 
         try:
             if hasattr(self, "temp_db") and os.path.exists(self.temp_db.name):

@@ -127,8 +127,6 @@ class MasterOrchestrator:
                     repeated_count += 1
 
             if repeated_count >= 3:
-                import logging
-
                 logging.getLogger(__name__).critical(
                     "Infinite Loop Detected: Same action proposed 3+ times."
                 )
@@ -213,7 +211,6 @@ class ContinuousReasoning:
         - Retry LLM on transient errors (timeout, rate limit)
         - Fall back to rule-based analysis on persistent failure
         """
-        import logging
         import time
 
         logger: logging.Logger = logging.getLogger(__name__)

@@ -620,7 +620,6 @@ def _polymorphic_encode_bash(payload: str) -> str:
     import string
 
     def random_var(length=5):
-        import secrets
         return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     var_map = {}
@@ -653,7 +652,6 @@ def _polymorphic_encode_python(payload: str) -> str:
     import string
 
     def random_var(length=5):
-        import secrets
         return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     imports = ["socket", "subprocess", "os"]
@@ -672,7 +670,6 @@ def _polymorphic_encode_python(payload: str) -> str:
     def fragment_string(s):
         if len(s) < 5:
             return f"'{s}'"
-        import secrets
         cut = secrets.randbelow(len(s) - 1) + 1
         return f"'{s[:cut]}'+'{s[cut:]}'"
 
@@ -692,8 +689,6 @@ class PowerShellObfuscator:
     @staticmethod
     def invoke_expression_encode(payload: str) -> str:
         """Encode using Invoke-Expression with Base64"""
-        import base64
-
         # UTF-16LE encoding for PowerShell
         encoded = base64.b64encode(payload.encode("utf-16le")).decode()
         return f"powershell -EncodedCommand {encoded}"
@@ -722,7 +717,6 @@ class PowerShellObfuscator:
     @staticmethod
     def tick_obfuscation(payload: str) -> str:
         """Insert backticks for obfuscation"""
-        import secrets
 
         result = ""
         for char in payload:
@@ -751,7 +745,6 @@ class BashObfuscator:
     @staticmethod
     def variable_expansion(payload: str) -> str:
         """Use variable expansion tricks"""
-        import secrets
 
         var = "".join(chr(secrets.randbelow(26) + 97) for _ in range(4))
         encoded = PayloadObfuscator.base64_encode(payload)
