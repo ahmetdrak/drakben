@@ -217,10 +217,7 @@ class CommandSanitizer:
     @classmethod
     def is_high_risk(cls, command: str) -> bool:
         """Check if command is high-risk and needs confirmation"""
-        for pattern in cls.HIGH_RISK_PATTERNS:
-            if re.search(pattern, command, re.IGNORECASE):
-                return True
-        return False
+        return any(re.search(pattern, command, re.IGNORECASE) for pattern in cls.HIGH_RISK_PATTERNS)
 
     @classmethod
     def get_risk_level(cls, command: str) -> str:
