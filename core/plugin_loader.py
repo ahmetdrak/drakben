@@ -72,7 +72,8 @@ class PluginLoader:
 
         return loaded_tools
 
-    def _load_single_plugin(self, file_path: Path) -> ToolSpec | None:
+    @staticmethod
+    def _load_single_plugin(file_path: Path) -> ToolSpec | None:
         """Load a single plugin file safely"""
         module_name = file_path.stem
 

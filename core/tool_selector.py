@@ -473,7 +473,6 @@ class ToolSelector:
         # Tool exists?
         if tool_name not in self.tools:
             return False, f"Unknown tool: {tool_name}"
-
         spec = self.tools[tool_name]
 
         # Phase check
@@ -498,7 +497,8 @@ class ToolSelector:
         """Check if tool is blocked? (2 failures -> block)"""
         return self.failed_tools.get(tool_name, 0) >= max_failures
 
-    def get_next_phase_tools(self, state: AgentState) -> list[str]:
+    @staticmethod
+    def get_next_phase_tools(state: AgentState) -> list[str]:
         """
         Suggest tools needed for next phase.
 
@@ -554,8 +554,9 @@ class ToolSelector:
             return ("scan_surface", tool_name, args)
         return None
 
+    @staticmethod
     def _recommend_phase_transition(
-        self, state: AgentState
+        state: AgentState
     ) -> tuple[str, str, dict] | None:
         """Recommend a phase transition if applicable"""
         # No more surfaces to test in current phase
@@ -586,7 +587,10 @@ class ToolSelector:
                     return ("exploit_vuln", tool_name, {"vuln_id": vuln.vuln_id})
         return None
 
-    def _get_exploit_tool_for_vuln(self, vuln) -> str | None:
+    @staticmethod
+    def _get_exploit_tool_for_vuln(
+        vuln
+    ) -> str | None:
         """Select appropriate exploit tool for vulnerability"""
         if "sql" in vuln.vuln_id.lower():
             return "sqlmap_exploit"

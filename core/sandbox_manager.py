@@ -137,7 +137,8 @@ class SandboxManager:
         self._docker_available = self._check_docker()
         return self._docker_available
 
-    def _check_docker(self) -> bool:
+    @staticmethod
+    def _check_docker() -> bool:
         """
         Internal method to check Docker availability.
 

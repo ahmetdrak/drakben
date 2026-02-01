@@ -440,208 +440,210 @@ Respond in JSON:
             self._check_missing_tool,
             self._check_permission_error,
             self._check_python_module_error,
-            self._check_library_error,
-            self._check_network_error,
-            self._check_timeout_error,
-            self._check_syntax_error,
-            self._check_file_error,
-            self._check_memory_error,
-            self._check_disk_error,
-            self._check_auth_error,
-            self._check_port_error,
-            self._check_database_error,
-            self._check_parse_error,
-            self._check_version_error,
-            self._check_rate_limit_error,
-            self._check_firewall_error,
-            self._check_resource_error,
-        ]
+                self._check_library_error,
+                self._check_network_error,
+                self._check_timeout_error,
+                self._check_syntax_error,
+                self._check_file_error,
+                self._check_memory_error,
+                self._check_disk_error,
+                self._check_auth_error,
+                self._check_port_error,
+                self._check_database_error,
+                self._check_parse_error,
+                self._check_version_error,
+                self._check_rate_limit_error,
+                self._check_firewall_error,
+                self._check_resource_error,
+            ]
 
-        for checker in checkers:
-            result = checker(output_lower)
-            if result:
-                return result
+            for checker in checkers:
+                result = checker(output_lower)
+                if result:
+                    return result
 
-        return self._check_exit_code_error(exit_code, output)
+            return self._check_exit_code_error(exit_code, output)
 
-    # ... Helper Checker Methods ...
-    def _check_missing_tool(self, output_lower: str) -> dict | None:
-        import re
+        # ... Helper Checker Methods ...
+        def _check_missing_tool(self, output_lower: str) -> dict | None:
+            import re
 
-        patterns = [
-            "not found",
-            "not recognized",
-            "bulunamadı",
-            "command not found",
-            "komut bulunamadı",
-        ]
-        if any(x in output_lower for x in patterns):
-            match = re.search(
-                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower
-            )
-            tool = match.group(1) if match else None
-            return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
-        return None
+            patterns = [
+                "not found",
+                "not recognized",
+                "bulunamadı",
+                "command not found",
+                "komut bulunamadı",
+            ]
+            if any(x in output_lower for x in patterns):
+                match = re.search(
+                    r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower
+                )
+                tool = match.group(1) if match else None
+                return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
+            return None
 
-    def _check_permission_error(self, output_lower: str) -> dict | None:
-        patterns = [
-            "permission denied",
-            "access denied",
-            "izin reddedildi",
-            "root privileges required",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "permission_denied", "type_tr": "İzin hatası"}
-        return None
+        def _check_permission_error(self, output_lower: str) -> dict | None:
+            patterns = [
+                "permission denied",
+                "access denied",
+                "izin reddedildi",
+                "root privileges required",
+            ]
+            if any(x in output_lower for x in patterns):
+                return {"type": "permission_denied", "type_tr": "İzin hatası"}
+            return None
 
-    def _check_python_module_error(self, output_lower: str) -> dict | None:
-        import re
+        def _check_python_module_error(self, output_lower: str) -> dict | None:
+            import re
 
-        patterns = ["no module named", "modulenotfounderror", "importerror"]
-        if any(x in output_lower for x in patterns):
-            match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
-            module = match.group(1) if match else None
-            return {
-                "type": "python_module_missing",
-                "type_tr": "Python modülü eksik",
-                "module": module,
-            }
-        return None
+            patterns = ["no module named", "modulenotfounderror", "importerror"]
+            if any(x in output_lower for x in patterns):
+                match = re.search(r"no module named ['\"]?([.\w]+)", output_lower)
+                module = match.group(1) if match else None
+                return {
+                    "type": "python_module_missing",
+                    "type_tr": "Python modülü eksik",
+                    "module": module,
+                }
+            return None
 
-    def _check_library_error(self, output_lower: str) -> dict | None:
-        import re
+        def _check_library_error(self, output_lower: str) -> dict | None:
+            import re
 
-        patterns = [
-            "cannot open shared object",
-            "library not found",
-            "libssl",
-            "libcrypto",
-            ".so:",
-        ]
-        if any(x in output_lower for x in patterns):
-            match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
-            library = match.group(1) if match else None
-            return {
-                "type": "library_missing",
-                "type_tr": "Sistem kütüphanesi eksik",
-                "library": library,
-            }
-        return None
+            patterns = [
+                "cannot open shared object",
+                "library not found",
+                "libssl",
+                "libcrypto",
+                ".so:",
+            ]
+            if any(x in output_lower for x in patterns):
+                match = re.search(r"(lib\w+\.so[.\d]*|[\w]+\.dll)", output_lower)
+                library = match.group(1) if match else None
+                return {
+                    "type": "library_missing",
+                    "type_tr": "Sistem kütüphanesi eksik",
+                    "library": library,
+                }
+            return None
 
-    def _check_network_error(self, output_lower: str) -> dict | None:
-        patterns = [
-            "connection refused",
-            "network unreachable",
-            "no route to host",
-            "ssl error",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
-        return None
+        def _check_network_error(self, output_lower: str) -> dict | None:
+            patterns = [
+                "connection refused",
+                "network unreachable",
+                "no route to host",
+                "ssl error",
+            ]
+            if any(x in output_lower for x in patterns):
+                return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
+            return None
 
-    def _check_timeout_error(self, output_lower: str) -> dict | None:
-        patterns = ["timed out", "timeout", "zaman aşımı"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "timeout", "type_tr": "Zaman aşımı"}
-        return None
+        def _check_timeout_error(self, output_lower: str) -> dict | None:
+            patterns = ["timed out", "timeout", "zaman aşımı"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "timeout", "type_tr": "Zaman aşımı"}
+            return None
 
-    def _check_syntax_error(self, output_lower: str) -> dict | None:
-        patterns = ["invalid argument", "syntax error", "usage:"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "invalid_argument", "type_tr": "Geçersiz argüman"}
-        return None
+        def _check_syntax_error(self, output_lower: str) -> dict | None:
+            patterns = ["invalid argument", "syntax error", "usage:"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "invalid_argument", "type_tr": "Geçersiz argüman"}
+            return None
 
-    def _check_file_error(self, output_lower: str) -> dict | None:
-        import re
+        def _check_file_error(self, output_lower: str) -> dict | None:
+            import re
 
-        patterns = ["no such file", "file not found", "dosya bulunamadı"]
-        if any(x in output_lower for x in patterns):
-            match = re.search(r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?", output_lower)
-            filepath = match.group(1) if match else None
-            return {
-                "type": "file_not_found",
-                "type_tr": "Dosya bulunamadı",
-                "file": filepath,
-            }
-        return None
+            patterns = ["no such file", "file not found", "dosya bulunamadı"]
+            if any(x in output_lower for x in patterns):
+                match = re.search(r"['\"]?([/\\]?[
+    \w./\\-]+\.\w+)['\"]?", output_lower)
+                filepath = match.group(1) if match else None
+                return {
+                    "type": "file_not_found",
+                    "type_tr": "Dosya bulunamadı",
+                    "file": filepath,
+                }
+            return None
 
-    def _check_memory_error(self, output_lower: str) -> dict | None:
-        patterns = ["out of memory", "memory error", "segmentation fault"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "memory_error", "type_tr": "Bellek hatası"}
-        return None
+        def _check_memory_error(self, output_lower: str) -> dict | None:
+            patterns = ["out of memory", "memory error", "segmentation fault"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "memory_error", "type_tr": "Bellek hatası"}
+            return None
 
-    def _check_disk_error(self, output_lower: str) -> dict | None:
-        patterns = ["disk full", "no space left"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
-        return None
+        def _check_disk_error(self, output_lower: str) -> dict | None:
+            patterns = ["disk full", "no space left"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
+            return None
 
-    def _check_auth_error(self, output_lower: str) -> dict | None:
-        patterns = [
-            "authentication failed",
-            "invalid credentials",
-            "401",
-            "403 forbidden",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
-        return None
+        def _check_auth_error(self, output_lower: str) -> dict | None:
+            patterns = [
+                "authentication failed",
+                "invalid credentials",
+                "401",
+                "403 forbidden",
+            ]
+            if any(x in output_lower for x in patterns):
+                return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
+            return None
 
-    def _check_port_error(self, output_lower: str) -> dict | None:
-        import re
+        def _check_port_error(self, output_lower: str) -> dict | None:
+            import re
 
-        patterns = ["address already in use", "port already in use", "bind failed"]
-        if any(x in output_lower for x in patterns):
-            match = re.search(r"port[:\s]*(\d+)", output_lower)
-            port = match.group(1) if match else None
-            return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
-        return None
+            patterns = ["address already in use", "port already in use", "bind failed"]
+            if any(x in output_lower for x in patterns):
+                match = re.search(r"port[:\s]*(\d+)", output_lower)
+                port = match.group(1) if match else None
+                return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
+            return None
 
-    def _check_database_error(self, output_lower: str) -> dict | None:
-        patterns = ["database", "sqlite", "db error", "locked"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "database_error", "type_tr": "Veritabanı hatası"}
-        return None
+        def _check_database_error(self, output_lower: str) -> dict | None:
+            patterns = ["database", "sqlite", "db error", "locked"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "database_error", "type_tr": "Veritabanı hatası"}
+            return None
 
-    def _check_parse_error(self, output_lower: str) -> dict | None:
-        patterns = ["json", "xml", "parsing error"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
-        return None
+        def _check_parse_error(self, output_lower: str) -> dict | None:
+            patterns = ["json", "xml", "parsing error"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
+            return None
 
-    def _check_version_error(self, output_lower: str) -> dict | None:
-        patterns = ["version", "incompatible", "unsupported"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
-        return None
+        def _check_version_error(self, output_lower: str) -> dict | None:
+            patterns = ["version", "incompatible", "unsupported"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
+            return None
 
-    def _check_rate_limit_error(self, output_lower: str) -> dict | None:
-        patterns = ["rate limit", "too many requests", "429"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
-        return None
+        def _check_rate_limit_error(self, output_lower: str) -> dict | None:
+            patterns = ["rate limit", "too many requests", "429"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
+            return None
 
-    def _check_firewall_error(self, output_lower: str) -> dict | None:
-        patterns = ["blocked", "firewall", "waf", "filtered"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
-        return None
+        def _check_firewall_error(self, output_lower: str) -> dict | None:
+            patterns = ["blocked", "firewall", "waf", "filtered"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
+            return None
 
-    def _check_resource_error(self, output_lower: str) -> dict | None:
-        patterns = ["too many open files", "resource temporarily unavailable"]
-        if any(x in output_lower for x in patterns):
-            return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
-        return None
+        def _check_resource_error(self, output_lower: str) -> dict | None:
+            patterns = ["too many open files", "resource temporarily unavailable"]
+            if any(x in output_lower for x in patterns):
+                return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
+            return None
 
-    def _check_exit_code_error(self, exit_code: int, output: str) -> dict | None:
-        if exit_code != 0 and not output.strip():
-            exit_code_map = {
-                1: {"type": "general_error", "type_tr": "Genel hata"},
-                126: {"type": "permission_denied", "type_tr": "Çalıştırma izni yok"},
-                127: {"type": "missing_tool", "type_tr": "Komut bulunamadı"},
-                137: {"type": "killed", "type_tr": "İşlem sonlandırıldı (OOM?)"},
-            }
-            if exit_code in exit_code_map:
-                return exit_code_map[exit_code]
-        return None
+        @staticmethod
+        def _check_exit_code_error(exit_code: int, output: str) -> dict | None:
+            if exit_code != 0 and not output.strip():
+                exit_code_map = {
+                    1: {"type": "general_error", "type_tr": "Genel hata"},
+                    126: {"type": "permission_denied", "type_tr": "Çalıştırma izni yok"},
+                    127: {"type": "missing_tool", "type_tr": "Komut bulunamadı"},
+                    137: {"type": "killed", "type_tr": "İşlem sonlandırıldı (OOM?)"},
+                }
+                if exit_code in exit_code_map:
+                    return exit_code_map[exit_code]
+            return None

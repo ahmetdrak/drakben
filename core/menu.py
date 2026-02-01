@@ -565,7 +565,7 @@ class DrakbenMenu:
         self.console.print(
             Panel(
                 table,
-                title=f"[bold {self.COLORS['red']}]{title}[/]",
+                title=f"[bold {self.COLORS['red']}] {title}[/]",
                 border_style=self.COLORS["purple"],
                 padding=(1, 2),
                 expand=False,
@@ -576,14 +576,15 @@ class DrakbenMenu:
         self.console.print(
             Panel(
                 tip_text,
-                title=f"[bold {self.COLORS['yellow']}]{tip_title}[/]",
+                title=f"[bold {self.COLORS['yellow']}] {tip_title}[/]",
                 border_style=self.COLORS["green"],
                 padding=(0, 2),
             )
         )
         self.console.print()
 
-    def _validate_target(self, target: str) -> bool:
+    @staticmethod
+    def _validate_target(target: str) -> bool:
         """Validate if the target is a valid IP or Domain"""
         # IP Regex
         ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
@@ -702,14 +703,15 @@ class DrakbenMenu:
         self._display_scan_panel(scan_mode)
         self._start_scan_with_recovery(scan_mode)
 
-    def _parse_scan_mode(self, args: str) -> str:
-        """Parse scan mode from arguments"""
-        args_lower: str = args.strip().lower()
-        if args_lower in ["stealth", "sessiz", "silent", "quiet", "gizli"]:
-            return "stealth"
-        elif args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
-            return "aggressive"
-        return "auto"
+        @staticmethod
+        def _parse_scan_mode(args: str) -> str:
+            """Parse scan mode from arguments"""
+            args_lower: str = args.strip().lower()
+            if args_lower in ["stealth", "sessiz", "silent", "quiet", "gizli"]:
+                return "stealth"
+            elif args_lower in ["aggressive", "hizli", "fast", "agresif", "quick"]:
+                return "aggressive"
+            return "auto"
 
     def _check_target_set(self) -> bool:
         """Check if target is set, show error if not"""
@@ -1437,7 +1439,8 @@ class DrakbenMenu:
 
         return providers[choice][0]
 
-    def _get_models_dict(self, lang) -> dict[str, list[tuple[str, str]]]:
+    @staticmethod
+    def _get_models_dict(lang) -> dict[str, list[tuple[str, str]]]:
         return {
             "openrouter": [
                 (
@@ -1780,42 +1783,32 @@ class DrakbenMenu:
             self.config.stealth_mode = True
             self.config.max_threads = 1
             self.config.timeout = 300
-            self.config.verbose = True
-            self.config_manager.save_config()
+        self.config.verbose = True
+        self.config_manager.save_config()
 
-            msg = (
-                "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout."
-                if lang == "tr"
-                else "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
-            )
-            self.console.print(f"\n   [bold purple]🥷 {msg}[/]\n")
+        msg = (
+            "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout."
+            if lang == "tr"
+            else "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
+        )
+        self.console.print(f"\n   [bold purple]🥷 {msg}[/]\n")
 
-        elif choice == "0":
-            # 0. Exit (Do nothing)
-            self.console.print()
-            return
-        else:
-            invalid_msg = "Geçersiz seçim." if lang == "tr" else "Invalid selection."
-            self.console.print(f"   [red]❌ {invalid_msg}[/]")
-
+    elif choice == "0":
+        # 0. Exit (Do nothing)
         self.console.print()
-        self.show_status_line()
+        return
+    else:
+        invalid_msg = "Geçersiz seçim." if lang == "tr" else "Invalid selection."
+        self.console.print(f"   [red]❌ {invalid_msg}[/]")
 
-    def _cmd_exit(self, args: str = "") -> None:
-        """Çıkış"""
-        self.running = False
+    self.console.print()
+    self.show_status_line()
 
-    def _clear_screen(self) -> None:
-        """Ekranı temizle"""
-        os.system("clear" if os.name != "nt" else "cls")
+def _cmd_exit(self, args: str = "") -> None:
+    """Çıkış"""
+    self.running = False
 
-
-def run_menu() -> None:
-    """Menüyü başlat"""
-    config_manager = ConfigManager()
-    menu = DrakbenMenu(config_manager)
-    menu.run()
-
-
-if __name__ == "__main__":
-    run_menu()
+@staticmethod
+def _clear_screen() -> None:
+    """Ekranı temizle"""
+    os.system("clear" if os.name != "nt" else "cls")

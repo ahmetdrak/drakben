@@ -335,80 +335,7 @@ class ContinuousReasoning:
             if self.llm_cache:
                 self.llm_cache.set(user_input + system_prompt, response)
 
-            # Try to parse JSON from response
-            parsed: dict[str, Any] | None = self._parse_llm_response(response)
-            if parsed:
-                parsed["success"] = True
-                # Use "response" field if available, otherwise use raw response
-                if "response" not in parsed:
-                    parsed["response"] = parsed.get("reasoning", response)
-                parsed["llm_response"] = parsed.get("response", response)
-                self._add_to_history(parsed)
-                return parsed
-
-            # If not JSON, use as chat response
-            return {
-                "success": True,
-                "intent": "chat",
-                "confidence": 0.9,
-                "steps": [{"action": "respond", "type": "chat"}],
-                "reasoning": response,
-                "response": response,
-                "risks": [],
-                "llm_response": response,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def _parse_llm_response(self, response: str) -> dict[str, Any] | None:
-        """Extract JSON from LLM response string"""
-        import json
-        import re
-
-        # Try to find JSON block
-        json_match: Match[str] | None = re.search(
-            r"```json\s*(.*?)\s*```", response, re.DOTALL
-        )
-        if json_match:
-            try:
-                return json.loads(json_match.group(1))
-            except json.JSONDecodeError:
-                pass
-
-        # Try raw JSON
-        try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            pass
-
-        return None
-
-    def _is_chat_request(self, user_input: Any) -> bool:
-        """Detect if user input is a chat/conversation request (not pentest)"""
-        # Safety check: Ensure input is string
-        if isinstance(user_input, dict):
-            # Try to extract meaningful text from dict if passed by mistake
-            user_input = (
-                user_input.get("command") or user_input.get("input") or str(user_input)
-            )
-
-        if not isinstance(user_input, str):
-            user_input = str(user_input)
-
-        user_lower: str | Any = user_input.lower()
-
-        # Chat indicators - questions about the AI, greetings, general questions
-        chat_patterns: list[str] = [
-            # Greetings
-            "merhaba",
-            "selam",
-            "hello",
-            "hi",
-            "hey",
-            "nasılsın",
-            "how are you",
-            # Questions about the AI
-            "sen kimsin",
+    ```json\s*(.*?)\s*
             "who are you",
             "hangi model",
             "what model",
@@ -551,8 +478,9 @@ IMPORTANT:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    @staticmethod
     def _construct_system_prompt(
-        self, user_lang: str, context: ExecutionContext
+        user_lang: str, context: ExecutionContext
     ) -> str:
         """Helper to construct the system prompt for pentest analysis"""
         if user_lang == "tr":
@@ -808,7 +736,8 @@ User Input: """
 
         return {"action": "continue"}
 
-    def _generate_recovery_steps(self, failed_result: dict) -> list[dict]:
+    @staticmethod
+    def _generate_recovery_steps(failed_result: dict) -> list[dict]:
         """Generate recovery steps when something fails"""
         error = failed_result.get("error", "")
 
@@ -929,7 +858,8 @@ class SelfCorrection:
 
         return corrected
 
-    def _is_dangerous(self, decision: dict) -> bool:
+    @staticmethod
+    def _is_dangerous(decision: dict) -> bool:
         """Check if decision involves dangerous operations"""
         dangerous_patterns: list[str] = [
             "rm -rf",
@@ -946,7 +876,8 @@ class SelfCorrection:
             return False
         return any(pattern in command for pattern in dangerous_patterns)
 
-    def _check_prerequisites(self, decision: dict) -> list[str]:
+    @staticmethod
+    def _check_prerequisites(decision: dict) -> list[str]:
         """Check for missing prerequisites"""
         prereqs = []
 
@@ -958,7 +889,8 @@ class SelfCorrection:
 
         return prereqs
 
-    def _suggest_optimizations(self, decision: dict) -> list[str]:
+    @staticmethod
+    def _suggest_optimizations(decision: dict) -> list[str]:
         """Suggest optimizations"""
         optimizations = []
 
@@ -1027,8 +959,9 @@ class DecisionEngine:
         self.decision_history.append(decision)
         return decision
 
+    @staticmethod
     def _needs_approval(
-        self, intent: str, risks: list[str], context: ExecutionContext
+        intent: str, risks: list[str], context: ExecutionContext
     ) -> bool:
         """Determine if user approval is needed"""
         # Always ask on first run
@@ -1042,7 +975,8 @@ class DecisionEngine:
         # Ask for destructive intents
         return intent in ["exploit", "get_shell"]
 
-    def _select_action(self, steps: list[dict], context: ExecutionContext) -> str:
+    @staticmethod
+    def _select_action(steps: list[dict], context: ExecutionContext) -> str:
         """Select the next action to take"""
         if not steps:
             return "respond"
@@ -1054,7 +988,8 @@ class DecisionEngine:
 
         return "complete"
 
-    def _generate_command(self, action: str, context: ExecutionContext) -> str | None:
+    @staticmethod
+    def _generate_command(action: str, context: ExecutionContext) -> str | None:
         """Generate shell command for action"""
         target: str | None = context.target
 

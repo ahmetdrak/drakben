@@ -564,7 +564,6 @@ class MetasploitRPC:
         """
         result = await self._call("session.stop", [session_id])
         return result.get("result") == "success"
-
     async def run_post_module(
         self,
         session_id: int,
@@ -589,7 +588,8 @@ class MetasploitRPC:
 
         return result.get("result", {})
 
-    def _get_local_ip(self) -> str:
+    @staticmethod
+    def _get_local_ip() -> str:
         """Get local IP address"""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

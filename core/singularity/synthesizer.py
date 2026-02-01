@@ -72,7 +72,8 @@ class CodeSynthesizer(ISynthesizer):
             is_validated=False,  # Needs Sandbox testing
         )
 
-    def refactor_code(self, code: str) -> CodeSnippet:
+    @staticmethod
+    def refactor_code(code: str) -> CodeSnippet:
         """Refactor code for performance or stealth"""
         # Placeholder for refactoring logic
         return CodeSnippet(
@@ -86,21 +87,21 @@ class CodeSynthesizer(ISynthesizer):
 import socket
 import sys
 
-def scan(target, ports):
-    print(f"Scanning {target}...")
-    for port in ports:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            result = s.connect_ex((target, port))
-            if result == 0:
-                print(f"Port {port}: OPEN")
-            s.close()
-        except Exception:
-            pass
+ def scan(target, ports):
+     print(f"Scanning {target}...")
+     for port in ports:
+         try:
+             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+             s.settimeout(1)
+             result = s.connect_ex((target, port))
+             if result == 0:
+                 print(f"Port {port}: OPEN")
+             s.close()
+         except Exception:
+             pass
 
-if __name__ == "__main__":
-    scan("127.0.0.1", [80, 443, 22])
+ if __name__ == "__main__":
+     scan("127.0.0.1", [80, 443, 22])
 """
         return f"# Placeholder code for: {prompt}"
 

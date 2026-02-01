@@ -360,7 +360,8 @@ class InteractiveShell:
         self.console.print("Goodbye!", style="bold green")
         return CommandResult(success=True, output="")
 
-    def _cmd_clear(self, args: list[str]) -> CommandResult:
+    @staticmethod
+    def _cmd_clear(args: list[str]) -> CommandResult:
         """Clear the screen"""
         os.system("cls" if os.name == "nt" else "clear")  # nosec B605
         return CommandResult(success=True, output="")

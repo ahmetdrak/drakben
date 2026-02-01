@@ -140,8 +140,9 @@ class ActiveDirectoryAttacker:
             "count": len(success_logins),
         }
 
+    @staticmethod
     async def _try_smb_login(
-        self, target: str, domain: str, user: str, password: str
+        target: str, domain: str, user: str, password: str
     ) -> str | None:
         """Single SMB login attempt (wrapped in thread for async compatibility)"""
 
@@ -230,7 +231,8 @@ class ActiveDirectoryAttacker:
             "method": "native_packet" if not IMPACKET_AVAILABLE else "hybrid",
         }
 
-    async def _native_roast(self, domain: str, user: str, dc_ip: str) -> str | None:
+    @staticmethod
+    async def _native_roast(domain: str, user: str, dc_ip: str) -> str | None:
         """Native AS-REP Roasting without Impacket"""
         try:
             packet = KerberosPacketFactory.build_as_req(user, domain)
@@ -390,7 +392,8 @@ class ActiveDirectoryAttacker:
             return None
 
     # Integration Helper
-    def get_attack_plan(self, domain: str, dc_ip: str) -> list[dict]:
+    @staticmethod
+    def get_attack_plan(domain: str, dc_ip: str) -> list[dict]:
         return [
             {
                 "action": "ad_smb_spray",

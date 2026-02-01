@@ -235,7 +235,8 @@ class SubdomainEnumerator:
 
         return tasks
 
-    async def _gather_enumeration_results(self, tasks: list) -> list:
+    @staticmethod
+    async def _gather_enumeration_results(tasks: list) -> list:
         """Gather results from all enumeration tasks"""
         timeout_seconds = 300  # Fixed timeout value
         try:
@@ -504,7 +505,8 @@ class SubdomainEnumerator:
         logger.info(f"Brute force found {len(results)} subdomains")
         return results
 
-    def _setup_dns_resolver(self):
+    @staticmethod
+    def _setup_dns_resolver():
         """Setup DNS resolver"""
         try:
             import dns.resolver
@@ -539,8 +541,9 @@ class SubdomainEnumerator:
         batch_results = await asyncio.gather(*tasks)
         return [r for r in batch_results if r]
 
+    @staticmethod
     async def _check_single_subdomain(
-        self, sub: str, domain: str, resolver
+        sub: str, domain: str, resolver
     ) -> SubdomainResult | None:
         """Check a single subdomain"""
         fqdn = f"{sub}.{domain}"
@@ -565,7 +568,8 @@ class SubdomainEnumerator:
         logger.info(f"Resolved {resolved_count}/{len(results)} subdomains")
         return resolved_results
 
-    def _setup_resolver(self):
+    @staticmethod
+    def _setup_resolver():
         """Setup DNS resolver"""
         try:
             import dns.resolver

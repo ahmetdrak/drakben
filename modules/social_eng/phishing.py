@@ -105,7 +105,8 @@ class ShadowCloner:
                     new_style.string = css_content
                     link.replace_with(new_style)
 
-    def _download_as_b64(self, url: str) -> str:
+    @staticmethod
+    def _download_as_b64(url: str) -> str:
         try:
             resp = requests.get(url, timeout=5, verify=False)
             if resp.status_code == 200:
@@ -116,7 +117,8 @@ class ShadowCloner:
             logger.debug(f"Failed to fetch image: {e}")
         return ""
 
-    def _fetch_text(self, url: str) -> str:
+    @staticmethod
+    def _fetch_text(url: str) -> str:
         try:
             resp = requests.get(url, timeout=5, verify=False)
             return resp.text if resp.status_code == 200 else ""

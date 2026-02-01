@@ -36,7 +36,8 @@ class AgentExtensionsMixin:
             logger.exception("Metasploit error")
             return {"success": False, "error": f"Metasploit execution failed: {e}"}
 
-    def _execute_ad_attacks(self, tool_name: str, args: dict) -> dict:
+    @staticmethod
+    def _execute_ad_attacks(tool_name: str, args: dict) -> dict:
         """Execute Active Directory attacks (Native)"""
         try:
             from modules.ad_attacks import ActiveDirectoryAttacker

@@ -47,7 +47,8 @@ class SyscallLoader:
                 "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls"
             )
 
-    def _find_dll(self) -> Path:
+    @staticmethod
+    def _find_dll() -> Path:
         """Search for the compiled DLL/SO file"""
         # 1. Check standard cargo output directory
         cargo_out = RUST_PROJECT_PATH / "target" / TARGET_DIR / DLL_NAME

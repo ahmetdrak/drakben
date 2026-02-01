@@ -124,7 +124,8 @@ class SyscallEngine:
             logger.error(f"Shellcode execution failed: {e}")
             return False
 
-    def generate_syscall_stub(self, ssn: int) -> bytes:
+    @staticmethod
+    def generate_syscall_stub(ssn: int) -> bytes:
         """
         Generate x64 syscall stub for a specific SSN.
         mov r10, rcx

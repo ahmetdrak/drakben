@@ -72,8 +72,9 @@ class OSINTSpider:
         logger.info(f"Found {len(targets)} potential targets")
         return targets
 
+    @staticmethod
     def predict_email(
-        self, full_name: str, domain: str, format_str: str = "{first}.{last}@{domain}"
+        full_name: str, domain: str, format_str: str = "{first}.{last}@{domain}"
     ) -> str:
         """
         Predict email address based on name and domain.
@@ -94,7 +95,8 @@ class OSINTSpider:
             logger.error(f"Email prediction error: {e}")
             return ""
 
-    def search_leaked_credentials(self, email: str) -> bool:
+    @staticmethod
+    def search_leaked_credentials(email: str) -> bool:
         """Check if email appears in known breaches (Mock: HaveIBeenPwned)"""
         # Placeholder for HIBP API
         return secrets.choice([True, False, False, False])  # 25% chance of leak

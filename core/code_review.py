@@ -251,7 +251,8 @@ class CodeReview:
         # Create backup directory
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-    def _generate_id(self) -> str:
+    @staticmethod
+    def _generate_id() -> str:
         """Generate unique ID"""
         return hashlib.sha256(
             f"{time.time()}{os.urandom(8).hex()}".encode()

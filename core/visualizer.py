@@ -100,7 +100,8 @@ class NetworkVisualizer:
             logger.error(f"Failed to generate network map: {e}")
             return ""
 
-    def _add_vulnerabilities(self, G, parent_id, port, state):
+    @staticmethod
+    def _add_vulnerabilities(G, parent_id, port, state):
         """Add vulnerability nodes"""
         for vuln in state.vulnerabilities:
             if vuln.port == port:
@@ -114,7 +115,8 @@ class NetworkVisualizer:
                 )
                 G.add_edge(parent_id, vuln_id)
 
-    def _add_credentials(self, G, parent_id, service_name, state):
+    @staticmethod
+    def _add_credentials(G, parent_id, service_name, state):
         """Add credential nodes"""
         for cred in state.credentials:
             if cred.service == service_name:

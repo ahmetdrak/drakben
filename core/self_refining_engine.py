@@ -246,7 +246,8 @@ class SelfRefiningEngine:
         # Database will be initialized on first use
         logger.debug("SelfRefiningEngine created (lazy initialization)")
 
-    def _generate_id(self, prefix: str = "") -> str:
+    @staticmethod
+    def _generate_id(prefix: str = "") -> str:
         """Generate a unique ID with optional prefix"""
         return f"{prefix}{uuid.uuid4().hex[:12]}"
 
@@ -402,7 +403,8 @@ class SelfRefiningEngine:
         )
         return False
 
-    def _handle_schema_migration(self, conn: sqlite3.Connection):
+    @staticmethod
+    def _handle_schema_migration(conn: sqlite3.Connection):
         """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)"""
         cursor = conn.execute("PRAGMA user_version")
         version = cursor.fetchone()[0]
@@ -421,14 +423,16 @@ class SelfRefiningEngine:
             conn.execute("PRAGMA user_version = 2")
             conn.commit()
 
-    def _needs_migration(self, conn: sqlite3.Connection) -> bool:
+    @staticmethod
+    def _needs_migration(conn: sqlite3.Connection) -> bool:
         """Check if schema needs migration using PRAGMA user_version"""
         cursor = conn.execute("PRAGMA user_version")
         version = cursor.fetchone()[0]
         # Current schema version is 2. If lower, we need migration.
         return version < 2
 
-    def _handle_db_error(self, e):
+    @staticmethod
+    def _handle_db_error(e):
         """Handle database specific errors"""
         logger.error(f"Database operation failed: {e}")
         if "locked" in str(e).lower():
@@ -490,7 +494,8 @@ class SelfRefiningEngine:
         cursor = conn.execute("SELECT COUNT(*) FROM strategies")
         return cursor.fetchone()[0] > 0
 
-    def _get_default_strategy_definitions(self) -> list[dict]:
+    @staticmethod
+    def _get_default_strategy_definitions() -> list[dict]:
         """Return list of default strategies"""
         return [
             {
@@ -1175,7 +1180,8 @@ class SelfRefiningEngine:
         else:
             return ctx_value == value
 
-    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:
+    @staticmethod
+    def _check_dict_condition(value: dict, ctx_value: Any) -> bool:
         """Check dictionary-based condition (contains/not)"""
         if "contains" in value:
             return value["contains"] in str(ctx_value)
@@ -1487,7 +1493,8 @@ class SelfRefiningEngine:
     # TARGET CLASSIFICATION
     # =========================================================================
 
-    def classify_target(self, target: str) -> str:
+    @staticmethod
+    def classify_target(target: str) -> str:
         """Classify target into a type"""
         target_lower = target.lower()
 

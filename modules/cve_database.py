@@ -271,7 +271,8 @@ class CVEDatabase:
         except Exception as e:
             logger.debug(f"Failed to update sync time: {e}")
 
-    def _get_severity(self, cvss_score: float) -> CVSSSeverity:
+    @staticmethod
+    def _get_severity(cvss_score: float) -> CVSSSeverity:
         """Get severity level from CVSS score"""
         if cvss_score == 0:
             return CVSSSeverity.NONE
@@ -469,8 +470,9 @@ class CVEDatabase:
                 results.append(entry)
         return results
 
+    @staticmethod
     def _merge_cve_results(
-        self, cached: list[CVEEntry], api: list[CVEEntry], max_results: int
+        cached: list[CVEEntry], api: list[CVEEntry], max_results: int
     ) -> list[CVEEntry]:
         """Merge cached and API results, removing duplicates"""
         seen_ids = {entry.cve_id for entry in cached}
@@ -654,7 +656,8 @@ class CVEDatabase:
             logger.error(f"CPE search error: {e}")
         return results
 
-    def _extract_keywords(self, text: str) -> list[str]:
+    @staticmethod
+    def _extract_keywords(text: str) -> list[str]:
         """Extract indexable keywords from text"""
         import re
 
@@ -843,8 +846,9 @@ class VulnerabilityMatcher:
                     )
         return matches
 
+    @staticmethod
     def _deduplicate_and_sort_matches(
-        self, matches: list[VulnerabilityMatch]
+        matches: list[VulnerabilityMatch]
     ) -> list[VulnerabilityMatch]:
         """Remove duplicates and sort by confidence"""
         seen_cves = set()
@@ -903,7 +907,7 @@ class VulnerabilityMatcher:
 async def match_state_vulnerabilities(
     state: "AgentState", cve_db: CVEDatabase | None = None
 ) -> list[VulnerabilityMatch]:
-    """
+    ```
     Match all vulnerabilities in AgentState with CVE database.
 
     Args:

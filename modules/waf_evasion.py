@@ -86,7 +86,8 @@ class WAFEvasion:
 
         return obfuscated
 
-    def obfuscate_xss(self, payload: str) -> str:
+    @staticmethod
+    def obfuscate_xss(payload: str) -> str:
         """
         Obfuscate XSS payload using tag/attribute mutation.
         """
@@ -115,7 +116,8 @@ class WAFEvasion:
 
         return mutated
 
-    def obfuscate_shell(self, payload: str) -> str:
+    @staticmethod
+    def obfuscate_shell(payload: str) -> str:
         """
         Obfuscate OS Command Injection (Bash/Linux).
         cat /etc/passwd -> c''a''t /e??/p?s??d

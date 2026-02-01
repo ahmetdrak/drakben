@@ -84,7 +84,8 @@ class TestPerformanceStress(unittest.TestCase):
 
         # Inject a broken synthesizer mock directly
         class BrokenSynthesizer:
-            def generate_tool(self, desc, lang):
+            @staticmethod
+            def generate_tool(desc, lang):
                 from core.singularity.base import CodeSnippet
 
                 # Deliberate Syntax Error

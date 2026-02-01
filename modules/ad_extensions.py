@@ -409,7 +409,8 @@ class BloodHoundAnalyzer:
 
         logger.info(f"Exported graph to {filepath}")
 
-    def _edge_to_technique(self, edge: BloodHoundEdge) -> str:
+    @staticmethod
+    def _edge_to_technique(edge: BloodHoundEdge) -> str:
         """Convert edge relationship to attack technique description"""
         technique_map = {
             BloodHoundRelationship.MEMBER_OF: "Group Membership",
@@ -476,7 +477,8 @@ class ImpacketWrapper:
             f"Impacket wrapper initialized: {len(self.available_tools)} tools available"
         )
 
-    def _find_impacket(self) -> str | None:
+    @staticmethod
+    def _find_impacket() -> str | None:
         """Try to find impacket installation"""
         # Check common locations
         paths_to_check = [
@@ -623,8 +625,8 @@ class ImpacketWrapper:
             additional_args=args,
         )
 
+    @staticmethod
     def generate_getnpusers(
-        self,
         target: str,
         domain: str,
         username: str = None,

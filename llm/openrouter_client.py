@@ -63,7 +63,8 @@ class LLMCache:
         self._hits = 0
         self._misses = 0
 
-    def _generate_key(self, prompt: str, system_prompt: str, model: str) -> str:
+    @staticmethod
+    def _generate_key(prompt: str, system_prompt: str, model: str) -> str:
         """Generate unique cache key from prompt, system prompt, and model"""
         content = f"{model}:{system_prompt}:{prompt}"
         return hashlib.sha256(content.encode()).hexdigest()
@@ -289,7 +290,8 @@ class OpenRouterClient:
 
         return session
 
-    def _detect_provider(self) -> str:
+    @staticmethod
+    def _detect_provider() -> str:
         """Auto-detect which LLM provider to use"""
         if os.getenv("LOCAL_LLM_URL"):
             return "ollama"
@@ -538,7 +540,8 @@ class OpenRouterClient:
                 if chunk:
                     yield chunk
 
-    def _check_stream_timeout(self, start_time: float, max_stream_time: float) -> bool:
+    @staticmethod
+    def _check_stream_timeout(start_time: float, max_stream_time: float) -> bool:
         """Check if streaming has exceeded timeout"""
         if time.time() - start_time > max_stream_time:
             logger.warning(
@@ -547,7 +550,8 @@ class OpenRouterClient:
             return True
         return False
 
-    def _preprocess_stream_line(self, line: str) -> str:
+    @staticmethod
+    def _preprocess_stream_line(line: str) -> str:
         """Preprocess stream line (remove data: prefix, check for DONE)"""
         if line.startswith("data: "):
             line = line[6:]
@@ -570,7 +574,8 @@ class OpenRouterClient:
             pass
         return None
 
-    def _extract_chunk(self, data: dict) -> str:
+    @staticmethod
+    def _extract_chunk(data: dict) -> str:
         """Extract content chunk from response data"""
         choices = data.get("choices", [])
         if choices:
@@ -814,8 +819,9 @@ class OpenRouterClient:
             logger.error(f"Ollama request failed: {e}")
             return None
 
+    @staticmethod
     def _process_ollama_stream(
-        self, response: requests.Response, callback: Callable | None
+        response: requests.Response, callback: Callable | None
     ) -> Iterator[str]:
         """Process streaming response from Ollama API"""
         import json

@@ -42,7 +42,8 @@ class SymbolicExecutor:
             f"Symbolic Executor initialized (Z3: {'Available' if self.z3_available else 'Fallback Mode'})"
         )
 
-    def _check_z3(self) -> bool:
+    @staticmethod
+    def _check_z3() -> bool:
         """Check if Z3 solver is available"""
         try:
             import importlib.util
@@ -232,7 +233,8 @@ class SymbolicExecutor:
 
         return None
 
-    def _heuristic_solve(self, path: ExecutionPath) -> dict[str, Any]:
+    @staticmethod
+    def _heuristic_solve(path: ExecutionPath) -> dict[str, Any]:
         """Fallback solver without Z3"""
         result = {}
         for c in path.constraints:
