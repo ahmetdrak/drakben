@@ -542,53 +542,38 @@ class KerberosPacketFactory:
             return bytes([tags]) + encoded_length + content
 
         def int_val(val):
-            # Integer encoding
             b = val.to_bytes((val.bit_length() + 7) // 8 + 1, "big", signed=True)
-            return seq(0x02, b)  # 0x02 = INTEGER
+            return seq(0x02, b)
 
         def str_val(val):
-            # GeneralString encoding
             return seq(0x1B, val.encode("utf-8"))
 
-        # 2. Build KDC-REQ-BODY
-        # cname (PrincipalName)
-        #   name-type: 1 (NT-PRINCIPAL)
-        #   name-string: SEQUENCE of username
         name_string = seq(0x30, str_val(username))
         cname_val = seq(
             0x30,
-            seq(0xA0, int_val(1))  # name-type
-            + seq(0xA1, name_string),  # name-string
+            seq(0xA0, int_val(1))
+            + seq(0xA1, name_string),
         )
         cname = seq(0xA0, cname_val)
 
-        # realm
         realm = seq(0xA1, str_val(domain.upper()))
 
-        # sname (krbtgt/DOMAIN)
         sname_strings = seq(0x30, str_val("krbtgt") + str_val(domain.upper()))
         sname_val = seq(
             0x30,
-            seq(0xA0, int_val(2))  # name-type (NT-SRV-INST)
+            seq(0xA0, int_val(2))
             + seq(0xA1, sname_strings),
         )
         sname = seq(0xA2, sname_val)
 
-        # till (20370913024805Z - generic future date)
         till = seq(0xA5, seq(0x18, b"20370913024805Z"))
 
-        # nonce (random)
         nonce_int = secrets.randbits(31)
         nonce = seq(0xA6, int_val(nonce_int))
 
-        # etypes (RC4-HMAC=23) - focused on downgrade/roasting
-        # SEQUENCE OF INTEGER
         etypes_val = seq(0x30, int_val(23))
         etypes = seq(0xA7, etypes_val)
 
-        # KDC-REQ-BODY Sequence
-        # options: 4 (Forwardable) -> BIT STRING
-        # We skip options for minimal roast check req
         req_body_content = (
             seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
         )
