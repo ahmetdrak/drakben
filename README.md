@@ -54,53 +54,89 @@ user@drakben:~$ ./drakben
 
 ## 🚀 Capabilities
 
-### 🧠 Core Intelligence
-| Feature | Description | State |
+### 🧠 Core & Evolution (The Brain)
+| Feature | Technical Implementation | State |
 | :--- | :--- | :---: |
-| **Self-Refining Mind** | Learns from failures. If a tool fails, it pivots strategy & creates policies. | ✅ |
-| **Singularity Engine** | Writes its own Python exploits on the fly when tools fail. | ✅ |
-| **Evolution Memory** | Persists learned strategies and success/failure patterns across restarts. | ✅ |
-| **Symbolic Reasoning** | Uses `z3-solver` for mathematical path analysis of vulnerabilities. | ✅ |
+| **Self-Refining Engine** | Autonomous strategy evolution & failure-based policy generation. | ✅ |
+| **Self-Healer Module** | Auto-diagnosis of error logs with AI-assisted automatic fixes/retries. | ✅ |
+| **Singularity Engine** | Real-time Python code synthesis & JIT alternative tool generation. | ✅ |
+| **Distributed Swarm** | Redis-backed state synchronization for multi-agent coordination. | ✅ |
+| **Evolution Memory** | Persistent SQLite-WAL storage for learned behavioral patterns. | ✅ |
+| **Symbolic Reasoning** | Z3-Solver integration for automated vulnerability path analysis. | ✅ |
 
-### ⚔️ Offensive Modules
-| Feature | Description | State |
+### 👻 Ghost Protocol (Stealth & Evasion)
+| Feature | Technical Implementation | State |
 | :--- | :--- | :---: |
-| **Ghost Protocol** | AST-Polymorphic code generation (Variable renaming, Dead code injection). | ✅ |
-| **Weapon Foundry** | Generates encrypted payloads (AES/ChaCha20) in (exe, elf, ps1). | ✅ |
-| **Hive Mind** | Native Active Directory attacks (Kerberoasting, SMB Spray, Bloodhound). | ✅ |
-| **Web Recon** | WAF Detection, Fuzzing, SQLi/XSS Automation. | ✅ |
-| **OSINT Spider** | Harvests emails & employees from public sources (LinkedIn/Google Dorks). | ✅ |
-| **Post-Exploit** | Auto-Looting (Triage), Linux/Windows PrivEsc checks, Container Breakout. | ✅ |
+| **AST Polymorphism** | Variable renaming, logic flattening, and dynamic Junk-Code injection. | ✅ |
+| **Native Syscall Engine** | Bypassing EDR/AV via direct Kernel Syscalls (NtAllocateVirtualMemory). | ✅ |
+| **Memory-Only Exec** | Fileless execution of Python/Native payloads directly in RAM. | ✅ |
+| **Anti-Forensics** | DoD 5220.22-M Three-pass secure wipe & Windows/Linux Timestompping. | ✅ |
+| **Stealth Client** | TLS fingerprint consistency & stateful Referer-chain tracking. | ✅ |
+| **Proxy Rotation** | ASN-aware proxy selection and stateful session management. | ✅ |
 
-### 🛡️ Evasion & Defense
-| Feature | Description | State |
+### 🛰️ Universal Adapter (C2 & Communication)
+| Feature | Technical Implementation | State |
 | :--- | :--- | :---: |
-| **WAF Evasion** | Polymorphic SQLi/XSS payloads (Hex encoding, Whitespace randomization). | ✅ |
-| **Anti-Forensics** | DoD 5220.22-M Secure Delete & Timestomping (File timestamp manipulation). | ✅ |
-| **Universal Adapter** | Hides C2 traffic via **Domain Fronting** and DNS Tunneling. | ✅ |
-| **Memory-Only** | Executes Python payloads directly in RAM without touching the disk. | ✅ |
+| **Domain Fronting** | Hiding C2 traffic behind reputable CDN/Cloud providers. | ✅ |
+| **DNS Tunneling** | Exfiltration of data via fragmented DNS TXT/Subdomain queries. | ✅ |
+| **Telegram C2** | Encrypted command loop via Bot API with multi-message support. | ✅ |
+| **Steganography** | Hiding data within image files using LSB (Least Significant Bit). | ✅ |
+| **Poly-Encryption** | Multi-algorithm packet encryption (AES-GCM, ChaCha20, RSA). | ✅ |
+
+### ⚔️ Tactical Modules (Offensive Operations)
+| Feature | Technical Implementation | State |
+| :--- | :--- | :---: |
+| **Hive Mind (AD)** | Automated Kerberoasting, AS-REP Toasting, and SMB Password Spraying. | ✅ |
+| **Weapon Foundry** | Automated payload factory producing Encrypted EXE, ELF, and PS1. | ✅ |
+| **Smart Fuzzer** | AI-guided mutation fuzzer for protocol and application research. | ✅ |
+| **Exploit Crafter** | Automated ROP-chain analysis and exploit skeleton generation. | ✅ |
+| **OSINT Spider** | Multi-source employee profiling, leaked credential search, and social graph. | ✅ |
+| **Social Engineering** | MFA Bypass scenarios, automated Phishing page generation & hosting. | ✅ |
+
+### 🔬 Operational Excellence
+| Feature | Technical Implementation | State |
+| :--- | :--- | :---: |
+| **Offline Intel** | Local CVE database with cross-referencing for air-gapped targets. | ✅ |
+| **Auto-Reporting** | Generation of professional HTML/PDF reports with impact scoring. | ✅ |
+| **i18n Support** | Native Turkish and English language support across the entire agent. | ✅ |
+| **Audit Logger** | Tamper-proof logging of every action for forensic compliance. | ✅ |
+| **Credential Store** | RSA-encrypted local vault for captured secrets and session tokens. | ✅ |
+| **Self-Sanitization** | One-click workspace cleanup and evidence removal. | ✅ |
 
 ---
 
 ## 🧬 Evolutionary Architecture
 
-Drakben's core is designed to mimic a biological evolution process. It doesn't just run scripts; it **adapts**.
+Drakben's core mimics a biological evolution process. It doesn't just run scripts; it **adapts**.
 
 ```mermaid
 graph TD
-    User-->|Natural Language| Adapter[Universal Adapter]
-    Adapter -->|Intent| Brain[🧠 Self-Refining Brain]
+    User((Operator)) -->|Natural Language| Adapter[🛰️ Universal Adapter]
+    Adapter -->|Encrypted Intent| Brain[🧠 Self-Refining Brain]
     
-    subgraph "Evolution Cycle"
-    Brain -->|Plan| Singularity[🌌 Singularity CodeGen]
-    Brain -->|Strategy| Hive[🕸️ Hive Mind]
-    Singularity -->|Polymorphism| Ghost[👻 Ghost Protocol]
-    Ghost -->|Obfuscation| Weapon[⚔️ Weapon Foundry]
+    subgraph "Distributed Swarm"
+    Brain <-->|State Sync| Redis[(Redis Cluster)]
+    end
+
+    subgraph "Evolution & Execution Cycle"
+    Brain -->|Strategy| Hive[🕸️ Hive Mind - AD/Net]
+    Brain -->|Task| Singularity[🌌 Singularity - CodeGen]
+    Singularity -->|Polymorphic Code| Ghost[👻 Ghost Protocol]
+    Ghost -->|Syscall/Binary| Weapon[⚔️ Weapon Foundry]
     end
     
-    Weapon -->|Attack| Target((Target System))
-    Target -->|Feedback| Memory[Evolution Memory]
-    Memory -->|Learning| Brain
+    Weapon -->|Payload/Attack| Target((Target System))
+    Hive -->|Exploit| Target
+    
+    subgraph "Learning & Recovery"
+    Target -->|Raw Feedback| Memory[Evolution Memory]
+    Memory -->|Patterns| Brain
+    Target -->|Execution Failure| Healer[🔧 Self-Healer]
+    Healer -->|Auto-Fix/Repair| Brain
+    end
+    
+    Target -->|Loot/Data| Adapter
+    Adapter -->|Exfiltration| User
 ```
 
 ---
