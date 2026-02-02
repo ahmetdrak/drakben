@@ -63,6 +63,7 @@ class DrakbenMenu:
     STYLE_BOLD_GREEN = "bold green"
     STYLE_BOLD_CYAN = "bold cyan"
     STYLE_BOLD_YELLOW = "bold yellow"
+    MSG_AGENT_NOT_NONE = "self.agent is not None"
 
     BANNER = r"""
     ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
@@ -442,16 +443,14 @@ class DrakbenMenu:
 
             self.agent = RefactoredDrakbenAgent(self.config_manager)
             if self.agent is None:
-                msg = "self.agent is not None"
-                raise AssertionError(msg)
+                raise AssertionError(self.MSG_AGENT_NOT_NONE)
             self.agent.initialize(target=self.config.target or "")
 
         msg: str = "Çalıştırılıyor..." if lang == "tr" else "Executing..."
         self.console.print(f"⚡ {msg}", style=self.COLORS["yellow"])
 
         if self.agent is None:
-            msg = "self.agent is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_AGENT_NOT_NONE)
         if self.agent.executor is None:
             msg = "self.agent.executor is not None"
             raise AssertionError(msg)
@@ -797,8 +796,7 @@ class DrakbenMenu:
             self._ensure_agent_initialized()
             self._initialize_agent_with_retry(scan_mode, lang)
             if self.agent is None:
-                msg = "self.agent is not None"
-                raise AssertionError(msg)
+                raise AssertionError(self.MSG_AGENT_NOT_NONE)
             self.agent.run_autonomous_loop()
         except KeyboardInterrupt:
             interrupt_msg: str = (
@@ -830,8 +828,7 @@ class DrakbenMenu:
 
         try:
             if self.agent is None:
-                msg = "self.agent is not None"
-                raise AssertionError(msg)
+                raise AssertionError(self.MSG_AGENT_NOT_NONE)
             target: str = self.config.target or "localhost"
             self.agent.initialize(target=target, mode=scan_mode)
         except Exception as init_error:
@@ -922,13 +919,76 @@ class DrakbenMenu:
         self.show_banner()
         self.show_status_line()
 
+    def _show_agent_panels(self, lang: str) -> None:
+        """Show agent-related panels in status view."""
+        from rich.panel import Panel
+
+        if not (self.agent and self.agent.state):
+            return
+
+        agent_title: str = "🤖 Agent State" if lang == "en" else "🤖 Ajan Durumu"
+        self.console.print(
+            Panel(
+                self._create_agent_table(),
+                title=f"[bold {self.COLORS['yellow']}]{agent_title}[/]",
+                border_style=self.COLORS["yellow"],
+                padding=(0, 1),
+            ),
+        )
+
+        findings_title = (
+            "⚔️  War Room: Live Findings"
+            if lang == "en"
+            else "⚔️  Savaş Odası: Canlı Bulgular"
+        )
+        self.console.print(
+            Panel(
+                self._create_live_findings_table(),
+                title=f"[bold red]{findings_title}[/]",
+                border_style="red",
+                padding=(0, 1),
+            ),
+        )
+
+        if self.agent.planner and self.agent.planner.steps:
+            plan_title = "📋 Mission Plan" if lang == "en" else "📋 Görev Planı"
+            self.console.print(
+                Panel(
+                    self._create_plan_table(),
+                    title=f"[bold {self.COLORS['pink']}]{plan_title}[/]",
+                    border_style=self.COLORS["pink"],
+                    padding=(0, 1),
+                ),
+            )
+
+    def _show_idle_panel(self, lang: str) -> None:
+        """Show idle message panel when agent is not active."""
+        from rich.panel import Panel
+
+        idle_msg = (
+            "[dim]Ajan şu an aktif değil. Bir tarama başlatmak için:[/]\n"
+            f"[{self.STYLE_BOLD_CYAN}]1.[/] /target <IP>\n"
+            f"[{self.STYLE_BOLD_CYAN}]2.[/] /scan"
+            if lang == "tr"
+            else "[dim]Agent is currently idle. To start a scan:[/]\n"
+            f"[{self.STYLE_BOLD_CYAN}]1.[/] /target <IP>\n"
+            f"[{self.STYLE_BOLD_CYAN}]2.[/] /scan"
+        )
+        idle_title = "🤖 Agent Idle" if lang == "en" else "🤖 Ajan Beklemede"
+        self.console.print(
+            Panel(
+                idle_msg,
+                title=f"[bold yellow]{idle_title}[/]",
+                border_style="yellow",
+                padding=(0, 1),
+            ),
+        )
+
     def _cmd_status(self, args: str = "") -> None:
         """Show current status - Modern dashboard style."""
         from rich.panel import Panel
 
         lang: str = self.config.language
-
-        # Build panels
         self.console.print()
 
         title: str = "📊 DRAKBEN Status" if lang == "en" else "📊 DRAKBEN Durumu"
@@ -942,62 +1002,9 @@ class DrakbenMenu:
         )
 
         if self.agent and self.agent.state:
-            agent_title: str = "🤖 Agent State" if lang == "en" else "🤖 Ajan Durumu"
-            self.console.print(
-                Panel(
-                    self._create_agent_table(),
-                    title=f"[bold {self.COLORS['yellow']}]{agent_title}[/]",
-                    border_style=self.COLORS["yellow"],
-                    padding=(0, 1),
-                ),
-            )
-
-            # War Room / Live Findings Panel
-            findings_title = (
-                "⚔️  War Room: Live Findings"
-                if lang == "en"
-                else "⚔️  Savaş Odası: Canlı Bulgular"
-            )
-            self.console.print(
-                Panel(
-                    self._create_live_findings_table(),
-                    title=f"[bold red]{findings_title}[/]",
-                    border_style="red",
-                    padding=(0, 1),
-                ),
-            )
-
-            # Show Plan Table
-            if self.agent.planner and self.agent.planner.steps:
-                plan_title = "📋 Mission Plan" if lang == "en" else "📋 Görev Planı"
-                self.console.print(
-                    Panel(
-                        self._create_plan_table(),
-                        title=f"[bold {self.COLORS['pink']}]{plan_title}[/]",
-                        border_style=self.COLORS["pink"],
-                        padding=(0, 1),
-                    ),
-                )
+            self._show_agent_panels(lang)
         else:
-            # Informative message if agent is idle
-            idle_msg = (
-                "[dim]Ajan şu an aktif değil. Bir tarama başlatmak için:[/]\n"
-                "[bold cyan]1.[/] /target <IP>\n"
-                "[bold cyan]2.[/] /scan"
-                if lang == "tr"
-                else "[dim]Agent is currently idle. To start a scan:[/]\n"
-                "[bold cyan]1.[/] /target <IP>\n"
-                "[bold cyan]2.[/] /scan"
-            )
-            idle_title = "🤖 Agent Idle" if lang == "en" else "🤖 Ajan Beklemede"
-            self.console.print(
-                Panel(
-                    idle_msg,
-                    title=f"[bold yellow]{idle_title}[/]",
-                    border_style="yellow",
-                    padding=(0, 1),
-                ),
-            )
+            self._show_idle_panel(lang)
 
         llm_title = "🧠 LLM"
         self.console.print(

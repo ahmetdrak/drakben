@@ -546,12 +546,12 @@ class KerberosPacketFactory:
             return bytes([tags]) + encoded_length + content
 
         def int_val(val: int) -> bytes:
-            # Integer encoding
+            """Encode integer value in ASN.1 format (tag 0x02)."""
             b = val.to_bytes((val.bit_length() + 7) // 8 + 1, "big", signed=True)
-            return seq(0x02, b)  # 0x02 = INTEGER
+            return seq(0x02, b)
 
         def str_val(val: str) -> bytes:
-            # GeneralString encoding
+            """Encode string value in ASN.1 GeneralString format (tag 0x1B)."""
             return seq(0x1B, val.encode("utf-8"))
 
         # 2. Build KDC-REQ-BODY

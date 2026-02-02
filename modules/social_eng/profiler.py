@@ -163,6 +163,52 @@ class NLPPayloadEngine:
             "casual": {"hey", "cool", "thanks", "weekend", "chat", "hangout", "coffee"},
         }
 
+    def _calculate_bias_scores(
+        self,
+        word_set: set[str],
+        text: str,
+    ) -> dict["CognitiveBias", float]:
+        """Calculate bias scores based on word intersection."""
+        scores = dict.fromkeys(CognitiveBias, 0.0)
+
+        for bias, data in self.bias_anchors.items():
+            intersection = word_set.intersection(data["keywords"])
+            score = len(intersection) * data["weight"]
+
+            if bias == CognitiveBias.AUTHORITY and "chief" in text:
+                score += 2.0
+            if bias == CognitiveBias.SCARCITY and "urgent" in text:
+                score += 2.0
+
+            scores[bias] = score
+
+        return scores
+
+    def _detect_tone(self, word_set: set[str]) -> str:
+        """Detect communication tone from vocabulary."""
+        detected_tone = "Formal"
+        max_overlap = 0
+        for tone, vocab in self.tone_vectors.items():
+            overlap = len(word_set.intersection(vocab))
+            if overlap > max_overlap:
+                max_overlap = overlap
+                detected_tone = tone.title()
+        return detected_tone
+
+    def _detect_context_and_bias(
+        self,
+        text: str,
+        primary: "CognitiveBias",
+    ) -> tuple[str, "CognitiveBias"]:
+        """Detect synthetic context and adjust primary bias based on role."""
+        if "dev" in text or "engineer" in text:
+            return "JIRA", CognitiveBias.CURIOSITY
+        if "hr" in text or "recruit" in text:
+            return "LinkedIn", primary
+        if "sales" in text:
+            return "Salesforce", CognitiveBias.SCARCITY
+        return "Email", primary
+
     def analyze_text(self, text: str) -> PsychologicalProfile:
         """Perform deep psychometric analysis on target text (Role, Bio, Posts)."""
         text = text.lower()
@@ -170,20 +216,7 @@ class NLPPayloadEngine:
         word_set = set(words)
 
         # A. Bias Scoring
-        scores = dict.fromkeys(CognitiveBias, 0.0)
-
-        for bias, data in self.bias_anchors.items():
-            # Jaccard + Weighted Intersection
-            intersection = word_set.intersection(data["keywords"])
-            score = len(intersection) * data["weight"]
-
-            # Contextual boosting
-            if bias == CognitiveBias.AUTHORITY and "chief" in text:
-                score += 2.0
-            if bias == CognitiveBias.SCARCITY and "urgent" in text:
-                score += 2.0
-
-            scores[bias] = score
+        scores = self._calculate_bias_scores(word_set, text)
 
         # Select Top 2
         sorted_biases = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -197,24 +230,10 @@ class NLPPayloadEngine:
         )
 
         # B. Context & Tone Detection
-        detected_tone = "Formal"
-        max_overlap = 0
-        for tone, vocab in self.tone_vectors.items():
-            overlap = len(word_set.intersection(vocab))
-            if overlap > max_overlap:
-                max_overlap = overlap
-                detected_tone = tone.title()
+        detected_tone = self._detect_tone(word_set)
 
-        # C. Heuristic Role Mapping (Fallback/Enhancement)
-        synthetic_context = "Email"
-        if "dev" in text or "engineer" in text:
-            synthetic_context = "JIRA"
-            primary = CognitiveBias.CURIOSITY  # Devs are curious about bugs
-        elif "hr" in text or "recruit" in text:
-            synthetic_context = "LinkedIn"
-        elif "sales" in text:
-            synthetic_context = "Salesforce"
-            primary = CognitiveBias.SCARCITY
+        # C. Heuristic Role Mapping
+        synthetic_context, primary = self._detect_context_and_bias(text, primary)
 
         return PsychologicalProfile(
             primary_bias=primary,

