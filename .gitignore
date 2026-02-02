@@ -81,6 +81,9 @@ test_output.txt
 *_REPORT.md
 *_SUMMARY.md
 
+# Private documentation (local only)
+ÖNEMLİ.md
+
 # Session files
 session.json
 *.pid
