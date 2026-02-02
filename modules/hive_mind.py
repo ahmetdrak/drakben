@@ -326,7 +326,7 @@ class CredentialHarvester:
 
         return found
 
-    def _get_ssh_username(self, key_path: str) -> str:
+    def _get_ssh_username(self, _key_path: str) -> str:
         """Try to determine SSH username from config."""
         try:
             config_path = Path.home() / ".ssh" / "config"

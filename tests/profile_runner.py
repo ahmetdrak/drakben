@@ -20,17 +20,20 @@ def profile_target() -> None:
     # 1. Profile Initialization
     start = time.time()
     agent = RefactoredDrakbenAgent(config_manager=mock_config)
-    time.time() - start
+    init_time = time.time() - start
+    _ = init_time  # Track initialization time
 
     # 2. Profile Plan Creation
     start = time.time()
     agent.planner.create_plan_for_target("example.com")
-    time.time() - start
+    plan_time = time.time() - start
+    _ = plan_time  # Track plan creation time
 
     # 3. Profile Internal Logic (Strategy Evolution)
     start = time.time()
     agent.tool_selector.evolve_strategies(agent.evolution)
-    time.time() - start
+    evolve_time = time.time() - start
+    _ = evolve_time  # Track evolution time
 
 
 def run_profiler() -> None:

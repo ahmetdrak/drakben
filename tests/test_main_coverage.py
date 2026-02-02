@@ -52,6 +52,6 @@ def test_environment_check() -> None:
         with patch("pathlib.Path.mkdir") as mock_mkdir:
             with patch("sys.version_info", (3, 11)):
                 drakben.check_environment()
-                if not mock_mkdir.call_count >= 1:
+                if mock_mkdir.call_count < 1:
                     msg = "mock_mkdir.call_count >= 1"
                     raise AssertionError(msg)

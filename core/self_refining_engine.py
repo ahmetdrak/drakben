@@ -436,7 +436,7 @@ class SelfRefiningEngine:
         logger.error("Database operation failed: %s", e)
         if "locked" in str(e).lower():
             logger.error("Database is locked by another process.")
-        raise e
+        raise RuntimeError(f"Database error: {e}") from e
 
     def _seed_default_strategies(self) -> None:
         """Seed default strategies if none exist."""

@@ -134,8 +134,8 @@ def process_file(filepath) -> bool:
 def main() -> None:
     # Only target core and modules for now to be safe
     targets = ["core", "modules", "drakben.py"]
-    fixed_count = 0
-    total_files = 0
+    _fixed_count = 0
+    _total_files = 0
 
     for target in targets:
         path = Path(target)
@@ -144,9 +144,9 @@ def main() -> None:
         for py_file in files:
             if "venv" in str(py_file) or ".gemini" in str(py_file):
                 continue
-            total_files += 1
+            _total_files += 1
             if process_file(py_file):
-                fixed_count += 1
+                _fixed_count += 1
 
 
 

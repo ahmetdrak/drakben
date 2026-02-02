@@ -27,7 +27,7 @@ def run_pytest() -> bool | None:
         )
 
         if result.stderr:
-            pass
+            logger.debug("Audit stderr: %s", result.stderr.strip())
 
         if result.returncode == 0:
             logger.info("Ultimate Audit PASSED.")

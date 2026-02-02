@@ -374,7 +374,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
     def _run_single_iteration(self, max_iterations: int) -> bool:
         """Execute a single iteration of the autonomous loop."""
-        if not self.state is not None:
+        if self.state is None:
             msg = "State missing in iteration"
             raise AssertionError(msg)
         iteration: int = self.state.iteration_count + 1
@@ -445,7 +445,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         if not self._validate_loop_state():
             return False
 
-        if not self.state is not None:
+        if self.state is None:
 
             msg = "self.state is not None"
             raise AssertionError(msg)
@@ -511,7 +511,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     ) -> None:
         """Record action to evolution memory."""
         # Using assertion for Mypy safety, logic handles None gracefully via defaults but type checker complains
-        if not self.state is not None:
+        if self.state is None:
             msg = "self.state is not None"
             raise AssertionError(msg)
         target: str | None = self.state.target
@@ -832,7 +832,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         )
         time.sleep(1)
 
-    def _log_llm_failure(self, llm_error: str, max_retries: int) -> None:
+    def _log_llm_failure(self, llm_error: str, _max_retries: int) -> None:
         """Log LLM failure and switch to fallback."""
         self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
         self.console.print(
@@ -2094,7 +2094,7 @@ Respond in JSON:
         observation: str,
     ) -> None:
         """Update state based on tool result."""
-        if not self.state is not None:
+        if self.state is None:
             msg = "self.state is not None"
             raise AssertionError(msg)
         # Set observation
@@ -2133,7 +2133,7 @@ Respond in JSON:
 
     def _process_exploit_result(self, tool_name: str, result: dict) -> None:
         """Helper to process exploit results."""
-        if not self.state is not None:
+        if self.state is None:
             msg = "self.state is not None"
             raise AssertionError(msg)
         observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
@@ -2175,7 +2175,7 @@ Respond in JSON:
 
     def _apply_mock_services(self) -> None:
         """Apply mock services for testing or fallback."""
-        if not self.state is not None:
+        if self.state is None:
             msg = "self.state is not None"
             raise AssertionError(msg)
         services: list[ServiceInfo] = [
@@ -2187,7 +2187,7 @@ Respond in JSON:
 
     def _update_state_service_completion(self, result: dict) -> None:
         """Mark service as tested."""
-        if not self.state is not None:
+        if self.state is None:
             msg = "self.state is not None"
             raise AssertionError(msg)
         args_port = result.get("args", {}).get("port")

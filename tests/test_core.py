@@ -487,7 +487,7 @@ class TestDrakbenBrain(unittest.TestCase):
 
         brain = DrakbenBrain()
 
-        assert brain is not None
+        assert brain  # Verify instance created successfully
 
     def test_reasoning_without_llm(self) -> None:
         """Test reasoning fallback without LLM."""
@@ -726,7 +726,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
         try:
             engine = SelfRefiningEngine()
-            assert engine is not None
+            assert engine  # Verify instance created successfully
         except Exception as e:
             self.skipTest(f"SelfRefiningEngine initialization failed: {e}")
 

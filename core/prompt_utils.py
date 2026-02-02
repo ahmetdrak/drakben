@@ -308,7 +308,7 @@ class DrakbenProgress:
             Coroutine result
 
         """
-        with self.spinner(description) as progress:
+        async with self.spinner(description) as progress:
             task = progress.add_task(description, total=None)
             result = await coro
             progress.update(task, completed=True)
@@ -370,7 +370,7 @@ class DrakbenProgress:
             async with semaphore:
                 return await scan_func(target)
 
-        with self.bar() as progress:
+        async with self.bar() as progress:
             task = progress.add_task(description, total=len(targets))
 
             tasks = []

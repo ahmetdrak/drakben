@@ -58,6 +58,12 @@ class DrakbenMenu:
         "fg": "#F8F8F2",
     }
 
+    # Rich style constants (SonarCloud: avoid duplicate literals)
+    STYLE_BOLD_WHITE = "bold white"
+    STYLE_BOLD_GREEN = "bold green"
+    STYLE_BOLD_CYAN = "bold cyan"
+    STYLE_BOLD_YELLOW = "bold yellow"
+
     BANNER = r"""
     ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
     ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║
@@ -161,7 +167,7 @@ class DrakbenMenu:
         is_tr = lang == "tr"
 
         target = self.config.target or ("UNKNOWN" if not is_tr else "BELİRSİZ")
-        target_style = "bold white" if self.config.target else "dim red"
+        target_style = self.STYLE_BOLD_WHITE if self.config.target else "dim red"
 
         os_info = (
             "Kali 🐉"
@@ -179,7 +185,7 @@ class DrakbenMenu:
             mode_status = "ON" if is_stealth else "OFF"
 
         mode_text = f"{stealth_icon} {mode_status}"
-        mode_color = "bold green" if is_stealth else "bold yellow"
+        mode_color = self.STYLE_BOLD_GREEN if is_stealth else self.STYLE_BOLD_YELLOW
 
         # Tactical HUD Table
         status_table = Table(show_header=False, box=None, expand=True, padding=(0, 2))
@@ -188,7 +194,7 @@ class DrakbenMenu:
         status_table.add_column("C3", ratio=1)
 
         # Build segments with labels
-        def get_seg(lbl: str, val: str, val_style: str = "bold white") -> Any:  # noqa: ANN401
+        def get_seg(lbl: str, val: str, val_style: str = DrakbenMenu.STYLE_BOLD_WHITE) -> Any:  # noqa: ANN401
             t = Text()
             t.append(lbl, style="dim cyan")
             t.append(f" {val}", style=val_style)
@@ -361,7 +367,7 @@ class DrakbenMenu:
         thinking: str = "Düşünüyor..." if lang == "tr" else "Thinking..."
 
         with self.console.status(f"[bold {self.COLORS['purple']}]🧠 {thinking}"):
-            if not self.brain is not None:
+            if self.brain is None:
                 msg = "self.brain is not None"
                 raise AssertionError(msg)
             result = self.brain.think(user_input, self.config.target, lang)
@@ -435,7 +441,7 @@ class DrakbenMenu:
             from core.refactored_agent import RefactoredDrakbenAgent
 
             self.agent = RefactoredDrakbenAgent(self.config_manager)
-            if not self.agent is not None:
+            if self.agent is None:
                 msg = "self.agent is not None"
                 raise AssertionError(msg)
             self.agent.initialize(target=self.config.target or "")
@@ -443,10 +449,10 @@ class DrakbenMenu:
         msg: str = "Çalıştırılıyor..." if lang == "tr" else "Executing..."
         self.console.print(f"⚡ {msg}", style=self.COLORS["yellow"])
 
-        if not self.agent is not None:
+        if self.agent is None:
             msg = "self.agent is not None"
             raise AssertionError(msg)
-        if not self.agent.executor is not None:
+        if self.agent.executor is None:
             msg = "self.agent.executor is not None"
             raise AssertionError(msg)
         result: ExecutionResult = self.agent.executor.terminal.execute(
@@ -790,7 +796,7 @@ class DrakbenMenu:
         try:
             self._ensure_agent_initialized()
             self._initialize_agent_with_retry(scan_mode, lang)
-            if not self.agent is not None:
+            if self.agent is None:
                 msg = "self.agent is not None"
                 raise AssertionError(msg)
             self.agent.run_autonomous_loop()
@@ -823,7 +829,7 @@ class DrakbenMenu:
         from rich.panel import Panel
 
         try:
-            if not self.agent is not None:
+            if self.agent is None:
                 msg = "self.agent is not None"
                 raise AssertionError(msg)
             target: str = self.config.target or "localhost"
@@ -1012,7 +1018,7 @@ class DrakbenMenu:
         is_tr = lang == "tr"
 
         table = Table(box=None, padding=(0, 1), expand=True)
-        table.add_column("PORT", style="bold cyan", width=10)
+        table.add_column("PORT", style=self.STYLE_BOLD_CYAN, width=10)
         table.add_column("SERVICE" if not is_tr else "SERVİS", style="white", width=20)
         table.add_column(
             "STATUS/VULN" if not is_tr else "DURUM/ZAFİYET",
@@ -1082,8 +1088,8 @@ class DrakbenMenu:
 
         status_colors = {
             StepStatus.PENDING: "dim",
-            StepStatus.EXECUTING: "bold yellow",
-            StepStatus.SUCCESS: "bold green",
+            StepStatus.EXECUTING: self.STYLE_BOLD_YELLOW,
+            StepStatus.SUCCESS: self.STYLE_BOLD_GREEN,
             StepStatus.FAILED: "bold red",
             StepStatus.SKIPPED: "dim yellow",
         }

@@ -10,7 +10,7 @@ def fix_assert_colons(content):
 
 def main() -> None:
     test_files = list(Path("tests").rglob("*.py"))
-    fixed_count = 0
+    _fixed_count = 0
     for test_file in test_files:
         try:
             with open(test_file, encoding="utf-8") as f:
@@ -21,7 +21,7 @@ def main() -> None:
             if new_content != content:
                 with open(test_file, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                fixed_count += 1
+                _fixed_count += 1
         except Exception:
             pass
 

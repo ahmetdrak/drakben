@@ -2,12 +2,13 @@
 Author: @ahmetdrak
 Description: Loads and manages the Rust-based Syscall Engine DLL.
              Handles compilation checking and FFI (Foreign Function Interface) bridging.
+             Supports: SSN Cache, Indirect Syscall, Tartarus Gate, Full Args.
 """
 
 import ctypes
 import logging
 import platform
-from ctypes import c_int, c_void_p
+from ctypes import c_int, c_size_t, c_uint32, c_void_p
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -68,13 +69,63 @@ class SyscallLoader:
         self.lib.check_health.restype = c_int
 
         # fn allocate_rwx(size: usize) -> *mut c_void
-        self.lib.allocate_rwx.argtypes = [ctypes.c_size_t]
+        self.lib.allocate_rwx.argtypes = [c_size_t]
         self.lib.allocate_rwx.restype = c_void_p
 
         # fn direct_syscall(ssn: u32) -> i32
-        # Note: This basic signature doesn't handle extra args yet.
-        self.lib.direct_syscall.argtypes = [ctypes.c_uint32]
+        self.lib.direct_syscall.argtypes = [c_uint32]
         self.lib.direct_syscall.restype = c_int
+
+        # fn resolve_ssn(func_hash: u32) -> i32
+        self.lib.resolve_ssn.argtypes = [c_uint32]
+        self.lib.resolve_ssn.restype = c_int
+
+        # === NEW: SSN Cache ===
+        # fn resolve_ssn_cached(func_hash: u32) -> i32
+        self.lib.resolve_ssn_cached.argtypes = [c_uint32]
+        self.lib.resolve_ssn_cached.restype = c_int
+
+        # === NEW: Indirect Syscall ===
+        # fn get_syscall_gadget() -> usize
+        self.lib.get_syscall_gadget.argtypes = []
+        self.lib.get_syscall_gadget.restype = c_size_t
+
+        # fn indirect_syscall(ssn: u32, gadget_addr: usize) -> i32
+        self.lib.indirect_syscall.argtypes = [c_uint32, c_size_t]
+        self.lib.indirect_syscall.restype = c_int
+
+        # === NEW: Tartarus Gate ===
+        # fn resolve_ssn_tartarus(func_hash: u32) -> i32
+        self.lib.resolve_ssn_tartarus.argtypes = [c_uint32]
+        self.lib.resolve_ssn_tartarus.restype = c_int
+
+        # === NEW: Full Argument Syscall ===
+        # fn direct_syscall_args(ssn, arg1, arg2, arg3, arg4) -> i32
+        self.lib.direct_syscall_args.argtypes = [
+            c_uint32,
+            c_size_t,
+            c_size_t,
+            c_size_t,
+            c_size_t,
+        ]
+        self.lib.direct_syscall_args.restype = c_int
+
+        # === NEW: Pre-computed Hashes ===
+        self.lib.hash_nt_allocate_virtual_memory.argtypes = []
+        self.lib.hash_nt_allocate_virtual_memory.restype = c_uint32
+
+        self.lib.hash_nt_protect_virtual_memory.argtypes = []
+        self.lib.hash_nt_protect_virtual_memory.restype = c_uint32
+
+        self.lib.hash_nt_create_thread_ex.argtypes = []
+        self.lib.hash_nt_create_thread_ex.restype = c_uint32
+
+        self.lib.hash_nt_write_virtual_memory.argtypes = []
+        self.lib.hash_nt_write_virtual_memory.restype = c_uint32
+
+        # fn compute_hash(name_ptr: *const u8, name_len: usize) -> u32
+        self.lib.compute_hash.argtypes = [ctypes.c_char_p, c_size_t]
+        self.lib.compute_hash.restype = c_uint32
 
     def is_available(self) -> bool:
         """Check if engine is loaded and healthy."""
@@ -90,6 +141,75 @@ class SyscallLoader:
         if self.lib:
             return self.lib.allocate_rwx(size)
         return 0
+
+    def resolve_ssn(self, func_hash: int) -> int:
+        """Resolve SSN using Halo's Gate technique."""
+        if self.lib:
+            return self.lib.resolve_ssn(func_hash)
+        return -1
+
+    def resolve_ssn_cached(self, func_hash: int) -> int:
+        """Resolve SSN with caching (faster for repeated calls)."""
+        if self.lib:
+            return self.lib.resolve_ssn_cached(func_hash)
+        return -1
+
+    def resolve_ssn_tartarus(self, func_hash: int) -> int:
+        """Resolve SSN using Tartarus Gate (enhanced hook detection)."""
+        if self.lib:
+            return self.lib.resolve_ssn_tartarus(func_hash)
+        return -1
+
+    def get_syscall_gadget(self) -> int:
+        """Find syscall;ret gadget in ntdll for indirect syscalls."""
+        if self.lib:
+            return self.lib.get_syscall_gadget()
+        return 0
+
+    def indirect_syscall(self, ssn: int, gadget_addr: int = 0) -> int:
+        """Execute indirect syscall (bypasses call stack analysis)."""
+        if not self.lib:
+            return -1
+        if gadget_addr == 0:
+            gadget_addr = self.get_syscall_gadget()
+        return self.lib.indirect_syscall(ssn, gadget_addr)
+
+    def direct_syscall(self, ssn: int) -> int:
+        """Execute direct syscall (basic Hell's Gate)."""
+        if self.lib:
+            return self.lib.direct_syscall(ssn)
+        return -1
+
+    def direct_syscall_args(
+        self,
+        ssn: int,
+        arg1: int = 0,
+        arg2: int = 0,
+        arg3: int = 0,
+        arg4: int = 0,
+    ) -> int:
+        """Execute syscall with up to 4 arguments."""
+        if self.lib:
+            return self.lib.direct_syscall_args(ssn, arg1, arg2, arg3, arg4)
+        return -1
+
+    def compute_hash(self, func_name: str) -> int:
+        """Compute djb2 hash for a function name."""
+        if self.lib:
+            name_bytes = func_name.encode("utf-8")
+            return self.lib.compute_hash(name_bytes, len(name_bytes))
+        return 0
+
+    def get_common_hashes(self) -> dict[str, int]:
+        """Get pre-computed hashes for common NT functions."""
+        if not self.lib:
+            return {}
+        return {
+            "NtAllocateVirtualMemory": self.lib.hash_nt_allocate_virtual_memory(),
+            "NtProtectVirtualMemory": self.lib.hash_nt_protect_virtual_memory(),
+            "NtCreateThreadEx": self.lib.hash_nt_create_thread_ex(),
+            "NtWriteVirtualMemory": self.lib.hash_nt_write_virtual_memory(),
+        }
 
 
 # Singleton

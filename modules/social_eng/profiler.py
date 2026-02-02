@@ -263,7 +263,6 @@ class PsychoProfiler:
     ) -> dict[str, str]:
         """Generate High-Fidelity Synthetic Pretext (Spear Phishing)."""
         bias = profile.get("bias_vector", "curiosity")
-        # tone = profile.get("tone", "Formal")  # Intentional check if needed later
 
         # Synthetic Template Selection (2026 Style)
         # Instead of generic templates, we use 'Micro-Targeted' layouts
@@ -344,7 +343,7 @@ class PsychoProfiler:
 <p>Regards,<br><b>Office of General Counsel</b></p>
 """
 
-    def _tmpl_generic_VIP(self, target) -> str:
+    def _tmpl_generic_vip(self, target) -> str:
         return f"""
 <p>Hi {target.full_name.split()[0]},</p>
 <p>The Director asked me to schedule a quick sync with you regarding the Q3 goals.</p>

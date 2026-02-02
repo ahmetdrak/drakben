@@ -380,9 +380,9 @@ def parse_tool_output(tool_name: str, output: str, llm_client=None) -> list[dict
         except Exception as e:
             logger.exception("Parser error for {tool_name}: %s", e)
             return []
-    return None
 
-    # Default/Fallback parser for unknown tools
+    # Default/Fallback parser for unknown tools - return empty list
+    return []
 
 
 def _smart_truncate(

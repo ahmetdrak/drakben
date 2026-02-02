@@ -14,6 +14,10 @@ if TYPE_CHECKING:
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
 
+# Error message constants (SonarCloud: avoid duplicate literals)
+_ERR_ORCHESTRATOR_NOT_INIT = "Orchestrator modules are not initialized"
+_ERR_CONTEXT_NOT_INIT = "Context manager is not initialized"
+
 # LLM Client import
 OpenRouterClient: Any = None  # Type placeholder
 LLM_AVAILABLE = False
@@ -85,9 +89,9 @@ class MasterOrchestrator:
         if self.reasoning_engine is None or self.decision_engine is None or self.self_correction is None:
             return {
                 "action": "error",
-                "error": "Orchestrator modules are not initialized",
-                "response": "Orchestrator modules are not initialized",
-                "llm_response": "Orchestrator modules are not initialized",
+                "error": _ERR_ORCHESTRATOR_NOT_INIT,
+                "response": _ERR_ORCHESTRATOR_NOT_INIT,
+                "llm_response": _ERR_ORCHESTRATOR_NOT_INIT,
                 "needs_approval": False,
                 "steps": [],
                 "risks": [],
@@ -96,9 +100,9 @@ class MasterOrchestrator:
         if self.context_manager is None:
             return {
                 "action": "error",
-                "error": "Context manager is not initialized",
-                "response": "Context manager is not initialized",
-                "llm_response": "Context manager is not initialized",
+                "error": _ERR_CONTEXT_NOT_INIT,
+                "response": _ERR_CONTEXT_NOT_INIT,
+                "llm_response": _ERR_CONTEXT_NOT_INIT,
                 "needs_approval": False,
                 "steps": [],
                 "risks": [],

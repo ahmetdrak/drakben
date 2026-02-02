@@ -51,16 +51,16 @@ def process_file(filepath) -> bool:
 
 def main() -> None:
     targets = ["core", "modules"]
-    fixed_count = 0
-    total_files = 0
+    _fixed_count = 0
+    _total_files = 0
 
     for target in targets:
         path = Path(target)
         if path.exists():
             for py_file in path.rglob("*.py"):
-                total_files += 1
+                _total_files += 1
                 if process_file(py_file):
-                    fixed_count += 1
+                    _fixed_count += 1
 
 
 

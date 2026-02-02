@@ -29,7 +29,7 @@ def repair_broken_assert_conversion(content):
 
 def main() -> None:
     targets = ["tests"]
-    fixed_count = 0
+    _fixed_count = 0
     for target in targets:
         for py_file in Path(target).rglob("*.py"):
             try:
@@ -41,7 +41,7 @@ def main() -> None:
                 if new_content != content:
                     with open(py_file, "w", encoding="utf-8") as f:
                         f.write(new_content)
-                    fixed_count += 1
+                    _fixed_count += 1
             except Exception:
                 pass
 

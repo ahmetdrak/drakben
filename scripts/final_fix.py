@@ -26,7 +26,7 @@ def final_syntax_cleanup(content):
 
 def main() -> None:
     targets = ["core", "modules", "tests", "drakben.py"]
-    fixed_count = 0
+    _fixed_count = 0
     for target in targets:
         path = Path(target)
         files = [path] if path.is_file() else path.rglob("*.py")
@@ -40,7 +40,7 @@ def main() -> None:
                 if new_content != content:
                     with open(py_file, "w", encoding="utf-8") as f:
                         f.write(new_content)
-                    fixed_count += 1
+                    _fixed_count += 1
             except Exception:
                 pass
 
