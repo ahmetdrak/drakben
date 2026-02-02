@@ -1,56 +1,99 @@
-# 🩸 DRAKBEN - Autonomous Pentest AI
+<div align="center">
 
-Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
+# DRAKBEN
 
-![Python](https://img.shields.io/badge/Python-3.10+-green)
-![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+### Autonomous Penetration Testing Framework
 
-⭐ **Star this repo if it helps you!**
+*Let AI handle the methodology. You focus on the results.*
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
+
+[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Architecture](#architecture) • [Contributing](#contributing)
+
+</div>
 
 ---
 
-## 🚀 Kurulum
+## What is DRAKBEN?
 
-### 🐳 Docker (Önerilen)
-En kolay ve sorunsuz yöntem. Tüm araçlar hazır gelir!
+DRAKBEN is an AI-powered penetration testing framework that understands natural language commands and autonomously executes security assessments. Instead of memorizing tool syntax, describe what you want in plain English—DRAKBEN handles the rest.
+
+```
+You: "Scan the target for open ports and check for web vulnerabilities"
+DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 potential issues...
+```
+
+The framework maintains state awareness throughout engagements, tracks tested attack surfaces, and intelligently selects tools based on discovered information.
+
+---
+
+## Features
+
+### 🧠 AI-Driven Decision Making
+- Natural language command interface
+- Context-aware tool selection
+- Automatic attack chain orchestration
+- Multi-LLM support (OpenRouter, Ollama, OpenAI)
+
+### 🔍 Reconnaissance
+- Port scanning and service enumeration
+- Subdomain discovery
+- WHOIS and DNS intelligence
+- Web technology fingerprinting
+- Passive OSINT gathering
+
+### ⚡ Exploitation
+- Automated vulnerability scanning
+- SQL injection detection and exploitation
+- Web application testing (XSS, CSRF, LFI/RFI)
+- Authentication attacks (brute-force, spray)
+- CVE database integration with exploit matching
+
+### 🏢 Active Directory
+- Domain enumeration
+- Kerberoasting and AS-REP roasting
+- Pass-the-Hash / Pass-the-Ticket
+- BloodHound integration
+- Automated lateral movement
+
+### 📡 Command & Control
+- Domain fronting support
+- DNS tunneling
+- Encrypted beacon communication
+- Traffic analysis evasion
+- Steganography channels
+
+### 🛡️ Evasion
+- WAF bypass techniques
+- Payload obfuscation
+- EDR-aware execution
+- Anti-forensics capabilities
+
+### 📊 Reporting
+- Automated finding documentation
+- Risk-scored vulnerability reports
+- Attack timeline visualization
+- Executive summary generation
+
+---
+
+## Installation
+
+### Docker (Recommended)
 
 ```bash
-# Projeyi indir
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
-
-# Tek komutla başlat (Kali Linux + tüm araçlar dahil)
 docker-compose up -d
-
-# DRAKBEN'e bağlan
 docker exec -it drakben python3 drakben.py
 ```
 
-**Docker Avantajları:**
-- ✅ Tüm bağımlılıklar otomatik yüklenir
-- ✅ Kali Linux araçları (nmap, sqlmap, nikto, hydra) hazır
-- ✅ Host sistemi temiz kalır
-- ✅ Farklı platformlarda aynı çalışır
+### Manual Installation
 
+**Kali Linux / Debian:**
 ```bash
-# Yararlı Docker komutları
-docker-compose logs -f drakben    # Logları izle
-docker-compose down               # Durdur
-docker-compose up -d --build      # Yeniden oluştur
-```
-
----
-
-### 📦 Manuel Kurulum (Alternatif)
-
-#### Kali Linux
-```bash
-# Sistem paketleri
-sudo apt update
-sudo apt install -y python3-venv python3-pip build-essential libffi-dev
-
-# Projeyi indir ve kur
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 python3 -m venv .venv
@@ -59,19 +102,7 @@ pip install -r requirements.txt
 python3 drakben.py
 ```
 
-#### Ubuntu / Debian
-```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip build-essential libffi-dev
-git clone https://github.com/ahmetdrak/drakben.git
-cd drakben
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 drakben.py
-```
-
-#### Windows
+**Windows:**
 ```powershell
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
@@ -81,162 +112,160 @@ pip install -r requirements.txt
 python drakben.py
 ```
 
-#### ⚡ Tek Satır (Linux)
+---
+
+## Configuration
+
+### LLM Setup
+
+DRAKBEN works offline, but AI features require an LLM provider. Create `config/api.env`:
+
+```env
+# Option 1: OpenRouter (recommended)
+OPENROUTER_API_KEY=your_key_here
+
+# Option 2: OpenAI
+OPENAI_API_KEY=your_key_here
+
+# Option 3: Local Ollama (free)
+OLLAMA_HOST=http://localhost:11434
+```
+
+For Ollama, install from [ollama.ai](https://ollama.ai) and run:
 ```bash
-git clone https://github.com/ahmetdrak/drakben.git && cd drakben && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && python3 drakben.py
+ollama pull llama3.2
 ```
 
 ---
 
-## 🤖 AI/LLM Kurulumu (Opsiyonel)
+## Usage
 
-Framework **%100 offline** çalışır. AI özellikleri için:
-
-| Provider | Kurulum | Not |
-|----------|---------|-----|
-| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
-| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
-| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
+### Interactive Mode
 
 ```bash
-# İlk çalıştırmada interaktif setup yapılır
 python drakben.py
-# veya manuel: cp .env.example config/api.env && nano config/api.env
+```
+
+Once started, interact using natural language:
+
+```
+drakben> scan 192.168.1.0/24 for web servers
+drakben> find vulnerabilities on port 80
+drakben> test sql injection on the login form
+drakben> enumerate the domain controller
+drakben> generate report
+```
+
+### Examples
+
+**Web Application Assessment:**
+```
+scan target.com
+check for common web vulnerabilities
+test authentication bypass
+look for sensitive data exposure
+```
+
+**Network Penetration Test:**
+```
+discover hosts on 10.0.0.0/24
+identify services and versions
+search for known CVEs
+attempt exploitation on critical findings
+```
+
+**Active Directory Attack:**
+```
+enumerate the domain
+find kerberoastable accounts
+extract hashes
+attempt lateral movement to DC
 ```
 
 ---
 
-## 🎯 Kullanım
-
-```bash
-python drakben.py
-
-# Doğal dil ile konuş:
-💬 "10.0.0.1 portlarını tara"
-💬 "example.com sql injection test et"
-💬 "192.168.1.1'e shell at"
-
-# Slash komutları:
-/target 192.168.1.100   # Hedef belirle
-/scan                    # Hedefi tara
-/status                  # Sistem durumu
-/stats                   # Hafıza istatistikleri
-/help                    # Yardım
-/exit                    # Çıkış
-```
-
----
-
-## ✨ Özellikler
-
-### 🧠 Kalıcı Hafıza Sistemi
-- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
-- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
-- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
-- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
-
-### 🤖 Otonom Çalışma
-- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
-- **Auto-healing**: Hatalar otomatik düzeltilir
-- **Araç yükleme**: Eksik araçlar otomatik yüklenir
-- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
-
-### 🛡️ Güvenlik
-- **Safety checks**: Tehlikeli komutlar engellenir
-- **Risk analizi**: Her komut için risk değerlendirmesi
-- **Approval sistemi**: Kritik işlemler için onay
-
-### 🎨 Arayüz
-- **Dracula teması**: Mor/pembe/kırmızı terminal UI
-- **Türkçe/İngilizce**: Tam çoklu dil desteği
-- **Minimal**: Temiz, odaklanmış arayüz
-
----
-
-## 📋 Komutlar
-
-| Komut | Açıklama |
-|-------|----------|
-| `/target <IP>` | Hedef belirle |
-| `/scan` | Mevcut hedefi tara |
-| `/status` | Sistem durumunu göster |
-| `/stats` | Hafıza ve AI istatistikleri |
-| `/help` | Detaylı yardım |
-| `/clear` | Ekranı temizle |
-| `/exit` | Çıkış |
-| Doğal dil | AI'a herhangi bir pentest görevi söyle |
-
----
-
-## 📁 Proje Yapısı
+## Architecture
 
 ```
-drakben/
-├── drakben.py              # Ana giriş noktası
-├── core/
-│   ├── agent.py            # Ana agent orchestrator
-│   ├── brain.py            # AI reasoning ve planlama
-│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
-│   ├── system_intelligence.py  # Sistem tanıma
-│   ├── execution_engine.py # Komut çalıştırma
-│   ├── autonomous_solver.py    # Auto-healing
-│   ├── security_toolkit.py # Güvenlik kontrolleri
-│   ├── config.py           # Konfigürasyon yönetimi
-│   └── i18n.py             # Çoklu dil desteği
-├── llm/
-│   ├── brain.py            # LLM entegrasyonu
-│   └── openrouter_client.py    # Multi-provider client
-├── modules/
-│   ├── recon.py            # Keşif modülü
-│   ├── exploit.py          # Exploit modülü
-│   ├── payload.py          # Payload üretimi
-│   └── report.py           # Raporlama
-├── config/
-│   ├── api.env             # API anahtarları
-│   └── plugins.json        # Plugin registry
-└── drakben_memory.db       # Kalıcı hafıza veritabanı
+┌─────────────────────────────────────────────────────────────┐
+│                        DRAKBEN CORE                         │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────────┐ │
+│  │  Brain  │──│ Planner │──│  State  │──│ Execution Engine│ │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                         MODULES                             │
+│  ┌───────┐ ┌─────────┐ ┌────────┐ ┌──────┐ ┌─────────────┐ │
+│  │ Recon │ │ Exploit │ │ Payload│ │  C2  │ │ Social Eng  │ │
+│  └───────┘ └─────────┘ └────────┘ └──────┘ └─────────────┘ │
+│  ┌────────────┐ ┌───────────┐ ┌────────────┐ ┌───────────┐ │
+│  │ AD Attacks │ │ Metasploit│ │ WAF Evasion│ │  Nuclei   │ │
+│  └────────────┘ └───────────┘ └────────────┘ └───────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                      LLM PROVIDERS                          │
+│         OpenRouter  │  OpenAI  │  Ollama (Local)            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
----
+### Attack Phases
 
-## 🔧 Sorun Giderme
+DRAKBEN follows a structured methodology:
 
-| Problem | Çözüm |
-|---------|-------|
-| `ModuleNotFoundError` | `pip install -r requirements.txt` |
-| `error: command 'gcc' failed` | `sudo apt install build-essential libffi-dev` |
-| `curl_cffi` hata | `sudo apt install libcurl4-openssl-dev` |
-| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
-| Permission denied | Linux'ta `sudo` ile çalıştır |
-| Python sürüm hatası | Python 3.10+ gerekli: `python3 --version` |
-
-### 🔄 Temiz Kurulum
-```bash
-# Eğer sorun yaşıyorsanız, venv'i sıfırdan oluşturun:
-rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
+| Phase | Description |
+|-------|-------------|
+| `INIT` | Target validation and scope definition |
+| `RECON` | Information gathering and enumeration |
+| `VULN_SCAN` | Vulnerability identification |
+| `EXPLOIT` | Exploitation attempts |
+| `POST_EXPLOIT` | Privilege escalation and persistence |
+| `REPORT` | Documentation and cleanup |
 
 ---
 
-## 📚 Dokümantasyon
+## Modules
 
-- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
-- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
-- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+| Module | Description |
+|--------|-------------|
+| `recon` | Passive and active reconnaissance |
+| `exploit` | Vulnerability exploitation engine |
+| `payload` | Payload generation and encoding |
+| `c2_framework` | Command & control infrastructure |
+| `ad_attacks` | Active Directory attack techniques |
+| `metasploit` | Metasploit Framework integration |
+| `nuclei` | Nuclei scanner integration |
+| `waf_evasion` | WAF bypass techniques |
+| `social_eng` | Social engineering toolkit |
+| `hive_mind` | Distributed agent coordination |
 
 ---
 
-## 📄 Lisans
+## Legal Disclaimer
 
-MIT License - [LICENSE](LICENSE)
+This tool is provided for authorized security testing and educational purposes only. Users are responsible for obtaining proper authorization before conducting any security assessments. Unauthorized access to computer systems is illegal.
+
+**Always obtain written permission before testing systems you do not own.**
 
 ---
 
-**Made with ❤️ for the security community**
+## Contributing
 
-⚠️ **Sadece yetkili hedeflerde kullanın.**
+Contributions are welcome. Please read the contribution guidelines before submitting pull requests.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**DRAKBEN** — *Autonomous Pentesting, Simplified.*
+
+</div>
