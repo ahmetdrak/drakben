@@ -62,9 +62,18 @@ config/*.env
 drakben.db
 nvd_cache.db
 
-# Logs (generated at runtime)
-logs/
+# Logs (generated at runtime, keep .gitkeep)
+logs/*
+!logs/.gitkeep
 *.log
+
+# Session files (generated at runtime)
+sessions/*
+!sessions/.gitkeep
+
+# Cache directories
+.ruff_cache/
+.pytest_cache/
 
 # Test reports
 TEST_REPORT.md
