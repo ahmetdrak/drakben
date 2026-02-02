@@ -1,4 +1,4 @@
-"""Tests for Hive Mind module"""
+"""Tests for Hive Mind module."""
 
 import os
 import sys
@@ -23,29 +23,29 @@ from modules.hive_mind import (
 
 
 class TestCredentialHarvester(unittest.TestCase):
-    """Test credential harvesting"""
+    """Test credential harvesting."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.harvester = CredentialHarvester()
 
-    def test_initialization(self):
-        """Test harvester initialization"""
-        self.assertIsNotNone(self.harvester.harvested)
-        self.assertEqual(len(self.harvester.harvested), 0)
+    def test_initialization(self) -> None:
+        """Test harvester initialization."""
+        assert self.harvester.harvested is not None
+        assert len(self.harvester.harvested) == 0
 
-    def test_harvest_ssh_keys(self):
-        """Test SSH key harvesting"""
+    def test_harvest_ssh_keys(self) -> None:
+        """Test SSH key harvesting."""
         # This will find keys if they exist on the system
         keys = self.harvester.harvest_ssh_keys()
-        self.assertIsInstance(keys, list)
+        assert isinstance(keys, list)
 
-    def test_harvest_known_hosts(self):
-        """Test known_hosts parsing"""
+    def test_harvest_known_hosts(self) -> None:
+        """Test known_hosts parsing."""
         hosts = self.harvester.harvest_known_hosts()
-        self.assertIsInstance(hosts, list)
+        assert isinstance(hosts, list)
 
-    def test_harvest_environment(self):
-        """Test environment variable harvesting"""
+    def test_harvest_environment(self) -> None:
+        """Test environment variable harvesting."""
         # Set a test env var
         os.environ["TEST_PASSWORD_VAR"] = "test_secret_123"
 
@@ -58,10 +58,10 @@ class TestCredentialHarvester(unittest.TestCase):
         found = any(
             c.source == "environment" and "TEST_PASSWORD" in c.username for c in creds
         )
-        self.assertTrue(found)
+        assert found
 
-    def test_get_all_credentials(self):
-        """Test getting all harvested credentials"""
+    def test_get_all_credentials(self) -> None:
+        """Test getting all harvested credentials."""
         # Add a test credential
         cred = Credential(
             username="testuser",
@@ -73,57 +73,57 @@ class TestCredentialHarvester(unittest.TestCase):
         self.harvester.harvested.append(cred)
 
         all_creds = self.harvester.get_all_credentials()
-        self.assertEqual(len(all_creds), 1)
-        self.assertEqual(all_creds[0].username, "testuser")
+        assert len(all_creds) == 1
+        assert all_creds[0].username == "testuser"
 
 
 class TestNetworkMapper(unittest.TestCase):
-    """Test network mapping functionality"""
+    """Test network mapping functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.mapper = NetworkMapper()
 
-    def test_initialization(self):
-        """Test mapper initialization"""
-        self.assertEqual(len(self.mapper.discovered_hosts), 0)
+    def test_initialization(self) -> None:
+        """Test mapper initialization."""
+        assert len(self.mapper.discovered_hosts) == 0
 
-    def test_get_local_interfaces(self):
-        """Test getting local network interfaces"""
+    def test_get_local_interfaces(self) -> None:
+        """Test getting local network interfaces."""
         interfaces = self.mapper.get_local_interfaces()
-        self.assertIsInstance(interfaces, list)
+        assert isinstance(interfaces, list)
 
-    def test_get_local_subnet(self):
-        """Test subnet calculation"""
+    def test_get_local_subnet(self) -> None:
+        """Test subnet calculation."""
         subnet = self.mapper.get_local_subnet("192.168.1.100")
-        self.assertIn("192.168.1", subnet)
-        self.assertIn("/24", subnet)
+        assert "192.168.1" in subnet
+        assert "/24" in subnet
 
-    def test_guess_service(self):
-        """Test service name guessing"""
-        self.assertEqual(self.mapper._guess_service(22), "ssh")
-        self.assertEqual(self.mapper._guess_service(80), "http")
-        self.assertEqual(self.mapper._guess_service(443), "https")
-        self.assertEqual(self.mapper._guess_service(3389), "rdp")
-        self.assertEqual(self.mapper._guess_service(445), "microsoft-ds")
+    def test_guess_service(self) -> None:
+        """Test service name guessing."""
+        assert self.mapper._guess_service(22) == "ssh"
+        assert self.mapper._guess_service(80) == "http"
+        assert self.mapper._guess_service(443) == "https"
+        assert self.mapper._guess_service(3389) == "rdp"
+        assert self.mapper._guess_service(445) == "microsoft-ds"
 
-    def test_is_windows_host(self):
-        """Test Windows host detection"""
+    def test_is_windows_host(self) -> None:
+        """Test Windows host detection."""
         windows_host = NetworkHost(ip="192.168.1.1", ports=[135, 445, 3389])
         linux_host = NetworkHost(ip="192.168.1.2", ports=[22, 80])
 
-        self.assertTrue(self.mapper.is_windows_host(windows_host))
-        self.assertFalse(self.mapper.is_windows_host(linux_host))
+        assert self.mapper.is_windows_host(windows_host)
+        assert not self.mapper.is_windows_host(linux_host)
 
-    def test_is_linux_host(self):
-        """Test Linux host detection"""
+    def test_is_linux_host(self) -> None:
+        """Test Linux host detection."""
         linux_host = NetworkHost(ip="192.168.1.2", ports=[22, 80])
         windows_host = NetworkHost(ip="192.168.1.1", ports=[135, 445])
 
-        self.assertTrue(self.mapper.is_linux_host(linux_host))
-        self.assertFalse(self.mapper.is_linux_host(windows_host))
+        assert self.mapper.is_linux_host(linux_host)
+        assert not self.mapper.is_linux_host(windows_host)
 
-    def test_find_pivot_points(self):
-        """Test pivot point detection"""
+    def test_find_pivot_points(self) -> None:
+        """Test pivot point detection."""
         pivot = NetworkHost(ip="192.168.1.1", ports=[22, 80, 443, 8080])
         non_pivot = NetworkHost(ip="192.168.1.2", ports=[80])
 
@@ -131,36 +131,36 @@ class TestNetworkMapper(unittest.TestCase):
         self.mapper.discovered_hosts["192.168.1.2"] = non_pivot
 
         pivots = self.mapper.find_pivot_points()
-        self.assertEqual(len(pivots), 1)
-        self.assertEqual(pivots[0].ip, "192.168.1.1")
+        assert len(pivots) == 1
+        assert pivots[0].ip == "192.168.1.1"
 
 
 class TestADAnalyzer(unittest.TestCase):
-    """Test Active Directory analysis"""
+    """Test Active Directory analysis."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.analyzer = ADAnalyzer()
 
-    def test_initialization(self):
-        """Test analyzer initialization"""
-        self.assertIsNone(self.analyzer.domain_info)
-        self.assertEqual(len(self.analyzer.attack_paths), 0)
+    def test_initialization(self) -> None:
+        """Test analyzer initialization."""
+        assert self.analyzer.domain_info is None
+        assert len(self.analyzer.attack_paths) == 0
 
-    def test_detect_domain(self):
-        """Test domain detection"""
+    def test_detect_domain(self) -> None:
+        """Test domain detection."""
         # This will return None if not on a domain
         domain = self.analyzer.detect_domain()
         # Just verify it returns something (string or None)
-        self.assertTrue(domain is None or isinstance(domain, str))
+        assert domain is None or isinstance(domain, str)
 
-    def test_get_kerberoastable_users(self):
-        """Test kerberoastable user patterns"""
+    def test_get_kerberoastable_users(self) -> None:
+        """Test kerberoastable user patterns."""
         users = self.analyzer.get_kerberoastable_users()
-        self.assertIsInstance(users, list)
-        self.assertGreater(len(users), 0)
+        assert isinstance(users, list)
+        assert len(users) > 0
 
-    def test_calculate_attack_path(self):
-        """Test attack path calculation"""
+    def test_calculate_attack_path(self) -> None:
+        """Test attack path calculation."""
         source = "192.168.1.1"
         target = "192.168.1.100"
 
@@ -170,15 +170,18 @@ class TestADAnalyzer(unittest.TestCase):
         }
 
         path = self.analyzer.calculate_attack_path(
-            source=source, target=target, available_creds=[], discovered_hosts=hosts
+            source=source,
+            target=target,
+            available_creds=[],
+            discovered_hosts=hosts,
         )
 
-        self.assertIsNotNone(path)
-        self.assertEqual(path.source, source)
-        self.assertEqual(path.target, target)
+        assert path is not None
+        assert path.source == source
+        assert path.target == target
 
-    def test_cyclic_attack_path(self):
-        """Test detection and prevention of infinite attack loops (A->B->A)"""
+    def test_cyclic_attack_path(self) -> None:
+        """Test detection and prevention of infinite attack loops (A->B->A)."""
         # Set up a circular graph
         hosts = {
             "HostA": NetworkHost(ip="10.0.0.1", ports=[22]),  # Has key to B
@@ -193,12 +196,12 @@ class TestADAnalyzer(unittest.TestCase):
 
         if path:
             # Ensure no duplicates in hops
-            self.assertEqual(
-                len(path.hops), len(set(path.hops)), "Cycle detected in attack path!"
+            assert len(path.hops) == len(set(path.hops)), (
+                "Cycle detected in attack path!"
             )
 
-    def test_scope_enforcement(self):
-        """Test that attack paths do not include out-of-scope targets"""
+    def test_scope_enforcement(self) -> None:
+        """Test that attack paths do not include out-of-scope targets."""
         source = "192.168.1.1"
         target = "8.8.8.8"  # Out of scope
 
@@ -210,125 +213,124 @@ class TestADAnalyzer(unittest.TestCase):
         path = self.analyzer.calculate_attack_path(source, target, [], hosts)
 
         # Should detect target is unreachable or not in discovered hosts
-        self.assertIsNone(
-            path, "Attack path generated for unknown/out-of-scope target!"
-        )
+        assert path is None, "Attack path generated for unknown/out-of-scope target!"
 
 
 class TestLateralMover(unittest.TestCase):
-    """Test lateral movement engine"""
+    """Test lateral movement engine."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.mover = LateralMover()
 
-    def test_initialization(self):
-        """Test mover initialization"""
-        self.assertEqual(len(self.mover.successful_moves), 0)
-        self.assertEqual(len(self.mover.failed_moves), 0)
+    def test_initialization(self) -> None:
+        """Test mover initialization."""
+        assert len(self.mover.successful_moves) == 0
+        assert len(self.mover.failed_moves) == 0
 
-    def test_generate_pth_command(self):
-        """Test Pass-the-Hash command generation"""
+    def test_generate_pth_command(self) -> None:
+        """Test Pass-the-Hash command generation."""
         cmd = self.mover.generate_pth_command(
             target="192.168.1.100",
             username="administrator",
             ntlm_hash="aad3b435b51404eeaad3b435b51404ee",
         )
 
-        self.assertIn("psexec.py", cmd)
-        self.assertIn("192.168.1.100", cmd)
-        self.assertIn("-hashes", cmd)
+        assert "psexec.py" in cmd
+        assert "192.168.1.100" in cmd
+        assert "-hashes" in cmd
 
-    def test_generate_pth_command_with_domain(self):
-        """Test PTH command with domain username"""
+    def test_generate_pth_command_with_domain(self) -> None:
+        """Test PTH command with domain username."""
         cmd = self.mover.generate_pth_command(
             target="192.168.1.100",
             username="DOMAIN\\administrator",
             ntlm_hash="aad3b435b51404eeaad3b435b51404ee",
         )
 
-        self.assertIn("DOMAIN/administrator", cmd)
+        assert "DOMAIN/administrator" in cmd
 
-    def test_generate_ptt_command(self):
-        """Test Pass-the-Ticket command generation"""
+    def test_generate_ptt_command(self) -> None:
+        """Test Pass-the-Ticket command generation."""
         cmd = self.mover.generate_ptt_command(
-            target="192.168.1.100", ticket_path="/tmp/ticket.ccache"
+            target="192.168.1.100",
+            ticket_path="/tmp/ticket.ccache",
         )
 
-        self.assertIn("KRB5CCNAME", cmd)
-        self.assertIn("-k", cmd)
-        self.assertIn("-no-pass", cmd)
+        assert "KRB5CCNAME" in cmd
+        assert "-k" in cmd
+        assert "-no-pass" in cmd
 
-    def test_get_movement_stats(self):
-        """Test movement statistics"""
+    def test_get_movement_stats(self) -> None:
+        """Test movement statistics."""
         stats = self.mover.get_movement_stats()
 
-        self.assertIn("successful", stats)
-        self.assertIn("failed", stats)
-        self.assertIn("techniques_used", stats)
-        self.assertIn("targets_compromised", stats)
+        assert "successful" in stats
+        assert "failed" in stats
+        assert "techniques_used" in stats
+        assert "targets_compromised" in stats
 
 
 class TestHiveMind(unittest.TestCase):
-    """Test main HiveMind orchestrator"""
+    """Test main HiveMind orchestrator."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.hive = HiveMind()
 
-    def test_initialization(self):
-        """Test HiveMind initialization"""
-        self.assertIsNotNone(self.hive.harvester)
-        self.assertIsNotNone(self.hive.mapper)
-        self.assertIsNotNone(self.hive.ad_analyzer)
-        self.assertIsNotNone(self.hive.mover)
-        self.assertFalse(self.hive.initialized)
+    def test_initialization(self) -> None:
+        """Test HiveMind initialization."""
+        assert self.hive.harvester is not None
+        assert self.hive.mapper is not None
+        assert self.hive.ad_analyzer is not None
+        assert self.hive.mover is not None
+        assert not self.hive.initialized
 
-    def test_initialize(self):
-        """Test HiveMind initialization process"""
+    def test_initialize(self) -> None:
+        """Test HiveMind initialization process."""
         results = self.hive.initialize()
 
-        self.assertIn("interfaces", results)
-        self.assertIn("domain", results)
-        self.assertIn("credentials_found", results)
-        self.assertTrue(self.hive.initialized)
+        assert "interfaces" in results
+        assert "domain" in results
+        assert "credentials_found" in results
+        assert self.hive.initialized
 
-    def test_get_status(self):
-        """Test status retrieval"""
+    def test_get_status(self) -> None:
+        """Test status retrieval."""
         status = self.hive.get_status()
 
-        self.assertIn("initialized", status)
-        self.assertIn("current_host", status)
-        self.assertIn("credentials", status)
-        self.assertIn("discovered_hosts", status)
+        assert "initialized" in status
+        assert "current_host" in status
+        assert "credentials" in status
+        assert "discovered_hosts" in status
 
-    def test_find_attack_paths_empty(self):
-        """Test attack path finding with no hosts"""
+    def test_find_attack_paths_empty(self) -> None:
+        """Test attack path finding with no hosts."""
         paths = self.hive.find_attack_paths()
-        self.assertIsInstance(paths, list)
+        assert isinstance(paths, list)
 
-    def test_singleton(self):
-        """Test get_hive_mind returns same instance"""
+    def test_singleton(self) -> None:
+        """Test get_hive_mind returns same instance."""
         hive1 = get_hive_mind()
         hive2 = get_hive_mind()
-        self.assertIs(hive1, hive2)
+        assert hive1 is hive2
 
 
 class TestQuickRecon(unittest.TestCase):
-    """Test quick_recon helper function"""
+    """Test quick_recon helper function."""
 
-    def test_quick_recon(self):
-        """Test quick reconnaissance function"""
+    def test_quick_recon(self) -> None:
+        """Test quick reconnaissance function."""
         results = quick_recon()
 
-        self.assertIn("interfaces", results)
-        self.assertIn("domain", results)
-        self.assertIn("credentials_found", results)
+        assert "interfaces" in results
+        assert "domain" in results
+        assert "credentials_found" in results
 
 
 class TestDataClasses(unittest.TestCase):
-    """Test data class creation"""
+    """Test data class creation."""
 
-    def test_credential_creation(self):
-        """Test Credential dataclass"""
+    def test_credential_creation(self) -> None:
+        """Test Credential dataclass."""
         cred = Credential(
             username="admin",
             domain="example.com",
@@ -337,20 +339,20 @@ class TestDataClasses(unittest.TestCase):
             source="test",
         )
 
-        self.assertEqual(cred.username, "admin")
-        self.assertEqual(cred.credential_type, CredentialType.PASSWORD)
-        self.assertTrue(cred.valid)
+        assert cred.username == "admin"
+        assert cred.credential_type == CredentialType.PASSWORD
+        assert cred.valid
 
-    def test_network_host_creation(self):
-        """Test NetworkHost dataclass"""
+    def test_network_host_creation(self) -> None:
+        """Test NetworkHost dataclass."""
         host = NetworkHost(ip="192.168.1.1", hostname="server1", ports=[22, 80, 443])
 
-        self.assertEqual(host.ip, "192.168.1.1")
-        self.assertEqual(len(host.ports), 3)
-        self.assertFalse(host.compromised)
+        assert host.ip == "192.168.1.1"
+        assert len(host.ports) == 3
+        assert not host.compromised
 
-    def test_attack_path_creation(self):
-        """Test AttackPath dataclass"""
+    def test_attack_path_creation(self) -> None:
+        """Test AttackPath dataclass."""
         path = AttackPath(
             source="192.168.1.1",
             target="192.168.1.100",
@@ -360,8 +362,8 @@ class TestDataClasses(unittest.TestCase):
             probability=0.75,
         )
 
-        self.assertEqual(len(path.hops), 2)
-        self.assertEqual(path.probability, 0.75)
+        assert len(path.hops) == 2
+        assert path.probability == 0.75
 
 
 if __name__ == "__main__":

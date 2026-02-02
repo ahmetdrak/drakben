@@ -1,4 +1,4 @@
-"""Tests for C2 Framework module"""
+"""Tests for C2 Framework module."""
 
 import os
 import sys
@@ -26,59 +26,59 @@ from modules.c2_framework import (
 
 
 class TestJitterEngine(unittest.TestCase):
-    """Test timing jitter functionality"""
+    """Test timing jitter functionality."""
 
-    def test_initialization(self):
-        """Test jitter engine initialization"""
+    def test_initialization(self) -> None:
+        """Test jitter engine initialization."""
         jitter = JitterEngine(60, 10, 25)
-        self.assertEqual(jitter.base_interval, 60)
-        self.assertEqual(jitter.jitter_min, 10)
-        self.assertEqual(jitter.jitter_max, 25)
+        assert jitter.base_interval == 60
+        assert jitter.jitter_min == 10
+        assert jitter.jitter_max == 25
 
-    def test_default_values(self):
-        """Test default jitter values"""
+    def test_default_values(self) -> None:
+        """Test default jitter values."""
         jitter = JitterEngine()
-        self.assertEqual(jitter.base_interval, DEFAULT_SLEEP_INTERVAL)
-        self.assertEqual(jitter.jitter_min, DEFAULT_JITTER_MIN)
-        self.assertEqual(jitter.jitter_max, DEFAULT_JITTER_MAX)
+        assert jitter.base_interval == DEFAULT_SLEEP_INTERVAL
+        assert jitter.jitter_min == DEFAULT_JITTER_MIN
+        assert jitter.jitter_max == DEFAULT_JITTER_MAX
 
-    def test_sleep_time_in_range(self):
-        """Test that sleep time is within expected range"""
+    def test_sleep_time_in_range(self) -> None:
+        """Test that sleep time is within expected range."""
         jitter = JitterEngine(100, 10, 20)
 
         for _ in range(100):
             sleep_time = jitter.get_sleep_time()
             # Base ± 20% = 80-120
-            self.assertGreaterEqual(sleep_time, 1.0)  # Minimum 1 second
-            self.assertLessEqual(sleep_time, 120.0)
+            assert sleep_time >= 1.0  # Minimum 1 second
+            assert sleep_time <= 120.0
 
-    def test_sleep_time_randomness(self):
-        """Test that sleep times vary (not always the same)"""
+    def test_sleep_time_randomness(self) -> None:
+        """Test that sleep times vary (not always the same)."""
         jitter = JitterEngine(60, 10, 25)
 
         times = [jitter.get_sleep_time() for _ in range(10)]
         unique_times = set(times)
 
         # Should have variation
-        self.assertGreater(len(unique_times), 1)
+        assert len(unique_times) > 1
 
-    def test_update_interval(self):
-        """Test interval update"""
+    def test_update_interval(self) -> None:
+        """Test interval update."""
         jitter = JitterEngine(60)
         jitter.update_interval(120)
-        self.assertEqual(jitter.base_interval, 120)
+        assert jitter.base_interval == 120
 
-    def test_minimum_interval(self):
-        """Test that interval cannot go below 1"""
+    def test_minimum_interval(self) -> None:
+        """Test that interval cannot go below 1."""
         jitter = JitterEngine(60)
         jitter.update_interval(0)
-        self.assertEqual(jitter.base_interval, 1)
+        assert jitter.base_interval == 1
 
 
 class TestDomainFronter(unittest.TestCase):
-    """Test domain fronting functionality"""
+    """Test domain fronting functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.fronter = DomainFronter(
             fronting_domain="cdn.example.com",
             actual_host="c2.hidden.com",
@@ -86,85 +86,85 @@ class TestDomainFronter(unittest.TestCase):
             verify_ssl=False,
         )
 
-    def test_initialization(self):
-        """Test fronter initialization"""
-        self.assertEqual(self.fronter.fronting_domain, "cdn.example.com")
-        self.assertEqual(self.fronter.actual_host, "c2.hidden.com")
-        self.assertEqual(self.fronter.port, 443)
+    def test_initialization(self) -> None:
+        """Test fronter initialization."""
+        assert self.fronter.fronting_domain == "cdn.example.com"
+        assert self.fronter.actual_host == "c2.hidden.com"
+        assert self.fronter.port == 443
 
-    def test_create_request(self):
-        """Test request creation with correct headers"""
+    def test_create_request(self) -> None:
+        """Test request creation with correct headers."""
         request = self.fronter.create_request(endpoint="/api/beacon", method="POST")
 
         # Host header should be actual target
-        self.assertEqual(request.get_header("Host"), "c2.hidden.com")
-        self.assertIn("User-agent", request.headers)
+        assert request.get_header("Host") == "c2.hidden.com"
+        assert "User-agent" in request.headers
 
-    def test_is_domain_frontable(self):
-        """Test frontable domain detection"""
-        self.assertTrue(DomainFronter.is_domain_frontable("abc.cloudfront.net"))
-        self.assertTrue(DomainFronter.is_domain_frontable("x.azureedge.net"))
-        self.assertFalse(DomainFronter.is_domain_frontable("example.com"))
+    def test_is_domain_frontable(self) -> None:
+        """Test frontable domain detection."""
+        assert DomainFronter.is_domain_frontable("abc.cloudfront.net")
+        assert DomainFronter.is_domain_frontable("x.azureedge.net")
+        assert not DomainFronter.is_domain_frontable("example.com")
 
 
 class TestDNSTunneler(unittest.TestCase):
-    """Test DNS tunneling functionality"""
+    """Test DNS tunneling functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.tunneler = DNSTunneler(c2_domain="beacon.example.com", subdomain_length=32)
 
-    def test_initialization(self):
-        """Test tunneler initialization"""
-        self.assertEqual(self.tunneler.c2_domain, "beacon.example.com")
-        self.assertEqual(self.tunneler.subdomain_length, 32)
+    def test_initialization(self) -> None:
+        """Test tunneler initialization."""
+        assert self.tunneler.c2_domain == "beacon.example.com"
+        assert self.tunneler.subdomain_length == 32
 
-    def test_encode_decode_roundtrip(self):
-        """Test data encoding/decoding roundtrip"""
+    def test_encode_decode_roundtrip(self) -> None:
+        """Test data encoding/decoding roundtrip."""
         original = b"Hello, World!"
 
         labels = self.tunneler.encode_data(original)
         decoded = self.tunneler.decode_data(labels)
 
-        self.assertEqual(decoded, original)
+        assert decoded == original
 
-    def test_encode_binary_data(self):
-        """Test encoding binary data"""
+    def test_encode_binary_data(self) -> None:
+        """Test encoding binary data."""
         binary = bytes(range(256))
 
         labels = self.tunneler.encode_data(binary)
         decoded = self.tunneler.decode_data(labels)
 
-        self.assertEqual(decoded, binary)
+        assert decoded == binary
 
-    def test_build_query(self):
-        """Test DNS query building"""
+    def test_build_query(self) -> None:
+        """Test DNS query building."""
         data = b"test"
         query = self.tunneler.build_query(data, "checkin")
 
-        self.assertTrue(query.endswith(".beacon.example.com"))
-        self.assertIn("checkin", query)
+        assert query.endswith(".beacon.example.com")
+        assert "checkin" in query
 
-    def test_chunk_data(self):
-        """Test data chunking"""
+    def test_chunk_data(self) -> None:
+        """Test data chunking."""
         data = b"A" * 250
         chunks = self.tunneler.chunk_data(data, 100)
 
-        self.assertEqual(len(chunks), 3)
-        self.assertEqual(b"".join(chunks), data)
+        assert len(chunks) == 3
+        assert b"".join(chunks) == data
 
-    def test_label_length_limit(self):
-        """Test that labels respect DNS limits"""
+    def test_label_length_limit(self) -> None:
+        """Test that labels respect DNS limits."""
         data = b"A" * 100
         labels = self.tunneler.encode_data(data)
 
         for label in labels:
-            self.assertLessEqual(len(label), 63)
+            assert len(label) <= 63
 
 
 class TestHeartbeatManager(unittest.TestCase):
-    """Test heartbeat manager functionality"""
+    """Test heartbeat manager functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.config = C2Config(
             sleep_interval=1,  # 1 second for fast testing
             jitter_min=0,
@@ -173,54 +173,54 @@ class TestHeartbeatManager(unittest.TestCase):
         self.callback_count = 0
         self.manager = HeartbeatManager(self.config, callback=self._test_callback)
 
-    def _test_callback(self):
+    def _test_callback(self) -> None:
         self.callback_count += 1
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if self.manager._running:
             self.manager.stop()
 
-    def test_initialization(self):
-        """Test heartbeat initialization"""
-        self.assertFalse(self.manager._running)
-        self.assertIsNone(self.manager._last_checkin)
+    def test_initialization(self) -> None:
+        """Test heartbeat initialization."""
+        assert not self.manager._running
+        assert self.manager._last_checkin is None
 
-    def test_get_status(self):
-        """Test status retrieval"""
+    def test_get_status(self) -> None:
+        """Test status retrieval."""
         status = self.manager.get_status()
 
-        self.assertIn("running", status)
-        self.assertIn("last_checkin", status)
-        self.assertIn("interval", status)
-        self.assertIn("jitter_range", status)
+        assert "running" in status
+        assert "last_checkin" in status
+        assert "interval" in status
+        assert "jitter_range" in status
 
-    def test_start_stop(self):
-        """Test starting and stopping heartbeat"""
+    def test_start_stop(self) -> None:
+        """Test starting and stopping heartbeat."""
         self.manager.start()
-        self.assertTrue(self.manager._running)
+        assert self.manager._running
 
         self.manager.stop()
-        self.assertFalse(self.manager._running)
+        assert not self.manager._running
 
-    def test_update_interval(self):
-        """Test interval update"""
+    def test_update_interval(self) -> None:
+        """Test interval update."""
         self.manager.update_interval(120)
-        self.assertEqual(self.manager.jitter.base_interval, 120)
+        assert self.manager.jitter.base_interval == 120
 
 
 class TestC2Config(unittest.TestCase):
-    """Test C2 configuration"""
+    """Test C2 configuration."""
 
-    def test_default_values(self):
-        """Test default configuration"""
+    def test_default_values(self) -> None:
+        """Test default configuration."""
         config = C2Config()
 
-        self.assertEqual(config.protocol, C2Protocol.HTTPS)
-        self.assertEqual(config.primary_port, 443)
-        self.assertEqual(config.sleep_interval, DEFAULT_SLEEP_INTERVAL)
+        assert config.protocol == C2Protocol.HTTPS
+        assert config.primary_port == 443
+        assert config.sleep_interval == DEFAULT_SLEEP_INTERVAL
 
-    def test_custom_values(self):
-        """Test custom configuration"""
+    def test_custom_values(self) -> None:
+        """Test custom configuration."""
         config = C2Config(
             protocol=C2Protocol.DNS,
             primary_host="c2.example.com",
@@ -228,66 +228,73 @@ class TestC2Config(unittest.TestCase):
             dns_domain="tunnel.example.com",
         )
 
-        self.assertEqual(config.protocol, C2Protocol.DNS)
-        self.assertEqual(config.dns_domain, "tunnel.example.com")
+        assert config.protocol == C2Protocol.DNS
+        assert config.dns_domain == "tunnel.example.com"
 
 
 class TestBeaconMessage(unittest.TestCase):
-    """Test beacon message structures"""
+    """Test beacon message structures."""
 
-    def test_message_creation(self):
-        """Test message creation"""
+    def test_message_creation(self) -> None:
+        """Test message creation."""
         msg = BeaconMessage(
-            message_id="abc123", command="checkin", data={"status": "alive"}
+            message_id="abc123",
+            command="checkin",
+            data={"status": "alive"},
         )
 
-        self.assertEqual(msg.message_id, "abc123")
-        self.assertEqual(msg.command, "checkin")
-        self.assertIsNotNone(msg.timestamp)
+        assert msg.message_id == "abc123"
+        assert msg.command == "checkin"
+        assert msg.timestamp is not None
 
-    def test_response_creation(self):
-        """Test response creation"""
+    def test_response_creation(self) -> None:
+        """Test response creation."""
         resp = BeaconResponse(
-            success=True, message_id="abc123", command="sleep", data={"interval": 120}
+            success=True,
+            message_id="abc123",
+            command="sleep",
+            data={"interval": 120},
         )
 
-        self.assertTrue(resp.success)
-        self.assertEqual(resp.command, "sleep")
+        assert resp.success
+        assert resp.command == "sleep"
 
 
 class TestC2Channel(unittest.TestCase):
-    """Test main C2 channel"""
+    """Test main C2 channel."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.config = C2Config(
-            protocol=C2Protocol.HTTPS, primary_host="127.0.0.1", primary_port=443
+            protocol=C2Protocol.HTTPS,
+            primary_host="127.0.0.1",
+            primary_port=443,
         )
         self.channel = C2Channel(self.config)
 
-    def test_initialization(self):
-        """Test channel initialization"""
-        self.assertEqual(self.channel.status, BeaconStatus.DORMANT)
-        self.assertIsNotNone(self.channel.encryption_key)
+    def test_initialization(self) -> None:
+        """Test channel initialization."""
+        assert self.channel.status == BeaconStatus.DORMANT
+        assert self.channel.encryption_key is not None
 
-    def test_get_status(self):
-        """Test status retrieval"""
+    def test_get_status(self) -> None:
+        """Test status retrieval."""
         status = self.channel.get_status()
 
-        self.assertIn("status", status)
-        self.assertIn("protocol", status)
-        self.assertIn("primary_host", status)
+        assert "status" in status
+        assert "protocol" in status
+        assert "primary_host" in status
 
-    def test_encrypt_decrypt_roundtrip(self):
-        """Test encryption/decryption"""
+    def test_encrypt_decrypt_roundtrip(self) -> None:
+        """Test encryption/decryption."""
         original = b"Secret message"
 
         encrypted = self.channel._encrypt(original)
         decrypted = self.channel._decrypt(encrypted)
 
-        self.assertEqual(decrypted, original)
+        assert decrypted == original
 
-    def test_encryption_entropy(self):
-        """Test that encryption produces high-entropy (random-looking) output"""
+    def test_encryption_entropy(self) -> None:
+        """Test that encryption produces high-entropy (random-looking) output."""
         import base64
         import math
         from collections import Counter
@@ -298,7 +305,7 @@ class TestC2Channel(unittest.TestCase):
             entropy = 0
             for x in Counter(data).values():
                 p_x = float(x) / len(data)
-                entropy -= p_x * math.log(p_x, 2)
+                entropy -= p_x * math.log2(p_x)
             return entropy
 
         # Encrypt a block of zeros (worst case input for weak encryption)
@@ -311,14 +318,12 @@ class TestC2Channel(unittest.TestCase):
 
         entropy = shannon_entropy(encrypted_raw)
         # Random data should have entropy close to 8 bits per byte
-        self.assertGreater(
-            entropy,
-            7.5,
-            f"Encryption entropy too low: {entropy} (Weak Crypto Detected!)",
+        assert entropy > 7.5, (
+            f"Encryption entropy too low: {entropy} (Weak Crypto Detected!)"
         )
 
-    def test_dns_packet_limit(self):
-        """Test DNS packet size limits (UDP 512 bytes)"""
+    def test_dns_packet_limit(self) -> None:
+        """Test DNS packet size limits (UDP 512 bytes)."""
         # Create a large payload
         payload = b"Z" * 1000
         # The tunneler should chunk this into multiple packets
@@ -334,45 +339,46 @@ class TestC2Channel(unittest.TestCase):
             encoded_query = tunneler.build_query(chunk, "data")
             # DNS packet overhead is roughly header + query length.
             # Safe limit for query name is around 253 chars
-            self.assertLessEqual(
-                len(encoded_query), 255, f"DNS query too long: {len(encoded_query)}"
+            assert len(encoded_query) <= 255, (
+                f"DNS query too long: {len(encoded_query)}"
             )
 
 
 class TestModuleFunctions(unittest.TestCase):
-    """Test module-level functions"""
+    """Test module-level functions."""
 
-    def test_create_fronted_channel(self):
-        """Test fronted channel creation"""
+    def test_create_fronted_channel(self) -> None:
+        """Test fronted channel creation."""
         channel = create_fronted_channel(
-            fronting_domain="cdn.example.com", actual_host="c2.hidden.com"
+            fronting_domain="cdn.example.com",
+            actual_host="c2.hidden.com",
         )
 
-        self.assertIsNotNone(channel)
-        self.assertIsNotNone(channel.domain_fronter)
+        assert channel is not None
+        assert channel.domain_fronter is not None
 
-    def test_create_dns_channel(self):
-        """Test DNS channel creation"""
+    def test_create_dns_channel(self) -> None:
+        """Test DNS channel creation."""
         channel = create_dns_channel(c2_domain="tunnel.example.com")
 
-        self.assertIsNotNone(channel)
-        self.assertEqual(channel.config.protocol, C2Protocol.DNS)
+        assert channel is not None
+        assert channel.config.protocol == C2Protocol.DNS
 
 
 class TestEnums(unittest.TestCase):
-    """Test enum definitions"""
+    """Test enum definitions."""
 
-    def test_c2_protocol_values(self):
-        """Test C2Protocol enum"""
-        self.assertEqual(C2Protocol.HTTP.value, "http")
-        self.assertEqual(C2Protocol.HTTPS.value, "https")
-        self.assertEqual(C2Protocol.DNS.value, "dns")
+    def test_c2_protocol_values(self) -> None:
+        """Test C2Protocol enum."""
+        assert C2Protocol.HTTP.value == "http"
+        assert C2Protocol.HTTPS.value == "https"
+        assert C2Protocol.DNS.value == "dns"
 
-    def test_beacon_status_values(self):
-        """Test BeaconStatus enum"""
-        self.assertEqual(BeaconStatus.DORMANT.value, "dormant")
-        self.assertEqual(BeaconStatus.ACTIVE.value, "active")
-        self.assertEqual(BeaconStatus.ERROR.value, "error")
+    def test_beacon_status_values(self) -> None:
+        """Test BeaconStatus enum."""
+        assert BeaconStatus.DORMANT.value == "dormant"
+        assert BeaconStatus.ACTIVE.value == "active"
+        assert BeaconStatus.ERROR.value == "error"
 
 
 if __name__ == "__main__":

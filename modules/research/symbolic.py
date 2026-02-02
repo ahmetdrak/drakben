@@ -1,5 +1,4 @@
-"""
-DRAKBEN Research - Symbolic Executor
+"""DRAKBEN Research - Symbolic Executor
 Author: @drak_ben
 Description: Mathematical code path analysis using constraint solving.
 """
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PathConstraint:
-    """Represents a condition on an execution path"""
+    """Represents a condition on an execution path."""
 
     variable: str
     operator: str  # ==, !=, <, >, <=, >=
@@ -22,7 +21,7 @@ class PathConstraint:
 
 @dataclass
 class ExecutionPath:
-    """A possible execution path through code"""
+    """A possible execution path through code."""
 
     path_id: int
     constraints: list[PathConstraint]
@@ -31,19 +30,18 @@ class ExecutionPath:
 
 
 class SymbolicExecutor:
-    """
-    Performs symbolic execution for vulnerability discovery.
+    """Performs symbolic execution for vulnerability discovery.
     Uses constraint solving to find inputs that reach dangerous sinks.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.z3_available = self._check_z3()
         logger.info(
-            f"Symbolic Executor initialized (Z3: {'Available' if self.z3_available else 'Fallback Mode'})"
+            f"Symbolic Executor initialized (Z3: {'Available' if self.z3_available else 'Fallback Mode'})",
         )
 
     def _check_z3(self) -> bool:
-        """Check if Z3 solver is available"""
+        """Check if Z3 solver is available."""
         try:
             import importlib.util
 
@@ -56,11 +54,11 @@ class SymbolicExecutor:
             return False
 
     def analyze_function(
-        self, source_code: str, target_func: str
+        self,
+        source_code: str,
+        target_func: str,
     ) -> list[ExecutionPath]:
-        """
-        Symbolically execute a function to find all paths to dangerous sinks.
-        """
+        """Symbolically execute a function to find all paths to dangerous sinks."""
         import ast
 
         paths = []
@@ -75,12 +73,12 @@ class SymbolicExecutor:
                     break
 
         except Exception as e:
-            logger.error(f"Symbolic analysis failed: {e}")
+            logger.exception("Symbolic analysis failed: %s", e)
 
         return paths
 
     def _explore_paths(self, func_node) -> list[ExecutionPath]:
-        """Extract execution paths from function AST (Recursive)"""
+        """Extract execution paths from function AST (Recursive)."""
         import ast
 
         path_id = 0
@@ -100,17 +98,19 @@ class SymbolicExecutor:
 
         # Recursive visitor
         class PathVisitor(ast.NodeVisitor):
-            def __init__(self, parent_constraints=None):
+            """Auto-generated docstring for PathVisitor class."""
+
+            def __init__(self, parent_constraints=None) -> None:
                 self.current_constraints = parent_constraints or []
                 self.found_paths = []
 
-            def visit_If(self, node):
+            def visit_If(self, node) -> None:
                 # Branch TRUE
                 constraint_true = SymbolicExecutor._extract_constraint(node.test)
                 if constraint_true:
                     # Explore TRUE branch
                     visitor_true = PathVisitor(
-                        self.current_constraints + [constraint_true]
+                        [*self.current_constraints, constraint_true],
                     )
                     for child in node.body:
                         visitor_true.visit(child)
@@ -120,13 +120,13 @@ class SymbolicExecutor:
                     # Note: Inverting constraints is complex without Z3, simplifying for now
                     if node.orelse:
                         visitor_false = PathVisitor(
-                            self.current_constraints
+                            self.current_constraints,
                         )  # Omitted inversion for brevity
                         for child in node.orelse:
                             visitor_false.visit(child)
                         self.found_paths.extend(visitor_false.found_paths)
 
-            def visit_Call(self, node):
+            def visit_Call(self, node) -> None:
                 func_name = ""
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id
@@ -145,7 +145,7 @@ class SymbolicExecutor:
                             constraints=self.current_constraints,
                             reaches_sink=True,
                             sink_name=func_name,
-                        )
+                        ),
                     )
                 self.generic_visit(node)
 
@@ -155,7 +155,7 @@ class SymbolicExecutor:
 
     @staticmethod
     def _extract_constraint(test_node) -> PathConstraint | None:
-        """Extract constraint from AST comparison node"""
+        """Extract constraint from AST comparison node."""
         import ast
 
         if isinstance(test_node, ast.Compare):
@@ -178,14 +178,12 @@ class SymbolicExecutor:
 
                 return PathConstraint(var_name, op_str, value)
             except Exception as e:
-                logger.debug(f"Failed to extract constraint: {e}")
+                logger.debug("Failed to extract constraint: %s", e)
 
         return None
 
     def solve_constraints(self, path: ExecutionPath) -> dict[str, Any] | None:
-        """
-        Use Z3 to find concrete inputs satisfying path constraints.
-        """
+        """Use Z3 to find concrete inputs satisfying path constraints."""
         if not self.z3_available:
             # Heuristic fallback
             return self._heuristic_solve(path)
@@ -228,12 +226,12 @@ class SymbolicExecutor:
                 return {str(v): model[variables[v]].as_long() for v in variables}
 
         except Exception as e:
-            logger.error(f"Z3 solving failed: {e}")
+            logger.exception("Z3 solving failed: %s", e)
 
         return None
 
     def _heuristic_solve(self, path: ExecutionPath) -> dict[str, Any]:
-        """Fallback solver without Z3"""
+        """Fallback solver without Z3."""
         result = {}
         for c in path.constraints:
             if c.operator == "==":

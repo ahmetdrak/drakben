@@ -1,5 +1,4 @@
-"""
-DRAKBEN Singularity - Code Validator
+"""DRAKBEN Singularity - Code Validator
 Author: @drak_ben
 Description: Validates generated code via Sandbox execution.
 """
@@ -17,12 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class CodeValidator(IValidator):
-    """
-    Executes code in a secure environment to verify functionality.
+    """Executes code in a secure environment to verify functionality.
     Tries to use Docker Sandbox if available, falls back to Restricted Subprocess.
     """
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 30) -> None:
         self.timeout = timeout
         self.use_docker = False
 
@@ -35,41 +33,38 @@ class CodeValidator(IValidator):
             logger.info("Validator initialized with Docker Sandbox")
         except ImportError:
             logger.warning(
-                "SandboxManager not found, falling back to subprocess validation"
+                "SandboxManager not found, falling back to subprocess validation",
             )
             self.sandbox = None
 
     def validate(self, snippet: CodeSnippet) -> bool:
-        """
-        Validate generated code snippet.
+        """Validate generated code snippet.
 
         Args:
             snippet: Code to test
 
         Returns:
             True if code executed without errors
+
         """
-        logger.info(f"Validating snippet ({snippet.language})")
+        logger.info("Validating snippet (%s)", snippet.language)
 
         if self.use_docker and self.sandbox:
             return self._validate_docker(snippet)
-        else:
-            return self._validate_subprocess(snippet)
+        return self._validate_subprocess(snippet)
 
     def _validate_docker(self, _snippet: CodeSnippet) -> bool:
-        """Execute via Docker Sandbox"""
+        """Execute via Docker Sandbox."""
         # Placeholder for integration with core.sandbox_manager
         # Assuming sandbox.run_code(code, lang) exists
         try:
             return True  # Mock success if Docker logic is complex
         except Exception as e:
-            logger.error(f"Docker validation failed: {e}")
+            logger.exception("Docker validation failed: %s", e)
             return False
 
     def _validate_subprocess(self, snippet: CodeSnippet) -> bool:
-        """
-        Execute via Subprocess (Less secure).
-        """
+        """Execute via Subprocess (Less secure)."""
         if snippet.language.lower() != "python":
             logger.warning("Subprocess validation only supports Python currently")
             return False
@@ -81,16 +76,16 @@ class CodeValidator(IValidator):
         return self._run_code_safety(snippet)
 
     def _is_safe_code(self, code: str) -> bool:
-        """Perform paranoid static analysis on the code"""
+        """Perform paranoid static analysis on the code."""
         try:
             tree = ast.parse(code)
             return all(self._check_ast_node(node) for node in ast.walk(tree))
         except Exception as e:
-            logger.error(f"Static analysis failed: {e}")
+            logger.exception("Static analysis failed: %s", e)
             return False
 
     def _check_ast_node(self, node: ast.AST) -> bool:
-        """Check a single AST node for dangerous patterns"""
+        """Check a single AST node for dangerous patterns."""
         # Block dangerous calls
         if isinstance(node, ast.Call):
             func_name = ""
@@ -111,21 +106,21 @@ class CodeValidator(IValidator):
                 "unlink",
             }
             if func_name in forbidden:
-                logger.error(f"SECURITY ALERT: Blocked dangerous call '{func_name}'")
+                logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)
                 return False
 
         # Block sensitive imports
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
+        if isinstance(node, ast.Import | ast.ImportFrom):
             for name in node.names:
                 if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
                     logger.error(
-                        f"SECURITY ALERT: Blocked sensitive import '{name.name}'"
+                        f"SECURITY ALERT: Blocked sensitive import '{name.name}'",
                     )
                     return False
         return True
 
     def _run_code_safety(self, snippet: CodeSnippet) -> bool:
-        """Write code to temp file and execute it"""
+        """Write code to temp file and execute it."""
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
                 f.write(snippet.code)
@@ -136,6 +131,7 @@ class CodeValidator(IValidator):
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
+                check=False,  # We handle errors via returncode
             )
 
             self._cleanup_temp_file(f_path)
@@ -144,21 +140,20 @@ class CodeValidator(IValidator):
                 logger.info("Validation successful")
                 snippet.is_validated = True
                 return True
-            else:
-                logger.warning(f"Validation failed (Exit: {result.returncode})")
-                return False
+            logger.warning("Validation failed (Exit: %s)", result.returncode)
+            return False
 
         except subprocess.TimeoutExpired:
-            logger.error("Validation timed out")
+            logger.exception("Validation timed out")
             return False
         except Exception as e:
-            logger.error(f"Validation error: {e}")
+            logger.exception("Validation error: %s", e)
             return False
 
-    def _cleanup_temp_file(self, f_path: str):
-        """Clean up temporary validation file"""
+    def _cleanup_temp_file(self, f_path: str) -> None:
+        """Clean up temporary validation file."""
         try:
             if os.path.exists(f_path):
                 os.remove(f_path)
         except Exception as e:
-            logger.debug(f"Failed to cleanup temp file: {e}")
+            logger.debug("Failed to cleanup temp file: %s", e)

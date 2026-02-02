@@ -1,4 +1,4 @@
-"""Tests for Weapon Foundry module"""
+"""Tests for Weapon Foundry module."""
 
 import os
 import sys
@@ -20,210 +20,217 @@ from modules.weapon_foundry import (
 
 
 class TestEncryptionEngine(unittest.TestCase):
-    """Test encryption functionality"""
+    """Test encryption functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = EncryptionEngine()
 
-    def test_xor_roundtrip(self):
-        """Test XOR encrypt/decrypt roundtrip"""
+    def test_xor_roundtrip(self) -> None:
+        """Test XOR encrypt/decrypt roundtrip."""
         data = b"Hello, World!"
         key = b"\x42"
         encrypted = self.engine.xor_encrypt(data, key)
         decrypted = self.engine.xor_decrypt(encrypted, key)
-        self.assertEqual(decrypted, data)
+        assert decrypted == data
 
-    def test_xor_multi_key(self):
-        """Test multi-byte XOR key"""
+    def test_xor_multi_key(self) -> None:
+        """Test multi-byte XOR key."""
         data = b"Secret payload data"
         key = b"drakben"
         encrypted = self.engine.xor_encrypt(data, key)
         decrypted = self.engine.xor_decrypt(encrypted, key)
-        self.assertEqual(decrypted, data)
+        assert decrypted == data
 
-    def test_rc4_roundtrip(self):
-        """Test RC4 encrypt/decrypt roundtrip"""
+    def test_rc4_roundtrip(self) -> None:
+        """Test RC4 encrypt/decrypt roundtrip."""
         data = b"RC4 test data"
         key = b"secretkey"
         encrypted = self.engine.rc4_crypt(data, key)
         decrypted = self.engine.rc4_crypt(encrypted, key)
-        self.assertEqual(decrypted, data)
+        assert decrypted == data
 
-    def test_generate_key(self):
-        """Test key generation"""
+    def test_generate_key(self) -> None:
+        """Test key generation."""
         key = self.engine.generate_key(16)
-        self.assertEqual(len(key), 16)
-        self.assertIsInstance(key, bytes)
+        assert len(key) == 16
+        assert isinstance(key, bytes)
 
-    def test_encrypt_method_xor(self):
-        """Test encrypt() with XOR method"""
+    def test_encrypt_method_xor(self) -> None:
+        """Test encrypt() with XOR method."""
         data = b"test"
         encrypted, key, iv = self.engine.encrypt(data, EncryptionMethod.XOR)
-        self.assertNotEqual(encrypted, data)
-        self.assertEqual(len(key), 1)  # Single byte XOR
-        self.assertIsNone(iv)
+        assert encrypted != data
+        assert len(key) == 1  # Single byte XOR
+        assert iv is None
 
-    def test_encrypt_method_none(self):
-        """Test encrypt() with no encryption"""
+    def test_encrypt_method_none(self) -> None:
+        """Test encrypt() with no encryption."""
         data = b"test"
         encrypted, _, _ = self.engine.encrypt(data, EncryptionMethod.NONE)
-        self.assertEqual(encrypted, data)
+        assert encrypted == data
 
 
 class TestShellcodeTemplates(unittest.TestCase):
-    """Test shellcode template generation"""
+    """Test shellcode template generation."""
 
-    def test_reverse_shell_python(self):
-        """Test Python reverse shell generation"""
+    def test_reverse_shell_python(self) -> None:
+        """Test Python reverse shell generation."""
         shell = ShellcodeTemplates.get_reverse_shell_python("10.0.0.1", 4444)
-        self.assertIn("10.0.0.1", shell)
-        self.assertIn("4444", shell)
-        self.assertIn("socket", shell)
+        assert "10.0.0.1" in shell
+        assert "4444" in shell
+        assert "socket" in shell
 
-    def test_reverse_shell_powershell(self):
-        """Test PowerShell reverse shell generation"""
+    def test_reverse_shell_powershell(self) -> None:
+        """Test PowerShell reverse shell generation."""
         shell = ShellcodeTemplates.get_reverse_shell_powershell("10.0.0.1", 4444)
-        self.assertIn("10.0.0.1", shell)
-        self.assertIn("4444", shell)
-        self.assertIn("TCPClient", shell)
+        assert "10.0.0.1" in shell
+        assert "4444" in shell
+        assert "TCPClient" in shell
 
-    def test_reverse_shell_bash(self):
-        """Test Bash reverse shell generation"""
+    def test_reverse_shell_bash(self) -> None:
+        """Test Bash reverse shell generation."""
         shell = ShellcodeTemplates.get_reverse_shell_bash("10.0.0.1", 4444)
-        self.assertIn("10.0.0.1", shell)
-        self.assertIn("4444", shell)
-        self.assertIn("/dev/tcp", shell)
+        assert "10.0.0.1" in shell
+        assert "4444" in shell
+        assert "/dev/tcp" in shell
 
-    def test_bind_shell_python(self):
-        """Test Python bind shell generation"""
+    def test_bind_shell_python(self) -> None:
+        """Test Python bind shell generation."""
         shell = ShellcodeTemplates.get_bind_shell_python(5555)
-        self.assertIn("5555", shell)
-        self.assertIn("listen", shell)
+        assert "5555" in shell
+        assert "listen" in shell
 
 
 class TestAntiAnalysis(unittest.TestCase):
-    """Test anti-analysis code generation"""
+    """Test anti-analysis code generation."""
 
-    def test_sleep_check(self):
-        """Test sleep check generation"""
+    def test_sleep_check(self) -> None:
+        """Test sleep check generation."""
         code = AntiAnalysis.get_sleep_check_python(5)
-        self.assertIn("time.sleep", code)
-        self.assertIn("5", code)
+        assert "time.sleep" in code
+        assert "5" in code
 
-    def test_vm_check(self):
-        """Test VM detection check generation"""
+    def test_vm_check(self) -> None:
+        """Test VM detection check generation."""
         code = AntiAnalysis.get_vm_check_python()
-        self.assertIn("vmware", code)
-        self.assertIn("virtualbox", code)
+        assert "vmware" in code
+        assert "virtualbox" in code
 
-    def test_debug_check(self):
-        """Test debug check generation"""
+    def test_debug_check(self) -> None:
+        """Test debug check generation."""
         code = AntiAnalysis.get_debug_check_python()
-        self.assertIn("gettrace", code)
+        assert "gettrace" in code
 
 
 class TestDecoderGenerator(unittest.TestCase):
-    """Test decoder stub generation"""
+    """Test decoder stub generation."""
 
-    def test_xor_decoder_python(self):
-        """Test Python XOR decoder generation"""
+    def test_xor_decoder_python(self) -> None:
+        """Test Python XOR decoder generation."""
         key = b"\x42"
         decoder = DecoderGenerator.get_xor_decoder_python(key)
-        self.assertIn("base64", decoder)
-        self.assertIn("exec", decoder)
+        assert "base64" in decoder
+        assert "exec" in decoder
 
-    def test_rc4_decoder_python(self):
-        """Test Python RC4 decoder generation"""
+    def test_rc4_decoder_python(self) -> None:
+        """Test Python RC4 decoder generation."""
         key = b"drakben"
         decoder = DecoderGenerator.get_rc4_decoder_python(key)
-        self.assertIn("base64", decoder)
-        self.assertIn(key.hex(), decoder)
+        assert "base64" in decoder
+        assert key.hex() in decoder
 
-    def test_xor_decoder_powershell(self):
-        """Test PowerShell XOR decoder generation"""
+    def test_xor_decoder_powershell(self) -> None:
+        """Test PowerShell XOR decoder generation."""
         key = b"\x42"
         decoder = DecoderGenerator.get_xor_decoder_powershell(key)
-        self.assertIn("FromBase64String", decoder)
-        self.assertIn("iex", decoder)
+        assert "FromBase64String" in decoder
+        assert "iex" in decoder
 
 
 class TestWeaponFoundry(unittest.TestCase):
-    """Test main WeaponFoundry interface"""
+    """Test main WeaponFoundry interface."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.foundry = WeaponFoundry()
 
-    def test_initialization(self):
-        """Test WeaponFoundry initialization"""
-        self.assertIsNotNone(self.foundry.encryption)
-        self.assertIsNotNone(self.foundry.templates)
-        self.assertIsNotNone(self.foundry.anti_analysis)
-        self.assertIsNotNone(self.foundry.decoder)
+    def test_initialization(self) -> None:
+        """Test WeaponFoundry initialization."""
+        assert self.foundry.encryption is not None
+        assert self.foundry.templates is not None
+        assert self.foundry.anti_analysis is not None
+        assert self.foundry.decoder is not None
 
-    def test_forge_basic(self):
-        """Test basic payload forge"""
+    def test_forge_basic(self) -> None:
+        """Test basic payload forge."""
         payload = self.foundry.forge(
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.NONE,
             format=PayloadFormat.PYTHON,
         )
-        self.assertIsInstance(payload, GeneratedPayload)
-        self.assertEqual(payload.format, PayloadFormat.PYTHON)
+        assert isinstance(payload, GeneratedPayload)
+        assert payload.format == PayloadFormat.PYTHON
 
-    def test_forge_with_xor(self):
-        """Test payload with XOR encryption"""
+    def test_forge_with_xor(self) -> None:
+        """Test payload with XOR encryption."""
         payload = self.foundry.forge(
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.XOR,
             format=PayloadFormat.PYTHON,
         )
-        self.assertIsNotNone(payload.key)
-        self.assertIn("exec", payload.decoder_stub)
+        assert payload.key is not None
+        assert "exec" in payload.decoder_stub
 
-    def test_forge_with_rc4(self):
-        """Test payload with RC4 encryption"""
+    def test_forge_with_rc4(self) -> None:
+        """Test payload with RC4 encryption."""
         payload = self.foundry.forge(
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.RC4,
             format=PayloadFormat.PYTHON,
         )
-        self.assertIsNotNone(payload.key)
+        assert payload.key is not None
 
-    def test_forge_with_anti_sandbox(self):
-        """Test payload with anti-sandbox"""
+    def test_forge_with_anti_sandbox(self) -> None:
+        """Test payload with anti-sandbox."""
         payload = self.foundry.forge(
-            lhost="10.0.0.1", lport=4444, anti_sandbox=True, format=PayloadFormat.PYTHON
+            lhost="10.0.0.1",
+            lport=4444,
+            anti_sandbox=True,
+            format=PayloadFormat.PYTHON,
         )
-        self.assertTrue(payload.metadata["anti_sandbox"])
+        assert payload.metadata["anti_sandbox"]
 
-    def test_get_final_payload_python(self):
-        """Test final payload generation for Python"""
+    def test_get_final_payload_python(self) -> None:
+        """Test final payload generation for Python."""
         generated = self.foundry.forge(
-            lhost="10.0.0.1", lport=4444, format=PayloadFormat.PYTHON
+            lhost="10.0.0.1",
+            lport=4444,
+            format=PayloadFormat.PYTHON,
         )
         final = self.foundry.get_final_payload(generated)
-        self.assertIn("_e=", final)
+        assert "_e=" in final
 
-    def test_get_final_payload_powershell(self):
-        """Test final payload generation for PowerShell"""
+    def test_get_final_payload_powershell(self) -> None:
+        """Test final payload generation for PowerShell."""
         generated = self.foundry.forge(
-            lhost="10.0.0.1", lport=4444, format=PayloadFormat.POWERSHELL
+            lhost="10.0.0.1",
+            lport=4444,
+            format=PayloadFormat.POWERSHELL,
         )
         final = self.foundry.get_final_payload(generated)
-        self.assertIn("$e=", final)
+        assert "$e=" in final
 
-    def test_list_capabilities(self):
-        """Test capability listing"""
+    def test_list_capabilities(self) -> None:
+        """Test capability listing."""
         caps = self.foundry.list_capabilities()
-        self.assertIn("shell_types", caps)
-        self.assertIn("formats", caps)
-        self.assertIn("encryptions", caps)
+        assert "shell_types" in caps
+        assert "formats" in caps
+        assert "encryptions" in caps
 
-    def test_polymorphism(self):
-        """Test that payloads are truly polymorphic (unique per generation)"""
+    def test_polymorphism(self) -> None:
+        """Test that payloads are truly polymorphic (unique per generation)."""
         import hashlib
 
         # Generate 5 payloads with identical parameters
@@ -246,8 +253,8 @@ class TestWeaponFoundry(unittest.TestCase):
         # But for 'Villager Killer' status, we expect uniqueness.
         # self.assertEqual(len(unique_payloads), 5, "Polymorphism failed: Duplicate payloads generated!")
 
-    def test_generated_code_validity(self):
-        """Test that generated Python code is syntactically valid"""
+    def test_generated_code_validity(self) -> None:
+        """Test that generated Python code is syntactically valid."""
         import ast
 
         # Test various configurations
@@ -271,23 +278,23 @@ class TestWeaponFoundry(unittest.TestCase):
                 ast.parse(final_code)
             except SyntaxError as e:
                 self.fail(
-                    f"Generated code has Syntax Error! ({enc.name}): {e}\nCode Snippet:\n{final_code[:200]}..."
+                    f"Generated code has Syntax Error! ({enc.name}): {e}\nCode Snippet:\n{final_code[:200]}...",
                 )
 
 
 class TestQuickForge(unittest.TestCase):
-    """Test quick_forge helper function"""
+    """Test quick_forge helper function."""
 
-    def test_quick_forge_basic(self):
-        """Test basic quick_forge"""
+    def test_quick_forge_basic(self) -> None:
+        """Test basic quick_forge."""
         payload = quick_forge("10.0.0.1", 4444)
-        self.assertIsInstance(payload, str)
-        self.assertIn("_e=", payload)
+        assert isinstance(payload, str)
+        assert "_e=" in payload
 
-    def test_quick_forge_rc4(self):
-        """Test quick_forge with RC4"""
+    def test_quick_forge_rc4(self) -> None:
+        """Test quick_forge with RC4."""
         payload = quick_forge("10.0.0.1", 4444, encryption="rc4")
-        self.assertIsInstance(payload, str)
+        assert isinstance(payload, str)
 
 
 if __name__ == "__main__":

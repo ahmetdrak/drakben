@@ -13,7 +13,7 @@ from typing import Any
 
 @dataclass
 class ActionRecord:
-    """Single action record - MANDATORY FIELDS"""
+    """Single action record - MANDATORY FIELDS."""
 
     goal: str
     plan_id: str
@@ -29,7 +29,7 @@ class ActionRecord:
 
 @dataclass
 class PlanRecord:
-    """Plan record for replanning"""
+    """Plan record for replanning."""
 
     plan_id: str
     goal: str
@@ -41,8 +41,7 @@ class PlanRecord:
 
 
 class EvolutionMemory:
-    """
-    REAL PERSISTENT EVOLUTION MEMORY
+    """REAL PERSISTENT EVOLUTION MEMORY.
 
     GUARANTEES:
     1. All data survives process restart (SQLite)
@@ -55,7 +54,7 @@ class EvolutionMemory:
     PENALTY_DECREMENT = 5.0
     BLOCK_THRESHOLD = 50.0  # Tool blocked after this penalty
 
-    def __init__(self, db_path: str = "drakben_evolution.db"):
+    def __init__(self, db_path: str = "drakben_evolution.db") -> None:
         # Handle in-memory databases specially
         if db_path == ":memory:":
             self.db_path = db_path
@@ -68,9 +67,8 @@ class EvolutionMemory:
         self._lock = threading.Lock()
         self._init_database()
 
-    def _init_database(self):
-        """
-        Create tables if not exist.
+    def _init_database(self) -> None:
+        """Create tables if not exist.
 
         Improvements:
         - Timeout protection on connection
@@ -88,7 +86,9 @@ class EvolutionMemory:
 
             try:
                 conn = sqlite3.connect(
-                    db_path_str, timeout=10.0, check_same_thread=False
+                    db_path_str,
+                    timeout=10.0,
+                    check_same_thread=False,
                 )
                 conn.row_factory = sqlite3.Row
 
@@ -105,8 +105,9 @@ class EvolutionMemory:
 
                 cursor = conn.cursor()
             except sqlite3.OperationalError as e:
-                logger.error(f"Database initialization failed: {e}")
-                raise RuntimeError(f"Could not initialize evolution database: {e}")
+                logger.exception("Database initialization failed: %s", e)
+                msg = f"Could not initialize evolution database: {e}"
+                raise RuntimeError(msg) from e
 
             # ACTION HISTORY TABLE - stores every action with outcome
             cursor.execute("""
@@ -147,7 +148,9 @@ class EvolutionMemory:
                 logger.info("Migrating tool_penalties: adding 'target' column")
                 # SQLite doesn't support adding to PRIMARY KEY directly, so we drop and recreate if needed
                 # But for safety in migration, we add column first
-                cursor.execute("ALTER TABLE tool_penalties ADD COLUMN target TEXT NOT NULL DEFAULT 'global'")
+                cursor.execute(
+                    "ALTER TABLE tool_penalties ADD COLUMN target TEXT NOT NULL DEFAULT 'global'",
+                )
                 # Re-create index/PK requires more steps, but adding column solves the query error
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS plans (
@@ -190,8 +193,7 @@ class EvolutionMemory:
                 self._close_conn(conn)
 
     def _get_conn(self) -> sqlite3.Connection:
-        """
-        Get database connection with timeout protection and WAL mode.
+        """Get database connection with timeout protection and WAL mode.
 
         Improvements:
         - timeout=10.0 to prevent indefinite blocking
@@ -223,18 +225,18 @@ class EvolutionMemory:
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.error(f"Database connection failed: {e}")
+            logger.exception("Database connection failed: %s", e)
             raise
 
-    def _close_conn(self, conn: sqlite3.Connection):
-        """Close connection, unless it's an in-memory persistent connection"""
+    def _close_conn(self, conn: sqlite3.Connection) -> None:
+        """Close connection, unless it's an in-memory persistent connection."""
         if not self._is_memory:
             conn.close()
 
     # ==================== ACTION RECORDING ====================
 
-    def record_action(self, record: ActionRecord):
-        """Record action outcome - PERSISTENT"""
+    def record_action(self, record: ActionRecord) -> None:
+        """Record action outcome - PERSISTENT."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -261,8 +263,8 @@ class EvolutionMemory:
             self._close_conn(conn)
 
     # ==================== PENALTY SYSTEM ====================
-    def _run_with_retry(self, func, *args, **kwargs):
-        """Helper to retry DB operations on lock"""
+    def _run_with_retry(self, func, *args, **kwargs) -> Any:
+        """Helper to retry DB operations on lock."""
         for i in range(5):
             try:
                 return func(*args, **kwargs)
@@ -271,10 +273,10 @@ class EvolutionMemory:
                     time.sleep(0.1 * (i + 1))
                     continue
                 raise
+        return None
 
-    def update_penalty(self, tool: str, success: bool, target: str = "global"):
-        """
-        Update tool penalty score.
+    def update_penalty(self, tool: str, success: bool, target: str = "global") -> None:
+        """Update tool penalty score.
         Called AFTER every tool execution.
         """
         target = target or "global"
@@ -283,7 +285,10 @@ class EvolutionMemory:
             cursor = conn.cursor()
 
             # Get current state
-            cursor.execute("SELECT * FROM tool_penalties WHERE tool = ? AND target = ?", (tool, target))
+            cursor.execute(
+                "SELECT * FROM tool_penalties WHERE tool = ? AND target = ?",
+                (tool, target),
+            )
             row = cursor.fetchone()
 
             if row is None:
@@ -339,25 +344,25 @@ class EvolutionMemory:
             self._close_conn(conn)
 
     def get_tool_penalty(self, tool: str, target: str = "global") -> float:
-        """Get current penalty for tool/target combo"""
+        """Get current penalty for tool/target combo."""
         target = target or "global"
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT penalty_score FROM tool_penalties WHERE tool = ? AND target = ?", (tool, target)
+                "SELECT penalty_score FROM tool_penalties WHERE tool = ? AND target = ?",
+                (tool, target),
             )
             row = cursor.fetchone()
             self._close_conn(conn)
             return row["penalty_score"] if row else 0.0
 
     def get_penalty(self, tool: str, target: str = "global") -> float:
-        """Alias for get_tool_penalty - compatibility with tool_selector.py"""
+        """Alias for get_tool_penalty - compatibility with tool_selector.py."""
         return self.get_tool_penalty(tool, target)
 
     def is_tool_blocked(self, tool: str, target: str = "global") -> bool:
-        """
-        Check if tool is blocked due to high penalty.
+        """Check if tool is blocked due to high penalty.
         MUST be called BEFORE tool selection.
         """
         target = target or "global"
@@ -375,8 +380,7 @@ class EvolutionMemory:
             return row["blocked"] == 1 or row["penalty_score"] >= self.BLOCK_THRESHOLD
 
     def get_allowed_tools(self, tool_list: list[str]) -> list[str]:
-        """
-        Filter tool list by penalty.
+        """Filter tool list by penalty.
         Returns only non-blocked tools, sorted by penalty (lowest first).
         """
         result = []
@@ -392,7 +396,7 @@ class EvolutionMemory:
         return [t[0] for t in penalties]
 
     def get_all_penalties(self) -> dict[str, dict]:
-        """Get all tool penalties for debugging"""
+        """Get all tool penalties for debugging."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -404,9 +408,12 @@ class EvolutionMemory:
     # ==================== PLAN MANAGEMENT ====================
 
     def create_plan(
-        self, goal: str, steps: list[dict], plan_id: str | None = None
+        self,
+        goal: str,
+        steps: list[dict],
+        plan_id: str | None = None,
     ) -> str:
-        """Create new plan - PERSISTENT"""
+        """Create new plan - PERSISTENT."""
         plan_id = plan_id or f"plan_{int(time.time() * 1000)}"
         now = time.time()
 
@@ -426,7 +433,7 @@ class EvolutionMemory:
         return plan_id
 
     def get_plan(self, plan_id: str) -> PlanRecord | None:
-        """Get plan by ID"""
+        """Get plan by ID."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -447,8 +454,8 @@ class EvolutionMemory:
                 attempt_count=row["attempt_count"],
             )
 
-    def update_plan_status(self, plan_id: str, status: str):
-        """Update plan status"""
+    def update_plan_status(self, plan_id: str, status: str) -> None:
+        """Update plan status."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -461,8 +468,8 @@ class EvolutionMemory:
             conn.commit()
             self._close_conn(conn)
 
-    def update_plan_steps(self, plan_id: str, steps: list[dict]):
-        """Update plan steps (for replanning)"""
+    def update_plan_steps(self, plan_id: str, steps: list[dict]) -> None:
+        """Update plan steps (for replanning)."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -477,7 +484,7 @@ class EvolutionMemory:
             self._close_conn(conn)
 
     def get_active_plan(self, goal: str) -> PlanRecord | None:
-        """Get most recent non-completed plan for goal"""
+        """Get most recent non-completed plan for goal."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -508,7 +515,7 @@ class EvolutionMemory:
     # ==================== HEURISTICS (SELF-MODIFICATION) ====================
 
     def get_heuristic(self, key: str) -> float:
-        """Get heuristic value"""
+        """Get heuristic value."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -517,8 +524,8 @@ class EvolutionMemory:
             self._close_conn(conn)
             return row["value"] if row else 0.0
 
-    def set_heuristic(self, key: str, value: float):
-        """Set heuristic value - THIS IS SELF-MODIFICATION"""
+    def set_heuristic(self, key: str, value: float) -> None:
+        """Set heuristic value - THIS IS SELF-MODIFICATION."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -532,19 +539,19 @@ class EvolutionMemory:
             conn.commit()
             self._close_conn(conn)
 
-    def adjust_heuristic(self, key: str, delta: float):
-        """Adjust heuristic by delta - SELF-MODIFICATION"""
+    def adjust_heuristic(self, key: str, delta: float) -> None:
+        """Adjust heuristic by delta - SELF-MODIFICATION."""
         current = self.get_heuristic(key)
         self.set_heuristic(key, current + delta)
 
-    def update_heuristic(self, key: str, func: Any):
-        """Update heuristic using a lambda function"""
+    def update_heuristic(self, key: str, func: Any) -> None:
+        """Update heuristic using a lambda function."""
         current = self.get_heuristic(key)
         new_value = func(current)
         self.set_heuristic(key, new_value)
 
     def get_all_heuristics(self) -> dict[str, float]:
-        """Get all heuristics"""
+        """Get all heuristics."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -556,7 +563,7 @@ class EvolutionMemory:
     # ==================== STAGNATION DETECTION ====================
 
     def get_recent_actions(self, count: int = 5) -> list[ActionRecord]:
-        """Get last N actions"""
+        """Get last N actions."""
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -586,10 +593,9 @@ class EvolutionMemory:
             ]
 
     def detect_stagnation(self) -> bool:
-        """
-        Detect if agent is stuck:
+        """Detect if agent is stuck:
         - Same tool called 3+ times consecutively
-        - All recent actions failed
+        - All recent actions failed.
         """
         recent = self.get_recent_actions(5)
         if len(recent) < 3:
@@ -605,7 +611,7 @@ class EvolutionMemory:
         return bool(all(o == "failure" for o in outcomes))
 
     def detect_tool_abuse(self, tool: str, threshold: int = 3) -> bool:
-        """Detect if specific tool is being abused"""
+        """Detect if specific tool is being abused."""
         recent = self.get_recent_actions(threshold)
         if len(recent) < threshold:
             return False
@@ -618,7 +624,7 @@ _evolution_memory: EvolutionMemory | None = None
 
 
 def get_evolution_memory(db_path: str | None = None) -> EvolutionMemory:
-    """Get singleton instance (optionally override db_path)"""
+    """Get singleton instance (optionally override db_path)."""
     global _evolution_memory
     if _evolution_memory is None:
         _evolution_memory = EvolutionMemory(db_path or "drakben_evolution.db")

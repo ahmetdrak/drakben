@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SubdomainResult:
-    """Subdomain enumeration result"""
+    """Subdomain enumeration result."""
 
     subdomain: str
     source: str
@@ -38,8 +38,7 @@ class SubdomainResult:
 
 
 class SubdomainEnumerator:
-    """
-    Subdomain Enumerator using multiple sources.
+    """Subdomain Enumerator using multiple sources.
 
     Sources:
     - crt.sh (Certificate Transparency)
@@ -171,14 +170,16 @@ class SubdomainEnumerator:
     ]
 
     def __init__(
-        self, virustotal_api_key: str | None = None, use_external_tools: bool = True
-    ):
-        """
-        Initialize Subdomain Enumerator.
+        self,
+        virustotal_api_key: str | None = None,
+        use_external_tools: bool = True,
+    ) -> None:
+        """Initialize Subdomain Enumerator.
 
         Args:
             virustotal_api_key: Optional VirusTotal API key
             use_external_tools: Whether to use external tools (subfinder, amass)
+
         """
         self.vt_api_key = virustotal_api_key
         self.use_external_tools = use_external_tools
@@ -188,14 +189,16 @@ class SubdomainEnumerator:
         self.amass_available = shutil.which("amass") is not None
 
         logger.info(
-            f"Subdomain Enumerator initialized (subfinder: {self.subfinder_available}, amass: {self.amass_available})"
+            f"Subdomain Enumerator initialized (subfinder: {self.subfinder_available}, amass: {self.amass_available})",
         )
 
     async def enumerate(
-        self, domain: str, use_bruteforce: bool = False, resolve: bool = True
+        self,
+        domain: str,
+        use_bruteforce: bool = False,
+        resolve: bool = True,
     ) -> list[SubdomainResult]:
-        """
-        Enumerate subdomains for a domain.
+        """Enumerate subdomains for a domain.
 
         Args:
             domain: Target domain
@@ -204,9 +207,10 @@ class SubdomainEnumerator:
 
         Returns:
             List of SubdomainResult objects
+
         """
         domain = self._clean_domain(domain)
-        logger.info(f"Starting subdomain enumeration for: {domain}")
+        logger.info("Starting subdomain enumeration for: %s", domain)
 
         tasks = self._build_enumeration_tasks(domain, use_bruteforce)
         source_results = await self._gather_enumeration_results(tasks)
@@ -215,7 +219,7 @@ class SubdomainEnumerator:
         return sorted(results, key=lambda x: x.subdomain)
 
     def _build_enumeration_tasks(self, domain: str, use_bruteforce: bool) -> list:
-        """Build list of enumeration tasks"""
+        """Build list of enumeration tasks."""
         tasks = [
             self._crtsh_enum(domain),
             self._web_archive_enum(domain),
@@ -236,7 +240,7 @@ class SubdomainEnumerator:
         return tasks
 
     async def _gather_enumeration_results(self, tasks: list) -> list:
-        """Gather results from all enumeration tasks"""
+        """Gather results from all enumeration tasks."""
         timeout_seconds = 300  # Fixed timeout value
         try:
             async with asyncio.timeout(timeout_seconds):
@@ -246,9 +250,11 @@ class SubdomainEnumerator:
             return []
 
     async def _process_enumeration_results(
-        self, source_results: list, resolve: bool
+        self,
+        source_results: list,
+        resolve: bool,
     ) -> list[SubdomainResult]:
-        """Process and combine enumeration results"""
+        """Process and combine enumeration results."""
         subdomains: set[str] = set()
         results: list[SubdomainResult] = []
 
@@ -256,18 +262,20 @@ class SubdomainEnumerator:
             if isinstance(result, list):
                 results.extend(self._extract_unique_subdomains(result, subdomains))
             elif isinstance(result, Exception):
-                logger.error(f"Source error: {result}")
+                logger.error("Source error: %s", result)
 
-        logger.info(f"Found {len(results)} unique subdomains")
+        logger.info("Found %s unique subdomains", len(results))
 
         if resolve:
             results = await self._resolve_subdomains(results)
         return results
 
     def _extract_unique_subdomains(
-        self, result_list: list[SubdomainResult], subdomains: set[str]
+        self,
+        result_list: list[SubdomainResult],
+        subdomains: set[str],
     ) -> list[SubdomainResult]:
-        """Extract unique subdomains from result list"""
+        """Extract unique subdomains from result list."""
         unique_results = []
         for r in result_list:
             if r.subdomain not in subdomains:
@@ -276,32 +284,32 @@ class SubdomainEnumerator:
         return unique_results
 
     def _clean_domain(self, domain: str) -> str:
-        """Clean domain string"""
+        """Clean domain string."""
         domain = self._remove_protocol(domain)
         domain = self._remove_port(domain)
         domain = self._remove_www_prefix(domain)
         return domain.lower().strip()
 
     def _remove_protocol(self, domain: str) -> str:
-        """Remove protocol from domain"""
+        """Remove protocol from domain."""
         if "://" in domain:
             return urlparse(domain).netloc
         return domain
 
     def _remove_port(self, domain: str) -> str:
-        """Remove port from domain"""
+        """Remove port from domain."""
         if ":" in domain:
             return domain.split(":")[0]
         return domain
 
     def _remove_www_prefix(self, domain: str) -> str:
-        """Remove www prefix from domain"""
+        """Remove www prefix from domain."""
         if domain.startswith("www."):
             return domain[4:]
         return domain
 
     async def _crtsh_enum(self, domain: str) -> list[SubdomainResult]:
-        """Enumerate using crt.sh (Certificate Transparency)"""
+        """Enumerate using crt.sh (Certificate Transparency)."""
         try:
             url = f"https://crt.sh/?q=%.{domain}&output=json"
             async with (
@@ -311,15 +319,15 @@ class SubdomainEnumerator:
                 if resp.status == 200:
                     data = await resp.json()
                     results = self._parse_crtsh_data(data, domain)
-                    logger.info(f"crt.sh found {len(results)} subdomains")
+                    logger.info("crt.sh found %s subdomains", len(results))
                     return results
             return []
         except Exception as e:
-            logger.error(f"crt.sh error: {e}")
+            logger.exception("crt.sh error: %s", e)
             return []
 
     def _parse_crtsh_data(self, data: list[dict], domain: str) -> list[SubdomainResult]:
-        """Parse crt.sh JSON data"""
+        """Parse crt.sh JSON data."""
         results = []
         seen = set()
         for entry in data:
@@ -332,18 +340,17 @@ class SubdomainEnumerator:
         return results
 
     def _extract_subdomains_from_name(self, name: str, domain: str) -> list[str]:
-        """Extract subdomains from name string"""
+        """Extract subdomains from name string."""
         subdomains = []
         for sub in name.split("\n"):
             sub = sub.strip().lower()
-            if sub.startswith("*."):
-                sub = sub[2:]
+            sub = sub.removeprefix("*.")
             if sub.endswith(domain):
                 subdomains.append(sub)
         return subdomains
 
     async def _virustotal_enum(self, domain: str) -> list[SubdomainResult]:
-        """Enumerate using VirusTotal API"""
+        """Enumerate using VirusTotal API."""
         if not self.vt_api_key:
             return []
 
@@ -354,28 +361,30 @@ class SubdomainEnumerator:
             async with (
                 aiohttp.ClientSession() as session,
                 session.get(
-                    url, params=params, timeout=aiohttp.ClientTimeout(total=30)
+                    url,
+                    params=params,
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as resp,
             ):
                 if resp.status == 200:
                     data = await resp.json()
                     results = self._parse_virustotal_data(data)
-                    logger.info(f"VirusTotal found {len(results)} subdomains")
+                    logger.info("VirusTotal found %s subdomains", len(results))
                     return results
             return []
         except Exception as e:
-            logger.error(f"VirusTotal error: {e}")
+            logger.exception("VirusTotal error: %s", e)
             return []
 
     def _parse_virustotal_data(self, data: dict) -> list[SubdomainResult]:
-        """Parse VirusTotal API response"""
+        """Parse VirusTotal API response."""
         results = []
         for sub in data.get("subdomains", []):
             results.append(SubdomainResult(subdomain=sub, source="virustotal"))
         return results
 
     async def _web_archive_enum(self, domain: str) -> list[SubdomainResult]:
-        """Enumerate using Web Archive"""
+        """Enumerate using Web Archive."""
         try:
             url = f"https://web.archive.org/cdx/search/cdx?url=*.{domain}&output=json&fl=original&collapse=urlkey"
             async with (
@@ -385,17 +394,19 @@ class SubdomainEnumerator:
                 if resp.status == 200:
                     data = await resp.json()
                     results = self._parse_web_archive_data(data, domain)
-                    logger.info(f"Web Archive found {len(results)} subdomains")
+                    logger.info("Web Archive found %s subdomains", len(results))
                     return results
             return []
         except Exception as e:
-            logger.error(f"Web Archive error: {e}")
+            logger.exception("Web Archive error: %s", e)
             return []
 
     def _parse_web_archive_data(
-        self, data: list[list], domain: str
+        self,
+        data: list[list],
+        domain: str,
     ) -> list[SubdomainResult]:
-        """Parse Web Archive JSON data"""
+        """Parse Web Archive JSON data."""
         results = []
         seen = set()
         for entry in data[1:]:  # Skip header
@@ -406,35 +417,35 @@ class SubdomainEnumerator:
         return results
 
     def _extract_host_from_entry(self, entry: list, domain: str) -> str | None:
-        """Extract host from web archive entry"""
+        """Extract host from web archive entry."""
         try:
             parsed = urlparse(entry[0])
             host = parsed.netloc.lower()
             if host.endswith(domain):
                 return host
         except (ValueError, IndexError, AttributeError) as e:
-            logger.debug(f"Error parsing web archive entry: {e}")
+            logger.debug("Error parsing web archive entry: %s", e)
         return None
 
     async def _subfinder_enum(self, domain: str) -> list[SubdomainResult]:
-        """Enumerate using subfinder"""
+        """Enumerate using subfinder."""
         if not self.subfinder_available:
             return []
 
         try:
             stdout = await self._run_subfinder_process(domain)
             results = self._parse_subfinder_output(stdout, domain)
-            logger.info(f"Subfinder found {len(results)} subdomains")
+            logger.info("Subfinder found %s subdomains", len(results))
             return results
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Subfinder timed out")
             return []
         except Exception as e:
-            logger.error(f"Subfinder error: {e}")
+            logger.exception("Subfinder error: %s", e)
             return []
 
     async def _run_subfinder_process(self, domain: str) -> str:
-        """Run subfinder process"""
+        """Run subfinder process."""
         process = await asyncio.create_subprocess_exec(
             "subfinder",
             "-d",
@@ -447,9 +458,11 @@ class SubdomainEnumerator:
         return stdout.decode()
 
     def _parse_subfinder_output(
-        self, stdout: str, domain: str
+        self,
+        stdout: str,
+        domain: str,
     ) -> list[SubdomainResult]:
-        """Parse subfinder output"""
+        """Parse subfinder output."""
         results = []
         for line in stdout.strip().split("\n"):
             line = line.strip()
@@ -458,7 +471,7 @@ class SubdomainEnumerator:
         return results
 
     async def _amass_enum(self, domain: str) -> list[SubdomainResult]:
-        """Enumerate using amass"""
+        """Enumerate using amass."""
         results: list[SubdomainResult] = []
         timeout_seconds = 120  # Fixed timeout value
 
@@ -484,28 +497,28 @@ class SubdomainEnumerator:
                 if line and line.endswith(domain):
                     results.append(SubdomainResult(subdomain=line, source="amass"))
 
-            logger.info(f"Amass found {len(results)} subdomains")
+            logger.info("Amass found %s subdomains", len(results))
 
         except TimeoutError:
             logger.warning("Amass timed out")
         except Exception as e:
-            logger.error(f"Amass error: {e}")
+            logger.exception("Amass error: %s", e)
 
         return results
 
     async def _bruteforce_enum(self, domain: str) -> list[SubdomainResult]:
-        """DNS brute force enumeration"""
+        """DNS brute force enumeration."""
         resolver = self._setup_dns_resolver()
         if not resolver:
             return []
 
-        logger.info(f"Starting DNS brute force for {domain}")
+        logger.info("Starting DNS brute force for %s", domain)
         results = await self._process_bruteforce_batches(domain, resolver)
-        logger.info(f"Brute force found {len(results)} subdomains")
+        logger.info("Brute force found %s subdomains", len(results))
         return results
 
-    def _setup_dns_resolver(self):
-        """Setup DNS resolver"""
+    def _setup_dns_resolver(self) -> Any:
+        """Setup DNS resolver."""
         try:
             import dns.resolver
 
@@ -518,9 +531,11 @@ class SubdomainEnumerator:
             return None
 
     async def _process_bruteforce_batches(
-        self, domain: str, resolver
+        self,
+        domain: str,
+        resolver,
     ) -> list[SubdomainResult]:
-        """Process bruteforce in batches"""
+        """Process bruteforce in batches."""
         results = []
         batch_size = 50
 
@@ -532,41 +547,48 @@ class SubdomainEnumerator:
         return results
 
     async def _check_batch_subdomains(
-        self, batch: list[str], domain: str, resolver
+        self,
+        batch: list[str],
+        domain: str,
+        resolver,
     ) -> list[SubdomainResult]:
-        """Check a batch of subdomains"""
+        """Check a batch of subdomains."""
         tasks = [self._check_single_subdomain(sub, domain, resolver) for sub in batch]
         batch_results = await asyncio.gather(*tasks)
         return [r for r in batch_results if r]
 
     async def _check_single_subdomain(
-        self, sub: str, domain: str, resolver
+        self,
+        sub: str,
+        domain: str,
+        resolver,
     ) -> SubdomainResult | None:
-        """Check a single subdomain"""
+        """Check a single subdomain."""
         fqdn = f"{sub}.{domain}"
         try:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, resolver.resolve, fqdn, "A")
             return SubdomainResult(subdomain=fqdn, source="bruteforce", resolved=True)
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
-            logger.debug(f"Error in crt.sh query: {e}")
+        except (TimeoutError, aiohttp.ClientError, ValueError) as e:
+            logger.debug("Error in crt.sh query: %s", e)
             return None
 
     async def _resolve_subdomains(
-        self, results: list[SubdomainResult]
+        self,
+        results: list[SubdomainResult],
     ) -> list[SubdomainResult]:
-        """Resolve subdomains to IP addresses"""
+        """Resolve subdomains to IP addresses."""
         resolver = self._setup_resolver()
         if not resolver:
             return results
 
         resolved_results = await self._resolve_in_batches(results, resolver)
         resolved_count = sum(1 for r in resolved_results if r.resolved)
-        logger.info(f"Resolved {resolved_count}/{len(results)} subdomains")
+        logger.info("Resolved %s/%s subdomains", resolved_count, len(results))
         return resolved_results
 
-    def _setup_resolver(self):
-        """Setup DNS resolver"""
+    def _setup_resolver(self) -> Any:
+        """Setup DNS resolver."""
         try:
             import dns.resolver
 
@@ -578,9 +600,11 @@ class SubdomainEnumerator:
             return None
 
     async def _resolve_in_batches(
-        self, results: list[SubdomainResult], resolver
+        self,
+        results: list[SubdomainResult],
+        resolver,
     ) -> list[SubdomainResult]:
-        """Resolve subdomains in batches"""
+        """Resolve subdomains in batches."""
         batch_size = 25
         resolved_results = []
 
@@ -593,9 +617,11 @@ class SubdomainEnumerator:
         return resolved_results
 
     async def _resolve_single_subdomain(
-        self, result: SubdomainResult, resolver
+        self,
+        result: SubdomainResult,
+        resolver,
     ) -> SubdomainResult:
-        """Resolve a single subdomain"""
+        """Resolve a single subdomain."""
         if result.resolved:
             return result
 
@@ -604,28 +630,34 @@ class SubdomainEnumerator:
         return result
 
     async def _resolve_a_record(self, result: SubdomainResult, resolver) -> None:
-        """Resolve A record for subdomain"""
+        """Resolve A record for subdomain."""
         try:
             loop = asyncio.get_event_loop()
             answers = await loop.run_in_executor(
-                None, resolver.resolve, result.subdomain, "A"
+                None,
+                resolver.resolve,
+                result.subdomain,
+                "A",
             )
             result.resolved = True
             result.ip_addresses = [str(r) for r in answers]
         except (OSError, ValueError) as e:
-            logger.debug(f"DNS resolution error: {e}")
+            logger.debug("DNS resolution error: %s", e)
             result.resolved = False
 
     async def _resolve_cname_record(self, result: SubdomainResult, resolver) -> None:
-        """Resolve CNAME record for subdomain"""
+        """Resolve CNAME record for subdomain."""
         try:
             loop = asyncio.get_event_loop()
             answers = await loop.run_in_executor(
-                None, resolver.resolve, result.subdomain, "CNAME"
+                None,
+                resolver.resolve,
+                result.subdomain,
+                "CNAME",
             )
             result.cname = str(answers[0])
         except (OSError, IndexError) as e:
-            logger.debug(f"CNAME lookup error: {e}")
+            logger.debug("CNAME lookup error: %s", e)
 
 
 async def enumerate_subdomains_for_state(
@@ -633,8 +665,7 @@ async def enumerate_subdomains_for_state(
     enumerator: SubdomainEnumerator | None = None,
     use_bruteforce: bool = False,
 ) -> list[SubdomainResult]:
-    """
-    Enumerate subdomains for state target.
+    """Enumerate subdomains for state target.
 
     Args:
         state: AgentState instance
@@ -643,6 +674,7 @@ async def enumerate_subdomains_for_state(
 
     Returns:
         List of SubdomainResult objects
+
     """
     if not state.target:
         logger.warning("No target set in state")
@@ -650,8 +682,8 @@ async def enumerate_subdomains_for_state(
 
     enumerator = enumerator or SubdomainEnumerator()
 
-    results = await enumerator.enumerate(
-        domain=state.target, use_bruteforce=use_bruteforce, resolve=True
+    return await enumerator.enumerate(
+        domain=state.target,
+        use_bruteforce=use_bruteforce,
+        resolve=True,
     )
-
-    return results

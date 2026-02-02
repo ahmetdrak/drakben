@@ -1,16 +1,14 @@
-import sys
-import os
-from unittest.mock import patch
 import contextlib
+import os
+import sys
+from unittest.mock import patch
 
 # Add project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-def test_main_menu_launch():
-    """
-    Test main() function launching the menu.
-    """
+def test_main_menu_launch() -> None:
+    """Test main() function launching the menu."""
     # We strip drakben from sys.modules to ensure clean import with mocks active
     if "drakben" in sys.modules:
         del sys.modules["drakben"]
@@ -45,8 +43,8 @@ def test_main_menu_launch():
                 # which SHOULD pick up our patched version if we patched where it comes from.
 
 
-def test_environment_check():
-    """Test environment check logic"""
+def test_environment_check() -> None:
+    """Test environment check logic."""
     # Simply test the function logic
     import drakben
 
@@ -54,4 +52,6 @@ def test_environment_check():
         with patch("pathlib.Path.mkdir") as mock_mkdir:
             with patch("sys.version_info", (3, 11)):
                 drakben.check_environment()
-                assert mock_mkdir.call_count >= 1
+                if not mock_mkdir.call_count >= 1:
+                    msg = "mock_mkdir.call_count >= 1"
+                    raise AssertionError(msg)

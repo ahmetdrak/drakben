@@ -1,7 +1,6 @@
-"""
-DRAKBEN Sandbox Manager
+"""DRAKBEN Sandbox Manager
 Author: @drak_ben
-Description: Docker-based isolated execution environment for safe operation
+Description: Docker-based isolated execution environment for safe operation.
 
 This module provides:
 - Isolated container creation for attack operations
@@ -45,7 +44,7 @@ CONTAINER_TIMEOUT = 300
 
 
 class ContainerStatus(Enum):
-    """Status of a sandbox container"""
+    """Status of a sandbox container."""
 
     PENDING = "pending"
     RUNNING = "running"
@@ -56,7 +55,7 @@ class ContainerStatus(Enum):
 
 @dataclass
 class ContainerInfo:
-    """Information about a sandbox container"""
+    """Information about a sandbox container."""
 
     container_id: str
     name: str
@@ -69,7 +68,7 @@ class ContainerInfo:
 
 @dataclass
 class ExecutionResult:
-    """Result of command execution in sandbox"""
+    """Result of command execution in sandbox."""
 
     success: bool
     stdout: str
@@ -84,8 +83,7 @@ class ExecutionResult:
 
 
 class SandboxManager:
-    """
-    Docker-based sandbox manager for isolated command execution.
+    """Docker-based sandbox manager for isolated command execution.
 
     Features:
     - Container lifecycle management (create, execute, cleanup)
@@ -106,14 +104,14 @@ class SandboxManager:
         image: str = DEFAULT_SANDBOX_IMAGE,
         memory_limit: str = DEFAULT_MEMORY_LIMIT,
         cpu_limit: str = DEFAULT_CPU_LIMIT,
-    ):
-        """
-        Initialize SandboxManager.
+    ) -> None:
+        """Initialize SandboxManager.
 
         Args:
             image: Docker image to use for containers
             memory_limit: Memory limit for containers (e.g., "512m")
             cpu_limit: CPU limit for containers (e.g., "1.0")
+
         """
         self.image = image
         self.memory_limit = memory_limit
@@ -122,14 +120,14 @@ class SandboxManager:
         self._docker_available: bool | None = None
         self._docker_client: Any | None = None
 
-        logger.info(f"SandboxManager initialized with image: {image}")
+        logger.info("SandboxManager initialized with image: %s", image)
 
     def is_available(self) -> bool:
-        """
-        Check if Docker is available on the system.
+        """Check if Docker is available on the system.
 
         Returns:
             True if Docker is installed and running, False otherwise
+
         """
         if self._docker_available is not None:
             return self._docker_available
@@ -138,20 +136,24 @@ class SandboxManager:
         return self._docker_available
 
     def _check_docker(self) -> bool:
-        """
-        Internal method to check Docker availability.
+        """Internal method to check Docker availability.
 
         Returns:
             True if Docker is available
+
         """
         try:
             result = subprocess.run(
-                ["docker", "version"], capture_output=True, text=True, timeout=10
+                ["docker", "version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,  # We handle errors via returncode
             )
             if result.returncode == 0:
                 logger.info("Docker is available")
                 return True
-            logger.warning(f"Docker check failed: {result.stderr}")
+            logger.warning("Docker check failed: %s", result.stderr)
             return False
         except FileNotFoundError:
             logger.warning("Docker not found in PATH")
@@ -160,15 +162,15 @@ class SandboxManager:
             logger.warning("Docker check timed out")
             return False
         except Exception as e:
-            logger.warning(f"Docker check error: {e}")
+            logger.warning("Docker check error: %s", e)
             return False
 
     def _get_docker_client(self) -> Any | None:
-        """
-        Get or create Docker client.
+        """Get or create Docker client.
 
         Returns:
             Docker client or None if unavailable
+
         """
         if self._docker_client is not None:
             return self._docker_client
@@ -182,7 +184,7 @@ class SandboxManager:
             logger.warning("docker-py not installed. Install with: pip install docker")
             return None
         except Exception as e:
-            logger.warning(f"Failed to create Docker client: {e}")
+            logger.warning("Failed to create Docker client: %s", e)
             return None
 
     def create_sandbox(
@@ -192,8 +194,7 @@ class SandboxManager:
         volumes: list[str] | None = None,
         environment: dict[str, str] | None = None,
     ) -> ContainerInfo | None:
-        """
-        Create a new sandbox container.
+        """Create a new sandbox container.
 
         Args:
             name: Unique name for the container
@@ -203,6 +204,7 @@ class SandboxManager:
 
         Returns:
             ContainerInfo if successful, None if failed
+
         """
         if not self.is_available():
             logger.error("Docker not available, cannot create sandbox")
@@ -241,13 +243,13 @@ class SandboxManager:
 
             self.active_containers[container.id] = info
             logger.info(
-                f"Created sandbox container: {container_name} ({container.id[:12]})"
+                f"Created sandbox container: {container_name} ({container.id[:12]})",
             )
 
             return info
 
         except Exception as e:
-            logger.error(f"Failed to create sandbox: {e}")
+            logger.exception("Failed to create sandbox: %s", e)
             return None
 
     def execute_in_sandbox(
@@ -257,8 +259,7 @@ class SandboxManager:
         timeout: int = CONTAINER_TIMEOUT,
         workdir: str | None = None,
     ) -> ExecutionResult:
-        """
-        Execute command inside a sandbox container.
+        """Execute command inside a sandbox container.
 
         Args:
             container_id: ID of the container
@@ -268,6 +269,7 @@ class SandboxManager:
 
         Returns:
             ExecutionResult with stdout, stderr, and exit code
+
         """
         start_time = time.time()
 
@@ -294,7 +296,10 @@ class SandboxManager:
             container = client.containers.get(container_id)
 
             exec_result = container.exec_run(
-                cmd=command, workdir=workdir, demux=True, tty=False
+                cmd=command,
+                workdir=workdir,
+                demux=True,
+                tty=False,
             )
 
             duration = time.time() - start_time
@@ -310,7 +315,7 @@ class SandboxManager:
             success = exec_result.exit_code == 0
 
             logger.debug(
-                f"Sandbox exec [{container_id[:12]}]: {command[:50]}... -> exit={exec_result.exit_code}"
+                f"Sandbox exec [{container_id[:12]}]: {command[:50]}... -> exit={exec_result.exit_code}",
             )
 
             return ExecutionResult(
@@ -323,14 +328,17 @@ class SandboxManager:
 
         except Exception as e:
             duration = time.time() - start_time
-            logger.error(f"Sandbox execution failed: {e}")
+            logger.exception("Sandbox execution failed: %s", e)
             return ExecutionResult(
-                success=False, stdout="", stderr=str(e), exit_code=-1, duration=duration
+                success=False,
+                stdout="",
+                stderr=str(e),
+                exit_code=-1,
+                duration=duration,
             )
 
     def cleanup_sandbox(self, container_id: str, force: bool = True) -> bool:
-        """
-        Remove sandbox container and clean up resources.
+        """Remove sandbox container and clean up resources.
 
         Args:
             container_id: ID of the container to remove
@@ -338,9 +346,10 @@ class SandboxManager:
 
         Returns:
             True if cleanup successful
+
         """
         if container_id not in self.active_containers:
-            logger.warning(f"Container {container_id[:12]} not in active containers")
+            logger.warning("Container %s not in active containers", container_id[:12])
             return False
 
         client = self._get_docker_client()
@@ -352,20 +361,20 @@ class SandboxManager:
             container.remove(force=force)
 
             del self.active_containers[container_id]
-            logger.info(f"Cleaned up sandbox container: {container_id[:12]}")
+            logger.info("Cleaned up sandbox container: %s", container_id[:12])
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to cleanup sandbox {container_id[:12]}: {e}")
+            logger.exception("Failed to cleanup sandbox {container_id[:12]}: %s", e)
             return False
 
     def cleanup_all(self) -> int:
-        """
-        Remove all active sandbox containers.
+        """Remove all active sandbox containers.
 
         Returns:
             Number of containers cleaned up
+
         """
         cleaned = 0
         container_ids = list(self.active_containers.keys())
@@ -374,18 +383,18 @@ class SandboxManager:
             if self.cleanup_sandbox(container_id):
                 cleaned += 1
 
-        logger.info(f"Cleaned up {cleaned} sandbox containers")
+        logger.info("Cleaned up %s sandbox containers", cleaned)
         return cleaned
 
     def get_container_status(self, container_id: str) -> ContainerStatus:
-        """
-        Get current status of a container.
+        """Get current status of a container.
 
         Args:
             container_id: ID of the container
 
         Returns:
             ContainerStatus enum value
+
         """
         if container_id not in self.active_containers:
             return ContainerStatus.REMOVED
@@ -407,11 +416,11 @@ class SandboxManager:
             return ContainerStatus.ERROR
 
     def list_active_containers(self) -> list[ContainerInfo]:
-        """
-        List all active sandbox containers.
+        """List all active sandbox containers.
 
         Returns:
             List of ContainerInfo objects
+
         """
         return list(self.active_containers.values())
 
@@ -422,11 +431,11 @@ class SandboxManager:
 
 
 def get_sandbox_manager() -> SandboxManager:
-    """
-    Get singleton SandboxManager instance.
+    """Get singleton SandboxManager instance.
 
     Returns:
         SandboxManager instance
+
     """
     global _sandbox_manager
     if "_sandbox_manager" not in globals() or _sandbox_manager is None:
@@ -435,10 +444,10 @@ def get_sandbox_manager() -> SandboxManager:
 
 
 def is_sandbox_available() -> bool:
-    """
-    Quick check if sandbox functionality is available.
+    """Quick check if sandbox functionality is available.
 
     Returns:
         True if Docker is available and working
+
     """
     return get_sandbox_manager().is_available()

@@ -10,8 +10,9 @@ logger = logging.getLogger("health_check")
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-def test_module_health():
-    """Verify all critical modules are importable"""
+
+def test_module_health() -> None:
+    """Verify all critical modules are importable."""
     logger.info("Starting Drakben Health Check...")
     modules_to_check = [
         "core.refactored_agent",
@@ -39,7 +40,5 @@ def test_module_health():
 if __name__ == "__main__":
     try:
         test_module_health()
-        print("\n🎉 ALL CRITICAL MODULES VERIFIED SUCCESSFULLY!")
-    except AssertionError as e:
-        print(f"\n❌ FATAL: {e}")
+    except AssertionError:
         sys.exit(1)

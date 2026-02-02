@@ -5,18 +5,19 @@
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 
 import aiohttp
+
+if TYPE_CHECKING:
+    from core.state import AgentState
 
 # Setup logger
 logger = logging.getLogger(__name__)
 
 # State integration
 try:
-    from core.state import AgentState
-
     STATE_AVAILABLE = True
 except ImportError:
     STATE_AVAILABLE = False
@@ -50,30 +51,29 @@ except ImportError:
 
 
 class ReconError(Exception):
-    """Custom exception for recon errors"""
-
-    pass
+    """Custom exception for recon errors."""
 
 
 class AsyncRetry:
-    """Async retry decorator with exponential backoff"""
+    """Async retry decorator with exponential backoff."""
 
-    def __init__(self, max_retries: int = 3, base_delay: float = 1.0):
+    def __init__(self, max_retries: int = 3, base_delay: float = 1.0) -> None:
         self.max_retries = max_retries
         self.base_delay = base_delay
 
-    def __call__(self, func):
-        async def wrapper(*args, **kwargs):
+    def __call__(self, func) -> Any:
+
+        async def wrapper(*args, **kwargs) -> Any:
             last_exception = None
             for attempt in range(self.max_retries):
                 try:
                     return await func(*args, **kwargs)
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                except (TimeoutError, aiohttp.ClientError) as e:
                     last_exception = e
                     if attempt < self.max_retries - 1:
                         delay = self.base_delay * (2**attempt)
                         logger.warning(
-                            f"Retry {attempt + 1}/{self.max_retries} after {delay}s: {e}"
+                            f"Retry {attempt + 1}/{self.max_retries} after {delay}s: {e}",
                         )
                         await asyncio.sleep(delay)
             raise last_exception
@@ -82,8 +82,7 @@ class AsyncRetry:
 
 
 async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
-    """
-    Fetch URL with proper error handling and logging.
+    """Fetch URL with proper error handling and logging.
 
     Args:
         session: aiohttp ClientSession
@@ -91,12 +90,14 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
 
     Returns:
         Dict with 'status', 'headers', 'text', 'error' keys
+
     """
     timeout_seconds = 10  # Fixed timeout value
     try:
         async with asyncio.timeout(timeout_seconds):
             async with session.get(
-                url, timeout=aiohttp.ClientTimeout(total=timeout_seconds)
+                url,
+                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
             ) as resp:
                 return {
                     "status": resp.status,
@@ -105,15 +106,15 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
                     "error": None,
                 }
     except TimeoutError:
-        logger.error(f"Timeout fetching {url}")
+        logger.exception("Timeout fetching %s", url)
         return {"status": 0, "headers": {}, "text": "", "error": "Timeout"}
     except aiohttp.ClientError as e:
-        logger.error(f"HTTP error fetching {url}: {e}")
+        logger.exception("HTTP error fetching %s: %s", url, e)
         return {"status": 0, "headers": {}, "text": "", "error": str(e)}
 
 
 def extract_domain(url: str) -> str:
-    """Extract domain from URL"""
+    """Extract domain from URL."""
     parsed = urlparse(url)
     domain = parsed.netloc or parsed.path
     # Remove port if present
@@ -123,13 +124,13 @@ def extract_domain(url: str) -> str:
 
 
 async def passive_recon(
-    target: str, state: Optional["AgentState"] = None
+    target: str,
+    state: Optional["AgentState"] = None,
 ) -> dict[str, Any]:
-    """
-    STATE-AWARE passive recon with full async support.
+    """STATE-AWARE passive recon with full async support.
     Refactored to reduce Cognitive Complexity.
     """
-    logger.info(f"Starting passive recon for: {target}")
+    logger.info("Starting passive recon for: %s", target)
 
     # STATE CHECK
     if STATE_AVAILABLE and state is None:
@@ -138,7 +139,7 @@ async def passive_recon(
     # Check if target already scanned in this session
     if state and state.target == target and state.open_services:
         logger.info(
-            f"Target {target} already scanned in this session, using cached data"
+            f"Target {target} already scanned in this session, using cached data",
         )
         return {
             "target": target,
@@ -151,7 +152,7 @@ async def passive_recon(
     # Ensure target has protocol
     if not target.startswith(("http://", "https://")):
         target = f"http://{target}"
-        logger.debug(f"Added http:// prefix to target: {target}")
+        logger.debug("Added http:// prefix to target: %s", target)
 
     try:
         connector = aiohttp.TCPConnector(ssl=False)  # Allow self-signed certs
@@ -171,12 +172,12 @@ async def passive_recon(
         result["ai_summary"] = "AI analysis handled by Brain module"
 
         logger.info(
-            f"Recon completed for {target}: {len(result['forms'])} forms, CMS: {result['cms']}"
+            f"Recon completed for {target}: {len(result['forms'])} forms, CMS: {result['cms']}",
         )
         return result
 
     except Exception as e:
-        logger.exception(f"Recon failed for {target}: {e}")
+        logger.exception("Recon failed for %s: %s", target, e)
         result["error"] = str(e)
         return result
 
@@ -202,10 +203,12 @@ def _initialize_recon_result(target: str) -> dict[str, Any]:
 
 
 async def _analyze_main_page(
-    session: aiohttp.ClientSession, target: str, result: dict[str, Any]
-):
+    session: aiohttp.ClientSession,
+    target: str,
+    result: dict[str, Any],
+) -> None:
     """Fetch and parse the main page content."""
-    logger.debug(f"Fetching main page: {target}")
+    logger.debug("Fetching main page: %s", target)
     main_response = await fetch_url(session, target)
 
     if main_response["error"]:
@@ -220,14 +223,14 @@ async def _analyze_main_page(
         _parse_html_content(html, result)
 
 
-def _parse_html_content(html: str, result: dict[str, Any]):
+def _parse_html_content(html: str, result: dict[str, Any]) -> None:
     """Parse HTML content for metadata, forms, scripts, etc."""
     soup = BeautifulSoup(html, "html.parser")
 
     # Title and meta description
     if soup.title:
         result["title"] = soup.title.string.strip() if soup.title.string else None
-        logger.debug(f"Found title: {result['title']}")
+        logger.debug("Found title: %s", result["title"])
 
     meta_desc = soup.find("meta", attrs={"name": "description"})
     if meta_desc:
@@ -244,7 +247,7 @@ def _parse_html_content(html: str, result: dict[str, Any]):
             "inputs": inputs,
         }
         result["forms"].append(form_info)
-    logger.debug(f"Found {len(result['forms'])} forms")
+    logger.debug("Found %s forms", len(result["forms"]))
 
     # Scripts
     result["scripts"] = [
@@ -254,14 +257,16 @@ def _parse_html_content(html: str, result: dict[str, Any]):
     # CMS & Tech Detection
     result["cms"] = detect_cms(html, result["headers"])
     if result["cms"]:
-        logger.info(f"Detected CMS: {result['cms']}")
+        logger.info("Detected CMS: %s", result["cms"])
 
     result["technologies"] = detect_technologies(html, result["headers"])
 
 
 async def _fetch_additional_resources(
-    session: aiohttp.ClientSession, target: str, result: dict[str, Any]
-):
+    session: aiohttp.ClientSession,
+    target: str,
+    result: dict[str, Any],
+) -> None:
     """Fetch robots.txt, sitemap.xml, and favicon."""
     base_url = target.rstrip("/")
 
@@ -285,12 +290,14 @@ async def _fetch_additional_resources(
         logger.debug("Found sitemap.xml")
 
 
-async def _perform_external_lookups(domain: str, result: dict[str, Any]):
+async def _perform_external_lookups(domain: str, result: dict[str, Any]) -> None:
     """Perform DNS and WHOIS lookups."""
     # DNS Records
     if DNS_AVAILABLE:
         result["dns_records"] = await asyncio.get_event_loop().run_in_executor(
-            None, get_dns_records, domain
+            None,
+            get_dns_records,
+            domain,
         )
     else:
         result["dns_records"]["note"] = "DNS lookup not available"
@@ -298,15 +305,16 @@ async def _perform_external_lookups(domain: str, result: dict[str, Any]):
     # WHOIS
     if WHOIS_AVAILABLE:
         result["whois"] = await asyncio.get_event_loop().run_in_executor(
-            None, get_whois_info, domain
+            None,
+            get_whois_info,
+            domain,
         )
     else:
         result["whois"]["note"] = "WHOIS lookup not available"
 
 
 def detect_cms(html: str, headers: dict[str, str]) -> str | None:
-    """
-    Detect CMS from HTML content and headers.
+    """Detect CMS from HTML content and headers.
 
     Args:
         html: HTML content
@@ -314,6 +322,7 @@ def detect_cms(html: str, headers: dict[str, str]) -> str | None:
 
     Returns:
         CMS name or None
+
     """
     html_lower = html.lower()
 
@@ -347,8 +356,7 @@ def detect_cms(html: str, headers: dict[str, str]) -> str | None:
 
 
 def detect_technologies(html: str, headers: dict[str, str]) -> list[str]:
-    """
-    Detect web technologies from HTML and headers.
+    """Detect web technologies from HTML and headers.
 
     Args:
         html: HTML content
@@ -356,6 +364,7 @@ def detect_technologies(html: str, headers: dict[str, str]) -> list[str]:
 
     Returns:
         List of detected technologies
+
     """
     technologies = []
     html_lower = html.lower()
@@ -387,14 +396,14 @@ def detect_technologies(html: str, headers: dict[str, str]) -> list[str]:
 
 
 def get_dns_records(domain: str) -> dict[str, Any]:
-    """
-    Get DNS records for domain (sync function).
+    """Get DNS records for domain (sync function).
 
     Args:
         domain: Domain name
 
     Returns:
         Dict with DNS records
+
     """
     records: dict[str, Any] = {}
 
@@ -417,20 +426,20 @@ def get_dns_records(domain: str) -> dict[str, Any]:
             break
         except Exception as e:
             records[rtype] = []
-            logger.debug(f"DNS {rtype} lookup failed for {domain}: {e}")
+            logger.debug("DNS %s lookup failed for %s: %s", rtype, domain, e)
 
     return records
 
 
 def get_whois_info(domain: str) -> dict[str, Any]:
-    """
-    Get WHOIS information for domain (sync function).
+    """Get WHOIS information for domain (sync function).
 
     Args:
         domain: Domain name
 
     Returns:
         Dict with WHOIS info
+
     """
     try:
         w = whois.whois(domain)
@@ -446,16 +455,16 @@ def get_whois_info(domain: str) -> dict[str, Any]:
             "status": getattr(w, "status", None),
         }
     except Exception as e:
-        logger.warning(f"WHOIS lookup failed for {domain}: {e}")
+        logger.warning("WHOIS lookup failed for %s: %s", domain, e)
         return {"error": str(e)}
 
 
 # Synchronous wrapper for compatibility
 def passive_recon_sync(
-    target: str, state: Optional["AgentState"] = None
+    target: str,
+    state: Optional["AgentState"] = None,
 ) -> dict[str, Any]:
-    """
-    Synchronous wrapper for passive_recon.
+    """Synchronous wrapper for passive_recon.
 
     Args:
         target: Target URL
@@ -463,6 +472,7 @@ def passive_recon_sync(
 
     Returns:
         Recon results
+
     """
     try:
         loop = asyncio.get_event_loop()

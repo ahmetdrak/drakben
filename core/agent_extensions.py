@@ -1,14 +1,14 @@
-import logging
 import json
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class AgentExtensionsMixin:
-    """Extensions for the Drakben Agent (Mixin Pattern)"""
+    """Extensions for the Drakben Agent (Mixin Pattern)."""
 
     def _execute_metasploit(self, args: dict) -> dict:
-        """Execute Metasploit module via wrapper"""
+        """Execute Metasploit module via wrapper."""
         try:
             from modules.metasploit import MetasploitBridge
 
@@ -37,7 +37,7 @@ class AgentExtensionsMixin:
             return {"success": False, "error": f"Metasploit execution failed: {e}"}
 
     def _execute_ad_attacks(self, tool_name: str, args: dict) -> dict:
-        """Execute Active Directory attacks (Native)"""
+        """Execute Active Directory attacks (Native)."""
         try:
             from modules.ad_attacks import ActiveDirectoryAttacker
 
@@ -59,7 +59,7 @@ class AgentExtensionsMixin:
 
                 user_file = args.get("user_file")
                 result = asyncio.run(
-                    attacker.run_asreproast(domain, target_ip, user_file)
+                    attacker.run_asreproast(domain, target_ip, user_file),
                 )
 
             elif tool_name == "ad_smb_spray":
@@ -75,7 +75,7 @@ class AgentExtensionsMixin:
                     }
 
                 result = asyncio.run(
-                    attacker.run_smb_spray(domain, target_ip, user_file, password)
+                    attacker.run_smb_spray(domain, target_ip, user_file, password),
                 )
 
             else:

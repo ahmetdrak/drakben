@@ -1,9 +1,10 @@
 import asyncio
+import contextlib
 import logging
 import os
 import sys
+
 import pytest
-import contextlib
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -36,8 +37,8 @@ logger = logging.getLogger("TheGauntlet")
 
 
 @pytest.mark.asyncio
-async def test_gauntlet_poc():
-    """DRAKBEN 'THE GAUNTLET' PROOF-OF-CONCEPT - Full feature verification"""
+async def test_gauntlet_poc() -> None:
+    """DRAKBEN 'THE GAUNTLET' PROOF-OF-CONCEPT - Full feature verification."""
     results = {"Stealth": False, "WAF": False, "Database": False, "PostExploit": False}
 
     # -------------------------------------------------------------
@@ -46,7 +47,9 @@ async def test_gauntlet_poc():
     if StealthSession:
         session = StealthSession(impersonate="chrome120")
         headers = session.headers
-        assert "Chrome" in headers.get("User-Agent", ""), "User-Agent does not mimic Chrome!"
+        assert "Chrome" in headers.get("User-Agent", ""), (
+            "User-Agent does not mimic Chrome!"
+        )
         results["Stealth"] = True
 
     # -------------------------------------------------------------
@@ -67,8 +70,10 @@ async def test_gauntlet_poc():
         db = SQLiteProvider(db_path)
         tasks = []
         for _ in range(10):  # Stress test
+
             def log_task(d=db):
                 return d.execute("SELECT 1").fetchone()
+
             tasks.append(asyncio.to_thread(log_task))
         await asyncio.gather(*tasks)
         results["Database"] = True
@@ -83,6 +88,7 @@ async def test_gauntlet_poc():
     # TEST 4: POST-EXPLOITATION AI (SIMULATION)
     # -------------------------------------------------------------
     if PostExploitEngine:
+
         class MockHackedShell(ShellInterface):
             async def execute(self, cmd: str) -> str:
                 if "uname -a" in cmd:
@@ -96,7 +102,7 @@ async def test_gauntlet_poc():
                 if "serviceaccount/token" in cmd:
                     return "EYJhbGciOiJSUzI1NiIsImtpZ..."
                 if "passwd" in cmd:
-                    return "root:x:0:0:root:/root:/bin/bash\nuser:x:1000:1000::/home/user:/bin/bash"
+                    return "root:x:0:0:root:/root:/bin/bash\nuser:x:1000:1000:/home/user:/bin/bash"
                 if "suid" in cmd:
                     return "/usr/bin/passwd\n/usr/bin/vim.basic"
                 if "getcap" in cmd:
@@ -105,10 +111,10 @@ async def test_gauntlet_poc():
                     return "kernel.unprivileged_bpf_disabled = 0"
                 return ""
 
-            async def upload(self, data, path):
+            async def upload(self, data, path) -> bool:
                 return True
 
-            async def download(self, path):
+            async def download(self, path) -> bytes:
                 return b""
 
         mock_shell = MockHackedShell()
@@ -124,4 +130,3 @@ async def test_gauntlet_poc():
 
 if __name__ == "__main__":
     asyncio.run(test_gauntlet_poc())
-    print("Gauntlet POC Passed!")

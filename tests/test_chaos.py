@@ -11,8 +11,8 @@ from core.state import reset_state
 logger = logging.getLogger("chaos_test")
 
 
-def test_state_stability():
-    """Rapidly reset and update state to check for race conditions"""
+def test_state_stability() -> None:
+    """Rapidly reset and update state to check for race conditions."""
     logger.info("Running State Stress Test...")
     for i in range(100):
         state = reset_state(f"target_{i}")
@@ -25,11 +25,12 @@ def test_state_stability():
 if __name__ == "__main__":
     # Allow manual execution
     import time
+
     start_time = time.time()
     try:
         test_state_stability()
         logger.info(f"Chaos Test PASSED in {time.time() - start_time:.2f}s.")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Chaos Test FAILED: {e}")
+        logger.exception(f"Chaos Test FAILED: {e}")
         sys.exit(1)

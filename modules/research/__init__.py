@@ -1,5 +1,4 @@
-"""
-DRAKBEN Research Package - Surgical Strike
+"""DRAKBEN Research Package - Surgical Strike
 Zero-day discovery, smart fuzzing, and automated exploit generation.
 """
 

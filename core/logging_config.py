@@ -1,17 +1,16 @@
 # core/logging_config.py
 # DRAKBEN Structured Logging Configuration
 # Provides consistent logging across all modules
-
 import logging
 import logging.handlers
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 class DrakbenFormatter(logging.Formatter):
-    """
-    Custom formatter for DRAKBEN logs.
+    """Custom formatter for DRAKBEN logs.
     Provides colored output for terminal and structured format for files.
     """
 
@@ -25,7 +24,7 @@ class DrakbenFormatter(logging.Formatter):
         "RESET": "\033[0m",
     }
 
-    def __init__(self, use_colors: bool = True, include_module: bool = True):
+    def __init__(self, use_colors: bool = True, include_module: bool = True) -> None:
         self.use_colors = use_colors and sys.stdout.isatty()
         self.include_module = include_module
 
@@ -46,8 +45,7 @@ class DrakbenFormatter(logging.Formatter):
 
 
 class JSONFormatter(logging.Formatter):
-    """
-    JSON formatter for structured logging.
+    """JSON formatter for structured logging.
     Useful for log aggregation systems.
     """
 
@@ -55,7 +53,7 @@ class JSONFormatter(logging.Formatter):
         import json
 
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -108,8 +106,7 @@ def setup_logging(
     max_file_size_mb: int = 10,
     backup_count: int = 5,
 ) -> logging.Logger:
-    """
-    Setup DRAKBEN logging configuration.
+    """Setup DRAKBEN logging configuration.
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -123,6 +120,7 @@ def setup_logging(
 
     Returns:
         Root logger configured for DRAKBEN
+
     """
     # Get root logger for drakben
     root_logger = logging.getLogger("drakben")
@@ -180,8 +178,7 @@ def setup_logging(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a logger for a specific module.
+    """Get a logger for a specific module.
 
     Args:
         name: Module name (e.g., 'core.brain', 'modules.recon')
@@ -192,6 +189,7 @@ def get_logger(name: str) -> logging.Logger:
     Example:
         logger = get_logger(__name__)
         logger.info("Processing started")
+
     """
     # Prepend 'drakben' if not already present
     if not name.startswith("drakben"):
@@ -201,23 +199,23 @@ def get_logger(name: str) -> logging.Logger:
 
 
 class LogContext:
-    """
-    Context manager for adding extra context to log messages.
+    """Context manager for adding extra context to log messages.
 
     Example:
         with LogContext(logger, target='192.168.1.1', phase='recon'):
             logger.info("Starting scan")
+
     """
 
-    def __init__(self, logger: logging.Logger, **context):
+    def __init__(self, logger: logging.Logger, **context) -> None:
         self.logger = logger
         self.context = context
         self.old_factory = None
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         self.old_factory = logging.getLogRecordFactory()
 
-        def record_factory(*args, **kwargs):
+        def record_factory(*args, **kwargs) -> Any:
             record = self.old_factory(*args, **kwargs)
             for key, value in self.context.items():
                 setattr(record, key, value)
@@ -226,7 +224,7 @@ class LogContext:
         logging.setLogRecordFactory(record_factory)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
         logging.setLogRecordFactory(self.old_factory)
         return False
 
@@ -238,28 +236,34 @@ def log_tool_execution(
     target: str,
     success: bool,
     duration: float = 0.0,
-):
-    """Log tool execution with consistent format"""
+) -> None:
+    """Log tool execution with consistent format."""
     status = "SUCCESS" if success else "FAILED"
     logger.info(
-        f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {duration:.2f}s"
+        f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {duration:.2f}s",
     )
 
 
-def log_phase_transition(logger: logging.Logger, from_phase: str, to_phase: str):
-    """Log phase transition"""
-    logger.info(f"Phase transition: {from_phase} -> {to_phase}")
+def log_phase_transition(
+    logger: logging.Logger, from_phase: str, to_phase: str,
+) -> None:
+    """Log phase transition."""
+    logger.info("Phase transition: %s -> %s", from_phase, to_phase)
 
 
 def log_vulnerability_found(
-    logger: logging.Logger, vuln_id: str, service: str, port: int, severity: str
-):
-    """Log vulnerability discovery"""
+    logger: logging.Logger,
+    vuln_id: str,
+    service: str,
+    port: int,
+    severity: str,
+) -> None:
+    """Log vulnerability discovery."""
     logger.warning(
-        f"Vulnerability found: {vuln_id} | Service: {service}:{port} | Severity: {severity}"
+        f"Vulnerability found: {vuln_id} | Service: {service}:{port} | Severity: {severity}",
     )
 
 
-def log_security_event(logger: logging.Logger, event_type: str, details: str):
-    """Log security-related events"""
-    logger.warning(f"Security Event: {event_type} | {details}")
+def log_security_event(logger: logging.Logger, event_type: str, details: str) -> None:
+    """Log security-related events."""
+    logger.warning("Security Event: %s | %s", event_type, details)

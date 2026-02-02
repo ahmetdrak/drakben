@@ -3,6 +3,7 @@
 # Fast vulnerability scanning with Nuclei templates
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -12,7 +13,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
-import contextlib
 
 if TYPE_CHECKING:
     from core.state import AgentState
@@ -21,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def _get_default_port(scheme: str | None) -> int:
-    """Get default port for scheme"""
+    """Get default port for scheme."""
     return 443 if scheme == "https" else 80
 
 
 class NucleiSeverity(Enum):
-    """Nuclei severity levels"""
+    """Nuclei severity levels."""
 
     INFO = "info"
     LOW = "low"
@@ -37,7 +37,7 @@ class NucleiSeverity(Enum):
 
 
 class NucleiTemplateType(Enum):
-    """Nuclei template categories"""
+    """Nuclei template categories."""
 
     CVE = "cves"
     VULNERABILITIES = "vulnerabilities"
@@ -54,7 +54,7 @@ class NucleiTemplateType(Enum):
 
 @dataclass
 class NucleiResult:
-    """Nuclei scan result"""
+    """Nuclei scan result."""
 
     template_id: str
     template_name: str
@@ -84,7 +84,7 @@ class NucleiResult:
 
 @dataclass
 class NucleiScanConfig:
-    """Nuclei scan configuration"""
+    """Nuclei scan configuration."""
 
     templates: list[str] = field(default_factory=list)
     template_types: list[NucleiTemplateType] = field(default_factory=list)
@@ -102,8 +102,7 @@ class NucleiScanConfig:
 
 
 class NucleiScanner:
-    """
-    Nuclei Scanner Integration.
+    """Nuclei Scanner Integration.
 
     Features:
     - Template-based scanning
@@ -113,12 +112,12 @@ class NucleiScanner:
     - Result parsing
     """
 
-    def __init__(self, nuclei_path: str = "nuclei"):
-        """
-        Initialize Nuclei scanner.
+    def __init__(self, nuclei_path: str = "nuclei") -> None:
+        """Initialize Nuclei scanner.
 
         Args:
             nuclei_path: Path to nuclei binary
+
         """
         self.nuclei_path = nuclei_path
         self.templates_path: str | None = None
@@ -130,11 +129,11 @@ class NucleiScanner:
             logger.warning("Nuclei not found - scanner disabled")
 
     def _check_nuclei(self) -> bool:
-        """Check if nuclei is available"""
+        """Check if nuclei is available."""
         return shutil.which(self.nuclei_path) is not None
 
     def _parse_severity(self, severity_str: str) -> NucleiSeverity:
-        """Parse severity string to enum"""
+        """Parse severity string to enum."""
         severity_map = {
             "info": NucleiSeverity.INFO,
             "low": NucleiSeverity.LOW,
@@ -150,7 +149,7 @@ class NucleiScanner:
         config: NucleiScanConfig,
         output_file: str | None = None,
     ) -> list[str]:
-        """Build nuclei command line"""
+        """Build nuclei command line."""
         cmd = [self.nuclei_path, "-list", targets_file, "-json"]
 
         if config.templates:
@@ -166,18 +165,20 @@ class NucleiScanner:
         return cmd
 
     async def _execute_nuclei_scan(self, cmd: list[str]) -> list[NucleiResult]:
-        """Execute nuclei scan and parse output"""
+        """Execute nuclei scan and parse output."""
         results = []
         process = None
         try:
             process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await process.communicate()
 
             # Additional error logging from stderr
             if stderr and b"error" in stderr.lower():
-                logger.debug(f"Nuclei stderr: {stderr.decode(errors='replace')}")
+                logger.debug("Nuclei stderr: %s", stderr.decode(errors="replace"))
 
             for line in stdout.decode(errors="replace").splitlines():
                 res = self._parse_result(line)
@@ -197,7 +198,7 @@ class NucleiScanner:
                     pass
             raise
         except Exception as e:
-            logger.error(f"Nuclei scan failed: {e}")
+            logger.exception("Nuclei scan failed: %s", e)
             if process and process.returncode is None:
                 with contextlib.suppress(Exception):
                     process.kill()
@@ -210,7 +211,7 @@ class NucleiScanner:
         return results
 
     def _parse_result(self, line: str) -> NucleiResult | None:
-        """Parse nuclei JSON output line"""
+        """Parse nuclei JSON output line."""
         try:
             data = json.loads(line)
             info = data.get("info", {})
@@ -229,7 +230,7 @@ class NucleiScanner:
         except json.JSONDecodeError:
             return None
         except Exception as e:
-            logger.error(f"Error parsing nuclei result: {e}")
+            logger.exception("Error parsing nuclei result: %s", e)
             return None
 
     async def scan(
@@ -238,8 +239,7 @@ class NucleiScanner:
         config: NucleiScanConfig | None = None,
         output_file: str | None = None,
     ) -> list[NucleiResult]:
-        """
-        Run Nuclei scan.
+        """Run Nuclei scan.
 
         Args:
             targets: List of target URLs/hosts
@@ -248,6 +248,7 @@ class NucleiScanner:
 
         Returns:
             List of NucleiResult objects
+
         """
         if not self.available:
             logger.error("Nuclei not available")
@@ -260,16 +261,15 @@ class NucleiScanner:
 
         try:
             cmd = self._build_nuclei_command(targets_file, config, output_file)
-            results = await self._execute_nuclei_scan(cmd)
-            return results
+            return await self._execute_nuclei_scan(cmd)
         finally:
             _cleanup_nuclei_temp_file(targets_file)
 
 
 async def _create_nuclei_targets_file(targets: list[str]) -> str | None:
-    """Create temporary file with targets"""
+    """Create temporary file with targets."""
 
-    def _write_temp_file():
+    def _write_temp_file() -> Any:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("\n".join(targets))
             return f.name
@@ -277,25 +277,25 @@ async def _create_nuclei_targets_file(targets: list[str]) -> str | None:
     try:
         return await asyncio.get_event_loop().run_in_executor(None, _write_temp_file)
     except Exception as e:
-        logger.error(f"Failed to create temp targets file: {e}")
+        logger.exception("Failed to create temp targets file: %s", e)
         return None
 
 
 def _cleanup_nuclei_temp_file(targets_file: str) -> None:
-    """Clean up temporary targets file"""
+    """Clean up temporary targets file."""
     with contextlib.suppress(OSError):
         os.unlink(targets_file)
 
 
 def nuclei_results_to_findings(results: list[NucleiResult]) -> list[dict[str, Any]]:
-    """
-    Convert Nuclei results to finding dictionaries for report generation.
+    """Convert Nuclei results to finding dictionaries for report generation.
 
     Args:
         results: List of NucleiResult objects
 
     Returns:
         List of finding dictionaries
+
     """
     findings = []
 
@@ -326,8 +326,7 @@ async def nuclei_scan_state_target(
     scanner: NucleiScanner | None = None,
     severity_filter: list[NucleiSeverity] | None = None,
 ) -> list[NucleiResult]:
-    """
-    Run Nuclei scan on state target.
+    """Run Nuclei scan on state target.
 
     Args:
         state: AgentState instance
@@ -336,6 +335,7 @@ async def nuclei_scan_state_target(
 
     Returns:
         List of NucleiResult objects
+
     """
     if not state.target:
         logger.warning("No target set in state")

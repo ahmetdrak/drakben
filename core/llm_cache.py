@@ -7,8 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMCache:
-    """
-    LLM Önbellekleme Sistemi
+    """LLM Önbellekleme Sistemi.
     ------------------------
     Amaç: Tekrar eden LLM sorgularını önbelleğe alarak hız ve maliyet avantajı sağlamak.
     Özellikler:
@@ -18,13 +17,13 @@ class LLMCache:
     - Thread-safe yapı
     """
 
-    def __init__(self, db_path: str = "llm_cache.db", ttl_seconds: int = 86400):
+    def __init__(self, db_path: str = "llm_cache.db", ttl_seconds: int = 86400) -> None:
         self.db_path = db_path
         self.ttl_seconds = ttl_seconds
         self._init_db()
 
-    def _init_db(self):
-        """Veritabanı tablosunu oluştur"""
+    def _init_db(self) -> None:
+        """Veritabanı tablosunu oluştur."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
@@ -37,20 +36,20 @@ class LLMCache:
                 """)
                 # Performans için indeks (zaten PK indexli ama timestamp temizliği için iyi olabilir)
                 conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_timestamp ON llm_cache(timestamp)"
+                    "CREATE INDEX IF NOT EXISTS idx_timestamp ON llm_cache(timestamp)",
                 )
         except Exception as e:
-            logger.error(f"Cache init error: {e}")
+            logger.exception("Cache init error: %s", e)
 
     def get(self, query: str) -> str | None:
-        """
-        Önbellekten yanıt getir
+        """Önbellekten yanıt getir.
 
         Args:
             query: Kullanıcı sorgusu ve sistem promptunun birleşimi (benzersiz anahtar için)
 
         Returns:
             Önbellekteki yanıt veya None
+
         """
         query_hash = self._hash_query(query)
 
@@ -66,26 +65,25 @@ class LLMCache:
                     response, timestamp = row
                     # TTL Kontrolü
                     if time.time() - timestamp < self.ttl_seconds:
-                        logger.debug(f"Cache HIT for query hash: {query_hash[:8]}")
+                        logger.debug("Cache HIT for query hash: %s", query_hash[:8])
                         return response
-                    else:
-                        logger.debug(f"Cache EXPIRED for query hash: {query_hash[:8]}")
-                        # Süresi dolmuş kaydı temizle (isteğe bağlı, sonraki set zaten ezecek)
-                        return None
+                    logger.debug("Cache EXPIRED for query hash: %s", query_hash[:8])
+                    # Süresi dolmuş kaydı temizle (isteğe bağlı, sonraki set zaten ezecek)
+                    return None
         except Exception as e:
-            logger.error(f"Cache read error: {e}")
+            logger.exception("Cache read error: %s", e)
             return None
 
-        logger.debug(f"Cache MISS for query hash: {query_hash[:8]}")
+        logger.debug("Cache MISS for query hash: %s", query_hash[:8])
         return None
 
-    def set(self, query: str, response: str):
-        """
-        Yanıtı önbelleğe kaydet
+    def set(self, query: str, response: str) -> None:
+        """Yanıtı önbelleğe kaydet.
 
         Args:
             query: Sorgu metni
             response: LLM yanıtı
+
         """
         query_hash = self._hash_query(query)
         timestamp = time.time()
@@ -110,21 +108,22 @@ class LLMCache:
                     "INSERT OR REPLACE INTO llm_cache (query_hash, prompt, response, timestamp) VALUES (?, ?, ?, ?)",
                     (query_hash, query, response, timestamp),
                 )
-            logger.debug(f"Cache SET for query hash: {query_hash[:8]}")
+            logger.debug("Cache SET for query hash: %s", query_hash[:8])
         except Exception as e:
-            logger.error(f"Cache write error: {e}")
+            logger.exception("Cache write error: %s", e)
 
     def _hash_query(self, query: str) -> str:
-        """Sorguyu MD5 ile hashle"""
-        return hashlib.md5(query.encode("utf-8")).hexdigest()
+        """Sorguyu SHA256 ile hashle."""
+        return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
-    def clear_expired(self):
-        """Süresi dolmuş kayıtları temizle"""
+    def clear_expired(self) -> None:
+        """Süresi dolmuş kayıtları temizle."""
         expiration_cutoff = time.time() - self.ttl_seconds
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
-                    "DELETE FROM llm_cache WHERE timestamp < ?", (expiration_cutoff,)
+                    "DELETE FROM llm_cache WHERE timestamp < ?",
+                    (expiration_cutoff,),
                 )
         except Exception as e:
-            logger.error(f"Cache cleanup error: {e}")
+            logger.exception("Cache cleanup error: %s", e)

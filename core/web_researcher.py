@@ -1,7 +1,7 @@
 import logging
+import sys
 import urllib.parse
 from typing import Any
-import sys
 
 import requests
 from bs4 import BeautifulSoup
@@ -23,12 +23,11 @@ logger = logging.getLogger("drakben.researcher")
 
 
 class WebResearcher:
-    """
-    Drakben's eyes on the internet.
+    """Drakben's eyes on the internet.
     Uses Stealth Client to mimic Chrome 120 and bypass search engine anti-bot protection.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Initialize Persistent Stealth Session (Chrome 120 Fingerprint)
         self.session = StealthSession(impersonate="chrome120", randomize_behavior=True)
 
@@ -37,14 +36,14 @@ class WebResearcher:
             {
                 "Referer": "https://www.google.com/",
                 "Cache-Control": "max-age=0",
-            }
+            },
         )
 
-    def search_tool(self, query: str, max_results=5):
+    def search_tool(self, query: str, max_results=5) -> Any:
         """Searches specific targets using DDG HTML endpoint."""
         results: list[dict[str, Any]] = []
         try:
-            logger.info(f"Stealth Search for: {query}")
+            logger.info("Stealth Search for: %s", query)
 
             # Method 1: DuckDuckGo HTML (No JS required)
             url = "https://html.duckduckgo.com/html/"
@@ -55,7 +54,7 @@ class WebResearcher:
 
             if resp.status_code != 200:
                 logger.warning(
-                    f"DDG HTML failed ({resp.status_code}), trying Bing fallback."
+                    f"DDG HTML failed ({resp.status_code}), trying Bing fallback.",
                 )
                 return self._search_bing_fallback(query, max_results)
 
@@ -90,13 +89,13 @@ class WebResearcher:
             return results
 
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.exception("Search failed: %s", e)
             return []
 
-    def download_file(self, url: str, output_path: str):
+    def download_file(self, url: str, output_path: str) -> bool | None:
         """Downloads a file using Stealth Session (Bypasses firewall blocks)."""
         try:
-            logger.info(f"Stealth Downloading from {url} to {output_path}")
+            logger.info("Stealth Downloading from {url} to %s", output_path)
 
             # Note: curl_cffi doesn't support stream=True in the same way requests does for file iteration
             # We download in memory then write for now (assuming files < 50MB)
@@ -109,41 +108,43 @@ class WebResearcher:
                 with self.session.get(url, stream=True, timeout=60) as r:
                     r.raise_for_status()
                     with open(output_path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                        f.writelines(r.iter_content(chunk_size=8192))
             else:
                 # StealthSession (curl_cffi) doesn't stream well. Fallback to requests for large files.
                 # Just use requests directly for downloads to be safe on memory
 
                 with requests.get(
-                    url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}
+                    url,
+                    stream=True,
+                    timeout=60,
+                    headers={"User-Agent": "Mozilla/5.0"},
                 ) as r:
                     r.raise_for_status()
                     with open(output_path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                        f.writelines(r.iter_content(chunk_size=8192))
 
             return True
         except Exception as e:
-            logger.error(f"Download failed: {e}")
+            logger.exception("Download failed: %s", e)
             return False
 
-    def extract_code_from_url(self, url: str):
+    def extract_code_from_url(self, url: str) -> Any:
         """Extracts code from URL using Stealth Session."""
         try:
             if "github.com" in url and "/blob/" in url:
                 url = url.replace("github.com", "raw.githubusercontent.com").replace(
-                    "/blob/", "/"
+                    "/blob/",
+                    "/",
                 )
 
             resp = self.session.get(url, timeout=15)
             return resp.text
         except Exception as e:
-            logger.error(f"Extract failed: {e}")
+            logger.exception("Extract failed: %s", e)
             return ""
 
-    def _search_bing_fallback(self, query, max_results):
-        """Bing scraping fallback with Stealth Headers"""
+    def _search_bing_fallback(self, query, max_results) -> Any:
+        """Bing scraping fallback with Stealth Headers."""
         results = []
         try:
             url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}"
@@ -177,7 +178,7 @@ class WebResearcher:
 
             return results
         except Exception as e:
-            logger.error(f"Bing fallback failed: {e}")
+            logger.exception("Bing fallback failed: %s", e)
             return []
 
 
@@ -192,11 +193,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         q = sys.argv[1]
 
-    print(f"Searching for: {q}")
     res = researcher.search_tool(q)
 
     if not res:
-        print("FAIL: No results returned.")
+        pass
     else:
-        for r in res:
-            print(f"Found: {r['title']} - {r['href']}")
+        for _r in res:
+            pass

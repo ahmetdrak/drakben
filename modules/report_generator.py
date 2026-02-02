@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReportFormat(Enum):
-    """Supported report formats"""
+    """Supported report formats."""
 
     HTML = "html"
     MARKDOWN = "markdown"
@@ -38,7 +38,7 @@ class ReportFormat(Enum):
 
 
 class FindingSeverity(Enum):
-    """Finding severity levels"""
+    """Finding severity levels."""
 
     INFO = "info"
     LOW = "low"
@@ -49,7 +49,7 @@ class FindingSeverity(Enum):
 
 @dataclass
 class Finding:
-    """Security finding data structure"""
+    """Security finding data structure."""
 
     title: str
     severity: FindingSeverity
@@ -77,7 +77,7 @@ class Finding:
 
 @dataclass
 class ScanResult:
-    """Scan result data structure"""
+    """Scan result data structure."""
 
     target: str
     scan_type: str
@@ -101,7 +101,7 @@ class ScanResult:
 
 @dataclass
 class ReportConfig:
-    """Report configuration"""
+    """Report configuration."""
 
     title: str = "DRAKBEN Penetration Test Report"
     author: str = "DRAKBEN AI Framework"
@@ -116,8 +116,7 @@ class ReportConfig:
 
 
 class ReportGenerator:
-    """
-    Professional penetration test report generator.
+    """Professional penetration test report generator.
 
     Features:
     - Multiple output formats (HTML, Markdown, JSON, PDF)
@@ -127,12 +126,12 @@ class ReportGenerator:
     - Professional styling
     """
 
-    def __init__(self, config: ReportConfig | None = None):
-        """
-        Initialize report generator.
+    def __init__(self, config: ReportConfig | None = None) -> None:
+        """Initialize report generator.
 
         Args:
             config: Report configuration
+
         """
         self.config = config or ReportConfig()
         self.findings: list[Finding] = []
@@ -143,33 +142,33 @@ class ReportGenerator:
         logger.info("ReportGenerator initialized")
 
     def set_target(self, target: str) -> None:
-        """Set target for the report"""
+        """Set target for the report."""
         self.target = target
-        logger.info(f"Report target set: {target}")
+        logger.info("Report target set: %s", target)
 
     def start_assessment(self) -> None:
-        """Mark assessment start time"""
+        """Mark assessment start time."""
         self.start_time = datetime.now()
         logger.info("Assessment started")
 
     def end_assessment(self) -> None:
-        """Mark assessment end time"""
+        """Mark assessment end time."""
         self.end_time = datetime.now()
         logger.info("Assessment ended")
 
     def add_finding(self, finding: Finding) -> None:
-        """Add a security finding"""
+        """Add a security finding."""
         self.findings.append(finding)
-        logger.info(f"Finding added: {finding.title} ({finding.severity.value})")
+        logger.info("Finding added: %s (%s)", finding.title, finding.severity.value)
 
     def add_scan_result(self, result: ScanResult) -> None:
-        """Add a scan result"""
+        """Add a scan result."""
         self.scan_results.append(result)
         self.findings.extend(result.findings)
-        logger.info(f"Scan result added: {result.scan_type}")
+        logger.info("Scan result added: %s", result.scan_type)
 
     def get_statistics(self) -> dict[str, Any]:
-        """Calculate finding statistics"""
+        """Calculate finding statistics."""
         severity_counts = {s.value: 0 for s in FindingSeverity}
         for finding in self.findings:
             severity_counts[finding.severity.value] += 1
@@ -195,7 +194,7 @@ class ReportGenerator:
         }
 
     def _get_duration(self) -> str:
-        """Get assessment duration string"""
+        """Get assessment duration string."""
         if self.start_time and self.end_time:
             delta = self.end_time - self.start_time
             hours, remainder = divmod(int(delta.total_seconds()), 3600)
@@ -204,8 +203,7 @@ class ReportGenerator:
         return "N/A"
 
     def generate(self, format: ReportFormat, output_path: str) -> str:
-        """
-        Generate report in specified format.
+        """Generate report in specified format.
 
         Args:
             format: Output format
@@ -213,8 +211,9 @@ class ReportGenerator:
 
         Returns:
             Path to generated report
+
         """
-        logger.info(f"Generating {format.value} report: {output_path}")
+        logger.info("Generating %s report: %s", format.value, output_path)
 
         if format == ReportFormat.HTML:
             content = self._generate_html()
@@ -225,31 +224,32 @@ class ReportGenerator:
         elif format == ReportFormat.PDF:
             return self._generate_pdf(output_path)
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            msg = f"Unsupported format: {format}"
+            raise ValueError(msg)
 
         # Text-based formats (HTML, Markdown, JSON)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            logger.info(f"Report saved: {output_path}")
+            logger.info("Report saved: %s", output_path)
             return output_path
         except PermissionError as e:
-            logger.error(f"Permission denied writing report to {output_path}: {e}")
+            logger.exception("Permission denied writing report to %s: %s", output_path, e)
             raise
         except OSError as e:
-            logger.error(f"OS error writing report to {output_path}: {e}")
+            logger.exception("OS error writing report to %s: %s", output_path, e)
             raise
 
     def _generate_html(self) -> str:
-        """Generate HTML report with Chart.js visualization"""
+        """Generate HTML report with Chart.js visualization."""
         stats = self.get_statistics()
 
         # Sort findings by severity
         sorted_findings = sorted(
             self.findings,
             key=lambda f: ["critical", "high", "medium", "low", "info"].index(
-                f.severity.value
+                f.severity.value,
             ),
         )
 
@@ -289,7 +289,7 @@ class ReportGenerator:
             </div>
             """
 
-        html = f"""<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -632,10 +632,8 @@ class ReportGenerator:
 </body>
 </html>"""
 
-        return html
-
     def _generate_executive_summary_html(self, stats: dict[str, Any]) -> str:
-        """Generate executive summary section with Optional AI Insight"""
+        """Generate executive summary section with Optional AI Insight."""
         total = stats["total_findings"]
         critical = stats["severity_breakdown"]["critical"]
         high = stats["severity_breakdown"]["high"]
@@ -680,7 +678,7 @@ class ReportGenerator:
         """
 
     def _generate_ai_insight(self, _critical: int, _high: int, risk: int) -> str:
-        """Generate C-Level insight using simulated LLM logic"""
+        """Generate C-Level insight using simulated LLM logic."""
         # In a real scenario, this communicates with UniversalAdapter's LLM
         insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
         insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
@@ -701,7 +699,7 @@ class ReportGenerator:
         return insight
 
     def _generate_markdown(self) -> str:
-        """Generate Markdown report"""
+        """Generate Markdown report."""
         stats = self.get_statistics()
 
         md = f"""# {self.config.title}
@@ -752,7 +750,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         sorted_findings = sorted(
             self.findings,
             key=lambda f: ["critical", "high", "medium", "low", "info"].index(
-                f.severity.value
+                f.severity.value,
             ),
         )
 
@@ -792,7 +790,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         return md
 
     def _generate_json(self) -> str:
-        """Generate JSON report"""
+        """Generate JSON report."""
         stats = self.get_statistics()
 
         report = {
@@ -813,8 +811,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         return json.dumps(report, indent=2, ensure_ascii=False)
 
     def _generate_pdf(self, output_path: str) -> str:
-        """
-        Generate PDF report.
+        """Generate PDF report.
         Falls back to HTML if weasyprint is not available.
         """
         html_content = self._generate_html()
@@ -824,15 +821,15 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         if WEASYPRINT_AVAILABLE:
             try:
                 HTML(string=html_content).write_pdf(output_path)
-                logger.info(f"PDF Report saved: {output_path}")
+                logger.info("PDF Report saved: %s", output_path)
                 return output_path
             except Exception as e:
-                logger.error(f"PDF generation error: {e}")
+                logger.exception("PDF generation error: %s", e)
                 # Fallback to HTML
                 html_path = output_path.replace(".pdf", ".html")
                 with open(html_path, "w", encoding="utf-8") as f:
                     f.write(html_content)
-                logger.warning(f"Fallback: Saved as HTML to {html_path}")
+                logger.warning("Fallback: Saved as HTML to %s", html_path)
                 return html_path
         else:
             logger.warning("WeasyPrint not installed. Saving as HTML.")
@@ -844,7 +841,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
 
 @dataclass
 class VulnerabilityData:
-    """Mock for state vulnerability"""
+    """Mock for state vulnerability."""
 
     vuln_id: str
     severity: str
@@ -859,8 +856,7 @@ def generate_report_from_state(
     format: ReportFormat = ReportFormat.HTML,
     config: ReportConfig | None = None,
 ) -> str:
-    """
-    Generate full report from AgentState.
+    """Generate full report from AgentState.
 
     Args:
         state: AgentState instance
@@ -870,6 +866,7 @@ def generate_report_from_state(
 
     Returns:
         Path to generated report
+
     """
     generator = ReportGenerator(config=config)
     generator.set_target(state.target if hasattr(state, "target") else "Unknown")
@@ -897,13 +894,13 @@ def generate_report_from_state(
                 )
                 generator.add_finding(finding)
             except Exception as e:
-                logger.debug(f"Skipping invalid finding: {e}")
+                logger.debug("Skipping invalid finding: %s", e)
 
     return generator.generate(format, output_path)
 
 
 def create_report_from_state(state: AgentState, output_dir: str = "reports") -> str:
-    """Legacy wrapper for simplified report generation"""
+    """Legacy wrapper for simplified report generation."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"drakben_report_{timestamp}.html"
     filepath = str(Path(output_dir) / filename)

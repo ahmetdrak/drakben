@@ -12,6 +12,8 @@ from core.evolution_memory import get_evolution_memory
 
 
 class StepStatus(Enum):
+    """Auto-generated docstring for StepStatus class."""
+
     PENDING = "pending"
     EXECUTING = "executing"
     SUCCESS = "success"
@@ -21,7 +23,7 @@ class StepStatus(Enum):
 
 @dataclass
 class PlanStep:
-    """Single step in a plan"""
+    """Single step in a plan."""
 
     step_id: str
     action: str  # Action type: scan, exploit, etc.
@@ -38,8 +40,7 @@ class PlanStep:
 
 
 class Planner:
-    """
-    STRATEGY-DRIVEN PLANNER
+    """STRATEGY-DRIVEN PLANNER.
 
     Plans are created FROM STRATEGIES, not hardcoded.
 
@@ -71,18 +72,27 @@ class Planner:
         "data_exfil": "data_exfil",
     }
 
-    def __init__(self):
-        self.memory = get_evolution_memory()
+    def __init__(self) -> None:
+        try:
+            self.memory = get_evolution_memory()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(
+                "Failed to initialize evolution memory: %s - Using null memory", e
+            )
+            self.memory = None  # Graceful degradation
         self.current_plan_id: str | None = None
         self.steps: list[PlanStep] = []
         self.current_step_index: int = 0
         self.current_strategy_name: str | None = None
 
     def create_plan_from_strategy(
-        self, target: str, strategy: Any, goal: str = "pentest"
+        self,
+        target: str,
+        strategy: Any,
+        goal: str = "pentest",
     ) -> str:
-        """
-        Create a plan FROM A STRATEGY.
+        """Create a plan FROM A STRATEGY.
         Strategy determines the steps, not hardcoded logic.
 
         Args:
@@ -97,6 +107,7 @@ class Planner:
             - Converts strategy steps to PlanStep objects
             - Persists plan to evolution memory
             - Sets as current plan for execution
+
         """
         plan_id = self._generate_plan_id()
         self.current_strategy_name = strategy.name
@@ -109,7 +120,7 @@ class Planner:
         return plan_id
 
     def _build_strategy_steps(self, strategy, plan_id: str, target: str) -> list[dict]:
-        """Helper to build steps from strategy objects"""
+        """Helper to build steps from strategy objects."""
         steps = []
         for i, action in enumerate(strategy.steps):
             tool = self.ACTION_TO_TOOL.get(action, action)
@@ -118,9 +129,14 @@ class Planner:
         return steps
 
     def _create_step_dict(
-        self, plan_id: str, index: int, action: str, tool: str, target: str
+        self,
+        plan_id: str,
+        index: int,
+        action: str,
+        tool: str,
+        target: str,
     ) -> dict:
-        """Create a single step dictionary structure"""
+        """Create a single step dictionary structure."""
         return {
             "step_id": f"{plan_id}_step_{index + 1}",
             "action": action,
@@ -136,8 +152,8 @@ class Planner:
             "error": "",
         }
 
-    def _save_and_load_plan(self, plan_id: str, goal: str, steps: list[dict]):
-        """Persist plan to memory and load into local state"""
+    def _save_and_load_plan(self, plan_id: str, goal: str, steps: list[dict]) -> None:
+        """Persist plan to memory and load into local state."""
         self.memory.create_plan(goal, steps, plan_id=plan_id)
         self.current_plan_id = plan_id
         self.steps = [self._dict_to_step(s) for s in steps]
@@ -149,8 +165,7 @@ class Planner:
     # ... (other create_plan methods refactored similarly if needed) ...
 
     def replan(self, failed_step_id: str) -> bool:
-        """
-        Replan after failure with ADAPTIVE LEARNING.
+        """Replan after failure with ADAPTIVE LEARNING.
         Facade method that delegates to specialized helpers.
 
         Args:
@@ -163,6 +178,7 @@ class Planner:
         - Tracks replan count per step
         - Tracks global replan count per session
         - Refuses to replan if limits exceeded
+
         """
         # Initialize replan tracking if needed
         # (Already initialized in __init__, but kept for robustness)
@@ -182,20 +198,22 @@ class Planner:
             import logging
 
             logging.getLogger(__name__).warning(
-                f"Step {failed_step_id} exceeded replan limit ({step_replan_count}/{self.MAX_REPLAN_PER_STEP})"
+                f"Step {failed_step_id} exceeded replan limit ({step_replan_count}/{self.MAX_REPLAN_PER_STEP})",
             )
             return self._skip_step(
-                step, f"Replan limit exceeded ({step_replan_count}x)"
+                step,
+                f"Replan limit exceeded ({step_replan_count}x)",
             )
 
         if self._total_replans >= self.MAX_REPLAN_PER_SESSION:
             import logging
 
             logging.getLogger(__name__).warning(
-                f"Session replan limit exceeded ({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})"
+                f"Session replan limit exceeded ({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})",
             )
             return self._skip_step(
-                step, f"Session replan limit exceeded ({self._total_replans}x)"
+                step,
+                f"Session replan limit exceeded ({self._total_replans}x)",
             )
 
         # Increment counters
@@ -214,7 +232,7 @@ class Planner:
         return self._skip_step(step, "No alternative tool available")
 
     def _analyze_failure(self, step: PlanStep) -> dict:
-        """Analyze why a step failed"""
+        """Analyze why a step failed."""
         error_lower = step.error.lower()
         return {
             "is_timeout": "timeout" in error_lower or "timed out" in error_lower,
@@ -223,8 +241,8 @@ class Planner:
             "original_tool": step.tool,
         }
 
-    def _apply_adaptive_learning(self, step: PlanStep, context: dict):
-        """Adjust system heuristics based on failure context"""
+    def _apply_adaptive_learning(self, step: PlanStep, context: dict) -> None:
+        """Adjust system heuristics based on failure context."""
         if context["is_timeout"]:
             # Backend learning: Increase timeout tolerance
             self.memory.update_heuristic("default_timeout", lambda x: min(x * 1.5, 300))
@@ -234,7 +252,7 @@ class Planner:
             step.params["timeout"] = 120
 
     def _try_switch_tool(self, step: PlanStep, context: dict) -> bool:
-        """Try to find and switch to an alternative tool"""
+        """Try to find and switch to an alternative tool."""
         alternative = self._find_alternative_tool(step.action, step.tool, step.target)
 
         if not alternative:
@@ -254,29 +272,32 @@ class Planner:
         return True
 
     def _skip_step(self, step: PlanStep, reason: str) -> bool:
-        """Mark step as skipped"""
+        """Mark step as skipped."""
         step.status = StepStatus.SKIPPED
         step.error = f"{reason}. Original error: {step.error}"
         self._persist_steps()
         return True
 
     def _format_replan_reason(self, context: dict) -> str:
-        """Format human-readable reason for replan"""
+        """Format human-readable reason for replan."""
         if context["is_timeout"]:
             return "Adaptive Replan: Timeout detected. "
         if context["is_missing"]:
             return "Adaptive Replan: Tool missing. "
         return "Adaptive Replan: "
 
-    def _penalize_tool(self):
-        """Increase penalty for a failed tool"""
+    def _penalize_tool(self) -> None:
+        """Increase penalty for a failed tool."""
         current = self.memory.get_heuristic("penalty_increment")
         self.memory.set_heuristic("penalty_increment", min(20.0, current + 1.0))
 
     def _generate_steps_from_profile(
-        self, target: str, profile, plan_id: str
+        self,
+        target: str,
+        profile,
+        plan_id: str,
     ) -> list[dict]:
-        """Helper to generate steps from profile config"""
+        """Helper to generate steps from profile config."""
         step_order = profile.step_order
         profile_params = profile.parameters
         aggressiveness = profile.aggressiveness
@@ -309,7 +330,7 @@ class Planner:
                         profile_params,
                         aggressiveness,
                         profile.profile_id,
-                    )
+                    ),
                 )
         return steps
 
@@ -322,8 +343,8 @@ class Planner:
         profile_params,
         aggressiveness,
         profile_id,
-    ):
-        """Helper to create a single step dictionary"""
+    ) -> Any:
+        """Helper to create a single step dictionary."""
         tool = self.ACTION_TO_TOOL.get(action, action)
 
         # Apply profile parameters to step
@@ -352,8 +373,7 @@ class Planner:
         }
 
     def create_plan_for_target(self, target: str, goal: str = "pentest") -> str:
-        """
-        Create a plan for pentesting a target.
+        """Create a plan for pentesting a target.
         Returns plan_id.
 
         This is a DETERMINISTIC plan based on attack phases.
@@ -431,10 +451,12 @@ class Planner:
         return plan_id
 
     def create_plan_from_profile(
-        self, target: str, profile, goal: str = "pentest"
+        self,
+        target: str,
+        profile,
+        goal: str = "pentest",
     ) -> str:
-        """
-        Create a plan from a StrategyProfile.
+        """Create a plan from a StrategyProfile.
 
         Args:
             target: Target IP/URL
@@ -443,6 +465,7 @@ class Planner:
 
         Returns:
             plan_id
+
         """
         import uuid
 
@@ -466,7 +489,7 @@ class Planner:
         return plan_id
 
     def load_plan(self, plan_id: str) -> bool:
-        """Load existing plan from memory"""
+        """Load existing plan from memory."""
         plan_record = self.memory.get_plan(plan_id)
         if plan_record is None:
             return False
@@ -484,8 +507,7 @@ class Planner:
         return True
 
     def get_next_step(self) -> PlanStep | None:
-        """
-        Get next executable step from current plan.
+        """Get next executable step from current plan.
 
         Returns:
             Next PlanStep ready for execution, or None if plan complete
@@ -494,6 +516,7 @@ class Planner:
             - Skips completed/failed steps
             - Checks dependencies
             - Returns first executable step
+
         """
         """
         Get next step to execute.
@@ -502,8 +525,8 @@ class Planner:
         for i in range(self.current_step_index, len(self.steps)):
             step = self.steps[i]
 
-            # Skip completed/skipped
-            if step.status in [StepStatus.SUCCESS, StepStatus.SKIPPED]:
+            # Skip completed/failed/skipped
+            if step.status in [StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED]:
                 continue
 
             # LOGIC FIX: Check if tool is blocked by penalty system (Per-Target)
@@ -525,7 +548,7 @@ class Planner:
                     break
 
             if not deps_satisfied:
-                # LOGIC FIX: If a dependency FAILED (not skipped or success), 
+                # LOGIC FIX: If a dependency FAILED (not skipped or success),
                 # this step should also be skipped to prevent deadlock.
                 for dep_id in step.depends_on:
                     dep_step = self._find_step(dep_id)
@@ -542,15 +565,15 @@ class Planner:
 
         return None  # Plan complete
 
-    def mark_step_executing(self, step_id: str):
-        """Mark step as executing"""
+    def mark_step_executing(self, step_id: str) -> None:
+        """Mark step as executing."""
         step = self._find_step(step_id)
         if step:
             step.status = StepStatus.EXECUTING
             self._persist_steps()
 
-    def mark_step_success(self, step_id: str, outcome: str):
-        """Mark step as successful"""
+    def mark_step_success(self, step_id: str, outcome: str) -> None:
+        """Mark step as successful."""
         step = self._find_step(step_id)
         if step:
             step.status = StepStatus.SUCCESS
@@ -560,8 +583,7 @@ class Planner:
             # Penalty updates handled by execution layer
 
     def mark_step_failed(self, step_id: str, error: str) -> bool:
-        """
-        Mark step as failed.
+        """Mark step as failed.
         Returns True if should replan, False if should retry.
         """
         step = self._find_step(step_id)
@@ -578,22 +600,21 @@ class Planner:
             step.status = StepStatus.FAILED
             self._persist_steps()
             return True  # Trigger replan
-        else:
-            step.status = StepStatus.PENDING  # Will retry
-            self._persist_steps()
-            return False
+        step.status = StepStatus.PENDING  # Will retry
+        self._persist_steps()
+        return False
 
     # FIX: Removed duplicate replan() method - using the one defined at line 147
 
     def is_plan_complete(self) -> bool:
-        """Check if plan is complete"""
-        for step in self.steps:
-            if step.status in [StepStatus.PENDING, StepStatus.EXECUTING]:
-                return False
-        return True
+        """Check if plan is complete."""
+        return all(
+            step.status not in [StepStatus.PENDING, StepStatus.EXECUTING]
+            for step in self.steps
+        )
 
     def get_plan_status(self) -> dict:
-        """Get current plan status"""
+        """Get current plan status."""
         return {
             "plan_id": self.current_plan_id,
             "total_steps": len(self.steps),
@@ -605,14 +626,16 @@ class Planner:
         }
 
     def _find_step(self, step_id: str) -> PlanStep | None:
-        """Find step by ID"""
+        """Find step by ID."""
         for step in self.steps:
             if step.step_id == step_id:
                 return step
         return None
 
-    def _find_alternative_tool(self, action: str, failed_tool: str, target: str = "global") -> str | None:
-        """Find alternative tool for action"""
+    def _find_alternative_tool(
+        self, action: str, failed_tool: str, target: str = "global",
+    ) -> str | None:
+        """Find alternative tool for action."""
         # Mapping of actions to alternative tools
         alternatives = {
             "port_scan": ["nmap_port_scan"],
@@ -631,14 +654,30 @@ class Planner:
 
         return None
 
-    def _persist_steps(self):
-        """Save current steps to memory"""
+    def _persist_steps(self) -> None:
+        """Save current steps to memory."""
         if self.current_plan_id:
             steps_data = [self._step_to_dict(s) for s in self.steps]
             self.memory.update_plan_steps(self.current_plan_id, steps_data)
 
     def _dict_to_step(self, d: dict) -> PlanStep:
-        """Convert dict to PlanStep"""
+        """Convert dict to PlanStep.
+
+        Args:
+            d: Dictionary with step data
+
+        Returns:
+            PlanStep object
+
+        Raises:
+            ValueError: If required fields are missing
+        """
+        # Validate required fields
+        required_fields = ["step_id", "action", "tool", "target"]
+        missing = [f for f in required_fields if f not in d]
+        if missing:
+            raise ValueError(f"Missing required fields in step dict: {missing}")
+
         return PlanStep(
             step_id=d["step_id"],
             action=d["action"],
@@ -655,7 +694,7 @@ class Planner:
         )
 
     def _step_to_dict(self, step: PlanStep) -> dict:
-        """Convert PlanStep to dict"""
+        """Convert PlanStep to dict."""
         return {
             "step_id": step.step_id,
             "action": step.action,

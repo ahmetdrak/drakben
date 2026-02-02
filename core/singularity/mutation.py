@@ -1,5 +1,4 @@
-"""
-DRAKBEN Singularity - Mutation Engine
+"""DRAKBEN Singularity - Mutation Engine
 Author: @drak_ben
 Description: Polymorphic code rewriting logic for evasion (AV/WAF Bypass).
 """
@@ -17,12 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class MutationEngine(IMutationEngine):
-    """
-    Applies genetic mutation strategies to code payloads.
+    """Applies genetic mutation strategies to code payloads.
     Goal: Change the signature (Hash/AST) while preserving functionality.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.strategies = [
             "variable_renaming",
             "dead_code_injection",
@@ -33,14 +31,14 @@ class MutationEngine(IMutationEngine):
         logger.info("Mutation Engine initialized")
 
     def mutate(self, payload: str) -> MutationResult:
-        """
-        Apply random mutation strategy using Ghost Protocol.
+        """Apply random mutation strategy using Ghost Protocol.
 
         Args:
             payload: Original source code
 
         Returns:
             MutationResult with details
+
         """
         try:
             # Import Ghost Protocol dynamically
@@ -73,16 +71,14 @@ class MutationEngine(IMutationEngine):
             )
 
         except ImportError:
-            logger.error("Ghost Protocol module not found")
+            logger.exception("Ghost Protocol module not found")
             return MutationResult(orig_hash, orig_hash, False, [])
         except Exception as e:
-            logger.error(f"Mutation failed: {e}")
+            logger.exception("Mutation failed: %s", e)
             return MutationResult("", "", False, [])
 
     def generate_variant(self, payload: str, iterations: int = 1) -> str:
-        """
-        Generate a variant by applying multiple mutation passes.
-        """
+        """Generate a variant by applying multiple mutation passes."""
         current_code = payload
         for _ in range(iterations):
             result = self.mutate(current_code)

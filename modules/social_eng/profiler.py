@@ -1,5 +1,4 @@
-"""
-DRAKBEN Social Engineering - Psycho Profiler
+"""DRAKBEN Social Engineering - Psycho Profiler
 Author: @drak_ben
 Description: Uses LLM to generate psychological profiles and phishing scenarios.
 """
@@ -21,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class CognitiveBias(Enum):
+    """Auto-generated docstring for CognitiveBias class."""
+
     AUTHORITY = "authority"  # Obedience to power
     SCARCITY = "scarcity"  # FOMO, Time pressure
     RECIPROCITY = "reciprocity"  # "I did this for you, so..."
@@ -33,6 +34,8 @@ class CognitiveBias(Enum):
 
 @dataclass
 class PsychologicalProfile:
+    """Auto-generated docstring for PsychologicalProfile class."""
+
     primary_bias: CognitiveBias
     secondary_bias: CognitiveBias
     tone: str  # Formal, urgent, casual, technical
@@ -41,13 +44,12 @@ class PsychologicalProfile:
 
 
 class NLPPayloadEngine:
-    """
-    2026/2027-Era NLP Engine for Behavioral Profiling.
+    """2026/2027-Era NLP Engine for Behavioral Profiling.
     Uses native statistical text analysis (TF-IDF + Jaccard) to map
     targets to psychological archetypes without external API dependency.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 1. Zero-Shot Classification Anchors (Simulated)
         self.bias_anchors = {
             CognitiveBias.AUTHORITY: {
@@ -162,15 +164,13 @@ class NLPPayloadEngine:
         }
 
     def analyze_text(self, text: str) -> PsychologicalProfile:
-        """
-        Perform deep psychometric analysis on target text (Role, Bio, Posts).
-        """
+        """Perform deep psychometric analysis on target text (Role, Bio, Posts)."""
         text = text.lower()
         words = re.findall(r"\w+", text)
         word_set = set(words)
 
         # A. Bias Scoring
-        scores = {bias: 0.0 for bias in CognitiveBias}
+        scores = dict.fromkeys(CognitiveBias, 0.0)
 
         for bias, data in self.bias_anchors.items():
             # Jaccard + Weighted Intersection
@@ -226,19 +226,16 @@ class NLPPayloadEngine:
 
 
 class PsychoProfiler:
-    """
-    Advanced Social Engineering Profiler (v2026).
+    """Advanced Social Engineering Profiler (v2026).
     Generates 'Synthetic Familiarity' pretexts.
     """
 
-    def __init__(self, llm_provider=None):
+    def __init__(self, llm_provider=None) -> None:
         self.engine = NLPPayloadEngine()
         logger.info("PsychoProfiler Brain (NLP Engine) initialized")
 
     def generate_profile(self, target: TargetPerson) -> dict[str, str]:
-        """
-        Generate a psychometric profile using NLP engine.
-        """
+        """Generate a psychometric profile using NLP engine."""
         # Aggregate text traces
         # In real scenario: bio + last_10_tweets + linkedin_about
         raw_text = f"{target.role} {target.notes if hasattr(target, 'notes') else ''} {target.full_name}"
@@ -260,13 +257,13 @@ class PsychoProfiler:
         return profile_dict
 
     def craft_phishing_email(
-        self, target: TargetPerson, profile: dict[str, str]
+        self,
+        target: TargetPerson,
+        profile: dict[str, str],
     ) -> dict[str, str]:
-        """
-        Generate High-Fidelity Synthetic Pretext (Spear Phishing).
-        """
+        """Generate High-Fidelity Synthetic Pretext (Spear Phishing)."""
         bias = profile.get("bias_vector", "curiosity")
-        profile.get("tone", "Formal")
+        # tone = profile.get("tone", "Formal")  # Intentional check if needed later
 
         # Synthetic Template Selection (2026 Style)
         # Instead of generic templates, we use 'Micro-Targeted' layouts
@@ -310,7 +307,7 @@ class PsychoProfiler:
     # SYNTHETIC PRETEXT TEMPLATES (Dynamic)
     # =========================================================================
 
-    def _tmpl_dev_ticket(self, target, ticket_id):
+    def _tmpl_dev_ticket(self, target, ticket_id) -> str:
         return f"""
 <div style="font-family: Arial; border-left: 4px solid #d04437; padding-left: 10px;">
     <h3>JIRA Software</h3>
@@ -323,7 +320,7 @@ class PsychoProfiler:
 </div>
 """
 
-    def _tmpl_security_fear(self, target):
+    def _tmpl_security_fear(self, target) -> str:
         return f"""
 <div style="font-family: Segoe UI, sans-serif;">
     <h2 style="color: #c00;">🛑 Zero-Trust Alert</h2>
@@ -338,7 +335,7 @@ class PsychoProfiler:
 </div>
 """
 
-    def _tmpl_authority(self, target):
+    def _tmpl_authority(self, _target) -> str:
         return """
 <p>Confidential,</p>
 <p>Please review the attached updated Employee Agreement (NDA) regarding the upcoming merger.</p>
@@ -347,7 +344,7 @@ class PsychoProfiler:
 <p>Regards,<br><b>Office of General Counsel</b></p>
 """
 
-    def _tmpl_generic_VIP(self, target):
+    def _tmpl_generic_VIP(self, target) -> str:
         return f"""
 <p>Hi {target.full_name.split()[0]},</p>
 <p>The Director asked me to schedule a quick sync with you regarding the Q3 goals.</p>

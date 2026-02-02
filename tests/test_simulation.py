@@ -1,5 +1,4 @@
-"""
-DRAKBEN WAR GAME SIMULATION
+"""DRAKBEN WAR GAME SIMULATION.
 ---------------------------
 This involves a full "End-to-End" simulation of the Cyber Kill Chain.
 It tests the integration of all major modules:
@@ -35,11 +34,9 @@ logger = logging.getLogger("WAR_GAME")
 
 
 class TestWarGameSimulation(unittest.TestCase):
-    """
-    Simulates a full combat scenario to test agent autonomy and integration.
-    """
+    """Simulates a full combat scenario to test agent autonomy and integration."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         # 1. Initialize Components
         self.hive = HiveMind()
         self.foundry = WeaponFoundry()
@@ -53,8 +50,8 @@ class TestWarGameSimulation(unittest.TestCase):
         self.mock_network_scan()
         self.mock_exploitation()
 
-    def mock_network_scan(self):
-        """Pre-load HiveMind with a mocked target network"""
+    def mock_network_scan(self) -> None:
+        """Pre-load HiveMind with a mocked target network."""
         # Scenario: Agent is on 192.168.1.5, Target is Domain Controller at 192.168.1.10
         self.hive.current_host = "192.168.1.5"
         target_host = NetworkHost(
@@ -73,12 +70,12 @@ class TestWarGameSimulation(unittest.TestCase):
                 credential_type=CredentialType.NTLM_HASH,
                 value="aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0",  # Mock Hash
                 source="mimikatz_dump",
-            )
+            ),
         )
         logger.info("[SIM] Network environment mocked. Target: DC01 (192.168.1.10)")
 
-    def mock_exploitation(self):
-        """Mock the actual execution of exploits (safe simulation)"""
+    def mock_exploitation(self) -> None:
+        """Mock the actual execution of exploits (safe simulation)."""
         # Patch execution engine to simulate success instead of running real exploits
         self.execution_patcher = patch("core.execution_engine.SmartTerminal.execute")
         self.mock_execute = self.execution_patcher.start()
@@ -98,12 +95,11 @@ class TestWarGameSimulation(unittest.TestCase):
 
         self.mock_execute.side_effect = side_effect
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.execution_patcher.stop()
 
-    def test_full_kill_chain(self):
-        """
-        EXECUTE OPERATION: VILLAGER KILLER
+    def test_full_kill_chain(self) -> None:
+        """EXECUTE OPERATION: VILLAGER KILLER.
         ----------------------------------
         Step 1: Recon - Identify Critical Target
         Step 2: Weaponize - Forge Custom Exploit
@@ -134,10 +130,10 @@ class TestWarGameSimulation(unittest.TestCase):
             targets = self.hive.find_attack_paths()
 
         # Validation: Should find the DC path
-        self.assertGreater(len(targets), 0, "Mission Failed: No targets identified!")
+        assert len(targets) > 0, "Mission Failed: No targets identified!"
         primary_target = targets[0]  # Simplification
         logger.info(
-            f"[+] Target Locked: {primary_target.target} via {primary_target.techniques}"
+            f"[+] Target Locked: {primary_target.target} via {primary_target.techniques}",
         )
 
         # --- STEP 2: WEAPONIZATION ---
@@ -155,7 +151,6 @@ class TestWarGameSimulation(unittest.TestCase):
         payload_code = self.foundry.get_final_payload(raw_payload)
 
         # DEBUG: Inspect payload
-        print(f"DEBUG: Payload Type: {type(payload_code)}")
         if payload_code is None:
             self.fail("Weapon Foundry failed to generate payload (returned None)")
 
@@ -163,14 +158,12 @@ class TestWarGameSimulation(unittest.TestCase):
         obfuscated_payload = self.ghost.obfuscate_code(payload_code)
 
         # Validation: Weapon must be valid and obfuscated
-        self.assertNotEqual(
-            payload_code, obfuscated_payload, "Mission Failed: Polymorphism inactive!"
+        assert payload_code != obfuscated_payload, (
+            "Mission Failed: Polymorphism inactive!"
         )
-        self.assertIn(
-            "import", obfuscated_payload, "Mission Failed: Malformed payload!"
-        )
+        assert "import" in obfuscated_payload, "Mission Failed: Malformed payload!"
         logger.info(
-            "[+] Polymorphic Weapon Forged. Hash: " + str(hash(obfuscated_payload))
+            "[+] Polymorphic Weapon Forged. Hash: " + str(hash(obfuscated_payload)),
         )
 
         # --- STEP 3: DELIVERY & EXPLOITATION ---
@@ -204,7 +197,7 @@ class TestWarGameSimulation(unittest.TestCase):
             if not data:
                 return 0
             p, lns = Counter(data), float(len(data))
-            return -sum(count / lns * math.log(count / lns, 2) for count in p.values())
+            return -sum(count / lns * math.log2(count / lns) for count in p.values())
 
         import base64
 
@@ -213,10 +206,8 @@ class TestWarGameSimulation(unittest.TestCase):
         entropy = get_entropy(raw_bytes)
 
         logger.info(f"[+] C2 Traffic Entropy: {entropy:.2f} bits/byte")
-        self.assertGreater(
-            entropy,
-            6.0,
-            "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!",
+        assert entropy > 6.0, (
+            "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!"
         )
 
         # --- STEP 5: ACTIONS ON OBJECTIVES (Flag Stealing) ---
@@ -226,16 +217,15 @@ class TestWarGameSimulation(unittest.TestCase):
 
         # Encrypt stolen data before exfilling
         exfil_data = self.ghost.encrypt_string(
-            secret_data, method="xor"
+            secret_data,
+            method="xor",
         )  # Using Ghost crypto
 
         # Validation
-        self.assertNotEqual(secret_data, exfil_data)
+        assert secret_data != exfil_data
         decrypted = self.ghost.decrypt_string(exfil_data, method="xor")
-        self.assertEqual(
-            secret_data,
-            decrypted,
-            "Mission Failed: Data corrupted during exfiltration!",
+        assert secret_data == decrypted, (
+            "Mission Failed: Data corrupted during exfiltration!"
         )
         logger.info("[+] Data Secured: " + exfil_data[:20] + "...")
 
@@ -246,7 +236,8 @@ class TestWarGameSimulation(unittest.TestCase):
 
         # Mock the secure delete
         with patch(
-            "core.ghost_protocol.SecureCleanup.secure_delete", return_value=True
+            "core.ghost_protocol.SecureCleanup.secure_delete",
+            return_value=True,
         ) as mock_wipe:
             self.ghost.secure_delete_file(evidence_file)
             mock_wipe.assert_called_once()

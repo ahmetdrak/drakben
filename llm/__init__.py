@@ -12,4 +12,4 @@ try:
 except ImportError:
     pass
 
-__all__ = ["DrakbenBrain", "OpenRouterClient", "LLMCache", "RateLimiter"]
+__all__ = ["DrakbenBrain", "LLMCache", "OpenRouterClient", "RateLimiter"]

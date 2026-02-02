@@ -1,5 +1,4 @@
-"""
-DRAKBEN Error Diagnostics Module
+"""DRAKBEN Error Diagnostics Module
 Author: @drak_ben
 Description: Comprehensive error diagnosis from command output and exit codes.
 
@@ -17,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ErrorDiagnosticsMixin:
-    """
-    Mixin class providing error diagnosis capabilities.
+    """Mixin class providing error diagnosis capabilities.
 
     This mixin can be inherited by any class that needs to diagnose
     command execution errors.
@@ -31,8 +29,7 @@ class ErrorDiagnosticsMixin:
     """
 
     def _diagnose_error(self, output: str, exit_code: int) -> dict[str, Any]:
-        """
-        Comprehensive error diagnosis from output and exit code.
+        """Comprehensive error diagnosis from output and exit code.
         Covers 25+ error types in multiple languages.
 
         Args:
@@ -41,6 +38,7 @@ class ErrorDiagnosticsMixin:
 
         Returns:
             Dict with type, type_tr (Turkish), and additional context
+
         """
         output_lower = output.lower()
         diagnosis = self._run_error_checks(output_lower, exit_code, output)
@@ -56,9 +54,12 @@ class ErrorDiagnosticsMixin:
         }
 
     def _run_error_checks(
-        self, output_lower: str, exit_code: int, output: str
+        self,
+        output_lower: str,
+        exit_code: int,
+        output: str,
     ) -> dict[str, Any] | None:
-        """Run all error checks in priority order"""
+        """Run all error checks in priority order."""
         checkers = [
             self._check_missing_tool,
             self._check_permission_error,
@@ -88,7 +89,7 @@ class ErrorDiagnosticsMixin:
         return self._check_exit_code_error(exit_code, output)
 
     def _check_missing_tool(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for missing tool/command errors"""
+        """Check for missing tool/command errors."""
         patterns = [
             "not found",
             "not recognized",
@@ -106,14 +107,15 @@ class ErrorDiagnosticsMixin:
         ]
         if any(x in output_lower for x in patterns):
             match = re.search(
-                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found", output_lower
+                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found",
+                output_lower,
             )
             tool = match.group(1) if match else None
             return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
         return None
 
     def _check_permission_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for permission/access denied errors"""
+        """Check for permission/access denied errors."""
         patterns = [
             "permission denied",
             "access denied",
@@ -130,7 +132,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_python_module_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for Python module missing errors"""
+        """Check for Python module missing errors."""
         patterns = [
             "no module named",
             "modulenotfounderror",
@@ -151,7 +153,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_library_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for missing library/shared object errors"""
+        """Check for missing library/shared object errors."""
         patterns = [
             "cannot open shared object",
             "library not found",
@@ -173,7 +175,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_network_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for connection/network errors"""
+        """Check for connection/network errors."""
         patterns = [
             "connection refused",
             "connection reset",
@@ -188,7 +190,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_timeout_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for timeout errors"""
+        """Check for timeout errors."""
         patterns = [
             "timed out",
             "timeout",
@@ -202,7 +204,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_syntax_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for syntax/argument errors"""
+        """Check for syntax/argument errors."""
         patterns = [
             "invalid argument",
             "invalid option",
@@ -217,7 +219,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_file_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for file not found errors"""
+        """Check for file not found errors."""
         patterns = [
             "no such file",
             "file not found",
@@ -237,7 +239,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_memory_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for memory errors"""
+        """Check for memory errors."""
         patterns = [
             "out of memory",
             "memory error",
@@ -252,7 +254,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_disk_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for disk space errors"""
+        """Check for disk space errors."""
         patterns = [
             "no space left",
             "disk full",
@@ -265,7 +267,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_auth_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for authentication errors"""
+        """Check for authentication errors."""
         patterns = [
             "authentication failed",
             "invalid credentials",
@@ -279,7 +281,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_port_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for port in use errors"""
+        """Check for port in use errors."""
         patterns = [
             "address already in use",
             "port already in use",
@@ -294,7 +296,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_database_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for database errors"""
+        """Check for database errors."""
         patterns = [
             "database",
             "sqlite",
@@ -310,7 +312,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_parse_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for JSON/XML parsing errors"""
+        """Check for JSON/XML parsing errors."""
         patterns = [
             "json",
             "xml",
@@ -324,7 +326,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_version_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for version/compatibility errors"""
+        """Check for version/compatibility errors."""
         patterns = [
             "version",
             "incompatible",
@@ -338,7 +340,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_rate_limit_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for rate limiting errors"""
+        """Check for rate limiting errors."""
         patterns = [
             "rate limit",
             "too many requests",
@@ -352,7 +354,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_firewall_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for firewall/WAF blocked errors"""
+        """Check for firewall/WAF blocked errors."""
         patterns = [
             "blocked",
             "firewall",
@@ -367,7 +369,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_resource_error(self, output_lower: str) -> dict[str, Any] | None:
-        """Check for process/resource errors"""
+        """Check for process/resource errors."""
         patterns = [
             "too many open files",
             "resource temporarily unavailable",
@@ -380,9 +382,11 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _check_exit_code_error(
-        self, exit_code: int, output: str
+        self,
+        exit_code: int,
+        output: str,
     ) -> dict[str, Any] | None:
-        """Check for exit code based errors"""
+        """Check for exit code based errors."""
         if exit_code != 0 and not output.strip():
             exit_code_map = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},
@@ -406,7 +410,7 @@ class ErrorDiagnosticsMixin:
         return None
 
     def _log_unknown_error(self, output: str, exit_code: int) -> None:
-        """Log unknown errors for future pattern learning"""
+        """Log unknown errors for future pattern learning."""
         try:
             log_dir = "logs"
             os.makedirs(log_dir, exist_ok=True)
@@ -418,4 +422,4 @@ class ErrorDiagnosticsMixin:
                 f.write(f"Exit Code: {exit_code}\n")
                 f.write(f"Output:\n{output[:1000]}\n")
         except OSError as e:
-            logger.debug(f"Could not write to unknown errors log: {e}")
+            logger.debug("Could not write to unknown errors log: %s", e)

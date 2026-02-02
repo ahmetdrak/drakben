@@ -22,7 +22,7 @@ except ImportError:
 
 
 class ToolCategory(Enum):
-    """Tool categories"""
+    """Tool categories."""
 
     RECON = "recon"
     VULN_SCAN = "vulnerability_scan"
@@ -33,7 +33,7 @@ class ToolCategory(Enum):
 
 @dataclass
 class ToolSpec:
-    """Tool specification"""
+    """Tool specification."""
 
     name: str
     category: ToolCategory
@@ -48,8 +48,7 @@ class ToolSpec:
 
 
 class ToolSelector:
-    """
-    Deterministic tool selection mechanism.
+    """Deterministic tool selection mechanism.
 
     FEATURES:
     - Evolutionary Strategy: Changes tool priority based on past success
@@ -60,18 +59,17 @@ class ToolSelector:
     _GLOBAL_PLUGIN_REGISTRY: dict[str, "ToolSpec"] = {}
 
     @classmethod
-    def register_global_plugins(cls, new_tools: dict[str, ToolSpec]):
+    def register_global_plugins(cls, new_tools: dict[str, ToolSpec]) -> None:
         """Register plugins globally so all future instances inherit them."""
         cls._GLOBAL_PLUGIN_REGISTRY.update(new_tools)
-        logger.info(f"Registered {len(new_tools)} global plugin tools.")
+        logger.info("Registered %s global plugin tools.", len(new_tools))
 
-
-    def evolve_strategies(self, evolution_memory):
-        """
-        EVOLUTION MODULE: Update strategy based on success rates in memory.
+    def evolve_strategies(self, evolution_memory) -> None:
+        """EVOLUTION MODULE: Update strategy based on success rates in memory.
 
         Args:
             evolution_memory: EvolutionMemory instance (new system)
+
         """
         logger.info("Analyzing tool performance from memory...")
         evolved_count = 0
@@ -81,12 +79,14 @@ class ToolSelector:
                 evolved_count += 1
 
         if evolved_count > 0:
-            logger.info(f"Evolution: Strategies updated for {evolved_count} tools")
+            logger.info("Evolution: Strategies updated for %s tools", evolved_count)
         else:
             logger.debug("Evolution: No changes needed")
 
     def _update_tool_priority_from_memory(
-        self, tool_name: str, evolution_memory
+        self,
+        tool_name: str,
+        evolution_memory,
     ) -> bool:
         """Update single tool priority based on evolution memory. Returns True if changed."""
         penalty = evolution_memory.get_penalty(tool_name)
@@ -98,7 +98,7 @@ class ToolSelector:
         # Block tool if it's blocked in evolution memory
         if is_blocked:
             new_priority = 0
-            logger.warning(f"Tool blocked - {tool_name}: Too many failures")
+            logger.warning("Tool blocked - %s: Too many failures", tool_name)
         # Evolution Logic based on penalty
         elif penalty == 0:
             new_priority = min(100, original_priority + 20)  # Boost - no failures
@@ -110,24 +110,26 @@ class ToolSelector:
         if new_priority != original_priority:
             self.tools[tool_name].priority = new_priority
             logger.info(
-                f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})"
+                f"Evolved {tool_name}: Priority {original_priority} -> {new_priority} (Penalty: {penalty})",
             )
             return True
         return False
 
-    def update_tool_priority(self, tool_name: str, delta: int):
-        """Update priority for a single tool"""
+    def update_tool_priority(self, tool_name: str, delta: int) -> None:
+        """Update priority for a single tool."""
         if tool_name in self.tools:
             self.tools[tool_name].priority = max(
-                0, min(100, self.tools[tool_name].priority + delta)
+                0,
+                min(100, self.tools[tool_name].priority + delta),
             )
 
     def register_dynamic_tool(
-        self, name: str, phase: AttackPhase, command_template: str = "{target}"
-    ):
-        """
-        SELF-EVOLUTION: Register dynamically created tool.
-        """
+        self,
+        name: str,
+        phase: AttackPhase,
+        command_template: str = "{target}",
+    ) -> None:
+        """SELF-EVOLUTION: Register dynamically created tool."""
         self.tools[name] = ToolSpec(
             name=name,
             category=ToolCategory.EXPLOIT,  # Usually custom scripts are for exploit/recon
@@ -137,9 +139,8 @@ class ToolSelector:
             priority=80,  # Priority testing since newly created
         )
 
-    def register_plugin_tools(self, new_tools: dict[str, ToolSpec]):
-        """
-        PLUGIN INTEGRATION: Register tools loaded from external plugins.
+    def register_plugin_tools(self, new_tools: dict[str, ToolSpec]) -> None:
+        """PLUGIN INTEGRATION: Register tools loaded from external plugins.
         Overrides existing tools if names collide (user overriding system defaults).
         """
         if not new_tools:
@@ -151,9 +152,9 @@ class ToolSelector:
             count += 1
 
         if count > 0:
-            logger.info(f"Registered {count} external plugin tools.")
+            logger.info("Registered %s external plugin tools.", count)
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Kali tool check
         self.kali_detector = KaliDetector() if KALI_AVAILABLE else None
         self.available_system_tools = {}
@@ -354,8 +355,7 @@ class ToolSelector:
         self.register_plugin_tools(self._GLOBAL_PLUGIN_REGISTRY)
 
     def get_allowed_tools(self, state: AgentState) -> list[str]:
-        """
-        Return allowed tools based on state
+        """Return allowed tools based on state.
 
         RULES:
         - Must match current phase
@@ -386,14 +386,15 @@ class ToolSelector:
         return allowed
 
     def filter_for_system_tools(self) -> list[str]:
-        """List tools that should be installed on system"""
+        """List tools that should be installed on system."""
         return [spec.system_tool for spec in self.tools.values() if spec.system_tool]
 
     def select_tool_for_surface(
-        self, state: AgentState, surface: str
+        self,
+        state: AgentState,
+        surface: str,
     ) -> tuple[str, dict[str, Any]] | None:
-        """
-        Select appropriate tool for a specific attack surface.
+        """Select appropriate tool for a specific attack surface.
 
         Args:
             state: Current agent state
@@ -401,6 +402,7 @@ class ToolSelector:
 
         Returns:
             Tuple of (tool_name, params_dict) or None if no suitable tool
+
         """
         # Parse surface
         try:
@@ -438,8 +440,7 @@ class ToolSelector:
         return None
 
     def get_fallback_tool(self, failed_tool: str, state: AgentState) -> str | None:
-        """
-        Get fallback tool for failed tool - DETERMINISTIC
+        """Get fallback tool for failed tool - DETERMINISTIC.
 
         Args:
             failed_tool: Tool that failed
@@ -447,6 +448,7 @@ class ToolSelector:
 
         Returns:
             Fallback tool name or None
+
         """
         if failed_tool not in self.fallback_map:
             return None
@@ -462,13 +464,15 @@ class ToolSelector:
         return None
 
     def validate_tool_selection(
-        self, tool_name: str, state: AgentState
+        self,
+        tool_name: str,
+        state: AgentState,
     ) -> tuple[bool, str]:
-        """
-        Check if tool selection is valid
+        """Check if tool selection is valid.
 
         Returns:
             (valid, reason) tuple
+
         """
         # Tool exists?
         if tool_name not in self.tools:
@@ -490,17 +494,16 @@ class ToolSelector:
 
         return True, "Valid"
 
-    def record_tool_failure(self, tool_name: str):
-        """Record tool failure (selector-local)"""
+    def record_tool_failure(self, tool_name: str) -> None:
+        """Record tool failure (selector-local)."""
         self.failed_tools[tool_name] = self.failed_tools.get(tool_name, 0) + 1
 
     def is_tool_blocked(self, tool_name: str, max_failures: int = 2) -> bool:
-        """Check if tool is blocked? (2 failures -> block)"""
+        """Check if tool is blocked? (2 failures -> block)."""
         return self.failed_tools.get(tool_name, 0) >= max_failures
 
     def get_next_phase_tools(self, state: AgentState) -> list[str]:
-        """
-        Suggest tools needed for next phase.
+        """Suggest tools needed for next phase.
 
         Phase progression:
         INIT -> RECON -> VULN_SCAN -> EXPLOIT -> FOOTHOLD -> POST_EXPLOIT
@@ -517,11 +520,11 @@ class ToolSelector:
         return phase_tools.get(state.phase, [])
 
     def recommend_next_action(self, state: AgentState) -> tuple[str, str, dict] | None:
-        """
-        Recommend next action based on state - DETERMINISTIC
+        """Recommend next action based on state - DETERMINISTIC.
 
         Returns:
             (action_type, tool_name, args) or None
+
         """
         # Check if we have remaining attack surface
         remaining = state.get_available_attack_surface()
@@ -545,9 +548,11 @@ class ToolSelector:
         return None
 
     def _recommend_surface_scan(
-        self, state: AgentState, surface: str
+        self,
+        state: AgentState,
+        surface: str,
     ) -> tuple[str, str, dict] | None:
-        """Recommend a scan action for a specific surface"""
+        """Recommend a scan action for a specific surface."""
         tool_result = self.select_tool_for_surface(state, surface)
         if tool_result:
             tool_name, args = tool_result
@@ -555,9 +560,10 @@ class ToolSelector:
         return None
 
     def _recommend_phase_transition(
-        self, state: AgentState
+        self,
+        state: AgentState,
     ) -> tuple[str, str, dict] | None:
-        """Recommend a phase transition if applicable"""
+        """Recommend a phase transition if applicable."""
         # No more surfaces to test in current phase
         if state.phase == AttackPhase.RECON and state.open_services:
             # Move to vuln scan
@@ -567,7 +573,7 @@ class ToolSelector:
                 {"next_phase": AttackPhase.VULN_SCAN},
             )
 
-        elif state.phase == AttackPhase.VULN_SCAN and state.vulnerabilities:
+        if state.phase == AttackPhase.VULN_SCAN and state.vulnerabilities:
             # Move to exploit
             return (
                 "phase_transition",
@@ -577,7 +583,7 @@ class ToolSelector:
         return None
 
     def _recommend_exploit(self, state: AgentState) -> tuple[str, str, dict] | None:
-        """Recommend an exploit action"""
+        """Recommend an exploit action."""
         for vuln in state.vulnerabilities:
             if vuln.exploitable and not vuln.exploit_attempted:
                 # Try to exploit
@@ -587,7 +593,7 @@ class ToolSelector:
         return None
 
     def _get_exploit_tool_for_vuln(self, vuln) -> str | None:
-        """Select appropriate exploit tool for vulnerability"""
+        """Select appropriate exploit tool for vulnerability."""
         if "sql" in vuln.vuln_id.lower():
             return "sqlmap_exploit"
         return "metasploit_exploit"

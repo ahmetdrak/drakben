@@ -24,8 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class CredentialStore:
-    """
-    Secure credential storage using system keyring or encrypted file.
+    """Secure credential storage using system keyring or encrypted file.
 
     Features:
     - System keyring integration (if available)
@@ -35,15 +34,17 @@ class CredentialStore:
 
     SERVICE_NAME = "drakben"
 
-    def __init__(self, storage_path: str = ".credentials.enc"):
+    def __init__(self, storage_path: str = ".credentials.enc") -> None:
         self.storage_path = Path(storage_path)
         self._keyring_available = self._check_keyring()
         self._encryption_key: bytes | None = None
 
-        logger.info(f"CredentialStore initialized (keyring: {self._keyring_available})")
+        logger.info(
+            "CredentialStore initialized (keyring: %s)", self._keyring_available,
+        )
 
     def _check_keyring(self) -> bool:
-        """Check if keyring is available"""
+        """Check if keyring is available."""
         try:
             import keyring
 
@@ -54,12 +55,12 @@ class CredentialStore:
             return False
 
     def _derive_key(self, password: str, salt: bytes) -> bytes:
-        """Derive encryption key from password"""
+        """Derive encryption key from password."""
         # Use standard library implementation which acts as a fallback and is secure enough
         return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, dklen=32)
 
     def _encrypt(self, data: str, key: bytes) -> bytes:
-        """Encrypt data using AES-GCM (REQUIRES pycryptodome)"""
+        """Encrypt data using AES-GCM (REQUIRES pycryptodome)."""
         try:
             from Crypto.Cipher import AES
             from Crypto.Random import get_random_bytes
@@ -69,18 +70,19 @@ class CredentialStore:
             ciphertext, tag = cipher.encrypt_and_digest(data.encode())
 
             return nonce + tag + ciphertext
-        except ImportError:
+        except ImportError as e:
             # NO FALLBACK - XOR is not secure
-            logger.error(
-                "pycryptodome not available! Install with: pip install pycryptodome"
+            logger.exception(
+                "pycryptodome not available! Install with: pip install pycryptodome",
             )
-            raise ImportError(
+            msg = (
                 "pycryptodome is REQUIRED for secure credential storage. "
                 "Install with: pip install pycryptodome"
             )
+            raise ImportError(msg) from e
 
     def _decrypt(self, encrypted: bytes, key: bytes) -> str:
-        """Decrypt data (REQUIRES pycryptodome)"""
+        """Decrypt data (REQUIRES pycryptodome)."""
         try:
             from Crypto.Cipher import AES
 
@@ -92,17 +94,17 @@ class CredentialStore:
             data = cipher.decrypt_and_verify(ciphertext, tag)
 
             return data.decode()
-        except ImportError:
+        except ImportError as e:
             # NO FALLBACK - XOR is not secure
-            logger.error("pycryptodome not available for decryption!")
-            raise ImportError(
+            logger.exception("pycryptodome not available for decryption!")
+            msg = (
                 "pycryptodome is REQUIRED for credential decryption. "
                 "Install with: pip install pycryptodome"
             )
+            raise ImportError(msg) from e
 
     def store(self, key: str, value: str, master_password: str | None = None) -> bool:
-        """
-        Store credential securely.
+        """Store credential securely.
 
         Args:
             key: Credential identifier
@@ -111,13 +113,14 @@ class CredentialStore:
 
         Returns:
             True if successful
+
         """
         try:
             if self._keyring_available:
                 import keyring
 
                 keyring.set_password(self.SERVICE_NAME, key, value)
-                logger.info(f"Credential stored in keyring: {key}")
+                logger.info("Credential stored in keyring: %s", key)
                 return True
 
             # File-based storage - REQUIRE explicit password (fail-safe)
@@ -125,9 +128,12 @@ class CredentialStore:
                 master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
                 if not master_password:
                     logger.error("Master password required for credential storage!")
-                    raise ValueError(
+                    msg = (
                         "Master password is REQUIRED. Set DRAKBEN_MASTER_PASSWORD env var "
                         "or provide master_password parameter."
+                    )
+                    raise ValueError(
+                        msg,
                     )
 
             # Load existing credentials
@@ -136,18 +142,17 @@ class CredentialStore:
 
             # Save
             self._save_file(credentials, master_password)
-            logger.info(f"Credential stored in file: {key}")
+            logger.info("Credential stored in file: %s", key)
             return True
 
         except ValueError:
             raise  # Re-raise ValueError for missing password
         except Exception as e:
-            logger.error(f"Failed to store credential: {e}")
+            logger.exception("Failed to store credential: %s", e)
             return False
 
     def retrieve(self, key: str, master_password: str | None = None) -> str | None:
-        """
-        Retrieve credential.
+        """Retrieve credential.
 
         Args:
             key: Credential identifier
@@ -155,6 +160,7 @@ class CredentialStore:
 
         Returns:
             Credential value or None
+
         """
         try:
             if self._keyring_available:
@@ -169,7 +175,7 @@ class CredentialStore:
                 master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
                 if not master_password:
                     logger.warning(
-                        "Master password not provided for credential retrieval"
+                        "Master password not provided for credential retrieval",
                     )
                     return None  # Graceful fail for retrieval
 
@@ -177,11 +183,11 @@ class CredentialStore:
             return credentials.get(key)
 
         except Exception as e:
-            logger.error(f"Failed to retrieve credential: {e}")
+            logger.exception("Failed to retrieve credential: %s", e)
             return None
 
     def delete(self, key: str, master_password: str | None = None) -> bool:
-        """Delete credential"""
+        """Delete credential."""
         try:
             if self._keyring_available:
                 import keyring
@@ -202,11 +208,11 @@ class CredentialStore:
 
             return True
         except Exception as e:
-            logger.error(f"Failed to delete credential: {e}")
+            logger.exception("Failed to delete credential: %s", e)
             return False
 
     def _load_file(self, password: str) -> dict[str, str]:
-        """Load credentials from encrypted file"""
+        """Load credentials from encrypted file."""
         if not self.storage_path.exists():
             return {}
 
@@ -221,8 +227,8 @@ class CredentialStore:
         except Exception:
             return {}
 
-    def _save_file(self, credentials: dict[str, str], password: str):
-        """Save credentials to encrypted file"""
+    def _save_file(self, credentials: dict[str, str], password: str) -> None:
+        """Save credentials to encrypted file."""
         salt = secrets.token_bytes(16)
         key = self._derive_key(password, salt)
         encrypted = self._encrypt(json.dumps(credentials), key)
@@ -238,7 +244,7 @@ class CredentialStore:
 
 
 class AuditEventType(Enum):
-    """Audit event types"""
+    """Audit event types."""
 
     COMMAND_EXECUTED = "command_executed"
     SCAN_STARTED = "scan_started"
@@ -256,7 +262,7 @@ class AuditEventType(Enum):
 
 @dataclass
 class AuditEvent:
-    """Audit event record"""
+    """Audit event record."""
 
     timestamp: str
     event_type: AuditEventType
@@ -283,8 +289,7 @@ class AuditEvent:
 
 
 class AuditLogger:
-    """
-    Forensic-ready audit logging system.
+    """Forensic-ready audit logging system.
 
     Features:
     - SQLite storage for integrity
@@ -294,7 +299,7 @@ class AuditLogger:
     - Thread-safe operations
     """
 
-    def __init__(self, db_path: str = "audit.db"):
+    def __init__(self, db_path: str = "audit.db") -> None:
         self._db_path_str = db_path
         self._conn = None
         self._lock = threading.Lock()  # Thread safety for hash chain
@@ -306,16 +311,16 @@ class AuditLogger:
         self._init_db()
         self._last_hash = self._get_last_hash()
 
-        logger.info(f"AuditLogger initialized: {db_path}")
+        logger.info("AuditLogger initialized: %s", db_path)
 
-    def _get_connection(self):
-        """Get database connection"""
+    def _get_connection(self) -> Any:
+        """Get database connection."""
         if self._conn:
             return self._conn
         return sqlite3.connect(self._db_path_str)
 
-    def _init_db(self):
-        """Initialize audit database"""
+    def _init_db(self) -> None:
+        """Initialize audit database."""
         conn = self._get_connection()
         try:
             conn.execute("""
@@ -346,7 +351,7 @@ class AuditLogger:
                 conn.close()
 
     def _get_last_hash(self) -> str:
-        """Get hash of last entry for chain"""
+        """Get hash of last entry for chain."""
         conn = self._get_connection()
         try:
             cursor = conn.execute("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1")
@@ -357,16 +362,16 @@ class AuditLogger:
                 conn.close()
 
     def _compute_hash(self, event: AuditEvent, prev_hash: str) -> str:
-        """Compute hash for event"""
+        """Compute hash for event."""
         data = f"{event.timestamp}|{event.event_type.value}|{event.action}|{prev_hash}"
         return hashlib.sha256(data.encode()).hexdigest()
 
-    def log(self, event: AuditEvent):
-        """
-        Log audit event (thread-safe).
+    def log(self, event: AuditEvent) -> None:
+        """Log audit event (thread-safe).
 
         Args:
             event: AuditEvent to log
+
         """
         with self._lock:  # Thread-safe hash chain updates
             event_hash = self._compute_hash(event, self._last_hash)
@@ -400,7 +405,7 @@ class AuditLogger:
 
             self._last_hash = event_hash
 
-        logger.debug(f"Audit logged: {event.action}")
+        logger.debug("Audit logged: %s", event.action)
 
     def log_command(
         self,
@@ -408,8 +413,8 @@ class AuditLogger:
         target: str = "",
         success: bool = True,
         details: dict[Any, Any] | None = None,
-    ):
-        """Convenience method for logging commands"""
+    ) -> None:
+        """Convenience method for logging commands."""
         event = AuditEvent(
             timestamp=datetime.now().isoformat(),
             event_type=AuditEventType.COMMAND_EXECUTED,
@@ -431,8 +436,7 @@ class AuditLogger:
         target: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        """
-        Query audit logs.
+        """Query audit logs.
 
         Args:
             event_type: Filter by event type
@@ -443,6 +447,7 @@ class AuditLogger:
 
         Returns:
             List of audit event dictionaries
+
         """
         query = "SELECT * FROM audit_log WHERE 1=1"
         params = []
@@ -475,16 +480,16 @@ class AuditLogger:
         return results
 
     def verify_integrity(self) -> tuple[bool, str]:
-        """
-        Verify audit log integrity using hash chain.
+        """Verify audit log integrity using hash chain.
 
         Returns:
             Tuple of (is_valid, message)
+
         """
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                "SELECT timestamp, event_type, action, hash, prev_hash FROM audit_log ORDER BY id"
+                "SELECT timestamp, event_type, action, hash, prev_hash FROM audit_log ORDER BY id",
             )
 
             prev_hash = "GENESIS"
@@ -501,12 +506,12 @@ class AuditLogger:
 
         return True, "Audit log integrity verified"
 
-    def export_json(self, output_path: str):
-        """Export audit log to JSON"""
+    def export_json(self, output_path: str) -> None:
+        """Export audit log to JSON."""
         events = self.query(limit=10000)
         with open(output_path, "w") as f:
             json.dump(events, f, indent=2)
-        logger.info(f"Audit log exported to {output_path}")
+        logger.info("Audit log exported to %s", output_path)
 
 
 # =========================================
@@ -516,7 +521,7 @@ class AuditLogger:
 
 @dataclass
 class ProxyConfig:
-    """Proxy configuration"""
+    """Proxy configuration."""
 
     host: str
     port: int
@@ -525,21 +530,20 @@ class ProxyConfig:
     password: str | None = None
 
     def get_url(self) -> str:
-        """Get proxy URL"""
+        """Get proxy URL."""
         auth = ""
         if self.username and self.password:
             auth = f"{self.username}:{self.password}@"
         return f"{self.protocol}://{auth}{self.host}:{self.port}"
 
     def get_dict(self) -> dict[str, str]:
-        """Get proxy dict for requests"""
+        """Get proxy dict for requests."""
         url = self.get_url()
         return {"http": url, "https": url}
 
 
 class ProxyManager:
-    """
-    Proxy manager for network requests.
+    """Proxy manager for network requests.
 
     Features:
     - HTTP/HTTPS proxy support
@@ -548,15 +552,15 @@ class ProxyManager:
     - Tor integration
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.proxies: list[ProxyConfig] = []
         self.current_index = 0
         self.tor_available = self._check_tor()
 
-        logger.info(f"ProxyManager initialized (tor: {self.tor_available})")
+        logger.info("ProxyManager initialized (tor: %s)", self.tor_available)
 
     def _check_tor(self) -> bool:
-        """Check if Tor is available"""
+        """Check if Tor is available."""
         try:
             import socks
 
@@ -570,17 +574,17 @@ class ProxyManager:
         except Exception:
             return False
 
-    def add_proxy(self, proxy: ProxyConfig):
-        """Add proxy to pool"""
+    def add_proxy(self, proxy: ProxyConfig) -> None:
+        """Add proxy to pool."""
         self.proxies.append(proxy)
-        logger.info(f"Proxy added: {proxy.host}:{proxy.port}")
+        logger.info("Proxy added: {proxy.host}:%s", proxy.port)
 
-    def add_tor(self, host: str = "127.0.0.1", port: int = 9050):
-        """Add Tor as proxy"""
+    def add_tor(self, host: str = "127.0.0.1", port: int = 9050) -> None:
+        """Add Tor as proxy."""
         self.add_proxy(ProxyConfig(host=host, port=port, protocol="socks5"))
 
     def get_next(self) -> ProxyConfig | None:
-        """Get next proxy in rotation"""
+        """Get next proxy in rotation."""
         if not self.proxies:
             return None
 
@@ -589,30 +593,29 @@ class ProxyManager:
         return proxy
 
     def get_current(self) -> ProxyConfig | None:
-        """Get current proxy without rotation"""
+        """Get current proxy without rotation."""
         if not self.proxies:
             return None
         return self.proxies[self.current_index]
 
     def get_requests_proxy(self) -> dict[str, str] | None:
-        """Get proxy dict for requests library"""
+        """Get proxy dict for requests library."""
         proxy = self.get_current()
         return proxy.get_dict() if proxy else None
 
     def get_aiohttp_proxy(self) -> str | None:
-        """Get proxy URL for aiohttp"""
+        """Get proxy URL for aiohttp."""
         proxy = self.get_current()
         return proxy.get_url() if proxy else None
 
     def configure_requests_session(self, session) -> None:
-        """Configure requests session with proxy"""
+        """Configure requests session with proxy."""
         proxy_dict = self.get_requests_proxy()
         if proxy_dict:
             session.proxies.update(proxy_dict)
 
     def test_proxy(self, proxy: ProxyConfig, timeout: int = 10) -> bool:
-        """
-        Test proxy connectivity.
+        """Test proxy connectivity.
 
         Args:
             proxy: Proxy to test
@@ -620,24 +623,27 @@ class ProxyManager:
 
         Returns:
             True if proxy is working
+
         """
         try:
             import requests
 
             response = requests.get(
-                "https://httpbin.org/ip", proxies=proxy.get_dict(), timeout=timeout
+                "https://httpbin.org/ip",
+                proxies=proxy.get_dict(),
+                timeout=timeout,
             )
 
             if response.status_code == 200:
-                logger.info(f"Proxy working: {proxy.host}:{proxy.port}")
+                logger.info("Proxy working: {proxy.host}:%s", proxy.port)
                 return True
         except Exception as e:
-            logger.warning(f"Proxy test failed: {e}")
+            logger.warning("Proxy test failed: %s", e)
 
         return False
 
-    def remove_dead_proxies(self):
-        """Remove non-working proxies"""
+    def remove_dead_proxies(self) -> None:
+        """Remove non-working proxies."""
         self.proxies = [p for p in self.proxies if self.test_proxy(p)]
 
 
@@ -656,7 +662,7 @@ _proxy_manager_lock = threading.Lock()
 
 
 def get_credential_store() -> CredentialStore:
-    """Get global credential store instance (thread-safe)"""
+    """Get global credential store instance (thread-safe)."""
     global _credential_store
     if _credential_store is None:
         with _credential_store_lock:
@@ -667,7 +673,7 @@ def get_credential_store() -> CredentialStore:
 
 
 def get_audit_logger() -> AuditLogger:
-    """Get global audit logger instance (thread-safe)"""
+    """Get global audit logger instance (thread-safe)."""
     global _audit_logger
     if _audit_logger is None:
         with _audit_logger_lock:
@@ -678,7 +684,7 @@ def get_audit_logger() -> AuditLogger:
 
 
 def get_proxy_manager() -> ProxyManager:
-    """Get global proxy manager instance (thread-safe)"""
+    """Get global proxy manager instance (thread-safe)."""
     global _proxy_manager
     if _proxy_manager is None:
         with _proxy_manager_lock:
@@ -693,6 +699,6 @@ def audit_command(
     target: str = "",
     success: bool = True,
     details: dict[str, Any] | None = None,
-):
-    """Quick audit logging for commands"""
+) -> None:
+    """Quick audit logging for commands."""
     get_audit_logger().log_command(command, target, success, details)

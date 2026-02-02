@@ -1,5 +1,4 @@
-"""
-DRAKBEN Singularity - Core Interfaces
+"""DRAKBEN Singularity - Core Interfaces
 Defines the abstract base classes for self-improvement modules.
 """
 
@@ -9,7 +8,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CodeSnippet:
-    """Represents a generated code fragment"""
+    """Represents a generated code fragment."""
 
     code: str
     language: str
@@ -20,7 +19,7 @@ class CodeSnippet:
 
 @dataclass
 class MutationResult:
-    """Result of a mutation attempt"""
+    """Result of a mutation attempt."""
 
     original_hash: str
     new_hash: str
@@ -29,32 +28,28 @@ class MutationResult:
 
 
 class ISynthesizer(ABC):
-    """Interface for code generation engines"""
+    """Interface for code generation engines."""
 
     @abstractmethod
     def generate_tool(self, description: str) -> CodeSnippet:
-        """Generate code for a requested tool"""
-        pass
+        """Generate code for a requested tool."""
 
     @abstractmethod
     def refactor_code(self, code: str) -> CodeSnippet:
-        """Improve existing code"""
-        pass
+        """Improve existing code."""
 
 
 class IValidator(ABC):
-    """Interface for code validation sandbox"""
+    """Interface for code validation sandbox."""
 
     @abstractmethod
     def validate(self, snippet: CodeSnippet) -> bool:
-        """Test if code is safe and working"""
-        pass
+        """Test if code is safe and working."""
 
 
 class IMutationEngine(ABC):
-    """Interface for polymorphic mutation"""
+    """Interface for polymorphic mutation."""
 
     @abstractmethod
     def mutate(self, payload: str) -> MutationResult:
-        """Apply mutation strategies"""
-        pass
+        """Apply mutation strategies."""

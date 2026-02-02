@@ -6,8 +6,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("ultimate_audit")
 
 
-def run_pytest():
-    """Run all tests using pytest"""
+def run_pytest() -> bool | None:
+    """Run all tests using pytest."""
     logger.info("Starting Ultimate Audit (pytest)...")
     try:
         # Run pytest with full project coverage reporting (portable approach)
@@ -26,20 +26,17 @@ def run_pytest():
             text=True,
         )
 
-        print(result.stdout)
         if result.stderr:
-            print("STDERR:")
-            print(result.stderr)
+            pass
 
         if result.returncode == 0:
             logger.info("Ultimate Audit PASSED.")
             return True
-        else:
-            logger.error("Ultimate Audit FAILED.")
-            return False
+        logger.error("Ultimate Audit FAILED.")
+        return False
 
     except Exception as e:
-        logger.error(f"Error running audit: {e}")
+        logger.exception(f"Error running audit: {e}")
         return False
 
 

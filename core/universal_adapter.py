@@ -1,5 +1,4 @@
-"""
-DRAKBEN Universal Adapter - MCP Client & Dependency Resolver
+"""DRAKBEN Universal Adapter - MCP Client & Dependency Resolver
 Author: @drak_ben
 Description: Model Context Protocol integration and automatic tool management.
 
@@ -21,12 +20,12 @@ import shutil
 import socketserver
 import subprocess
 import threading
+import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
-import urllib.request
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ CACHE_DIR = Path(".cache/drakben")
 
 
 class PackageManager(Enum):
-    """Supported package managers"""
+    """Supported package managers."""
 
     APT = "apt"
     YUM = "yum"
@@ -56,7 +55,7 @@ class PackageManager(Enum):
 
 
 class ToolCategory(Enum):
-    """Tool categories"""
+    """Tool categories."""
 
     RECON = "recon"
     EXPLOIT = "exploit"
@@ -74,7 +73,7 @@ class ToolCategory(Enum):
 
 @dataclass
 class ToolDefinition:
-    """Definition of a tool that can be installed"""
+    """Definition of a tool that can be installed."""
 
     name: str
     description: str
@@ -89,7 +88,7 @@ class ToolDefinition:
 
 @dataclass
 class MCPTool:
-    """MCP Tool definition for LLM integration"""
+    """MCP Tool definition for LLM integration."""
 
     name: str
     description: str
@@ -99,7 +98,7 @@ class MCPTool:
 
 @dataclass
 class MCPResource:
-    """MCP Resource definition"""
+    """MCP Resource definition."""
 
     uri: str
     name: str
@@ -237,21 +236,19 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
 
 
 class DynamicInstaller:
-    """
-    Handles discovery and installation of tools not in the registry.
+    """Handles discovery and installation of tools not in the registry.
     Searches GitHub/PyPI and requires Explicit User Approval.
     """
 
     @staticmethod
     def search_tool(tool_name: str) -> dict[str, Any]:
-        """
-        Search for a tool on PyPI (safer/easier) and GitHub.
+        """Search for a tool on PyPI (safer/easier) and GitHub.
         Returns metadata about the potential tool.
         """
         # 1. Search PyPI (JSON API)
         try:
             url = f"https://pypi.org/pypi/{tool_name}/json"
-            with urllib.request.urlopen(url, timeout=5) as response:
+            with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310
                 if response.status == 200:
                     data = json.loads(response.read().decode())
                     info = data.get("info", {})
@@ -266,7 +263,7 @@ class DynamicInstaller:
                         "safety_score": "Unknown (Review Required)",
                     }
         except Exception as e:
-            logger.debug(f"PyPI search failed: {e}")
+            logger.debug("PyPI search failed: %s", e)
 
         # 2. Search GitHub (Simulated for this environment without auth token)
         # In a real scenario, use GitHub API. Here we assume manual input or skip.
@@ -292,8 +289,7 @@ class DynamicInstaller:
 
 
 class DependencyResolver:
-    """
-    Automatic tool installation and dependency management.
+    """Automatic tool installation and dependency management.
 
     Features:
     - Detects system package manager
@@ -302,12 +298,12 @@ class DependencyResolver:
     - Handles dependencies
     """
 
-    def __init__(self, tools_dir: Path = TOOLS_DIR):
-        """
-        Initialize dependency resolver.
+    def __init__(self, tools_dir: Path = TOOLS_DIR) -> None:
+        """Initialize dependency resolver.
 
         Args:
             tools_dir: Directory for isolated tool installations
+
         """
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(parents=True, exist_ok=True)
@@ -316,20 +312,20 @@ class DependencyResolver:
         self.package_manager = self._detect_package_manager()
 
         logger.info(
-            f"DependencyResolver initialized (OS: {self.system}, PM: {self.package_manager})"
+            f"DependencyResolver initialized (OS: {self.system}, PM: {self.package_manager})",
         )
 
     def _detect_package_manager(self) -> PackageManager | None:
-        """Detect system package manager"""
+        """Detect system package manager."""
         if self.system == "linux":
             # Check for various package managers
             if shutil.which("apt-get"):
                 return PackageManager.APT
-            elif shutil.which("dnf"):
+            if shutil.which("dnf"):
                 return PackageManager.DNF
-            elif shutil.which("yum"):
+            if shutil.which("yum"):
                 return PackageManager.YUM
-            elif shutil.which("pacman"):
+            if shutil.which("pacman"):
                 return PackageManager.PACMAN
         elif self.system == "darwin":
             if shutil.which("brew"):
@@ -340,14 +336,14 @@ class DependencyResolver:
         return None
 
     def is_tool_installed(self, tool_name: str) -> bool:
-        """
-        Check if a tool is installed.
+        """Check if a tool is installed.
 
         Args:
             tool_name: Name of the tool
 
         Returns:
             True if installed
+
         """
         tool_def = TOOL_REGISTRY.get(tool_name)
 
@@ -367,14 +363,14 @@ class DependencyResolver:
             return False
 
     def get_tool_version(self, tool_name: str) -> str | None:
-        """
-        Get installed tool version.
+        """Get installed tool version.
 
         Args:
             tool_name: Name of the tool
 
         Returns:
             Version string or None
+
         """
         tool_def = TOOL_REGISTRY.get(tool_name)
 
@@ -396,20 +392,23 @@ class DependencyResolver:
                 output = result.stdout.strip() or result.stderr.strip()
                 return output.split("\n")[0][:50]
         except Exception as e:
-            logger.debug(f"Version check failed: {e}")
+            logger.debug("Version check failed: %s", e)
 
         return None
 
     def _install_via_package_manager(
-        self, tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
-    ):
-        """Helper to install via system package manager"""
+        self,
+        tool_name: str,
+        install_commands: dict[str, str],
+        result: dict[str, Any],
+    ) -> bool:
+        """Helper to install via system package manager."""
         if self.package_manager and self.package_manager.value in install_commands:
             cmd = install_commands[self.package_manager.value]
             result["method"] = self.package_manager.value
 
             try:
-                logger.info(f"Installing {tool_name} via {self.package_manager.value}")
+                logger.info("Installing {tool_name} via %s", self.package_manager.value)
                 proc = subprocess.run(
                     shlex.split(cmd),
                     shell=False,
@@ -432,9 +431,12 @@ class DependencyResolver:
         return False
 
     def _install_via_pip(
-        self, tool_name: str, install_commands: dict[str, str], result: dict[str, Any]
-    ):
-        """Helper to install via pip"""
+        self,
+        tool_name: str,
+        install_commands: dict[str, str],
+        result: dict[str, Any],
+    ) -> bool:
+        """Helper to install via pip."""
         if "pip" in install_commands:
             cmd = install_commands["pip"]
             result["method"] = "pip"
@@ -459,16 +461,14 @@ class DependencyResolver:
         return False
 
     def install_tool(self, tool_name: str, force: bool = False) -> dict[str, Any]:
-        """
-        Install a tool with reduced cognitive complexity.
-        """
+        """Install a tool with reduced cognitive complexity."""
         result = {"tool": tool_name, "success": False, "message": "", "method": None}
         tool_def = TOOL_REGISTRY.get(tool_name)
 
         if not tool_def:
             # DYNAMIC DISCOVERY LOGIC
             logger.info(
-                f"Tool '{tool_name}' not in registry. Initiating dynamic search..."
+                f"Tool '{tool_name}' not in registry. Initiating dynamic search...",
             )
             discovery = DynamicInstaller.search_tool(tool_name)
 
@@ -536,18 +536,19 @@ class DependencyResolver:
 
         # 2. Try installation methods
         if self._install_via_package_manager(
-            tool_name, tool_def.install_commands, result
+            tool_name,
+            tool_def.install_commands,
+            result,
         ) or self._install_via_pip(tool_name, tool_def.install_commands, result):
             return result
-        else:
-            result["message"] = (
-                f"No installation method available for {tool_name} on {self.system}"
-            )
+        result["message"] = (
+            f"No installation method available for {tool_name} on {self.system}"
+        )
 
         return result
 
     def list_available_tools(self) -> list[dict[str, Any]]:
-        """List all available tools in registry"""
+        """List all available tools in registry."""
         tools = []
         for name, tool_def in TOOL_REGISTRY.items():
             installed = self.is_tool_installed(name)
@@ -558,31 +559,31 @@ class DependencyResolver:
                     "category": tool_def.category.value,
                     "installed": installed,
                     "version": self.get_tool_version(name) if installed else None,
-                }
+                },
             )
         return tools
 
     def check_missing_tools(self, required: list[str]) -> list[str]:
-        """
-        Check which required tools are missing.
+        """Check which required tools are missing.
 
         Args:
             required: List of required tool names
 
         Returns:
             List of missing tool names
+
         """
         return [t for t in required if not self.is_tool_installed(t)]
 
     def install_missing(self, required: list[str]) -> dict[str, Any]:
-        """
-        Install all missing required tools.
+        """Install all missing required tools.
 
         Args:
             required: List of required tool names
 
         Returns:
             Results for each tool
+
         """
         missing = self.check_missing_tools(required)
         results = {}
@@ -599,8 +600,7 @@ class DependencyResolver:
 
 
 class MCPClient:
-    """
-    Model Context Protocol client for LLM integration.
+    """Model Context Protocol client for LLM integration.
 
     Allows Drakben to:
     - Expose tools to LLMs (Claude, GPT, etc.)
@@ -610,12 +610,12 @@ class MCPClient:
     Protocol: https://modelcontextprotocol.io/
     """
 
-    def __init__(self, name: str = "drakben"):
-        """
-        Initialize MCP client.
+    def __init__(self, name: str = "drakben") -> None:
+        """Initialize MCP client.
 
         Args:
             name: Client name for identification
+
         """
         self.name = name
         self.version = "1.0.0"
@@ -625,10 +625,10 @@ class MCPClient:
         # Register built-in tools
         self._register_builtin_tools()
 
-        logger.info(f"MCP Client initialized (name: {name})")
+        logger.info("MCP Client initialized (name: %s)", name)
 
     def _register_builtin_tools(self) -> None:
-        """Register built-in Drakben tools for MCP"""
+        """Register built-in Drakben tools for MCP."""
         # Scan tool
         self.register_tool(
             name="scan",
@@ -683,7 +683,7 @@ class MCPClient:
                         "type": "string",
                         "enum": ["pdf", "html", "json", "markdown"],
                         "description": "Report format",
-                    }
+                    },
                 },
             },
             handler=self._handle_report,
@@ -696,14 +696,14 @@ class MCPClient:
         input_schema: dict[str, Any],
         handler: Callable,
     ) -> None:
-        """
-        Register a new MCP tool.
+        """Register a new MCP tool.
 
         Args:
             name: Tool name
             description: Tool description
             input_schema: JSON Schema for input
             handler: Function to handle tool calls
+
         """
         self.tools[name] = MCPTool(
             name=name,
@@ -713,23 +713,30 @@ class MCPClient:
         )
 
     def register_resource(
-        self, uri: str, name: str, description: str, mime_type: str = "text/plain"
+        self,
+        uri: str,
+        name: str,
+        description: str,
+        mime_type: str = "text/plain",
     ) -> None:
-        """
-        Register an MCP resource.
+        """Register an MCP resource.
 
         Args:
             uri: Resource URI
             name: Resource name
             description: Resource description
             mime_type: MIME type
+
         """
         self.resources[uri] = MCPResource(
-            uri=uri, name=name, description=description, mime_type=mime_type
+            uri=uri,
+            name=name,
+            description=description,
+            mime_type=mime_type,
         )
 
     def get_capabilities(self) -> dict[str, Any]:
-        """Get MCP capabilities response"""
+        """Get MCP capabilities response."""
         return {
             "protocolVersion": "2024-11-05",
             "capabilities": {
@@ -741,7 +748,7 @@ class MCPClient:
         }
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """List all registered tools in MCP format"""
+        """List all registered tools in MCP format."""
         return [
             {
                 "name": tool.name,
@@ -752,7 +759,7 @@ class MCPClient:
         ]
 
     def list_resources(self) -> list[dict[str, Any]]:
-        """List all registered resources in MCP format"""
+        """List all registered resources in MCP format."""
         return [
             {
                 "uri": res.uri,
@@ -764,8 +771,7 @@ class MCPClient:
         ]
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """
-        Call a registered tool.
+        """Call a registered tool.
 
         Args:
             name: Tool name
@@ -773,6 +779,7 @@ class MCPClient:
 
         Returns:
             Tool result
+
         """
         if name not in self.tools:
             return {
@@ -790,13 +797,13 @@ class MCPClient:
             }
         except Exception as e:
             return {
-                "content": [{"type": "text", "text": f"Error: {str(e)}"}],
+                "content": [{"type": "text", "text": f"Error: {e!s}"}],
                 "isError": True,
             }
 
     # Built-in handlers
     def _handle_scan(self, args: dict[str, Any]) -> dict[str, Any]:
-        """Handle scan tool calls"""
+        """Handle scan tool calls."""
         target = args.get("target", "")
         scan_type = args.get("scan_type", "quick")
 
@@ -808,7 +815,7 @@ class MCPClient:
         }
 
     def _handle_exploit(self, args: dict[str, Any]) -> dict[str, Any]:
-        """Handle exploit tool calls"""
+        """Handle exploit tool calls."""
         target = args.get("target", "")
         vuln = args.get("vulnerability", "")
 
@@ -820,7 +827,7 @@ class MCPClient:
         }
 
     def _handle_report(self, args: dict[str, Any]) -> dict[str, Any]:
-        """Handle report tool calls"""
+        """Handle report tool calls."""
         fmt = args.get("format", "markdown")
 
         return {
@@ -836,15 +843,15 @@ class MCPClient:
 
 
 class APIRequestHandler(http.server.BaseHTTPRequestHandler):
-    """Custom request handler for API Enpoints"""
+    """Custom request handler for API Enpoints."""
 
-    def _set_headers(self, status=200, content_type="application/json"):
+    def _set_headers(self, status=200, content_type="application/json") -> None:
         self.send_response(status)
         self.send_header("Content-type", content_type)
         self.end_headers()
 
     def _validate_auth(self) -> bool:
-        """Validate the request API key"""
+        """Validate the request API key."""
         api_key = self.headers.get("X-API-KEY")
         adapter = get_universal_adapter()
         if not adapter or not adapter.api_server:
@@ -856,7 +863,7 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
             return False
         return True
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         try:
             # SECURITY: Enforce Auth for all endpoints
             if not self._validate_auth():
@@ -892,23 +899,21 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
             self._set_headers(500)
             self.wfile.write(json.dumps({"error": str(e)}).encode())
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         # Placeholder for POST methods
         self._set_headers(501)
         self.wfile.write(
             json.dumps(
-                {"error": "POST method not fully implemented in this version"}
-            ).encode()
+                {"error": "POST method not fully implemented in this version"},
+            ).encode(),
         )
 
-    def log_message(self, format, *args):
-        # Suppress default logging to stdout
-        pass
+    def log_message(self, format, *args) -> None:
+        """Suppress default logging to stdout."""
 
 
 class APIServer:
-    """
-    REST API server for headless operation.
+    """REST API server for headless operation.
 
     Provides:
     - HTTP endpoints for tool management and status
@@ -917,13 +922,13 @@ class APIServer:
     WARNING: Uses http.server - suitable for development/internal use.
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8080):
-        """
-        Initialize API server.
+    def __init__(self, host: str = "127.0.0.1", port: int = 8080) -> None:
+        """Initialize API server.
 
         Args:
             host: Bind host
             port: Bind port
+
         """
         self.host = host
         self.port = port
@@ -936,20 +941,20 @@ class APIServer:
         self.default_key = hashlib.sha256(os.urandom(32)).hexdigest()[:32]
         self.api_keys[self.default_key] = "admin"  # Default key has admin permissions
 
-        logger.info(f"API Server initialized (bind: {host}:{port})")
+        logger.info("API Server initialized (bind: {host}:%s)", port)
 
     def add_api_key(self, permissions: str = "read") -> str:
-        """Add a new API key"""
+        """Add a new API key."""
         key = hashlib.sha256(os.urandom(32)).hexdigest()[:32]
         self.api_keys[key] = permissions
         return key
 
     def validate_key(self, key: str) -> str | None:
-        """Validate an API key"""
+        """Validate an API key."""
         return self.api_keys.get(key)
 
     def get_endpoints(self) -> list[dict[str, str]]:
-        """Get list of available API endpoints"""
+        """Get list of available API endpoints."""
         return [
             {
                 "method": "GET",
@@ -969,7 +974,7 @@ class APIServer:
         ]
 
     def start(self) -> None:
-        """Start the API server (threaded)"""
+        """Start the API server (threaded)."""
         if self.running:
             return
 
@@ -979,7 +984,8 @@ class APIServer:
 
             # Initialize server
             self.server = socketserver.TCPServer(
-                (self.host, self.port), APIRequestHandler
+                (self.host, self.port),
+                APIRequestHandler,
             )
 
             # Run in separate thread
@@ -988,17 +994,19 @@ class APIServer:
             self.thread.start()
 
             self.running = True
-            logger.info(f"API Server started on http://{self.host}:{self.port}")
+            logger.info("API Server started on http://{self.host}:%s", self.port)
 
         except OSError as e:
-            logger.error(f"Failed to bind API server to {self.host}:{self.port} - {e}")
+            logger.exception(
+                f"Failed to bind API server to {self.host}:{self.port} - {e}",
+            )
             self.running = False
         except Exception as e:
-            logger.error(f"Failed to start API server: {e}")
+            logger.exception("Failed to start API server: %s", e)
             self.running = False
 
     def stop(self) -> None:
-        """Stop the API server"""
+        """Stop the API server."""
         if self.server and self.running:
             try:
                 self.server.shutdown()
@@ -1006,7 +1014,7 @@ class APIServer:
                 self.running = False
                 logger.info("API server stopped")
             except Exception as e:
-                logger.error(f"Error stopping API server: {e}")
+                logger.exception("Error stopping API server: %s", e)
 
 
 # =============================================================================
@@ -1015,8 +1023,7 @@ class APIServer:
 
 
 class UniversalAdapter:
-    """
-    Main orchestrator for integration and extensibility.
+    """Main orchestrator for integration and extensibility.
 
     Combines:
     - MCP client for LLM integration
@@ -1029,13 +1036,13 @@ class UniversalAdapter:
         adapter.start_api_server()
     """
 
-    def __init__(self, api_host: str = "127.0.0.1", api_port: int = 8080):
-        """
-        Initialize Universal Adapter.
+    def __init__(self, api_host: str = "127.0.0.1", api_port: int = 8080) -> None:
+        """Initialize Universal Adapter.
 
         Args:
             api_host: API server host
             api_port: API server port
+
         """
         self.resolver = DependencyResolver()
         self.mcp = MCPClient()
@@ -1044,35 +1051,35 @@ class UniversalAdapter:
         logger.info("Universal Adapter initialized")
 
     def ensure_tools(self, tools: list[str]) -> dict[str, Any]:
-        """
-        Ensure required tools are installed.
+        """Ensure required tools are installed.
 
         Args:
             tools: List of required tool names
 
         Returns:
             Installation results
+
         """
         return self.resolver.install_missing(tools)
 
     def check_tools(self, tools: list[str]) -> dict[str, bool]:
-        """
-        Check if tools are installed.
+        """Check if tools are installed.
 
         Args:
             tools: List of tool names to check
 
         Returns:
             Dict of tool -> installed status
+
         """
         return {t: self.resolver.is_tool_installed(t) for t in tools}
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """List all available tools with status"""
+        """List all available tools with status."""
         return self.resolver.list_available_tools()
 
     def get_mcp_manifest(self) -> dict[str, Any]:
-        """Get MCP manifest for LLM integration"""
+        """Get MCP manifest for LLM integration."""
         return {
             "name": self.mcp.name,
             "version": self.mcp.version,
@@ -1082,10 +1089,11 @@ class UniversalAdapter:
         }
 
     def call_mcp_tool(
-        self, tool_name: str, arguments: dict[str, Any]
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Call an MCP tool.
+        """Call an MCP tool.
 
         Args:
             tool_name: Name of the tool
@@ -1093,23 +1101,24 @@ class UniversalAdapter:
 
         Returns:
             Tool result
+
         """
         return self.mcp.call_tool(tool_name, arguments)
 
     def start_api_server(self) -> None:
-        """Start the REST API server"""
+        """Start the REST API server."""
         self.api_server.start()
 
     def stop_api_server(self) -> None:
-        """Stop the REST API server"""
+        """Stop the REST API server."""
         self.api_server.stop()
 
     def get_api_key(self) -> str:
-        """Get the default API key"""
+        """Get the default API key."""
         return self.api_server.default_key
 
     def get_status(self) -> dict[str, Any]:
-        """Get adapter status"""
+        """Get adapter status."""
         return {
             "tools_available": len(TOOL_REGISTRY),
             "tools_installed": sum(
@@ -1131,11 +1140,11 @@ class UniversalAdapter:
 
 
 def get_universal_adapter() -> UniversalAdapter:
-    """
-    Get singleton UniversalAdapter instance.
+    """Get singleton UniversalAdapter instance.
 
     Returns:
         UniversalAdapter instance
+
     """
     global _universal_adapter
     if "_universal_adapter" not in globals() or _universal_adapter is None:
@@ -1144,14 +1153,14 @@ def get_universal_adapter() -> UniversalAdapter:
 
 
 def ensure_tool(tool_name: str) -> bool:
-    """
-    Quick function to ensure a tool is installed.
+    """Quick function to ensure a tool is installed.
 
     Args:
         tool_name: Name of the tool
 
     Returns:
         True if tool is now available
+
     """
     adapter = get_universal_adapter()
     result = adapter.resolver.install_tool(tool_name)
@@ -1159,14 +1168,14 @@ def ensure_tool(tool_name: str) -> bool:
 
 
 def is_tool_available(tool_name: str) -> bool:
-    """
-    Check if a tool is available.
+    """Check if a tool is available.
 
     Args:
         tool_name: Name of the tool
 
     Returns:
         True if tool is installed
+
     """
     adapter = get_universal_adapter()
     return adapter.resolver.is_tool_installed(tool_name)

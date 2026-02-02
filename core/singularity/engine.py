@@ -1,5 +1,4 @@
-"""
-DRAKBEN Singularity - Main Engine
+"""DRAKBEN Singularity - Main Engine
 Author: @drak_ben
 Description: Orchestrates the self-improvement cycle: Synthesize -> Validate -> Mutate.
 """
@@ -14,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SingularityEngine:
-    """
-    The heart of Drakben's self-improvement capability.
+    """The heart of Drakben's self-improvement capability.
 
     Workflow:
     1. Receive requirement (e.g. "Need a tool to exploit CVE-2024-XXXX")
@@ -25,17 +23,18 @@ class SingularityEngine:
     5. Deploy tool
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.synthesizer = CodeSynthesizer()
         self.validator = CodeValidator()
         self.mutator = MutationEngine()
         logger.info("Singularity Engine initialized")
 
     def create_capability(
-        self, description: str, language: str = "python"
+        self,
+        description: str,
+        language: str = "python",
     ) -> str | None:
-        """
-        Create a new diverse capability (tool) from scratch.
+        """Create a new diverse capability (tool) from scratch.
 
         Args:
             description: Description of the desired tool
@@ -43,8 +42,9 @@ class SingularityEngine:
 
         Returns:
             Final source code string or None if failed
+
         """
-        logger.info(f"Initiating capability creation: {description}")
+        logger.info("Initiating capability creation: %s", description)
 
         # 1. Synthesis
         snippet = self.synthesizer.generate_tool(description, language)
@@ -58,7 +58,7 @@ class SingularityEngine:
         if not is_valid:
             logger.warning("Initial validation failed. Attempting self-repair...")
             logger.error(
-                "Validation failed. Moving to fallback or human intervention required."
+                "Validation failed. Moving to fallback or human intervention required.",
             )
             return None
 
@@ -75,9 +75,7 @@ class SingularityEngine:
         return final_code
 
     def evolve_existing_module(self, module_code: str) -> str:
-        """
-        Evolve an existing module to bypass new signatures.
-        """
+        """Evolve an existing module to bypass new signatures."""
         # Apply intense mutation
         return self.mutator.generate_variant(module_code, iterations=3)
 
@@ -87,7 +85,7 @@ _singularity_engine = None
 
 
 def get_singularity_engine() -> SingularityEngine:
-    """Get singleton Singularity Engine"""
+    """Get singleton Singularity Engine."""
     global _singularity_engine
     if _singularity_engine is None:
         _singularity_engine = SingularityEngine()

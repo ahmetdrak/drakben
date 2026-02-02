@@ -4,10 +4,12 @@
 
 import logging
 from dataclasses import dataclass, field
-from re import Match
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.coder import AICoder
+
+if TYPE_CHECKING:
+    from re import Match
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ except ImportError:
 
 @dataclass
 class ExecutionContext:
-    """Execution context for tracking state"""
+    """Execution context for tracking state."""
 
     target: str | None = None
     language: str = "tr"
@@ -40,27 +42,35 @@ class ExecutionContext:
 
 # MODULE 1: Master Orchestrator
 class MasterOrchestrator:
-    """
-    Ana orkestratör - Tüm modülleri koordine eder
-    """
+    """Ana orkestratör - Tüm modülleri koordine eder."""
 
     def __init__(self) -> None:
+        """Initialize the orchestrator with sub-modules and clear context."""
         self.context = ExecutionContext()
         self.reasoning_engine = None
         self.context_manager = None
         self.self_correction = None
         self.decision_engine = None
 
-    def initialize(self, reasoning, context_mgr, self_corr, decision) -> None:
-        """Initialize sub-modules"""
+    def initialize(
+        self, reasoning: Any, context_mgr: Any, self_corr: Any, decision: Any,
+    ) -> None:
+        """Connect the orchestrator to its functional modules.
+
+        Args:
+            reasoning: The reasoning engine instance.
+            context_mgr: The context manager instance.
+            self_corr: The self-correction module instance.
+            decision: The decision engine instance.
+
+        """
         self.reasoning_engine = reasoning
         self.context_manager = context_mgr
         self.self_correction = self_corr
         self.decision_engine = decision
 
     def process_request(self, user_input: str, system_context: dict) -> dict:
-        """
-        Ana işlem döngüsü
+        """Ana işlem döngüsü.
 
         Returns:
             {
@@ -69,8 +79,30 @@ class MasterOrchestrator:
                 "reasoning": str,
                 "next_action": {...}
             }
+
         """
+        # Ensure all core modules are initialized
+        if self.reasoning_engine is None or self.decision_engine is None or self.self_correction is None:
+            return {
+                "action": "error",
+                "error": "Orchestrator modules are not initialized",
+                "response": "Orchestrator modules are not initialized",
+                "llm_response": "Orchestrator modules are not initialized",
+                "needs_approval": False,
+                "steps": [],
+                "risks": [],
+            }
         # Update context
+        if self.context_manager is None:
+            return {
+                "action": "error",
+                "error": "Context manager is not initialized",
+                "response": "Context manager is not initialized",
+                "llm_response": "Context manager is not initialized",
+                "needs_approval": False,
+                "steps": [],
+                "risks": [],
+            }
         self.context_manager.update(system_context)
         # SYNC: Make sure ExecutionContext has access to the latest context manager data
         self.context.system_info.update(self.context_manager.current_context)
@@ -108,7 +140,8 @@ class MasterOrchestrator:
         if len(self.context.history) >= 3:
             last_3 = self.context.history[-3:]
             current_action = decision.get("action") or decision.get(
-                "next_action", {}
+                "next_action",
+                {},
             ).get("type")
 
             repeated_count = 0
@@ -118,7 +151,7 @@ class MasterOrchestrator:
                 # Handle both dict and object/string cases defensively
                 if isinstance(hist_action_obj, dict):
                     hist_action = hist_action_obj.get("tool") or hist_action_obj.get(
-                        "type"
+                        "type",
                     )
                 else:
                     hist_action = str(hist_action_obj)
@@ -130,7 +163,7 @@ class MasterOrchestrator:
                 import logging
 
                 logging.getLogger(__name__).critical(
-                    "Infinite Loop Detected: Same action proposed 3+ times."
+                    "Infinite Loop Detected: Same action proposed 3+ times.",
                 )
                 return {
                     "action": "error",
@@ -146,72 +179,56 @@ class MasterOrchestrator:
 
         return decision
 
-    def execute_plan(self, plan: list[dict]) -> list[dict]:
-        """Execute a multi-step plan"""
-        results = []
-        self.context.total_steps = len(plan)
-
-        for i, step in enumerate(plan):
-            self.context.current_step = i + 1
-
-            # Add to history
-            self.context.history.append(
-                {"step": i + 1, "action": step, "status": "executing"}
-            )
-
-            results.append(step)
-
-        return results
-
 
 # MODULE 2: Continuous Reasoning
 class ContinuousReasoning:
-    """
-    Sürekli düşünme motoru - Her adımda yeniden değerlendirir
-    Gerçek LLM entegrasyonu ile
+    """Sürekli düşünme motoru - Her adımda yeniden değerlendirir
+    Gerçek LLM entegrasyonu ile.
     """
 
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client: Any = None) -> None:
+        """Initialize reasoning engine with optional LLM support.
+
+        Args:
+            llm_client: Client for external or local LLM interaction.
+
+        """
+        import threading
+        self._lock = threading.Lock()  # Thread safety for history
         self.llm_client = llm_client
-        self.reasoning_history = []
+        self.reasoning_history: list[dict] = []
         self.use_llm: bool = llm_client is not None
 
         # Initialize LLM Cache
+        self.llm_cache = None
         try:
             from core.llm_cache import LLMCache
 
             self.llm_cache = LLMCache()
         except ImportError:
-            self.llm_cache = None
+            pass
 
     def _add_to_history(self, item: dict) -> None:
-        """Add item to reasoning history with size limit"""
-        self.reasoning_history.append(item)
-        if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
-            self.reasoning_history = self.reasoning_history[
-                -self.MAX_REASONING_HISTORY :
-            ]
+        """Add item to reasoning history with size limit (thread-safe)."""
+        with self._lock:
+            self.reasoning_history.append(item)
+            if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
+                self.reasoning_history = self.reasoning_history[
+                    -self.MAX_REASONING_HISTORY :
+                ]
 
     def analyze(self, user_input: str, context: ExecutionContext) -> dict:
-        """
-        Kullanıcı girdisini analiz et ve plan oluştur
-        LLM varsa AI-powered, yoksa rule-based
+        """Analyze user input to determine intent and generate a plan.
+
+        Args:
+            user_input: Natural language input from the user.
+            context: Current execution context.
 
         Returns:
-            {
-                "intent": str,
-                "confidence": float,
-                "steps": List[Dict],
-                "reasoning": str,
-                "risks": List[str],
-                "llm_response": str (optional)
-            }
+            A dictionary containing the interpreted plan and reasoning.
 
-        ERROR RECOVERY:
-        - Retry LLM on transient errors (timeout, rate limit)
-        - Fall back to rule-based analysis on persistent failure
         """
         import logging
         import time
@@ -235,7 +252,8 @@ class ContinuousReasoning:
 
             for attempt in range(MAX_RETRIES):
                 llm_analysis: dict[str, Any] = self._analyze_with_llm(
-                    user_input, context
+                    user_input,
+                    context,
                 )
 
                 if llm_analysis.get("success"):
@@ -248,7 +266,7 @@ class ContinuousReasoning:
                 if is_retryable and attempt < MAX_RETRIES - 1:
                     delay = 5 * (2**attempt)  # 5s, 10s, 20s
                     logger.warning(
-                        f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}"
+                        f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}",
                     )
                     time.sleep(delay)
                     continue
@@ -259,7 +277,7 @@ class ContinuousReasoning:
             # Log persistent LLM failure
             if last_error:
                 logger.warning(
-                    f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}"
+                    f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}",
                 )
 
         # Fallback to rule-based analysis
@@ -269,10 +287,11 @@ class ContinuousReasoning:
         return rule_result
 
     def _analyze_with_llm(
-        self, user_input: str, context: ExecutionContext
+        self,
+        user_input: str,
+        context: ExecutionContext,
     ) -> dict[str, Any]:
-        """
-        LLM-powered analysis with language-aware response.
+        """LLM-powered analysis with language-aware response.
 
         Args:
             user_input: User's natural language request
@@ -289,8 +308,8 @@ class ContinuousReasoning:
                 - risks: List[str] - Identified risks
                 - command: Optional[str] - Suggested command
                 - error: Optional[str] - Error message if failed
-        """
 
+        """
         # LANGUAGE LOGIC: Think in English, speak in user's language
         user_lang: Any | str = getattr(context, "language", "tr")
 
@@ -311,16 +330,28 @@ class ContinuousReasoning:
                 if cached_json:
                     # Cache hit! Parse and return directly
                     parsed: dict[str, Any] | None = self._parse_llm_response(
-                        cached_json
+                        cached_json,
                     )  # Helper usage
                     if parsed:
                         parsed["success"] = True
                         parsed["response"] = parsed.get(
-                            "response", parsed.get("reasoning", "")
+                            "response",
+                            parsed.get("reasoning", ""),
                         )
                         parsed["llm_response"] = cached_json  # Raw json
                         self._add_to_history(parsed)
                         return parsed
+                    # Cache hit but not JSON - return as chat response
+                    return {
+                        "success": True,
+                        "intent": "chat",
+                        "confidence": 0.9,
+                        "steps": [{"action": "respond", "type": "chat"}],
+                        "reasoning": cached_json,
+                        "response": cached_json,
+                        "risks": [],
+                        "llm_response": cached_json,
+                    }
 
             # Add timeout to prevent hanging on Cloudflare WAF blocking
             response = self.llm_client.query(user_input, system_prompt, timeout=20)
@@ -361,13 +392,15 @@ class ContinuousReasoning:
             return {"success": False, "error": str(e)}
 
     def _parse_llm_response(self, response: str) -> dict[str, Any] | None:
-        """Extract JSON from LLM response string"""
+        """Extract JSON from LLM response string."""
         import json
         import re
 
         # Try to find JSON block
         json_match: Match[str] | None = re.search(
-            r"```json\s*(.*?)\s*```", response, re.DOTALL
+            r"```json\s*(.*?)\s*```",
+            response,
+            re.DOTALL,
         )
         if json_match:
             try:
@@ -384,7 +417,7 @@ class ContinuousReasoning:
         return None
 
     def _is_chat_request(self, user_input: Any) -> bool:
-        """Detect if user input is a chat/conversation request (not pentest)"""
+        """Detect if user input is a chat/conversation request (not pentest)."""
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
             # Try to extract meaningful text from dict if passed by mistake
@@ -483,10 +516,12 @@ class ContinuousReasoning:
         return len(user_input.split()) <= 5
 
     def _chat_with_llm(
-        self, user_input: str, user_lang: str, context: ExecutionContext
+        self,
+        user_input: str,
+        user_lang: str,
+        context: ExecutionContext,
     ) -> dict:
-        """Direct chat mode - conversational response without JSON structure"""
-
+        """Direct chat mode - conversational response without JSON structure."""
         # Fast Path REMOVED to allow full LLM personality
 
         if user_lang == "tr":
@@ -552,9 +587,11 @@ IMPORTANT:
             return {"success": False, "error": str(e)}
 
     def _construct_system_prompt(
-        self, user_lang: str, context: ExecutionContext
+        self,
+        user_lang: str,
+        context: ExecutionContext,
     ) -> str:
-        """Helper to construct the system prompt for pentest analysis"""
+        """Helper to construct the system prompt for pentest analysis."""
         if user_lang == "tr":
             language_instruction = """
 PROCESS:
@@ -657,7 +694,7 @@ Target: {context.target or "WAITING FOR TARGET"}
 User Input: """
 
     def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> dict:
-        """Rule-based analysis (fallback when LLM unavailable)"""
+        """Rule-based analysis (fallback when LLM unavailable)."""
         # Intent detection
         intent: str = self._detect_intent(user_input)
 
@@ -665,7 +702,7 @@ User Input: """
         risks: list[str] = self._assess_risks(intent, context)
 
         # Step planning
-        steps = self._plan_steps(intent, context)
+        steps: list[dict] = self._plan_steps(intent, context)
 
         # Reasoning explanation
         lang = context.language if hasattr(context, "language") else "en"
@@ -684,7 +721,7 @@ User Input: """
         return analysis
 
     def _detect_intent(self, user_input: Any) -> str:
-        """Detect user intent from input"""
+        """Detect user intent from input."""
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
             user_input = (
@@ -699,19 +736,18 @@ User Input: """
         # Pentest intents
         if any(word in user_lower for word in ["tara", "scan", "port", "keşif"]):
             return "scan"
-        elif any(word in user_lower for word in ["açık", "zafiyet", "vuln", "cve"]):
+        if any(word in user_lower for word in ["açık", "zafiyet", "vuln", "cve"]):
             return "find_vulnerability"
-        elif any(word in user_lower for word in ["exploit", "istismar", "saldır"]):
+        if any(word in user_lower for word in ["exploit", "istismar", "saldır"]):
             return "exploit"
-        elif any(word in user_lower for word in ["shell", "kabuk", "reverse"]):
+        if any(word in user_lower for word in ["shell", "kabuk", "reverse"]):
             return "get_shell"
-        elif any(word in user_lower for word in ["payload", "yük"]):
+        if any(word in user_lower for word in ["payload", "yük"]):
             return "generate_payload"
-        else:
-            return "chat"
+        return "chat"
 
     def _assess_risks(self, intent: str, context: ExecutionContext) -> list[str]:
-        """Assess risks for the intent"""
+        """Assess risks for the intent."""
         risks = []
 
         if intent in ["exploit", "get_shell"]:
@@ -725,11 +761,11 @@ User Input: """
         return risks
 
     def _plan_steps(self, intent: str, context: ExecutionContext) -> list[dict]:
-        """Plan execution steps based on intent"""
-        steps = []
+        """Plan execution steps based on intent."""
+        steps: list[dict] = []
 
         if intent == "scan":
-            steps: list[dict[str, str]] = [
+            steps = [
                 {"action": "check_tools", "tool": "nmap"},
                 {"action": "port_scan", "tool": "nmap"},
                 {"action": "service_detection", "tool": "nmap"},
@@ -737,7 +773,7 @@ User Input: """
             ]
 
         elif intent == "find_vulnerability":
-            steps: list[dict[str, str]] = [
+            steps = [
                 {"action": "scan", "tool": "nmap"},
                 {"action": "web_scan", "tool": "nikto"},
                 {"action": "vuln_scan", "tool": "nmap_scripts"},
@@ -745,7 +781,7 @@ User Input: """
             ]
 
         elif intent == "get_shell":
-            steps: list[dict[str, str]] = [
+            steps = [
                 {"action": "scan_target"},
                 {"action": "find_vulnerabilities"},
                 {"action": "select_exploit"},
@@ -755,48 +791,48 @@ User Input: """
             ]
 
         elif intent == "generate_payload":
-            steps: list[dict[str, str]] = [
+            steps = [
                 {"action": "determine_target_os"},
                 {"action": "generate_payloads"},
                 {"action": "encode_if_needed"},
             ]
 
         else:  # chat
-            steps: list[dict[str, str]] = [{"action": "respond", "type": "chat"}]
+            steps = [{"action": "respond", "type": "chat"}]
 
         return steps
 
     def _generate_reasoning(
-        self, intent: str, steps: list[dict], risks: list[str], lang: str = "en"
+        self,
+        intent: str,
+        steps: list[dict],
+        risks: list[str],
+        lang: str = "en",
     ) -> str:
-        """Generate human-readable reasoning"""
+        """Generate human-readable reasoning."""
         if intent == "scan":
             return (
                 f"Port taraması yapılacak. {len(steps)} adım planlandı."
                 if lang == "tr"
                 else f"Port scan will be performed. {len(steps)} steps planned."
             )
-        elif intent == "find_vulnerability":
+        if intent == "find_vulnerability":
             return (
                 "Zafiyet taraması yapılacak. Önce port taraması, sonra servis analizi."
                 if lang == "tr"
                 else "Vulnerability scan will be performed. First port scan, then service analysis."
             )
-        elif intent == "get_shell":
-            return (
-                f"Shell erişimi için {len(steps)} adımlı plan. {'Riskli işlem!' if risks else ''}"
-                if lang == "tr"
-                else f"{len(steps)}-step plan for shell access. {'Risky operation!' if risks else ''}"
-            )
-        else:
-            return (
-                "Kullanıcı ile sohbet modu." if lang == "tr" else "Chat mode with user."
-            )
+        if intent == "get_shell":
+            risk_note = "Riskli işlem!" if risks else ""
+            risk_note_en = "Risky operation!" if risks else ""
+
+            if lang == "tr":
+                return f"Shell erişimi için {len(steps)} adımlı plan. {risk_note}"
+            return f"{len(steps)}-step plan for shell access. {risk_note_en}"
+        return "Kullanıcı ile sohbet modu." if lang == "tr" else "Chat mode with user."
 
     def re_evaluate(self, execution_result: dict, context: ExecutionContext) -> dict:
-        """
-        Bir adım sonrasında yeniden değerlendir
-        """
+        """Bir adım sonrasında yeniden değerlendir."""
         # Check if we need to adjust the plan
         if not execution_result.get("success"):
             # Plan adjustment needed
@@ -809,7 +845,7 @@ User Input: """
         return {"action": "continue"}
 
     def _generate_recovery_steps(self, failed_result: dict) -> list[dict]:
-        """Generate recovery steps when something fails"""
+        """Generate recovery steps when something fails."""
         error = failed_result.get("error", "")
 
         if "command not found" in error.lower():
@@ -817,36 +853,33 @@ User Input: """
                 {"action": "install_tool", "tool": failed_result.get("tool")},
                 {"action": "retry", "previous": failed_result},
             ]
-        elif "permission denied" in error.lower():
+        if "permission denied" in error.lower():
             return [
                 {"action": "escalate_privileges"},
                 {"action": "retry", "previous": failed_result},
             ]
-        else:
-            return [{"action": "try_alternative_method"}]
+        return [{"action": "try_alternative_method"}]
 
 
 # MODULE 3: Context Manager
 class ContextManager:
-    """
-    Bağlam yöneticisi - Sistem durumunu takip eder
-    """
+    """Bağlam yöneticisi - Sistem durumunu takip eder."""
 
     def __init__(self) -> None:
-        self.current_context = {}
-        self.context_history = []
+        self.current_context: dict = {}
+        self.context_history: list[dict] = []
 
     def update(self, new_context: dict) -> None:
-        """Update current context"""
+        """Update context with new system information."""
         self.context_history.append(self.current_context.copy())
         self.current_context.update(new_context)
 
-    def get(self, key: str, default=None):
-        """Get context value"""
+    def get(self, key: str, default=None) -> Any:
+        """Get context value."""
         return self.current_context.get(key, default)
 
     def get_full_context(self) -> dict:
-        """Get complete context for AI"""
+        """Get complete context for AI."""
         return {
             "current": self.current_context,
             "previous": self.context_history[-1] if self.context_history else {},
@@ -854,7 +887,7 @@ class ContextManager:
         }
 
     def _detect_changes(self) -> list[str]:
-        """Detect what changed in context"""
+        """Detect what changed in context."""
         changes = []
 
         if not self.context_history:
@@ -872,28 +905,26 @@ class ContextManager:
         return changes
 
     def clear_history(self) -> None:
-        """Clear context history"""
+        """Clear context history."""
         self.context_history = []
 
 
 # MODULE 4: Self Correction
 class SelfCorrection:
-    """
-    Kendi kendine düzeltme - Hataları tespit edip düzeltir
-    """
+    """Kendi kendine düzeltme - Hataları tespit edip düzeltir."""
 
     def __init__(self) -> None:
         self.correction_history = []
 
     def review(self, decision: dict) -> dict:
-        """
-        Review a decision and correct if needed
+        """Review a decision and correct if needed.
 
         Args:
             decision: Decision to review
 
         Returns:
             Corrected decision
+
         """
         corrected = decision.copy()
         corrections = []
@@ -924,13 +955,13 @@ class SelfCorrection:
                     "original": decision,
                     "corrected": corrected,
                     "corrections": corrections,
-                }
+                },
             )
 
         return corrected
 
     def _is_dangerous(self, decision: dict) -> bool:
-        """Check if decision involves dangerous operations"""
+        """Check if decision involves dangerous operations."""
         dangerous_patterns: list[str] = [
             "rm -rf",
             "dd if=",
@@ -947,7 +978,7 @@ class SelfCorrection:
         return any(pattern in command for pattern in dangerous_patterns)
 
     def _check_prerequisites(self, decision: dict) -> list[str]:
-        """Check for missing prerequisites"""
+        """Check for missing prerequisites."""
         prereqs = []
 
         # Check if tools are available
@@ -959,7 +990,7 @@ class SelfCorrection:
         return prereqs
 
     def _suggest_optimizations(self, decision: dict) -> list[str]:
-        """Suggest optimizations"""
+        """Suggest optimizations."""
         optimizations = []
 
         # Check if multiple steps can be combined
@@ -970,7 +1001,7 @@ class SelfCorrection:
         return optimizations
 
     def get_correction_stats(self) -> dict:
-        """Get statistics about corrections made"""
+        """Get statistics about corrections made."""
         return {
             "total_corrections": len(self.correction_history),
             "recent_corrections": self.correction_history[-5:],
@@ -979,16 +1010,18 @@ class SelfCorrection:
 
 # MODULE 5: Decision Engine
 class DecisionEngine:
-    """
-    Karar motoru - Hangi aksiyonun alınacağına karar verir
-    """
+    """Karar motoru - Hangi aksiyonun alınacağına karar verir."""
+
+    # Maximum history size to prevent memory growth
+    MAX_HISTORY_SIZE = 100
 
     def __init__(self) -> None:
-        self.decision_history = []
+        import threading
+        self._lock = threading.Lock()
+        self.decision_history: list[dict] = []
 
     def decide(self, analysis: dict, context: ExecutionContext) -> dict:
-        """
-        Make a decision based on analysis
+        """Make a decision based on analysis.
 
         Returns:
             {
@@ -998,6 +1031,7 @@ class DecisionEngine:
                 "reasoning": str,
                 "confidence": float
             }
+
         """
         intent = analysis.get("intent")
         steps = analysis.get("steps", [])
@@ -1024,13 +1058,20 @@ class DecisionEngine:
             "steps": steps,
         }
 
-        self.decision_history.append(decision)
+        # Thread-safe history update with size limit
+        with self._lock:
+            self.decision_history.append(decision)
+            if len(self.decision_history) > self.MAX_HISTORY_SIZE:
+                self.decision_history = self.decision_history[-self.MAX_HISTORY_SIZE:]
         return decision
 
     def _needs_approval(
-        self, intent: str, risks: list[str], context: ExecutionContext
+        self,
+        intent: str,
+        risks: list[str],
+        context: ExecutionContext,
     ) -> bool:
-        """Determine if user approval is needed"""
+        """Determine if user approval is needed."""
         # Always ask on first run
         if not context.history:
             return True
@@ -1043,7 +1084,7 @@ class DecisionEngine:
         return intent in ["exploit", "get_shell"]
 
     def _select_action(self, steps: list[dict], context: ExecutionContext) -> str:
-        """Select the next action to take"""
+        """Select the next action to take."""
         if not steps:
             return "respond"
 
@@ -1055,16 +1096,16 @@ class DecisionEngine:
         return "complete"
 
     def _generate_command(self, action: str, context: ExecutionContext) -> str | None:
-        """Generate shell command for action"""
+        """Generate shell command for action."""
         target: str | None = context.target
 
         if action == "port_scan" and target:
             return f"nmap -F {target}"
-        elif action == "service_detection" and target:
+        if action == "service_detection" and target:
             return f"nmap -sV {target}"
-        elif action == "web_scan" and target:
+        if action == "web_scan" and target:
             return f"nikto -h {target}"
-        elif action == "vuln_scan" and target:
+        if action == "vuln_scan" and target:
             return f"nmap --script vuln {target}"
 
         return None
@@ -1072,9 +1113,8 @@ class DecisionEngine:
 
 # Brain Facade - Main interface
 class DrakbenBrain:
-    """
-    Ana beyin interface - 5 modülü koordine eder
-    Gerçek LLM entegrasyonu ile
+    """Ana beyin interface - 5 modülü koordine eder
+    Gerçek LLM entegrasyonu ile.
     """
 
     def __init__(self, llm_client=None) -> None:
@@ -1083,7 +1123,7 @@ class DrakbenBrain:
             try:
                 llm_client = OpenRouterClient()
             except (ValueError, ConnectionError, ImportError) as e:
-                logger.debug(f"Could not initialize LLM client: {e}")
+                logger.debug("Could not initialize LLM client: %s", e)
                 llm_client = None
 
         self.llm_client = llm_client
@@ -1097,14 +1137,19 @@ class DrakbenBrain:
 
         # Connect modules
         self.orchestrator.initialize(
-            self.reasoning, self.context_mgr, self.self_correction, self.decision_engine
+            self.reasoning,
+            self.context_mgr,
+            self.self_correction,
+            self.decision_engine,
         )
 
     def think(
-        self, user_input: str, target: str | None = None, language: str = "en"
+        self,
+        user_input: str,
+        target: str | None = None,
+        language: str = "en",
     ) -> dict:
-        """
-        AI-powered thinking - Ana giriş noktası
+        """AI-powered thinking - Ana giriş noktası.
 
         Args:
             user_input: Kullanıcı komutu/sorusu
@@ -1120,6 +1165,7 @@ class DrakbenBrain:
                 "needs_approval": bool,
                 "llm_response": str (the actual response to show user)
             }
+
         """
         # Build context
         system_context = {
@@ -1167,40 +1213,38 @@ class DrakbenBrain:
         }
 
     def chat(self, message: str) -> str:
-        """
-        Direct chat with LLM
+        """Direct chat with LLM.
 
         Args:
             message: User message
 
         Returns:
             AI response string
+
         """
         if self.llm_client:
             return self.llm_client.query(message)
-        else:
-            return "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
+        return (
+            "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
+        )
 
     def process(self, user_input: str, system_context: dict) -> dict:
-        """
-        Main entry point - Process user request
-        """
+        """Main entry point - Process user request."""
         return self.orchestrator.process_request(user_input, system_context)
 
     def get_context(self) -> dict:
-        """Get current context"""
+        """Get current context."""
         return self.context_mgr.get_full_context()
 
     def update_context(self, context_update: dict) -> None:
-        """Update brain context"""
+        """Update brain context."""
         self.context_mgr.update(context_update)
 
     def observe(self, tool: str, output: str, success: bool = True) -> None:
-        """
-        Observe tool output and update context.
+        """Observe tool output and update context.
         This allows the Brain to 'see' what happened in the terminal.
         """
-        logger.info(f"Brain observing tool {tool} (success={success})")
+        logger.info("Brain observing tool %s (success=%s)", tool, success)
 
         # Create a history entry (for specialized history if needed)
         entry = {
@@ -1234,7 +1278,7 @@ class DrakbenBrain:
             self.context_mgr.update(current_update)
 
     def get_stats(self) -> dict:
-        """Get brain statistics"""
+        """Get brain statistics."""
         return {
             "reasoning_history": len(self.reasoning.reasoning_history),
             "corrections_made": len(self.self_correction.correction_history),
@@ -1243,7 +1287,7 @@ class DrakbenBrain:
         }
 
     def test_llm(self) -> dict:
-        """Test LLM connection"""
+        """Test LLM connection."""
         if not self.llm_client:
             return {"connected": False, "error": "No LLM client configured"}
 
@@ -1262,8 +1306,7 @@ class DrakbenBrain:
             return {"connected": False, "error": str(e)}
 
     def select_next_tool(self, context: dict) -> dict | None:
-        """
-        REFACTORED: Get SINGLE tool selection from LLM
+        """REFACTORED: Get SINGLE tool selection from LLM.
 
         Args:
             context: {
@@ -1276,6 +1319,7 @@ class DrakbenBrain:
 
         Returns:
             {"tool": "tool_name", "args": {...}} or None
+
         """
         if not self.llm_client:
             # Fallback - return first allowed tool with simple args
@@ -1330,8 +1374,7 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             return None
 
     def ask_coder(self, instruction: str, context: dict | None = None) -> dict:
-        """
-        Delegate coding task to AICoder.
+        """Delegate coding task to AICoder.
 
         Args:
             instruction: What to code
@@ -1339,8 +1382,8 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
 
         Returns:
             Result dict from AICoder
-        """
 
+        """
         # Since AICoder is stateful, we might need a persistent instance in Brain
         # checking if we have one, if not create
         if not hasattr(self, "coder"):

@@ -1,5 +1,4 @@
-"""
-DRAKBEN Distributed State Manager
+"""DRAKBEN Distributed State Manager
 Author: @drak_ben
 Description: Synchronizes agent state across distributed nodes using Redis.
              Gracefully falls back to local memory if Redis is unavailable.
@@ -14,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class DistributedStateManager:
-    """
-    Manages state synchronization via Redis.
+    """Manages state synchronization via Redis.
     Supports swarm mode coordination.
     """
 
@@ -24,7 +22,7 @@ class DistributedStateManager:
         redis_host: str = "localhost",
         redis_port: int = 6379,
         password: str | None = None,
-    ):
+    ) -> None:
         self.redis_host = redis_host
         self.redis_port = redis_port
         self.password = password
@@ -35,7 +33,7 @@ class DistributedStateManager:
         self._connect()
 
     def _connect(self) -> None:
-        """Attempt to connect to Redis"""
+        """Attempt to connect to Redis."""
         try:
             import redis
 
@@ -50,18 +48,19 @@ class DistributedStateManager:
             self.redis_client.ping()
             self.connected = True
             logger.info(
-                f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})"
+                f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})",
             )
         except ImportError:
             logger.warning("Redis library not installed. Running in standalone mode.")
             self.connected = False
         except Exception as e:
-            logger.warning(f"Redis connection failed: {e}. Running in standalone mode.")
+            logger.warning(
+                "Redis connection failed: %s. Running in standalone mode.", e,
+            )
             self.connected = False
 
     def sync_state(self, agent_id: str, state_data: dict[str, Any]) -> bool:
-        """
-        Push local state to distributed store.
+        """Push local state to distributed store.
 
         Args:
             agent_id: Unique identifier for this agent
@@ -69,6 +68,7 @@ class DistributedStateManager:
 
         Returns:
             True if sync successful
+
         """
         if not self.connected or not self.redis_client:
             return False
@@ -88,21 +88,21 @@ class DistributedStateManager:
                         "type": "state_update",
                         "agent_id": agent_id,
                         "timestamp": time.time(),
-                    }
+                    },
                 ),
             )
 
             return True
         except Exception as e:
-            logger.error(f"Failed to sync state: {e}")
+            logger.exception("Failed to sync state: %s", e)
             return False
 
     def get_swarm_state(self) -> dict[str, Any]:
-        """
-        Get states of all active agents in the swarm.
+        """Get states of all active agents in the swarm.
 
         Returns:
             Dict of agent_id -> state_data
+
         """
         if not self.connected or not self.redis_client:
             return {}
@@ -117,7 +117,7 @@ class DistributedStateManager:
                 if data:
                     swarm_data[agent_id] = json.loads(data)
         except Exception as e:
-            logger.error(f"Failed to fetch swarm state: {e}")
+            logger.exception("Failed to fetch swarm state: %s", e)
 
         return swarm_data
 
@@ -127,7 +127,7 @@ _dsm_instance = None
 
 
 def get_distributed_state_manager() -> DistributedStateManager:
-    """Get singleton DistributedStateManager"""
+    """Get singleton DistributedStateManager."""
     global _dsm_instance
     if _dsm_instance is None:
         _dsm_instance = DistributedStateManager()

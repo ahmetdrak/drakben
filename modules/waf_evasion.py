@@ -1,5 +1,4 @@
-"""
-DRAKBEN WAF EVASION ENGINE
+"""DRAKBEN WAF EVASION ENGINE
 Description: Advanced payload obfuscation and WAF bypass techniques.
 Author: @ahmetdrak
 Techniques:
@@ -13,12 +12,11 @@ import secrets
 
 
 class WAFEvasion:
-    """
-    Polymorphic WAF Evasion Engine.
+    """Polymorphic WAF Evasion Engine.
     Mutates attack payloads to bypass LibInjection and Regex-based filters.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sql_keywords = {
             "UNION": [
                 "/*!UNION*/",
@@ -42,9 +40,8 @@ class WAFEvasion:
         }
 
     def obfuscate_sql(self, payload: str, aggressiveness: int = 2) -> str:
-        """
-        Obfuscate SQL Injection payload.
-        Aggressiveness: 1 (Basic) -> 3 (Extreme/Experimental)
+        """Obfuscate SQL Injection payload.
+        Aggressiveness: 1 (Basic) -> 3 (Extreme/Experimental).
         """
         obfuscated = payload
 
@@ -87,9 +84,7 @@ class WAFEvasion:
         return obfuscated
 
     def obfuscate_xss(self, payload: str) -> str:
-        """
-        Obfuscate XSS payload using tag/attribute mutation.
-        """
+        """Obfuscate XSS payload using tag/attribute mutation."""
         # 1. Case Randomization: <script> -> <ScRiPt>
         chars = list(payload)
         for i in range(len(chars)):
@@ -116,9 +111,8 @@ class WAFEvasion:
         return mutated
 
     def obfuscate_shell(self, payload: str) -> str:
-        """
-        Obfuscate OS Command Injection (Bash/Linux).
-        cat /etc/passwd -> c''a''t /e??/p?s??d
+        """Obfuscate OS Command Injection (Bash/Linux).
+        cat /etc/passwd -> c''a''t /e??/p?s??d.
         """
         # 1. String Concatenation: cat -> c'a't
         if secrets.choice([True, False]):  # 50% chance

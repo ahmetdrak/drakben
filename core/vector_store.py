@@ -16,19 +16,18 @@ try:
     DEPENDENCIES_AVAILABLE = True
 except ImportError:
     logger.warning(
-        "ChromaDB not found. Vector memory disabled (falling back to exact match)."
+        "ChromaDB not found. Vector memory disabled (falling back to exact match).",
     )
 except Exception as e:
-    logger.warning(f"ChromaDB initialization error: {e}")
+    logger.warning("ChromaDB initialization error: %s", e)
 
 
 class VectorStore:
-    """
-    Implements Semantic Search/Memory using ChromaDB.
+    """Implements Semantic Search/Memory using ChromaDB.
     Equivalent to PentAGI's pgvector + RAG.
     """
 
-    def __init__(self, persist_dir: str = "drakben_vectors"):
+    def __init__(self, persist_dir: str = "drakben_vectors") -> None:
         self.persist_dir = persist_dir
         self.client = None
         self.collection = None
@@ -40,17 +39,16 @@ class VectorStore:
 
                 # Get or create collection
                 self.collection = self.client.get_or_create_collection(
-                    name="drakben_memory", metadata={"hnsw:space": "cosine"}
+                    name="drakben_memory",
+                    metadata={"hnsw:space": "cosine"},
                 )
-                logger.info(f"Vector Store initialized at {persist_dir}")
+                logger.info("Vector Store initialized at %s", persist_dir)
             except Exception as e:
-                logger.error(f"Failed to initialize Vector Store: {e}")
+                logger.exception("Failed to initialize Vector Store: %s", e)
                 self.client = None
 
-    def add_memory(self, text: str, metadata: dict[str, Any] = None) -> bool:
-        """
-        Add a text memory to the vector store.
-        """
+    def add_memory(self, text: str, metadata: dict[str, Any] | None = None) -> bool:
+        """Add a text memory to the vector store."""
         if not self.collection:
             return False
 
@@ -67,15 +65,15 @@ class VectorStore:
             self.collection.add(documents=[text], metadatas=[metadata], ids=[doc_id])
             return True
         except Exception as e:
-            logger.error(f"Failed to add memory: {e}")
+            logger.exception("Failed to add memory: %s", e)
             return False
 
     def search(self, query: str, n_results: int = 5) -> list[dict]:
-        """
-        Semantic search for similar memories.
+        """Semantic search for similar memories.
 
         Returns:
             List of dicts with 'text', 'metadata', 'distance'
+
         """
         if not self.collection:
             return []
@@ -93,15 +91,15 @@ class VectorStore:
                             "distance": results["distances"][0][i]
                             if results["distances"]
                             else 0.0,
-                        }
+                        },
                     )
             return output
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.exception("Search failed: %s", e)
             return []
 
     def count(self) -> int:
-        """Return total memories"""
+        """Return total memories."""
         if self.collection:
             return self.collection.count()
         return 0

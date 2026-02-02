@@ -27,7 +27,7 @@ SENSITIVE_PATTERNS = [
 
 
 def check_required_files():
-    """Verify all core files exist"""
+    """Verify all core files exist."""
     logger.info("Checking required core files...")
     missing = []
     for f in REQUIRED_FILES:
@@ -38,7 +38,7 @@ def check_required_files():
 
 
 def check_sensitive_leaks():
-    """Check for hardcoded API keys or secrets in the codebase"""
+    """Check for hardcoded API keys or secrets in the codebase."""
     logger.info("Scanning for sensitive data leaks...")
     leaks = []
     # Skip directories that are large or irrelevant
@@ -59,7 +59,7 @@ def check_sensitive_leaks():
                         for pattern in SENSITIVE_PATTERNS:
                             if pattern in content and "your_key_here" not in content:
                                 logger.warning(
-                                    f"Potential leak in {path}: Found '{pattern}'"
+                                    f"Potential leak in {path}: Found '{pattern}'",
                                 )
                                 leaks.append(str(path))
                 except Exception as e:
@@ -67,8 +67,8 @@ def check_sensitive_leaks():
     return leaks
 
 
-def test_integrity():
-    """Run all integrity checks"""
+def test_integrity() -> None:
+    """Run all integrity checks."""
     missing = check_required_files()
     assert not missing, f"Missing core files: {missing}"
 
@@ -82,5 +82,5 @@ if __name__ == "__main__":
         test_integrity()
         logger.info("Integrity check PASSED.")
     except AssertionError as e:
-        logger.error(f"Integrity check FAILED: {e}")
+        logger.exception(f"Integrity check FAILED: {e}")
         sys.exit(1)

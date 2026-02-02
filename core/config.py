@@ -24,7 +24,7 @@ API_ENV_PATH = "config/api.env"
 # All modules should use these values for consistency
 # ===========================================
 class TimeoutConfig:
-    """Centralized timeout settings for consistency across modules"""
+    """Centralized timeout settings for consistency across modules."""
 
     # Database timeouts
     SQLITE_CONNECT_TIMEOUT = 10.0  # seconds
@@ -59,7 +59,7 @@ TIMEOUTS = TimeoutConfig()
 
 @dataclass
 class DrakbenConfig:
-    """DRAKBEN configuration"""
+    """DRAKBEN configuration."""
 
     # LLM Settings
     llm_provider: str = "auto"  # auto, openrouter, ollama, openai
@@ -98,26 +98,25 @@ class DrakbenConfig:
     # System Settings (Added to match config.json)
     system: dict[str, Any] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> Any:
         if self.tools_available is None:
             self.tools_available = {}
 
 
 class ConfigManager:
-    """
-    Manage configuration and sessions.
+    """Manage configuration and sessions.
     Thread-safe implementation with locking.
     """
 
-    def __init__(self, config_file: str = "config/settings.json"):
+    def __init__(self, config_file: str = "config/settings.json") -> None:
         self._lock = threading.RLock()  # Reentrant lock for nested calls
         self.config_file = Path(config_file)
         self.config = self.load_config()
         self._load_env()
         self._llm_client = None  # Lazy initialization
 
-    def _load_env(self):
-        """Load API keys from .env"""
+    def _load_env(self) -> None:
+        """Load API keys from .env."""
         env_file = Path(API_ENV_PATH)
         if env_file.exists():
             load_dotenv(env_file)
@@ -139,12 +138,12 @@ class ConfigManager:
                 os.getenv("OPENAI_API_KEY"),
                 os.getenv("LOCAL_LLM_URL"),
                 os.getenv("LOCAL_LLM_MODEL"),
-            ]
+            ],
         ):
             self.config.llm_setup_complete = True
 
     def _read_env_file(self) -> dict[str, str]:
-        """Read api.env into a dict"""
+        """Read api.env into a dict."""
         env_path = Path(API_ENV_PATH)
         values: dict[str, str] = {}
 
@@ -160,8 +159,8 @@ class ConfigManager:
 
         return values
 
-    def _write_env_file(self, values: dict[str, str]):
-        """Write api.env from a dict"""
+    def _write_env_file(self, values: dict[str, str]) -> None:
+        """Write api.env from a dict."""
         env_path = Path(API_ENV_PATH)
         env_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -182,8 +181,8 @@ class ConfigManager:
 
         env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def prompt_llm_setup_if_needed(self):
-        """Ask for optional LLM setup on first run (only if api.env is missing or empty)"""
+    def prompt_llm_setup_if_needed(self) -> None:
+        """Ask for optional LLM setup on first run (only if api.env is missing or empty)."""
         if self.config.llm_setup_complete:
             return
 
@@ -196,7 +195,7 @@ class ConfigManager:
                 existing.get("OPENAI_API_KEY"),
                 existing.get("LOCAL_LLM_URL"),
                 existing.get("LOCAL_LLM_MODEL"),
-            ]
+            ],
         ):
             self.config.llm_setup_complete = True
             self.save_config()
@@ -208,7 +207,7 @@ class ConfigManager:
                 existing.get("OPENAI_API_KEY"),
                 existing.get("LOCAL_LLM_URL"),
                 existing.get("LOCAL_LLM_MODEL"),
-            ]
+            ],
         ):
             # api.env exists but is empty; continue to prompt
             pass
@@ -224,7 +223,7 @@ class ConfigManager:
             return
 
         console.print(
-            "\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip"
+            "\n[bold]Select provider:[/] 1) OpenRouter  2) OpenAI  3) Ollama (Local)  4) Skip",
         )
         provider_choice = input("> ").strip()
 
@@ -240,13 +239,13 @@ class ConfigManager:
         self.save_config()
 
     def _prompt_user_consent(self, console) -> bool:
-        """Ask user if they want to configure LLM"""
+        """Ask user if they want to configure LLM."""
         console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
         choice = input("> ").strip().lower()
         return choice in ["e", "y", "evet", "yes"]
 
     def _configure_provider(self, choice: str, env_values: dict[str, str]) -> bool:
-        """Configure specific provider based on user choice"""
+        """Configure specific provider based on user choice."""
         if choice == "1":
             self.config.llm_provider = "openrouter"
             api_key = input("OpenRouter API key: ").strip()
@@ -259,7 +258,7 @@ class ConfigManager:
                 self.config.openrouter_model = model
             return True
 
-        elif choice == "2":
+        if choice == "2":
             self.config.llm_provider = "openai"
             api_key = input("OpenAI API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
@@ -271,15 +270,17 @@ class ConfigManager:
                 self.config.openai_model = model
             return True
 
-        elif choice == "3":
+        if choice == "3":
             self.config.llm_provider = "ollama"
             url = input("Ollama URL (leave empty: http://localhost:11434): ").strip()
             model = input("Ollama model (leave empty: llama3.1): ").strip()
             env_values["LOCAL_LLM_URL"] = url or env_values.get(
-                "LOCAL_LLM_URL", "http://localhost:11434"
+                "LOCAL_LLM_URL",
+                "http://localhost:11434",
             )
             env_values["LOCAL_LLM_MODEL"] = model or env_values.get(
-                "LOCAL_LLM_MODEL", "llama3.1"
+                "LOCAL_LLM_MODEL",
+                "llama3.1",
             )
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
@@ -288,8 +289,8 @@ class ConfigManager:
         return False
 
     @property
-    def llm_client(self):
-        """Lazy initialization of LLM client"""
+    def llm_client(self) -> Any:
+        """Lazy initialization of LLM client."""
         with self._lock:
             if self._llm_client is None:
                 try:
@@ -297,24 +298,24 @@ class ConfigManager:
 
                     self._llm_client = OpenRouterClient()
                 except Exception as e:
-                    logger.error(f"Failed to initialize LLM client: {e}")
+                    logger.exception("Failed to initialize LLM client: %s", e)
                     self._llm_client = None
             return self._llm_client
 
     @llm_client.setter
-    def llm_client(self, value):
-        """Allow setting LLM client (useful for testing/mocking)"""
+    def llm_client(self, value) -> None:
+        """Allow setting LLM client (useful for testing/mocking)."""
         with self._lock:
             self._llm_client = value
 
     @property
     def language(self) -> str:
-        """Get current language setting"""
+        """Get current language setting."""
         with self._lock:
             return self.config.language
 
     def load_config(self) -> DrakbenConfig:
-        """Load configuration from file (thread-safe)"""
+        """Load configuration from file (thread-safe)."""
         with self._lock:
             if self.config_file.exists():
                 try:
@@ -322,16 +323,17 @@ class ConfigManager:
                         data = json.load(f)
                         return DrakbenConfig(**data)
                 except Exception as e:
-                    logger.error(f"Config load error: {e}")
+                    logger.exception("Config load error: %s", e)
 
             return DrakbenConfig()
 
-    def save_config(self):
-        """Save configuration to file (thread-safe)
+    def save_config(self) -> None:
+        """Save configuration to file (thread-safe).
 
         Raises:
             PermissionError: If file cannot be written due to permissions
             OSError: If file system error occurs
+
         """
         with self._lock:
             try:
@@ -347,30 +349,30 @@ class ConfigManager:
                 with open(self.config_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
             except PermissionError as e:
-                logger.error(f"Config save error (permission denied): {e}")
+                logger.exception("Config save error (permission denied): %s", e)
                 raise  # Re-raise to allow caller to handle
             except OSError as e:
-                logger.error(f"Config save error (OS error): {e}")
+                logger.exception("Config save error (OS error): %s", e)
                 raise  # Re-raise to allow caller to handle
             except Exception as e:
-                logger.error(f"Config save error (unexpected): {e}")
+                logger.exception("Config save error (unexpected): %s", e)
                 raise  # Re-raise to allow caller to handle
 
-    def set_language(self, lang: str):
-        """Set interface language (thread-safe)"""
+    def set_language(self, lang: str) -> None:
+        """Set interface language (thread-safe)."""
         with self._lock:
             if lang in ["tr", "en"]:
                 self.config.language = lang
                 self.save_config()
 
-    def set_target(self, target: str | None):
-        """Set target (thread-safe)"""
+    def set_target(self, target: str | None) -> None:
+        """Set target (thread-safe)."""
         with self._lock:
             self.config.target = target
             self.save_config()
 
     def get_llm_config(self) -> dict[str, Any]:
-        """Get LLM configuration (thread-safe)"""
+        """Get LLM configuration (thread-safe)."""
         with self._lock:
             return {
                 "provider": self.config.llm_provider,
@@ -382,26 +384,25 @@ class ConfigManager:
                 "openai_model": self.config.openai_model,
             }
 
-    def mark_approved(self):
-        """Mark that user has approved once (thread-safe)"""
+    def mark_approved(self) -> None:
+        """Mark that user has approved once (thread-safe)."""
         with self._lock:
             self.config.approved_once = True
             self.save_config()
 
-    def reset_approval(self):
-        """Reset approval state (thread-safe)"""
+    def reset_approval(self) -> None:
+        """Reset approval state (thread-safe)."""
         with self._lock:
             self.config.approved_once = False
             self.save_config()
 
 
 class SessionManager:
-    """
-    Manage penetration testing sessions.
+    """Manage penetration testing sessions.
     Thread-safe implementation with locking.
     """
 
-    def __init__(self, session_dir: str = "sessions"):
+    def __init__(self, session_dir: str = "sessions") -> None:
         self._lock = threading.RLock()
         self.session_dir = Path(session_dir)
         self.session_dir.mkdir(parents=True, exist_ok=True)
@@ -413,7 +414,7 @@ class SessionManager:
         }
 
     def save_session(self, target: str) -> Path | None:
-        """Save current session (thread-safe)"""
+        """Save current session (thread-safe)."""
         with self._lock:
             try:
                 import time
@@ -429,11 +430,11 @@ class SessionManager:
 
                 return filepath
             except Exception as e:
-                logger.error(f"Session save error: {e}")
+                logger.exception("Session save error: %s", e)
                 return None
 
     def load_session(self, filename: str) -> dict | None:
-        """Load a session (thread-safe)"""
+        """Load a session (thread-safe)."""
         with self._lock:
             try:
                 filepath = self.session_dir / filename
@@ -441,35 +442,35 @@ class SessionManager:
                     with open(filepath, encoding="utf-8") as f:
                         return json.load(f)
             except Exception as e:
-                logger.error(f"Session load error: {e}")
+                logger.exception("Session load error: %s", e)
             return None
 
     def list_sessions(self) -> list:
-        """List all sessions (thread-safe)"""
+        """List all sessions (thread-safe)."""
         with self._lock:
             sessions = []
             for file in self.session_dir.glob("*.json"):
                 sessions.append(file.name)
             return sorted(sessions, reverse=True)
 
-    def add_command(self, command: str, output: str):
-        """Add command to session (thread-safe)"""
+    def add_command(self, command: str, output: str) -> None:
+        """Add command to session (thread-safe)."""
         with self._lock:
             commands = self.current_session.get("commands")
             if commands is not None:
                 commands.append(
-                    {"command": command, "output": output[:500]}  # Limit output size
+                    {"command": command, "output": output[:500]},  # Limit output size
                 )
 
-    def add_finding(self, finding: str):
-        """Add finding to session (thread-safe)"""
+    def add_finding(self, finding: str) -> None:
+        """Add finding to session (thread-safe)."""
         with self._lock:
             findings = self.current_session.get("findings")
             if findings is not None:
                 findings.append(finding)
 
-    def add_note(self, note: str):
-        """Add note to session (thread-safe)"""
+    def add_note(self, note: str) -> None:
+        """Add note to session (thread-safe)."""
         with self._lock:
             notes = self.current_session.get("notes")
             if notes is not None:

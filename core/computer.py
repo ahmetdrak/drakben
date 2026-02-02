@@ -26,21 +26,18 @@ if COMPUTER_AVAILABLE:
 
 
 class ComputerError(Exception):
-    """Custom exception for computer control errors"""
-
-    pass
+    """Custom exception for computer control errors."""
 
 
 class Computer:
-    """
-    Computer Controller - "The Eyes and Hands of Drakben"
+    """Computer Controller - "The Eyes and Hands of Drakben".
 
     Capabilities:
     1. Vision: See the screen (screenshot, find text/images)
     2. Control: Mouse and Keyboard interaction
     """
 
-    def __init__(self, screenshot_dir: str = "logs/screenshots"):
+    def __init__(self, screenshot_dir: str = "logs/screenshots") -> None:
         self.screenshot_dir = screenshot_dir
         if not os.path.exists(screenshot_dir):
             os.makedirs(screenshot_dir)
@@ -49,24 +46,27 @@ class Computer:
         if COMPUTER_AVAILABLE:
             self.width, self.height = pyautogui.size()
 
-    def check_availability(self):
-        """Check if dependencies are available"""
+    def check_availability(self) -> None:
+        """Check if dependencies are available."""
         if not COMPUTER_AVAILABLE:
-            raise ComputerError(
+            msg = (
                 "Computer control dependencies (pyautogui, mss, opencv) not installed."
+            )
+            raise ComputerError(
+                msg,
             )
 
     # ============ VISION ============
 
     def screenshot(self, filename: str | None = None) -> str:
-        """
-        Take a screenshot and save it.
+        """Take a screenshot and save it.
 
         Args:
             filename: Optional filename. If None, auto-generated timestamp.
 
         Returns:
             Absolute path to the saved screenshot.
+
         """
         self.check_availability()
 
@@ -87,30 +87,34 @@ class Computer:
                 img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
                 img.save(absolute_path)
 
-            logger.info(f"Screenshot saved to {absolute_path}")
+            logger.info("Screenshot saved to %s", absolute_path)
             return absolute_path
         except Exception as e:
-            logger.error(f"Screenshot failed: {e}")
-            raise ComputerError(f"Screenshot failed: {e}")
+            logger.exception("Screenshot failed: %s", e)
+            msg = f"Screenshot failed: {e}"
+            raise ComputerError(msg) from e
 
     # ============ MOUSE ============
 
-    def click(self, x: int | str, y: int = 0, button: str = "left", clicks: int = 1):
-        """
-        Click at coordinates or on an image/text match.
+    def click(
+        self, x: int | str, y: int = 0, button: str = "left", clicks: int = 1,
+    ) -> None:
+        """Click at coordinates or on an image/text match.
 
         Args:
             x: X coordinate OR text/image-path to find and click
             y: Y coordinate (if x is int)
             button: 'left', 'right', 'middle'
             clicks: Number of clicks
+
         """
         self.check_availability()
 
         if isinstance(x, str):
             # For now, just log and fail safe
+            msg = "Visual clicking (click('Submit')) not yet implemented. Use coordinates."
             raise NotImplementedError(
-                "Visual clicking (click('Submit')) not yet implemented. Use coordinates."
+                msg,
             )
 
         # At this point x must be int
@@ -120,85 +124,91 @@ class Computer:
         try:
             # Bounds check
             if not self._is_on_screen(target_x, target_y):
+                msg = (
+                    f"Coordinates ({target_x}, {target_y}) are out of bounds "
+                    f"({self.width}x{self.height})"
+                )
                 raise ComputerError(
-                    f"Coordinates ({target_x}, {target_y}) are out of bounds ({
-                        self.width
-                    }x{self.height})"
+                    msg,
                 )
 
             pyautogui.click(x=target_x, y=target_y, clicks=clicks, button=button)
-            logger.info(f"Clicked {button} at ({target_x}, {target_y})")
+            logger.info("Clicked %s at (%s, %s)", button, target_x, target_y)
 
         except Exception as e:
-            raise ComputerError(f"Click failed: {e}")
+            msg = f"Click failed: {e}"
+            raise ComputerError(msg) from e
 
-    def move(self, x: int, y: int):
-        """Move mouse to coordinates"""
+    def move(self, x: int, y: int) -> None:
+        """Move mouse to coordinates."""
         self.check_availability()
         try:
             pyautogui.moveTo(x, y)
         except Exception as e:
-            raise ComputerError(f"Move failed: {e}")
+            msg = f"Move failed: {e}"
+            raise ComputerError(msg) from e
 
-    def scroll(self, amount: int):
-        """Scroll mouse wheel"""
+    def scroll(self, amount: int) -> None:
+        """Scroll mouse wheel."""
         self.check_availability()
         try:
             pyautogui.scroll(amount)
         except Exception as e:
-            raise ComputerError(f"Scroll failed: {e}")
+            msg = f"Scroll failed: {e}"
+            raise ComputerError(msg) from e
 
     # ============ KEYBOARD ============
 
-    def type(self, text: str, interval: float = 0.05):
-        """
-        Type text.
+    def type(self, text: str, interval: float = 0.05) -> None:
+        """Type text.
 
         Args:
             text: Text to type
             interval: Delay between key presses
+
         """
         self.check_availability()
         try:
             pyautogui.write(text, interval=interval)
-            logger.info(f"Typed text (length {len(text)})")
+            logger.info("Typed text (length %s)", len(text))
         except Exception as e:
-            raise ComputerError(f"Type failed: {e}")
+            msg = f"Type failed: {e}"
+            raise ComputerError(msg) from e
 
-    def press(self, keys: str | list[str]):
-        """
-        Press a key or combination.
+    def press(self, keys: str | list[str]) -> None:
+        """Press a key or combination.
 
         Args:
             keys: Single key 'enter' or list ['ctrl', 'c']
+
         """
         self.check_availability()
         try:
             if isinstance(keys, str):
                 pyautogui.press(keys)
+            # For combinations like hotkeys
+            elif len(keys) > 1:
+                pyautogui.hotkey(*keys)
             else:
-                # For combinations like hotkeys
-                if len(keys) > 1:
-                    pyautogui.hotkey(*keys)
-                else:
-                    pyautogui.press(keys[0])
-            logger.info(f"Pressed {keys}")
+                pyautogui.press(keys[0])
+            logger.info("Pressed %s", keys)
         except Exception as e:
-            raise ComputerError(f"Press failed: {e}")
+            msg = f"Press failed: {e}"
+            raise ComputerError(msg) from e
 
     # ============ UTILS ============
 
     def _is_on_screen(self, x: int, y: int) -> bool:
-        """Check if coordinates are valid"""
+        """Check if coordinates are valid."""
         return 0 <= x < self.width and 0 <= y < self.height
 
     def position(self) -> tuple[int, int]:
-        """Get current mouse position"""
+        """Get current mouse position."""
         self.check_availability()
         return pyautogui.position()
 
     def size(self) -> tuple[int, int]:
-        """Get screen size"""
+        """Get screen size."""
         self.check_availability()
         return pyautogui.size()
 

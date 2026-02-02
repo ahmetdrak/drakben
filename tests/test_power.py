@@ -22,13 +22,13 @@ except ImportError:
 console = Console()
 
 
-def test_power_level():
+def test_power_level() -> None:
     console.print("[bold red]🔥 DRAKBEN POWER LEVEL DIAGNOSTIC 🔥[/bold red]")
     console.print("=" * 50)
 
     # 1. WAF Evasion Module Test
     console.print(
-        "\n[bold yellow]1. Testing WAF Evasion Engine (Polymorphism)[/bold yellow]"
+        "\n[bold yellow]1. Testing WAF Evasion Engine (Polymorphism)[/bold yellow]",
     )
     waf = WAFEvasion()
 
@@ -56,7 +56,7 @@ def test_power_level():
 
     # 2. Stealth Client Test
     console.print(
-        "\n[bold yellow]2. Testing Stealth Client (TLS Fingerprint)[/bold yellow]"
+        "\n[bold yellow]2. Testing Stealth Client (TLS Fingerprint)[/bold yellow]",
     )
     if CURL_AVAILABLE:
         try:
@@ -69,21 +69,21 @@ def test_power_level():
 
             if "Chrome/120" in ua:
                 console.print(
-                    "  [bold green]✅ SUCCESS: User-Agent matches target fingerprint.[/bold green]"
+                    "  [bold green]✅ SUCCESS: User-Agent matches target fingerprint.[/bold green]",
                 )
             else:
                 console.print("  [bold red]❌ FAILED: User-Agent mismatch![/bold red]")
 
             # Check Cipher Suite capability (Mock)
             console.print(
-                "  [bold green]✅ SUCCESS: curl_cffi core loaded successfully.[/bold green]"
+                "  [bold green]✅ SUCCESS: curl_cffi core loaded successfully.[/bold green]",
             )
 
         except Exception as e:
             console.print(f"  [bold red]❌ CRITICAL ERROR: {e}[/bold red]")
     else:
         console.print(
-            "  [bold red]❌ CRITICAL: curl_cffi not installed! Stealth module is offline.[/bold red]"
+            "  [bold red]❌ CRITICAL: curl_cffi not installed! Stealth module is offline.[/bold red]",
         )
 
     console.print("\n" + "=" * 50)

@@ -1,5 +1,4 @@
-"""
-DRAKBEN Surgical Strike - Smart Fuzzer
+"""DRAKBEN Surgical Strike - Smart Fuzzer
 Author: @drak_ben
 Description: AI-guided mutation fuzzer for vulnerability discovery.
 """
@@ -7,15 +6,17 @@ Description: AI-guided mutation fuzzer for vulnerability discovery.
 import logging
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class FuzzResult:
+    """Auto-generated docstring for FuzzResult class."""
+
     input_data: Any
     crash_detected: bool
     error_message: str = ""
@@ -23,11 +24,9 @@ class FuzzResult:
 
 
 class SmartFuzzer:
-    """
-    Mutation-based fuzzer with heuristic strategies.
-    """
+    """Mutation-based fuzzer with heuristic strategies."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.magic_values = [
             0,
             1,
@@ -53,9 +52,7 @@ class SmartFuzzer:
         logger.info("Smart Fuzzer initialized")
 
     def mutate(self, data: bytes, _aggressiveness: float = 0.1) -> bytes:
-        """
-        Apply random mutations to input data.
-        """
+        """Apply random mutations to input data."""
         mutable_data = bytearray(data)
         length = len(mutable_data)
         if length == 0:
@@ -84,24 +81,25 @@ class SmartFuzzer:
         return bytes(mutable_data)
 
     def fuzz_function(
-        self, target_func: Callable, seed_inputs: list[Any], iterations: int = 1000
+        self,
+        target_func: Callable,
+        seed_inputs: list[Any],
+        iterations: int = 1000,
     ) -> list[FuzzResult]:
-        """
-        Fuzz a Python function directly.
-        """
+        """Fuzz a Python function directly."""
         crashes = []
         logger.info(
-            f"Starting Fuzzing Session on {target_func.__name__} ({iterations} iterations)"
+            f"Starting Fuzzing Session on {target_func.__name__} ({iterations} iterations)",
         )
 
-        for i in range(iterations):
+        for _i in range(iterations):
             # Select seed
             seed = secrets.choice(seed_inputs)
 
             # Mutate
             if isinstance(seed, str):
                 fuzz_input = self.mutate(seed.encode()).decode(
-                    "latin-1"
+                    "latin-1",
                 )  # Decode to keep as str
             elif isinstance(seed, bytes):
                 fuzz_input = self.mutate(seed)
@@ -122,12 +120,12 @@ class SmartFuzzer:
                     error_message=str(e),
                     execution_time=exec_time,
                 )
-                logger.warning(f"CRASH DETECTED at iter {i}: {e}")
+                logger.warning("CRASH DETECTED at iter {i}: %s", e)
                 crashes.append(crash_info)
 
                 # Stop if too many crashes to avoid flooding
                 if len(crashes) > 10:
                     break
 
-        logger.info(f"Fuzzing completed. Found {len(crashes)} unique crashes.")
+        logger.info("Fuzzing completed. Found %s unique crashes.", len(crashes))
         return crashes

@@ -1,6 +1,5 @@
-"""
-Performance and Stress Tests for Drakben
-Converted from scripts/stress_test.py
+"""Performance and Stress Tests for Drakben
+Converted from scripts/stress_test.py.
 """
 
 import logging
@@ -24,12 +23,10 @@ logger = logging.getLogger("STRESS_TEST")
 
 
 class TestPerformanceStress(unittest.TestCase):
-    """
-    Stress tests for concurrency, recovery, and fallback mechanisms.
-    """
+    """Stress tests for concurrency, recovery, and fallback mechanisms."""
 
-    def test_concurrency_load(self):
-        """Test 1: Concurrency Bomb & Zombie Processes"""
+    def test_concurrency_load(self) -> None:
+        """Test 1: Concurrency Bomb & Zombie Processes."""
         from unittest.mock import patch
 
         terminal = SmartTerminal()
@@ -37,7 +34,7 @@ class TestPerformanceStress(unittest.TestCase):
         threads = []
         results = []
 
-        def heavy_task(idx):
+        def heavy_task(idx) -> None:
             # Using python print to ensure cross-platform compatibility
             cmd = f"python -c \"print('Stress Test {idx}'); import time; time.sleep(0.1)\""
             res = terminal.execute(cmd, timeout=5)
@@ -69,17 +66,15 @@ class TestPerformanceStress(unittest.TestCase):
         success_count = sum(1 for r in results if r.status.value == "success")
 
         logger.info(
-            f"Executed 20 concurrent commands in {duration:.2f}s (Success: {success_count})"
+            f"Executed 20 concurrent commands in {duration:.2f}s (Success: {success_count})",
         )
 
         # Checking > 10 instead of 20 to allow for some system-dependent flakiness in stress tests
-        self.assertGreater(
-            success_count, 10, "Majority of concurrent commands should succeed!"
-        )
-        self.assertLess(duration, 15, "Concurrency test took too long!")
+        assert success_count > 10, "Majority of concurrent commands should succeed!"
+        assert duration < 15, "Concurrency test took too long!"
 
-    def test_singularity_error_handling(self):
-        """Test 2: Singularity Failure Recovery (Bad Code Generation)"""
+    def test_singularity_error_handling(self) -> None:
+        """Test 2: Singularity Failure Recovery (Bad Code Generation)."""
         engine = SingularityEngine()
 
         # Inject a broken synthesizer mock directly
@@ -105,13 +100,10 @@ class TestPerformanceStress(unittest.TestCase):
         result = engine.create_capability("broken scan", "python")
 
         # If it returns None, it handled it gracefully.
-        self.assertIsNone(
-            result, "Singularity should reject code when validation fails."
-        )
+        assert result is None, "Singularity should reject code when validation fails."
 
-    def test_brain_fallback_logic(self):
-        """Test 3: Brain Freeze (No LLM Fallback)"""
-
+    def test_brain_fallback_logic(self) -> None:
+        """Test 3: Brain Freeze (No LLM Fallback)."""
         # Initialize Brain without LLM Client to force fallback
         reasoning = ContinuousReasoning(llm_client=None)
         context = ExecutionContext()
@@ -125,16 +117,12 @@ class TestPerformanceStress(unittest.TestCase):
         logger.info(f"Analysis Duration: {duration:.4f}s")
 
         # Assertions
-        self.assertTrue(
-            result.get("success"), "Brain failed to process request without LLM"
-        )
-        self.assertTrue(
-            result.get("fallback_mode"), "Brain did not switch to Fallback Mode"
-        )
-        self.assertLess(duration, 1.0, "Rule-based fallback should be instant")
+        assert result.get("success"), "Brain failed to process request without LLM"
+        assert result.get("fallback_mode"), "Brain did not switch to Fallback Mode"
+        assert duration < 1.0, "Rule-based fallback should be instant"
 
-    def test_security_sanitization_stress(self):
-        """Test 4: Security Sanitization Stress Check"""
+    def test_security_sanitization_stress(self) -> None:
+        """Test 4: Security Sanitization Stress Check."""
         dangerous_commands = [
             "rm -rf /",
             "cat /etc/shadow",
@@ -151,10 +139,8 @@ class TestPerformanceStress(unittest.TestCase):
             except Exception:  # Expecting SecurityError
                 blocked_count += 1
 
-        self.assertEqual(
-            blocked_count,
-            len(dangerous_commands),
-            "Some dangerous commands were not blocked!",
+        assert blocked_count == len(dangerous_commands), (
+            "Some dangerous commands were not blocked!"
         )
 
 

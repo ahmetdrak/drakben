@@ -1,6 +1,5 @@
-"""
-DRAKBEN Agent Submodules Package
-Author: @drak_ben
+"""DRAKBEN Agent Submodules Package
+Author: @drak_ben.
 
 This package contains modularized components of the agent:
 - error_diagnostics: Error pattern matching and diagnosis

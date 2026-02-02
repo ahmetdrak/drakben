@@ -107,32 +107,33 @@ BLOCKED_MODULES = {
 
 
 class InterpreterResult:
-    def __init__(self, output: str, error: str, files: list[str] | None = None):
+    """Auto-generated docstring for InterpreterResult class."""
+
+    def __init__(self, output: str, error: str, files: list[str] | None = None) -> None:
         self.output = output
         self.error = error
         self.files = files or []
         self.success = not bool(error)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Result(success={self.success}, output_len={len(self.output)})"
 
 
 class UniversalInterpreter:
-    """
-    Stateful Code Interpreter.
+    """Stateful Code Interpreter.
     Maintains variables between executions (like a REPL).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.locals: dict[str, Any] = {}
         self._initialize_context()
 
-    def _initialize_context(self):
-        """Setup initial context with tools and utilities (SECURITY HARDENED)"""
+    def _initialize_context(self) -> None:
+        """Setup initial context with tools and utilities (SECURITY HARDENED)."""
 
         # Create safe file opener that validates paths
-        def safe_open(path, mode="r", *args, **kwargs):
-            """Restricted file open - blocks dangerous paths"""
+        def safe_open(path, mode="r", *args, **kwargs) -> Any:
+            """Restricted file open - blocks dangerous paths."""
             dangerous_paths = [
                 "/etc/passwd",
                 "/etc/shadow",
@@ -144,13 +145,15 @@ class UniversalInterpreter:
             path_str = str(path)
             for dp in dangerous_paths:
                 if dp.lower() in path_str.lower():
-                    raise PermissionError(f"Access to {path} is blocked for security")
+                    msg = f"Access to {path} is blocked for security"
+                    raise PermissionError(msg)
             # Block write to system directories
             if mode in ("w", "a", "wb", "ab") and any(
                 path_str.startswith(p)
                 for p in ["/etc", "/usr", "/bin", "/sbin", "C:\\Windows"]
             ):
-                raise PermissionError("Write access to system directories is blocked")
+                msg = "Write access to system directories is blocked"
+                raise PermissionError(msg)
             return open(path, mode, *args, **kwargs)
 
         self.locals = {
@@ -212,18 +215,15 @@ class UniversalInterpreter:
         logger.info("Interpreter context initialized with SECURITY HARDENED settings")
 
     def run(self, code: str, language: str = "python") -> InterpreterResult:
-        """
-        Run code in the persistent context.
-        """
+        """Run code in the persistent context."""
         if language.lower() in ["python", "py"]:
             return self._run_python(code)
-        elif language.lower() in ["shell", "bash", "sh", "cmd", "powershell"]:
+        if language.lower() in ["shell", "bash", "sh", "cmd", "powershell"]:
             return self._run_shell(code)
-        else:
-            return InterpreterResult("", f"Unsupported language: {language}")
+        return InterpreterResult("", f"Unsupported language: {language}")
 
     def _run_python(self, code: str) -> InterpreterResult:
-        """Execute Python code statefully"""
+        """Execute Python code statefully."""
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
 
@@ -239,7 +239,7 @@ class UniversalInterpreter:
                 except (SyntaxError, NameError, TypeError, ValueError) as e:
                     # Capture traceback
                     traceback.print_exc()
-                    logger.debug(f"Code execution error: {e}")
+                    logger.debug("Code execution error: %s", e)
 
             output = stdout_capture.getvalue()
             error = stderr_capture.getvalue()
@@ -250,8 +250,7 @@ class UniversalInterpreter:
             return InterpreterResult("", str(e))
 
     def _run_shell(self, command: str) -> InterpreterResult:
-        """Execute shell command with SECURITY SANITIZATION"""
-
+        """Execute shell command with SECURITY SANITIZATION."""
         try:
             sanitized = self._sanitize_command(command)
             if not sanitized:
@@ -259,18 +258,17 @@ class UniversalInterpreter:
 
             return self._execute_sanitized_command(sanitized)
         except Exception as e:
-            logger.error(f"Shell execution error: {e}")
+            logger.exception("Shell execution error: %s", e)
             return InterpreterResult("", str(e))
 
     def _sanitize_command(self, command: str) -> str | None:
-        """Sanitize command using CommandSanitizer or fallback"""
+        """Sanitize command using CommandSanitizer or fallback."""
         if SANITIZER_AVAILABLE and CommandSanitizer:
             return self._sanitize_with_sanitizer(command)
-        else:
-            return self._sanitize_fallback(command)
+        return self._sanitize_fallback(command)
 
     def _sanitize_with_sanitizer(self, command: str) -> str | None:
-        """Sanitize using CommandSanitizer"""
+        """Sanitize using CommandSanitizer."""
         sanitizer = CommandSanitizer()
         risk = sanitizer.get_risk_level(command)
 
@@ -278,21 +276,21 @@ class UniversalInterpreter:
             blocked_msg = (
                 f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
             )
-            logger.warning(f"SECURITY BLOCKED: {blocked_msg}")
+            logger.warning("SECURITY BLOCKED: %s", blocked_msg)
             return None
 
         if risk == "high" and sanitizer.is_high_risk(command):
-            logger.warning(f"HIGH RISK command blocked: {command[:50]}")
+            logger.warning("HIGH RISK command blocked: %s", command[:50])
             return None
 
         try:
             return sanitizer.sanitize(command)
         except SecurityError as e:
-            logger.warning(f"Security violation: {e}")
+            logger.warning("Security violation: %s", e)
             return None
 
     def _sanitize_fallback(self, command: str) -> str | None:
-        """Fallback sanitization without CommandSanitizer"""
+        """Fallback sanitization without CommandSanitizer."""
         dangerous_patterns = [
             "rm -rf /",
             "rm -rf /*",
@@ -315,12 +313,12 @@ class UniversalInterpreter:
         cmd_lower = command.lower()
         for pattern in dangerous_patterns:
             if pattern.lower() in cmd_lower:
-                logger.warning(f"SECURITY: Blocked dangerous pattern: {pattern}")
+                logger.warning("SECURITY: Blocked dangerous pattern: %s", pattern)
                 return None
         return command
 
     def _execute_sanitized_command(self, sanitized: str) -> InterpreterResult:
-        """Execute sanitized command"""
+        """Execute sanitized command."""
         import shlex
         import subprocess
 
@@ -328,18 +326,23 @@ class UniversalInterpreter:
             # SECURITY FIX: Use shlex to split and shell=False
             args = shlex.split(sanitized)
             process = subprocess.run(
-                args, shell=False, capture_output=True, text=True, timeout=60
+                args,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,  # We handle errors via returncode
             )
             return InterpreterResult(process.stdout, process.stderr)
 
         except subprocess.TimeoutExpired:
             return InterpreterResult("", "Command timed out after 60 seconds")
         except Exception as e:
-            logger.error(f"Shell execution error: {e}")
+            logger.exception("Shell execution error: %s", e)
             return InterpreterResult("", str(e))
 
-    def reset(self):
-        """Reset the variable context"""
+    def reset(self) -> None:
+        """Reset the variable context."""
         self._initialize_context()
 
 

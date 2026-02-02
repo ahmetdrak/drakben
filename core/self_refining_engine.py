@@ -1,5 +1,4 @@
-"""
-SELF-REFINING EVOLVING AGENT ENGINE
+"""SELF-REFINING EVOLVING AGENT ENGINE.
 ===================================
 
 This module implements a STRONG self-refining agent with:
@@ -24,7 +23,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
-from typing import Any
+from typing import Any, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_patterns_type ON learned_patterns(pattern_type);
 
 
 class PolicyTier(IntEnum):
-    """Policy priority tiers - lower number = higher priority"""
+    """Policy priority tiers - lower number = higher priority."""
 
     HARD_AVOIDANCE = 1  # Safety/blocking rules
     STRATEGY_OVERRIDE = 2  # Force strategy change
@@ -140,7 +139,7 @@ class PolicyTier(IntEnum):
 
 @dataclass
 class Strategy:
-    """High-level reusable approach"""
+    """High-level reusable approach."""
 
     strategy_id: str
     name: str
@@ -153,7 +152,7 @@ class Strategy:
 
 @dataclass
 class StrategyProfile:
-    """Concrete behavioral variant of a strategy"""
+    """Concrete behavioral variant of a strategy."""
 
     profile_id: str
     strategy_name: str
@@ -174,7 +173,7 @@ class StrategyProfile:
 
 @dataclass
 class Policy:
-    """Learned behavioral constraint"""
+    """Learned behavioral constraint."""
 
     policy_id: str
     condition: dict[str, Any]  # {"target_type": "web", "error_type": "timeout"}
@@ -189,7 +188,7 @@ class Policy:
 
 @dataclass
 class FailureContext:
-    """Detailed failure record"""
+    """Detailed failure record."""
 
     context_id: str
     target_signature: str
@@ -209,8 +208,7 @@ class FailureContext:
 
 
 class SelfRefiningEngine:
-    """
-    STRONG SELF-REFINING EVOLVING AGENT ENGINE
+    """STRONG SELF-REFINING EVOLVING AGENT ENGINE.
 
     This engine provides:
     1. Strategy and Profile management
@@ -225,7 +223,7 @@ class SelfRefiningEngine:
     MIN_USAGE_FOR_RETIRE = 3  # Minimum uses before retirement
     MUTATION_PARAM_CHANGE = 0.2  # How much to change params on mutation
 
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: str | None = None) -> None:
         # Use consistent database naming with EvolutionMemory
         if db_path is None:
             # Check if drakben_evolution.db exists (for compatibility)
@@ -237,9 +235,9 @@ class SelfRefiningEngine:
                 self.db_path = "evolution.db"
         else:
             self.db_path = db_path
-        self._lock = threading.RLock() # Reentrant lock to prevent deadlocks
+        self._lock = threading.RLock()  # Reentrant lock to prevent deadlocks
         self._initialized = False
-        self._init_lock = threading.RLock() # Reentrant lock
+        self._init_lock = threading.RLock()  # Reentrant lock
 
         # LAZY INITIALIZATION: Don't initialize database in __init__
         # This prevents blocking during object creation
@@ -247,12 +245,11 @@ class SelfRefiningEngine:
         logger.debug("SelfRefiningEngine created (lazy initialization)")
 
     def _generate_id(self, prefix: str = "") -> str:
-        """Generate a unique ID with optional prefix"""
+        """Generate a unique ID with optional prefix."""
         return f"{prefix}{uuid.uuid4().hex[:12]}"
 
-    def _ensure_initialized(self):
-        """
-        Ensure database is initialized (lazy initialization).
+    def _ensure_initialized(self) -> None:
+        """Ensure database is initialized (lazy initialization).
 
         Improvements:
         - On failure, _initialized stays False to allow retry
@@ -269,7 +266,7 @@ class SelfRefiningEngine:
         # Max 3 retry attempts
         if self._init_attempts >= 3:
             logger.warning(
-                "Max initialization attempts reached, skipping database init"
+                "Max initialization attempts reached, skipping database init",
             )
             return
 
@@ -282,20 +279,20 @@ class SelfRefiningEngine:
 
             try:
                 logger.info(
-                    f"Initializing SelfRefiningEngine database (attempt {self._init_attempts}/3)..."
+                    f"Initializing SelfRefiningEngine database (attempt {self._init_attempts}/3)...",
                 )
                 self._init_database()
                 self._seed_default_strategies()
                 self._initialized = True
                 logger.info("SelfRefiningEngine database initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize SelfRefiningEngine: {e}")
+                logger.exception("Failed to initialize SelfRefiningEngine: %s", e)
                 logger.exception("Initialization error details")
                 # DON'T set _initialized = True on failure
                 # This allows retry on next use (up to max attempts)
 
     def _connect_raw(self) -> sqlite3.Connection:
-        """Internal low-level connection creator without init check"""
+        """Internal low-level connection creator without init check."""
         # Set timeout to prevent indefinite blocking (5 seconds)
         conn = sqlite3.connect(self.db_path, timeout=5.0)
         conn.row_factory = sqlite3.Row
@@ -308,15 +305,14 @@ class SelfRefiningEngine:
         return conn
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get thread-local database connection with timeout protection"""
+        """Get thread-local database connection with timeout protection."""
         # Ensure database is initialized before getting connection
         self._ensure_initialized()
         return self._connect_raw()
 
     @contextmanager
-    def _db_operation(self, timeout: float = 5.0):
-        """
-        Safe database operation context manager.
+    def _db_operation(self, timeout: float = 5.0) -> Any:  # noqa: ANN401
+        """Safe database operation context manager.
 
         Automatically handles:
         - Lock acquisition with timeout
@@ -331,7 +327,8 @@ class SelfRefiningEngine:
         """
         acquired = self._lock.acquire(timeout=timeout)
         if not acquired:
-            raise TimeoutError("Database lock acquisition timeout - possible deadlock")
+            msg = "Database lock acquisition timeout - possible deadlock"
+            raise TimeoutError(msg)
 
         conn = None
         try:
@@ -339,26 +336,27 @@ class SelfRefiningEngine:
             yield conn
             conn.commit()
         except Exception as e:
-            logger.error(f"Database operation failed: {e}")
+            logger.exception("Database operation failed: %s", e)
             raise
         finally:
             if conn:
                 try:
                     conn.close()
                 except (sqlite3.Error, AttributeError) as e:
-                    logger.debug(f"Error closing connection: {e}")
+                    logger.debug("Error closing connection: %s", e)
             try:
                 self._lock.release()
             except (RuntimeError, AttributeError) as e:
-                logger.debug(f"Error releasing lock: {e}")
+                logger.debug("Error releasing lock: %s", e)
 
-    def _init_database(self):
-        """Initialize database schema with migration support"""
+    def _init_database(self) -> None:
+        """Initialize database schema with migration support."""
         # 1. Acquire Lock
         lock_acquired = self._acquire_db_lock()
         if not lock_acquired:
             logger.error("Failed to acquire lock for database init")
-            raise RuntimeError("Lock acquisition timeout - possible deadlock")
+            msg = "Lock acquisition timeout - possible deadlock"
+            raise RuntimeError(msg)
 
         conn = None
         try:
@@ -376,10 +374,11 @@ class SelfRefiningEngine:
             self._cleanup_conn_and_lock(conn, lock_acquired)
 
     def _acquire_db_lock(
-        self, max_retries: int = 3, timeout_per_attempt: float = 1.5
+        self,
+        max_retries: int = 3,
+        timeout_per_attempt: float = 1.5,
     ) -> bool:
-        """
-        Attempt to acquire database lock with retries.
+        """Attempt to acquire database lock with retries.
 
         Args:
             max_retries: Maximum number of retry attempts
@@ -387,56 +386,60 @@ class SelfRefiningEngine:
 
         Returns:
             True if lock acquired, False otherwise
+
         """
         for attempt in range(max_retries):
             try:
                 if self._lock.acquire(timeout=timeout_per_attempt):
                     return True
-                logger.warning(f"Lock wait attempt {attempt + 1}/{max_retries}")
+                logger.warning("Lock wait attempt %s/%s", attempt + 1, max_retries)
                 time.sleep(0.3)  # Short sleep before retry
             except Exception as e:
-                logger.error(f"Lock error: {e}")
+                logger.exception("Lock error: %s", e)
 
         logger.error(
-            f"Failed to acquire lock after {max_retries} attempts - possible deadlock"
+            "Failed to acquire lock after %s attempts - possible deadlock", max_retries,
         )
         return False
 
-    def _handle_schema_migration(self, conn: sqlite3.Connection):
-        """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)"""
+    def _handle_schema_migration(self, conn: sqlite3.Connection) -> None:
+        """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)."""
         cursor = conn.execute("PRAGMA user_version")
         version = cursor.fetchone()[0]
 
-        if version < 1:
-            pass
-        
         if version == 1:
-            logger.info("Migrating database from v1 to v2: Adding structural improvements")
+            logger.info(
+                "Migrating database from v1 to v2: Adding structural improvements",
+            )
             # LOGIC FIX: Add parameter_hash to prevent duplicate profile mutations
             try:
-                conn.execute("ALTER TABLE strategy_profiles ADD COLUMN parameter_hash TEXT")
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_params ON strategy_profiles(strategy_name, parameter_hash)")
+                conn.execute(
+                    "ALTER TABLE strategy_profiles ADD COLUMN parameter_hash TEXT",
+                )
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_params ON strategy_profiles(strategy_name, parameter_hash)",
+                )
             except sqlite3.OperationalError:
                 pass
             conn.execute("PRAGMA user_version = 2")
             conn.commit()
 
     def _needs_migration(self, conn: sqlite3.Connection) -> bool:
-        """Check if schema needs migration using PRAGMA user_version"""
+        """Check if schema needs migration using PRAGMA user_version."""
         cursor = conn.execute("PRAGMA user_version")
         version = cursor.fetchone()[0]
         # Current schema version is 2. If lower, we need migration.
         return version < 2
 
-    def _handle_db_error(self, e):
-        """Handle database specific errors"""
-        logger.error(f"Database operation failed: {e}")
+    def _handle_db_error(self, e: Exception) -> NoReturn:
+        """Handle database specific errors."""
+        logger.error("Database operation failed: %s", e)
         if "locked" in str(e).lower():
             logger.error("Database is locked by another process.")
         raise e
 
-    def _seed_default_strategies(self):
-        """Seed default strategies if none exist"""
+    def _seed_default_strategies(self) -> None:
+        """Seed default strategies if none exist."""
         import time
 
         max_duration = 10
@@ -457,41 +460,47 @@ class SelfRefiningEngine:
 
             # Batch Insert Strategies
             self._batch_insert_strategies(
-                conn, default_strategies, start_time, max_duration
+                conn,
+                default_strategies,
+                start_time,
+                max_duration,
             )
 
             # Create Profiles
             self._create_profiles_batch(
-                conn, default_strategies, start_time, max_duration
+                conn,
+                default_strategies,
+                start_time,
+                max_duration,
             )
 
             conn.commit()
 
         except sqlite3.OperationalError as e:
-            logger.error(f"Database error during seeding: {e}")
+            logger.exception("Database error during seeding: %s", e)
         except Exception as e:
-            logger.exception(f"Unexpected error during seeding: {e}")
+            logger.exception("Unexpected error during seeding: %s", e)
         finally:
             self._cleanup_conn_and_lock(conn, lock_acquired)
 
-    def _acquire_lock_safe(self, max_retries=2) -> bool:
-        """Helper to acquire lock safely"""
+    def _acquire_lock_safe(self, max_retries: int = 2) -> bool:
+        """Helper to acquire lock safely."""
         for _ in range(max_retries):
             try:
                 if self._lock.acquire(timeout=1.5):
                     return True
                 time.sleep(0.5)
             except Exception as e:
-                logger.error(f"Lock error: {e}")
+                logger.exception("Lock error: %s", e)
         return False
 
-    def _strategies_exist(self, conn) -> bool:
-        """Check if strategies table is populated"""
+    def _strategies_exist(self, conn: "sqlite3.Connection") -> bool:
+        """Check if strategies table is populated."""
         cursor = conn.execute("SELECT COUNT(*) FROM strategies")
         return cursor.fetchone()[0] > 0
 
     def _get_default_strategy_definitions(self) -> list[dict]:
-        """Return list of default strategies"""
+        """Return list of default strategies."""
         return [
             {
                 "name": "aggressive_scan",
@@ -559,8 +568,14 @@ class SelfRefiningEngine:
             },
         ]
 
-    def _batch_insert_strategies(self, conn, strategies, start_time, max_duration):
-        """Insert strategies in batch"""
+    def _batch_insert_strategies(
+        self,
+        conn: "sqlite3.Connection",
+        strategies: list[dict[str, Any]],
+        start_time: float,
+        max_duration: float,
+    ) -> None:
+        """Insert strategies in batch."""
         import time
 
         now = datetime.now().isoformat()
@@ -579,7 +594,7 @@ class SelfRefiningEngine:
                     strat["description"],
                     json.dumps(strat["base_parameters"]),
                     now,
-                )
+                ),
             )
 
         if strategy_inserts:
@@ -591,8 +606,14 @@ class SelfRefiningEngine:
                 strategy_inserts,
             )
 
-    def _create_profiles_batch(self, conn, strategies, start_time, max_duration):
-        """Create profiles for strategies"""
+    def _create_profiles_batch(
+        self,
+        conn: "sqlite3.Connection",
+        strategies: list[dict[str, Any]],
+        start_time: float,
+        max_duration: float,
+    ) -> None:
+        """Create profiles for strategies."""
         import time
 
         now = datetime.now().isoformat()
@@ -602,23 +623,28 @@ class SelfRefiningEngine:
                 break
             try:
                 self._create_initial_profiles(
-                    conn, strat["name"], strat["base_parameters"], now
+                    conn,
+                    strat["name"],
+                    strat["base_parameters"],
+                    now,
                 )
             except Exception as e:
-                logger.error(f"Failed profile creation for {strat['name']}: {e}")
+                logger.exception("Failed profile creation for {strat['name']}: %s", e)
 
-    def _cleanup_conn_and_lock(self, conn, lock_acquired):
-        """Cleanup connection and release lock"""
+    def _cleanup_conn_and_lock(
+        self, conn: "sqlite3.Connection | None", lock_acquired: bool,
+    ) -> None:
+        """Cleanup connection and release lock."""
         if conn:
             try:
                 conn.close()
             except (sqlite3.Error, AttributeError) as e:
-                logger.debug(f"Error closing connection: {e}")
+                logger.debug("Error closing connection: %s", e)
         if lock_acquired:
             try:
                 self._lock.release()
             except (RuntimeError, AttributeError) as e:
-                logger.debug(f"Error releasing lock: {e}")
+                logger.debug("Error releasing lock: %s", e)
 
     def _create_initial_profiles(
         self,
@@ -626,8 +652,8 @@ class SelfRefiningEngine:
         strategy_name: str,
         base_params: dict,
         created_at: str,
-    ):
-        """Create initial behavioral profiles for a strategy"""
+    ) -> None:
+        """Create initial behavioral profiles for a strategy."""
         # Profile 1: Default (balanced)
         profile1 = {
             "profile_id": self._generate_id("prof_"),
@@ -641,9 +667,11 @@ class SelfRefiningEngine:
         # Profile 2: Aggressive variant
         aggressive_params = copy.deepcopy(base_params)
         for key in aggressive_params:
-            if isinstance(aggressive_params[key], (int, float)):
+            if isinstance(aggressive_params[key], int | float):
                 # LOGIC FIX: Ensure mutation actually changes value even if it is 1
-                aggressive_params[key] = max(aggressive_params[key] + 1, int(aggressive_params[key] * 1.5))
+                aggressive_params[key] = max(
+                    aggressive_params[key] + 1, int(aggressive_params[key] * 1.5),
+                )
 
         profile2 = {
             "profile_id": self._generate_id("prof_"),
@@ -657,10 +685,12 @@ class SelfRefiningEngine:
         # Profile 3: Conservative variant
         conservative_params = copy.deepcopy(base_params)
         for key in conservative_params:
-            if isinstance(conservative_params[key], (int, float)):
+            if isinstance(conservative_params[key], int | float):
                 # LOGIC FIX: Ensure conservative is actually different
                 val = int(conservative_params[key] * 0.5)
-                conservative_params[key] = max(1, val if val != aggressive_params.get(key) else max(1, val - 1))
+                conservative_params[key] = max(
+                    1, val if val != aggressive_params.get(key) else max(1, val - 1),
+                )
 
         profile3 = {
             "profile_id": self._generate_id("prof_"),
@@ -691,12 +721,13 @@ class SelfRefiningEngine:
             )
 
     def get_strategy(self, name: str) -> Strategy | None:
-        """Get strategy by name"""
+        """Get strategy by name."""
         with self._lock:
             conn = self._get_conn()
             try:
                 cursor = conn.execute(
-                    "SELECT * FROM strategies WHERE name = ? AND is_active = 1", (name,)
+                    "SELECT * FROM strategies WHERE name = ? AND is_active = 1",
+                    (name,),
                 )
                 row = cursor.fetchone()
                 if row:
@@ -714,7 +745,7 @@ class SelfRefiningEngine:
                 conn.close()
 
     def get_strategies_for_target_type(self, target_type: str) -> list[Strategy]:
-        """Get all active strategies for a target type"""
+        """Get all active strategies for a target type."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -733,7 +764,7 @@ class SelfRefiningEngine:
                             base_parameters=json.loads(row["base_parameters"]),
                             created_at=row["created_at"],
                             is_active=bool(row["is_active"]),
-                        )
+                        ),
                     )
                 return strategies
             finally:
@@ -744,9 +775,11 @@ class SelfRefiningEngine:
     # =========================================================================
 
     def get_profiles_for_strategy(
-        self, strategy_name: str, include_retired: bool = False
+        self,
+        strategy_name: str,
+        include_retired: bool = False,
     ) -> list[StrategyProfile]:
-        """Get all profiles for a strategy"""
+        """Get all profiles for a strategy."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -782,14 +815,14 @@ class SelfRefiningEngine:
                             mutation_generation=row["mutation_generation"],
                             created_at=row["created_at"],
                             last_used_at=row["last_used_at"],
-                        )
+                        ),
                     )
                 return profiles
             finally:
                 conn.close()
 
     def get_profile(self, profile_id: str) -> StrategyProfile | None:
-        """Get a specific profile by ID"""
+        """Get a specific profile by ID."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -823,10 +856,11 @@ class SelfRefiningEngine:
                 conn.close()
 
     def select_best_profile(
-        self, strategy_name: str, excluded_profile_ids: list[str] | None = None
+        self,
+        strategy_name: str,
+        excluded_profile_ids: list[str] | None = None,
     ) -> StrategyProfile | None:
-        """
-        Select best non-retired profile for a strategy.
+        """Select best non-retired profile for a strategy.
         If all profiles are retired, trigger mutation and return new profile.
         """
         excluded = excluded_profile_ids or []
@@ -886,9 +920,11 @@ class SelfRefiningEngine:
                 conn.close()
 
     def _mutate_from_retired(
-        self, conn: sqlite3.Connection, strategy_name: str
+        self,
+        conn: sqlite3.Connection,
+        strategy_name: str,
     ) -> StrategyProfile | None:
-        """Create a mutated profile from the best retired profile"""
+        """Create a mutated profile from the best retired profile."""
         cursor = conn.execute(
             """
             SELECT * FROM strategy_profiles
@@ -909,7 +945,9 @@ class SelfRefiningEngine:
         parent_aggression = row["aggressiveness"]
 
         mutated_profile = self._apply_mutation(
-            parent_params, parent_steps, parent_aggression
+            parent_params,
+            parent_steps,
+            parent_aggression,
         )
 
         # Insert new profile
@@ -954,15 +992,18 @@ class SelfRefiningEngine:
         )
 
     def _apply_mutation(
-        self, params: dict, steps: list[str], aggression: float
+        self,
+        params: dict,
+        steps: list[str],
+        aggression: float,
     ) -> dict:
-        """Apply measurable mutation to create new profile"""
+        """Apply measurable mutation to create new profile."""
         new_id = self._generate_id("mut_")
 
         # Mutation 1: Modify parameters
         new_params = copy.deepcopy(params)
         for key in new_params:
-            if isinstance(new_params[key], (int, float)):
+            if isinstance(new_params[key], int | float):
                 # Change by ±20%
                 # secrets doesn't have uniform, so we do randbelow and scale
                 # random.uniform(-limit, limit) is roughly:
@@ -1005,7 +1046,7 @@ class SelfRefiningEngine:
         }
 
     def retire_profile(self, profile_id: str) -> bool:
-        """Mark a profile as retired"""
+        """Mark a profile as retired."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1018,11 +1059,24 @@ class SelfRefiningEngine:
             finally:
                 conn.close()
 
+    def mutate_profile(self, profile_id: str) -> str | None:
+        """Manually trigger mutation for a profile (retires old one)."""
+        profile = self.get_profile(profile_id)
+        if not profile:
+            return None
+
+        self.retire_profile(profile_id)
+
+        with self._db_operation() as conn:
+            new_profile = self._mutate_from_retired(conn, profile.strategy_name)
+            return new_profile.profile_id if new_profile else None
+
     def update_profile_outcome(
-        self, profile_id: str, success: bool
+        self,
+        profile_id: str,
+        success: bool,
     ) -> StrategyProfile | None:
-        """
-        Update profile metrics after execution.
+        """Update profile metrics after execution.
         Returns the profile if it was retired due to low success rate.
         """
         with self._lock:
@@ -1088,7 +1142,7 @@ class SelfRefiningEngine:
         weight: float = 0.5,
         source: str = "system",
     ) -> str:
-        """Add a new policy"""
+        """Add a new policy."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1117,9 +1171,8 @@ class SelfRefiningEngine:
                 conn.close()
 
     def get_applicable_policies(self, context: dict) -> list[Policy]:
-        """
-        Get all policies that apply to a given context.
-        Returns policies sorted by priority_tier (ASC), weight (DESC), created_at (ASC)
+        """Get all policies that apply to a given context.
+        Returns policies sorted by priority_tier (ASC), weight (DESC), created_at (ASC).
         """
         with self._lock:
             conn = self._get_conn()
@@ -1147,7 +1200,7 @@ class SelfRefiningEngine:
                                 created_at=row["created_at"],
                                 expires_at=row["expires_at"],
                                 is_active=bool(row["is_active"]),
-                            )
+                            ),
                         )
 
                 return applicable
@@ -1155,14 +1208,14 @@ class SelfRefiningEngine:
                 conn.close()
 
     def _condition_matches(self, condition: dict, context: dict) -> bool:
-        """Check if a condition matches a context"""
-        for key, value in condition.items():
-            if not self._check_condition_key(key, value, context):
-                return False
-        return True
+        """Check if a condition matches a context."""
+        return all(
+            self._check_condition_key(key, value, context)
+            for key, value in condition.items()
+        )
 
-    def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:
-        """Check if a single condition key matches context"""
+    def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:  # noqa: ANN401
+        """Check if a single condition key matches context."""
         if key not in context:
             return False
 
@@ -1170,22 +1223,20 @@ class SelfRefiningEngine:
 
         if isinstance(value, list):
             return ctx_value in value
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return self._check_dict_condition(value, ctx_value)
-        else:
-            return ctx_value == value
+        return ctx_value == value
 
-    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:
-        """Check dictionary-based condition (contains/not)"""
+    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:  # noqa: ANN401
+        """Check dictionary-based condition (contains/not)."""
         if "contains" in value:
             return value["contains"] in str(ctx_value)
-        elif "not" in value:
+        if "not" in value:
             return ctx_value != value["not"]
         return False
 
     def resolve_policy_conflicts(self, policies: list[Policy]) -> list[dict]:
-        """
-        Resolve conflicts between policies.
+        """Resolve conflicts between policies.
 
         Resolution rules:
         1. Higher tier (lower number) ALWAYS wins
@@ -1223,7 +1274,7 @@ class SelfRefiningEngine:
                     "source_policy": winner.policy_id,
                     "tier": winner.priority_tier,
                     "weight": winner.weight,
-                }
+                },
             )
 
         # Sort resolved actions by tier for execution order
@@ -1231,9 +1282,11 @@ class SelfRefiningEngine:
         return resolved_actions
 
     def apply_policies_to_strategies(
-        self, strategies: list[Strategy], context: dict
+        self,
+        strategies: list[Strategy],
+        context: dict,
     ) -> list[Strategy]:
-        """Apply policies to filter/reorder strategies"""
+        """Apply policies to filter/reorder strategies."""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
 
@@ -1260,9 +1313,11 @@ class SelfRefiningEngine:
         return filtered
 
     def apply_policies_to_profiles(
-        self, profiles: list[StrategyProfile], context: dict
+        self,
+        profiles: list[StrategyProfile],
+        context: dict,
     ) -> list[StrategyProfile]:
-        """Apply policies to filter/reorder profiles"""
+        """Apply policies to filter/reorder profiles."""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
 
@@ -1284,7 +1339,7 @@ class SelfRefiningEngine:
         return filtered
 
     def apply_policies_to_tools(self, tools: list[str], context: dict) -> list[str]:
-        """Apply policies to filter/reorder tools"""
+        """Apply policies to filter/reorder tools."""
         policies = self.get_applicable_policies(context)
         resolved = self.resolve_policy_conflicts(policies)
 
@@ -1329,7 +1384,7 @@ class SelfRefiningEngine:
         tool_name: str | None = None,
         context_data: dict[Any, Any] | None = None,
     ) -> str:
-        """Record a failure context"""
+        """Record a failure context."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1361,8 +1416,7 @@ class SelfRefiningEngine:
                 conn.close()
 
     def learn_policy_from_failure(self, context_id: str) -> str | None:
-        """
-        Learn a policy from a failure context.
+        """Learn a policy from a failure context.
         Returns policy_id if a new policy was created.
         """
         with self._lock:
@@ -1370,7 +1424,8 @@ class SelfRefiningEngine:
             try:
                 # Get failure context
                 cursor = conn.execute(
-                    "SELECT * FROM failure_contexts WHERE context_id = ?", (context_id,)
+                    "SELECT * FROM failure_contexts WHERE context_id = ?",
+                    (context_id,),
                 )
                 row = cursor.fetchone()
                 if not row or row["policy_generated"]:
@@ -1452,7 +1507,7 @@ class SelfRefiningEngine:
                 conn.close()
 
     def has_failed_before(self, target_signature: str, profile_id: str) -> bool:
-        """Check if this exact target+profile combination has failed before"""
+        """Check if this exact target+profile combination has failed before."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1468,7 +1523,7 @@ class SelfRefiningEngine:
                 conn.close()
 
     def get_failed_profiles_for_target(self, target_signature: str) -> list[str]:
-        """Get all profile IDs that have failed for a target"""
+        """Get all profile IDs that have failed for a target."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1488,7 +1543,7 @@ class SelfRefiningEngine:
     # =========================================================================
 
     def classify_target(self, target: str) -> str:
-        """Classify target into a type"""
+        """Classify target into a type."""
         target_lower = target.lower()
 
         if target_lower.startswith(("http://", "https://")):
@@ -1509,7 +1564,7 @@ class SelfRefiningEngine:
         return "unknown"
 
     def get_target_signature(self, target: str) -> str:
-        """Generate a unique signature for a target"""
+        """Generate a unique signature for a target."""
         target_type = self.classify_target(target)
         # Hash the target for privacy but keep type prefix
         target_hash = hashlib.sha256(target.encode()).hexdigest()[:12]
@@ -1520,11 +1575,10 @@ class SelfRefiningEngine:
     # =========================================================================
 
     def select_strategy_and_profile(
-        self, target: str
+        self,
+        target: str,
     ) -> tuple[Strategy | None, StrategyProfile | None]:
-        """
-        ENFORCED SELECTION ORDER with Timeout Protection.
-        """
+        """ENFORCED SELECTION ORDER with Timeout Protection."""
         import time
 
         start_time = time.time()
@@ -1539,7 +1593,9 @@ class SelfRefiningEngine:
         try:
             # Step 1: Analysis
             target_info = self._analyze_target_for_selection(
-                target, start_time, max_duration
+                target,
+                start_time,
+                max_duration,
             )
             if not target_info:
                 return None, None
@@ -1551,19 +1607,24 @@ class SelfRefiningEngine:
 
             # Step 3: Profile Selection
             profile = self._select_profile(
-                strategy, target_info, start_time, max_duration
+                strategy,
+                target_info,
+                start_time,
+                max_duration,
             )
 
             return strategy, profile
 
         except Exception as e:
-            logger.exception(f"Error in select_strategy_and_profile: {e}")
+            logger.exception("Error in select_strategy_and_profile: %s", e)
             return None, None
         finally:
             self._release_lock_safe()
 
-    def _analyze_target_for_selection(self, target, start_time, max_duration):
-        """Step 1: Classify and generate signature"""
+    def _analyze_target_for_selection(
+        self, target: str, start_time: float, max_duration: float,
+    ) -> Any:  # noqa: ANN401
+        """Step 1: Classify and generate signature."""
         import time
 
         if time.time() - start_time > max_duration:
@@ -1573,11 +1634,12 @@ class SelfRefiningEngine:
         target_signature = self.get_target_signature(target)
 
         # Pre-calculate context
-        context = {"target_type": target_type, "target_signature": target_signature}
-        return context
+        return {"target_type": target_type, "target_signature": target_signature}
 
-    def _select_strategy(self, context, start_time, max_duration):
-        """Step 2: Select best strategy"""
+    def _select_strategy(
+        self, context: dict[str, Any], start_time: float, max_duration: float,
+    ) -> Any:  # noqa: ANN401
+        """Step 2: Select best strategy."""
         import time
 
         if time.time() - start_time > max_duration:
@@ -1595,8 +1657,14 @@ class SelfRefiningEngine:
         strategies = self.apply_policies_to_strategies(strategies, context)
         return strategies[0] if strategies else None
 
-    def _select_profile(self, strategy, context, start_time, max_duration):
-        """Step 3: Select, filter and mutate profile"""
+    def _select_profile(
+        self,
+        strategy: "Strategy",
+        context: dict[str, Any],
+        start_time: float,
+        max_duration: float,
+    ) -> Any:  # noqa: ANN401
+        """Step 3: Select, filter and mutate profile."""
         import time
 
         # Get profiles
@@ -1609,12 +1677,14 @@ class SelfRefiningEngine:
         profiles = self.apply_policies_to_profiles(profiles, context)
 
         failed_profiles = self.get_failed_profiles_for_target(
-            context["target_signature"]
+            context["target_signature"],
         )
         profiles = [p for p in profiles if p.profile_id not in failed_profiles]
 
-        # Decision
-        if time.time() - start_time > max_duration:
+        # Decision - with timeout protection
+        elapsed = time.time() - start_time
+        if elapsed > max_duration:
+            logger.warning("Profile selection timed out after %.2f seconds", elapsed)
             return profiles[0] if profiles else None
 
         if not profiles:
@@ -1622,30 +1692,43 @@ class SelfRefiningEngine:
 
         # Sort by success rate
         profiles.sort(key=lambda p: p.success_rate, reverse=True)
-        
+
         # LOGIC FIX: Select and VERIFY (Prevent TOCTOU race condition)
         # Another thread might have retired this profile just now
         selected = profiles[0]
         with self._db_operation() as conn:
-            cursor = conn.execute("SELECT retired FROM strategy_profiles WHERE profile_id = ?", (selected.profile_id,))
+            cursor = conn.execute(
+                "SELECT retired FROM strategy_profiles WHERE profile_id = ?",
+                (selected.profile_id,),
+            )
             row = cursor.fetchone()
             if row and row[0] == 1:
-                logger.warning(f"TOCTOU caught: Profile {selected.profile_id} was retired during selection. Falling back.")
+                logger.warning(
+                    f"TOCTOU caught: Profile {selected.profile_id} was retired during selection. Falling back.",
+                )
+                # Add retired profile to failed list to avoid infinite loop
+                failed_profiles.append(selected.profile_id)
+                # Check if we've exceeded time or retried too many times
+                if time.time() - start_time > max_duration:
+                    logger.warning("TOCTOU retry exceeded timeout, returning None")
+                    return None
                 # Recursively try again with retired profile excluded
                 return self._select_profile(strategy, context, start_time, max_duration)
 
         return selected
 
-    def _handle_no_profiles(self, strategy, failed_profiles):
-        """Handle case where all profiles are exhausted"""
+    def _handle_no_profiles(
+        self, strategy: "Strategy", failed_profiles: list[str],
+    ) -> Any:  # noqa: ANN401
+        """Handle case where all profiles are exhausted."""
         try:
             return self.select_best_profile(strategy.name, failed_profiles)
         except Exception as e:
-            logger.error(f"Profile selection/mutation failed: {e}")
+            logger.exception("Profile selection/mutation failed: %s", e)
             return None
 
-    def _release_lock_safe(self):
-        """Safely release lock"""
+    def _release_lock_safe(self) -> None:
+        """Safely release lock."""
         with suppress(Exception):
             self._lock.release()
 
@@ -1654,7 +1737,7 @@ class SelfRefiningEngine:
     # =========================================================================
 
     def get_evolution_status(self) -> dict:
-        """Get current evolution status for debugging"""
+        """Get current evolution status for debugging."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -1662,29 +1745,29 @@ class SelfRefiningEngine:
 
                 # Strategies
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM strategies WHERE is_active = 1"
+                    "SELECT COUNT(*) FROM strategies WHERE is_active = 1",
                 )
                 status["active_strategies"] = cursor.fetchone()[0]
 
                 # Profiles
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 0"
+                    "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 0",
                 )
                 status["active_profiles"] = cursor.fetchone()[0]
 
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 1"
+                    "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 1",
                 )
                 status["retired_profiles"] = cursor.fetchone()[0]
 
                 cursor = conn.execute(
-                    "SELECT MAX(mutation_generation) FROM strategy_profiles"
+                    "SELECT MAX(mutation_generation) FROM strategy_profiles",
                 )
                 status["max_mutation_generation"] = cursor.fetchone()[0] or 0
 
                 # Policies
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM policies WHERE is_active = 1"
+                    "SELECT COUNT(*) FROM policies WHERE is_active = 1",
                 )
                 status["active_policies"] = cursor.fetchone()[0]
 
@@ -1701,7 +1784,7 @@ class SelfRefiningEngine:
                 status["total_failures"] = cursor.fetchone()[0]
 
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM failure_contexts WHERE policy_generated = 1"
+                    "SELECT COUNT(*) FROM failure_contexts WHERE policy_generated = 1",
                 )
                 status["failures_with_policies"] = cursor.fetchone()[0]
 
@@ -1710,7 +1793,7 @@ class SelfRefiningEngine:
                 conn.close()
 
     def get_profile_lineage(self, profile_id: str) -> list[str]:
-        """Get the mutation lineage of a profile
+        """Get the mutation lineage of a profile.
 
         Includes protection against circular references to prevent infinite loops.
         """
@@ -1737,7 +1820,7 @@ class SelfRefiningEngine:
                     # Check for circular reference
                     if parent_id in visited:
                         logger.warning(
-                            f"Circular reference detected in profile lineage: {parent_id}"
+                            f"Circular reference detected in profile lineage: {parent_id}",
                         )
                         break
 
@@ -1748,9 +1831,9 @@ class SelfRefiningEngine:
 
                 if depth >= max_depth:
                     logger.warning(
-                        f"Profile lineage exceeded max depth ({max_depth}), truncating"
+                        f"Profile lineage exceeded max depth ({max_depth}), truncating",
                     )
 
-                return lineage[::-1]  # Return from oldest to newest
+                return lineage[:-1]  # Return from oldest to newest
             finally:
                 conn.close()

@@ -39,9 +39,8 @@ setup_logging(
 logger: logging.Logger = get_logger("main")
 
 
-def global_exception_handler(exc_type, exc_value, exc_traceback):
-    """
-    Global exception handler to capture unhandled exceptions (Crash Reporter).
+def global_exception_handler(exc_type, exc_value, exc_traceback) -> None:
+    """# noqa: RUF001Global exception handler to capture unhandled exceptions (Crash Reporter).
     Prevents 'Silent Death' by generating a detailed crash dump.
     """
     if issubclass(exc_type, KeyboardInterrupt):
@@ -71,7 +70,7 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
         f.write(f"DRAKBEN CRASH REPORT - {crash_time}\n")
         f.write("=" * 50 + "\n")
         f.write(f"Type: {exc_type.__name__}\n")
-        f.write(f"Message: {str(exc_value)}\n")
+        f.write(f"Message: {exc_value!s}\n")
         f.write("-" * 50 + "\n")
         f.write(tb_text)
         f.write("=" * 50 + "\n")
@@ -92,10 +91,10 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
             f"[bold red]CRITICAL SYSTEM FAILURE[/bold red]\n\n"
             f"An unhandled exception occurred and the agent must terminate.\n"
             f"Crash dump written to: [yellow]{crash_file}[/yellow]\n\n"
-            f"Error: {exc_type.__name__}: {str(exc_value)}",
+            f"Error: {exc_type.__name__}: {exc_value!s}",
             title="💀 DRAKBEN CRASH REPORTER",
             border_style="red",
-        )
+        ),
     )
     sys.exit(1)
 
@@ -104,9 +103,8 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
 sys.excepthook = global_exception_handler
 
 
-def cleanup_resources(signum=None, frame=None):
-    """
-    Gracefully cleanup resources on shutdown.
+def cleanup_resources(signum=None, frame=None) -> None:
+    """Gracefully cleanup resources on shutdown.
     Closes DB connections and active threads.
     """
     try:
@@ -131,8 +129,7 @@ def cleanup_resources(signum=None, frame=None):
             Console().print("\n[yellow]Graceful Shutdown Complete. Goodbye![/yellow]")
             sys.exit(0)
 
-    except Exception as e:
-        print(f"Error during cleanup: {e}")
+    except Exception:
         sys.exit(1)
 
 
@@ -142,12 +139,12 @@ signal.signal(signal.SIGTERM, cleanup_resources)
 
 
 def clear_screen() -> None:
-    """Clear terminal screen"""
+    """Clear terminal screen."""
     os.system("clear" if os.name != "nt" else "cls")
 
 
 def show_banner() -> None:
-    """Show DRAKBEN ASCII banner - Dracula Theme"""
+    """Show DRAKBEN ASCII banner - Dracula Theme."""
     clear_screen()
 
     # Windows UTF-8 support
@@ -168,14 +165,15 @@ def show_banner() -> None:
     console = Console(force_terminal=True)
     console.print(banner, style="bold #FF5555")  # Dracula red
     console.print(
-        "    [*] DRAKBEN - Autonomous Pentest Framework", style="bold #BD93F9"
+        "    [*] DRAKBEN - Autonomous Pentest Framework",
+        style="bold #BD93F9",
     )  # Dracula purple
     console.print("    [*] Kali Linux | AI-Powered | Auto-Exploit", style="#F8F8F2")
     console.print()
 
 
 def check_environment() -> None:
-    """Check basic environment requirements"""
+    """Check basic environment requirements."""
     Console()
 
     # Check Python version
@@ -215,13 +213,12 @@ OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 
 
 def show_startup_info() -> None:
-    """Show startup information - Dracula Theme"""
+    """Show startup information - Dracula Theme."""
     # Startup panel removed - now combined in agent.py
-    pass
 
 
 def main() -> None:
-    """Main entry point - Interactive Menu System"""
+    """Main entry point - Interactive Menu System."""
     # Windows UTF-8 support
     if os.name == "nt":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -251,7 +248,7 @@ def main() -> None:
 
         plugin_loader = PluginLoader("plugins")
         console.print(
-            f"[dim]Plugins directory: {plugin_loader.plugin_dir.absolute()}[/dim]"
+            f"[dim]Plugins directory: {plugin_loader.plugin_dir.absolute()}[/dim]",
         )
 
         # Start interactive menu system

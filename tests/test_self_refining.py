@@ -1,6 +1,5 @@
-"""
-Tests for Self-Refining Engine
-Converted from scripts/debug_skipped_tests.py
+"""Tests for Self-Refining Engine
+Converted from scripts/debug_skipped_tests.py.
 """
 
 import os
@@ -14,40 +13,36 @@ from core.self_refining_engine import SelfRefiningEngine, Strategy, StrategyProf
 
 
 class TestSelfRefiningEngine(unittest.TestCase):
-    """
-    Validation for the Self-Refining AI optimization engine.
-    """
+    """Validation for the Self-Refining AI optimization engine."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = SelfRefiningEngine()
 
-    def test_initialization(self):
-        """Test engine initialization"""
-        self.assertIsInstance(self.engine, SelfRefiningEngine)
+    def test_initialization(self) -> None:
+        """Test engine initialization."""
+        assert isinstance(self.engine, SelfRefiningEngine)
         # Ensure DB is ready
         self.engine._ensure_initialized()
         # Use private check or public method to verify strategies exist
         strategies = self.engine.get_strategies_for_target_type("network_host")
-        self.assertGreater(
-            len(strategies), 0, "No strategies loaded! (Checking network_host type)"
-        )
+        assert len(strategies) > 0, "No strategies loaded! (Checking network_host type)"
 
-    def test_strategy_selection(self):
-        """Test strategy selection for a target"""
+    def test_strategy_selection(self) -> None:
+        """Test strategy selection for a target."""
         target = "192.168.1.1"  # Standard private IP
 
         # This calls select_strategy_and_profile internally
         strategy, profile = self.engine.select_strategy_and_profile(target)
 
-        self.assertIsInstance(strategy, Strategy)
-        self.assertIsInstance(profile, StrategyProfile)
+        assert isinstance(strategy, Strategy)
+        assert isinstance(profile, StrategyProfile)
 
         # Verify strategy matches target
-        self.assertEqual(strategy.target_type, "network_host")
-        self.assertEqual(profile.strategy_name, strategy.name)
+        assert strategy.target_type == "network_host"
+        assert profile.strategy_name == strategy.name
 
-    def test_mutation_logic(self):
-        """Test that failure triggers mutation/adaptation"""
+    def test_mutation_logic(self) -> None:
+        """Test that failure triggers mutation/adaptation."""
         target = "10.0.0.5"
         _, profile = self.engine.select_strategy_and_profile(target)
 
@@ -59,13 +54,12 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
         # Verify state change
         updated_profile = self.engine.get_profile(profile.profile_id)
-        self.assertIsNotNone(updated_profile)
+        assert updated_profile is not None
         # Note: Exact math depends on implementation, but it should be recorded.
 
-    def test_persistence(self):
-        """Test that profiles persist (mock)"""
+    def test_persistence(self) -> None:
+        """Test that profiles persist (mock)."""
         # Ideally checks if DB/File is updated
-        pass
 
 
 if __name__ == "__main__":

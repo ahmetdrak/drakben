@@ -1,5 +1,4 @@
-"""
-DRAKBEN Universal Adapter - Daemon Service
+"""DRAKBEN Universal Adapter - Daemon Service
 Author: @drak_ben
 Description: Full daemon mode for headless operation (systemd/Windows Service).
 """
@@ -15,19 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 class DaemonService:
-    """
-    Cross-platform daemon/service manager for Drakben.
+    """Cross-platform daemon/service manager for Drakben.
     Supports Linux (systemd/init.d) and Windows (pywin32).
     """
 
-    def __init__(self, pid_file: str = "/tmp/drakben.pid"):
+    def __init__(self, pid_file: str = "/tmp/drakben.pid") -> None:
         self.pid_file = pid_file
         self.running = False
         self.is_windows = sys.platform == "win32"
 
     def daemonize(self) -> bool:
-        """
-        Fork process into background (Unix only).
+        """Fork process into background (Unix only).
         Windows uses different approach via pywin32.
         """
         if self.is_windows:
@@ -41,7 +38,7 @@ class DaemonService:
                 sys.exit(0)
 
         except OSError as e:
-            logger.error(f"Fork #1 failed: {e}")
+            logger.exception("Fork #1 failed: %s", e)
             return False
 
         # Decouple from parent
@@ -56,7 +53,7 @@ class DaemonService:
                 sys.exit(0)
 
         except OSError as e:
-            logger.error(f"Fork #2 failed: {e}")
+            logger.exception("Fork #2 failed: %s", e)
             return False
 
         # Redirect standard file descriptors
@@ -78,23 +75,23 @@ class DaemonService:
         atexit.register(self._cleanup)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-        logger.info(f"Daemon started with PID {pid}")
+        logger.info("Daemon started with PID %s", pid)
         self.running = True
         return True
 
     def _cleanup(self) -> None:
-        """Remove PID file on exit"""
+        """Remove PID file on exit."""
         if os.path.exists(self.pid_file):
             os.remove(self.pid_file)
 
     def _signal_handler(self, signum, frame) -> None:
-        """Handle termination signals"""
+        """Handle termination signals."""
         self.running = False
         self._cleanup()
         sys.exit(0)
 
     def get_pid(self) -> int | None:
-        """Get running daemon PID"""
+        """Get running daemon PID."""
         try:
             with open(self.pid_file) as f:
                 return int(f.read().strip())
@@ -102,7 +99,7 @@ class DaemonService:
             return None
 
     def stop(self) -> bool:
-        """Stop running daemon"""
+        """Stop running daemon."""
         pid = self.get_pid()
         if not pid:
             logger.info("Daemon not running")
@@ -115,11 +112,11 @@ class DaemonService:
             logger.info("Daemon stopped")
             return True
         except OSError as e:
-            logger.error(f"Failed to stop daemon: {e}")
+            logger.exception("Failed to stop daemon: %s", e)
             return False
 
     def status(self) -> str:
-        """Check daemon status"""
+        """Check daemon status."""
         pid = self.get_pid()
         if pid:
             try:
@@ -130,9 +127,7 @@ class DaemonService:
         return "Not running"
 
     def generate_systemd_unit(self, install_path: str = "/opt/drakben") -> str:
-        """
-        Generate systemd service file for Linux.
-        """
+        """Generate systemd service file for Linux."""
         unit_content = f"""[Unit]
 Description=Drakben AI Penetration Testing Agent
 After=network.target
@@ -151,13 +146,11 @@ Group=root
 WantedBy=multi-user.target
 """
         unit_path = "/etc/systemd/system/drakben.service"
-        logger.info(f"Systemd unit file content generated for: {unit_path}")
+        logger.info("Systemd unit file content generated for: %s", unit_path)
         return unit_content
 
     def install_windows_service(self) -> bool:
-        """
-        Install as Windows service using pywin32.
-        """
+        """Install as Windows service using pywin32."""
         if not self.is_windows:
             logger.error("Not a Windows system")
             return False
@@ -166,14 +159,14 @@ WantedBy=multi-user.target
             import importlib.util
 
             if not importlib.util.find_spec(
-                "win32service"
+                "win32service",
             ) or not importlib.util.find_spec("win32serviceutil"):
                 raise ImportError
 
             # This would require a proper service class
             # For now, return instructions
             logger.info(
-                "Windows service installation instructions logged successfully."
+                "Windows service installation instructions logged successfully.",
             )
             # Windows service registration is managed via external sc.exe or advanced installer
             # to maintain stealth and avoid persistent process handles during runtime.

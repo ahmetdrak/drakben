@@ -10,7 +10,7 @@ import time
 from _thread import RLock
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Self
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ _state_instance: Optional["AgentState"] = None  # Forward reference
 
 
 class AttackPhase(Enum):
-    """Attack phases - deterministic flow"""
+    """Attack phases - deterministic flow."""
 
     INIT = "init"
     RECON = "recon"
@@ -47,7 +47,7 @@ class AttackPhase(Enum):
 
 @dataclass
 class ServiceInfo:
-    """Service information summary"""
+    """Service information summary."""
 
     port: int
     protocol: str
@@ -60,7 +60,7 @@ class ServiceInfo:
 
 @dataclass
 class CredentialInfo:
-    """Credential information"""
+    """Credential information."""
 
     username: str
     service: str = ""
@@ -71,7 +71,7 @@ class CredentialInfo:
 
 @dataclass
 class VulnerabilityInfo:
-    """Vulnerability information"""
+    """Vulnerability information."""
 
     vuln_id: str
     service: str
@@ -83,8 +83,7 @@ class VulnerabilityInfo:
 
 
 class AgentState:
-    """
-    DRAKBEN Agent State - SINGLE SOURCE OF TRUTH
+    """DRAKBEN Agent State - SINGLE SOURCE OF TRUTH
     Thread-safe implementation with locking.
 
     Rules:
@@ -95,9 +94,9 @@ class AgentState:
     5. State pollution = SYSTEM HALT
     """
 
-    def __new__(cls, *args, **kwargs) -> "AgentState":
-        """Ensure singleton instance"""
-        global _state_instance, _state_lock
+    def __new__(cls, *args, **kwargs) -> Self:
+        """Ensure singleton instance."""
+        global _state_instance
         if _state_instance is None:
             with _state_lock:
                 if _state_instance is None:
@@ -108,17 +107,22 @@ class AgentState:
         return _state_instance
 
     def __init__(self, target: str | None = None) -> None:
-        """
-        Initialize agent state.
+        """Initialize agent state.
 
         Args:
             target: Target IP or domain (optional)
+
         """
-        # Prevent re-initialization
-        if getattr(self, "_initialized", False) and target is None:
+        # Prevent re-initialization - CRITICAL: Don't wipe existing state!
+        # Only allow target update if explicitly requested
+        if getattr(self, "_initialized", False):
+            # If already initialized, only update target if provided
+            if target is not None:
+                with self._lock:
+                    self.target = target
             return
 
-        # Thread safety lock
+        # Thread safety lock - create ONCE per instance
         self._lock: RLock = threading.RLock()
 
         # Core state
@@ -127,7 +131,7 @@ class AgentState:
         self.iteration_count: int = 0
         self.max_iterations: int = MAX_ITERATIONS
 
-        # Mark as initialized
+        # Mark as initialized BEFORE populating state
         self._initialized = True
 
         # Attack surface tracking
@@ -165,8 +169,61 @@ class AgentState:
         self.hallucination_flags: list[str] = []  # Hallucination warnings
         self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
 
-    def __del__(self):
-        """Securely wipe sensitive data from memory on destruction"""
+    def clear(self, new_target: str | None = None) -> None:
+        """Clear state for new run - preserves singleton reference.
+
+        Args:
+            new_target: New target IP or domain (optional)
+
+        Use this instead of reset_state() to avoid breaking existing references.
+        """
+        with self._lock:
+            # Core state
+            self.target = new_target
+            self.phase = AttackPhase.INIT
+            self.iteration_count = 0
+
+            # Attack surface tracking
+            self.open_services.clear()
+            self.tested_attack_surface.clear()
+            self.remaining_attack_surface.clear()
+
+            # Vulnerability tracking
+            self.vulnerabilities.clear()
+
+            # Credentials - secure wipe attempt
+            for cred in self.credentials:
+                if cred.password:
+                    try:
+                        from core.ghost_protocol import get_ram_cleaner
+                        get_ram_cleaner().register_sensitive(cred.password)
+                    except Exception:
+                        pass  # RAMCleaner optional, continue cleanup regardless
+            self.credentials.clear()
+
+            # Foothold state
+            self.has_foothold = False
+            self.foothold_method = None
+            self.foothold_timestamp = None
+
+            # Post-exploit state
+            self.post_exploit_completed.clear()
+
+            # Execution tracking
+            self.last_observation = ""
+            self.state_changes_history.clear()
+
+            # Invariant violation tracking
+            self.invariant_violations.clear()
+
+            # Agentic loop protection
+            self.tool_call_history.clear()
+            self.last_state_hash = ""
+            self.consecutive_same_tool = 0
+            self.hallucination_flags.clear()
+
+    def __del__(self) -> None:
+        """Securely wipe sensitive data from memory on destruction."""
         try:
             if hasattr(self, "credentials"):
                 for cred in self.credentials:
@@ -177,14 +234,14 @@ class AgentState:
                         pass
                 self.credentials.clear()
         except Exception as e:
-            logger.debug(f"Failed to clear credentials: {e}")
+            logger.debug("Failed to clear credentials: %s", e)
 
     def snapshot(self) -> dict:
-        """
-        Get state snapshot for LLM context.
+        """Get state snapshot for LLM context.
 
         Returns:
             Dict with summarized state information
+
         """
         with self._lock:
             return {
@@ -200,8 +257,7 @@ class AgentState:
             }
 
     def update_services(self, services: list[ServiceInfo]) -> None:
-        """
-        Update state after service discovery - SMART MERGE.
+        """Update state after service discovery - SMART MERGE.
         Updates with more specific/detailed info, preserves existing.
 
         Args:
@@ -212,16 +268,17 @@ class AgentState:
             - Prefers versioned info over unknown
             - Preserves tested/vulnerable flags
             - Thread-safe operation
+
         """
         with self._lock:
             self._update_services_internal(services)
 
     def _update_services_internal(self, services: list[ServiceInfo]) -> None:
-        """
-        Internal method for update_services (not thread-safe, call with lock).
+        """Internal method for update_services (not thread-safe, call with lock).
 
         Args:
             services: List of discovered services
+
         """
         for svc in services:
             self._merge_service(svc)
@@ -230,7 +287,7 @@ class AgentState:
         self._record_change("services_discovered", len(services))
 
     def _merge_service(self, svc: ServiceInfo) -> None:
-        """Merge a service into open_services with smart rules"""
+        """Merge a service into open_services with smart rules."""
         if svc.port not in self.open_services:
             self.open_services[svc.port] = svc
             return
@@ -242,45 +299,52 @@ class AgentState:
         self.open_services[svc.port] = self._select_best_service(svc, existing)
 
     def _should_skip_unknown_service(
-        self, svc: ServiceInfo, existing: ServiceInfo
+        self,
+        svc: ServiceInfo,
+        existing: ServiceInfo,
     ) -> bool:
-        """Rule 1: Don't overwrite known service with 'unknown'"""
+        """Rule 1: Don't overwrite known service with 'unknown'."""
         return svc.service in ["unknown", "tcpwrapped"] and existing.service not in [
             "unknown",
             "tcpwrapped",
         ]
 
     def _select_best_service(
-        self, svc: ServiceInfo, existing: ServiceInfo
+        self,
+        svc: ServiceInfo,
+        existing: ServiceInfo,
     ) -> ServiceInfo:
-        """Rule 2: Prefer versioned info, then better service name"""
+        """Rule 2: Prefer versioned info, then better service name."""
         if svc.version and not existing.version:
             return svc
-        elif not svc.version and existing.version:
+        if not svc.version and existing.version:
             # Keep existing if it has version and new doesn't
             return existing
-        elif svc.service != "unknown" and svc.service != existing.service:
+        if svc.service not in ("unknown", existing.service):
             # Prefer new service if it's better identified
             return svc
         # Default: keep existing service
         return existing
 
     def _add_to_attack_surface(self, svc: ServiceInfo) -> None:
-        """Add service to attack surface if not tested"""
+        """Add service to attack surface if not tested."""
         surface_key: str = f"{svc.port}:{self.open_services[svc.port].service}"
         if surface_key not in self.tested_attack_surface:
             self.remaining_attack_surface.add(surface_key)
 
     def mark_surface_tested(self, port: int, service: str) -> None:
-        """
-        Mark an attack surface as tested.
+        """Mark an attack surface as tested.
 
         Args:
             port: Port number
             service: Service name
+
         """
         with self._lock:
-            surface_key: str = f"{port}:{service}"
+            service_name = service
+            if port in self.open_services:
+                service_name = self.open_services[port].service
+            surface_key: str = f"{port}:{service_name}"
             self.tested_attack_surface.add(surface_key)
             self.remaining_attack_surface.discard(surface_key)
 
@@ -290,11 +354,11 @@ class AgentState:
             self._record_change("surface_tested", surface_key)
 
     def add_vulnerability(self, vuln: VulnerabilityInfo) -> None:
-        """
-        Record discovered vulnerability.
+        """Record discovered vulnerability.
 
         Args:
             vuln: Vulnerability information
+
         """
         with self._lock:
             self.vulnerabilities.append(vuln)
@@ -305,12 +369,12 @@ class AgentState:
             self._record_change("vulnerability_found", vuln.vuln_id)
 
     def mark_exploit_attempted(self, port: int, success: bool) -> None:
-        """
-        Record exploit attempt.
+        """Record exploit attempt.
 
         Args:
             port: Target port
             success: Whether exploit succeeded
+
         """
         with self._lock:
             if port in self.open_services:
@@ -325,11 +389,11 @@ class AgentState:
             self._record_change("exploit_attempted", {"port": port, "success": success})
 
     def set_foothold(self, method: str) -> None:
-        """
-        Record foothold achievement.
+        """Record foothold achievement.
 
         Args:
             method: Method used to achieve foothold
+
         """
         with self._lock:
             self.has_foothold = True
@@ -340,22 +404,22 @@ class AgentState:
             self._record_change("foothold_achieved", method)
 
     def mark_post_exploit_done(self, action: str) -> None:
-        """
-        Record completed post-exploit action.
+        """Record completed post-exploit action.
 
         Args:
             action: Completed action name
+
         """
         with self._lock:
             self.post_exploit_completed.add(action)
             self._record_change("post_exploit_completed", action)
 
     def set_observation(self, observation: str) -> None:
-        """
-        Record last observation (max 500 chars).
+        """Record last observation (max 500 chars).
 
         Args:
             observation: Observation text
+
         """
         with self._lock:
             self.last_observation = observation[:MAX_OBSERVATION_LENGTH]
@@ -369,11 +433,11 @@ class AgentState:
     # ============ AGENTIC LOOP PROTECTION ============
 
     def record_tool_call(self, tool_name: str) -> None:
-        """
-        Record tool call and check for repetition.
+        """Record tool call and check for repetition.
 
         Args:
             tool_name: Name of called tool
+
         """
         with self._lock:  # THREAD SAFETY: Add lock for consistent state access
             self.tool_call_history.append(tool_name)
@@ -387,11 +451,11 @@ class AgentState:
                     self.consecutive_same_tool = 0
 
     def compute_state_hash(self) -> str:
-        """
-        Compute hash for state summary.
+        """Compute hash for state summary.
 
         Returns:
             8-character hash string
+
         """
         with self._lock:
             state_str: str = (
@@ -408,9 +472,7 @@ class AgentState:
         hash_val: str | None = None,
         service: str = "",
     ) -> None:
-        """
-        Add credential securely with RAM cleaning support.
-        """
+        """Add credential securely with RAM cleaning support."""
         # Local import to avoid circular dependency
         from core.ghost_protocol import get_ram_cleaner
 
@@ -421,21 +483,24 @@ class AgentState:
                     get_ram_cleaner().register_sensitive(password)
                 except Exception as e:
                     logger.warning(
-                        f"Could not register credential with RAMCleaner: {e}"
+                        f"Could not register credential with RAMCleaner: {e}",
                     )
 
             # Create credential object
             cred = CredentialInfo(
-                username=username, password=password, hash=hash_val, service=service
+                username=username,
+                password=password,
+                hash=hash_val,
+                service=service,
             )
 
             if not self._is_duplicate_credential(cred):
                 self.credentials.append(cred)
-                logger.info(f"Credential captured: {username} ({service})")
+                logger.info("Credential captured: %s (%s)", username, service)
                 self._persist_credential(username, password, hash_val, service)
 
     def _is_duplicate_credential(self, cred: CredentialInfo) -> bool:
-        """Check if a credential already exists in memory"""
+        """Check if a credential already exists in memory."""
         for c in self.credentials:
             if c.username == cred.username and c.service == cred.service:
                 if c.password == cred.password and c.hash == cred.hash:
@@ -448,8 +513,8 @@ class AgentState:
         password: str | None,
         hash_val: str | None,
         service: str,
-    ):
-        """Save captured credential to secure store"""
+    ) -> None:
+        """Save captured credential to secure store."""
         try:
             from core.security_utils import CredentialStore, get_credential_store
 
@@ -461,26 +526,30 @@ class AgentState:
 
             store.store(cred_key, cred_value)
         except Exception as e:
-            logger.debug(f"Persistence skipped: {e}")
+            logger.debug("Persistence skipped: %s", e)
 
     def check_state_changed(self) -> bool:
-        """
-        Check if state has changed.
+        """Check if state has changed.
 
         Returns:
             True if state changed, False otherwise
+
         """
-        current_hash: str = self.compute_state_hash()
-        if current_hash == self.last_state_hash:
-            return False
-        self.last_state_hash = current_hash
-        return True
+        with self._lock:  # THREAD SAFETY: Add lock for consistent state access
+            current_hash: str = self.compute_state_hash()
+            if current_hash == self.last_state_hash:
+                return False
+            self.last_state_hash = current_hash
+            return True
 
     def check_hallucination(
-        self, tool_name: str, exit_code: int, stdout: str, claimed_success: bool
+        self,
+        tool_name: str,
+        exit_code: int,
+        stdout: str,
+        claimed_success: bool,
     ) -> bool:
-        """
-        Hallucination check - LLM claims 'success' but is it really?
+        """Hallucination check - LLM claims 'success' but is it really?
 
         Args:
             tool_name: Name of the tool
@@ -490,11 +559,12 @@ class AgentState:
 
         Returns:
             True if hallucination detected, False if OK
+
         """
         # Rule 1: Exit code != 0 but success claimed
         if exit_code != 0 and claimed_success:
             self.hallucination_flags.append(
-                f"{tool_name}: claimed success but exit_code={exit_code}"
+                f"{tool_name}: claimed success but exit_code={exit_code}",
             )
             return True
 
@@ -502,7 +572,7 @@ class AgentState:
         if "exploit" in tool_name.lower() and claimed_success:
             if "shell" not in stdout.lower() and "session" not in stdout.lower():
                 self.hallucination_flags.append(
-                    f"{tool_name}: claimed exploit success but no shell/session in output"
+                    f"{tool_name}: claimed exploit success but no shell/session in output",
                 )
                 return True
 
@@ -510,15 +580,14 @@ class AgentState:
         if "sql" in tool_name.lower() and claimed_success:
             if "vulnerable" not in stdout.lower() and "injection" not in stdout.lower():
                 self.hallucination_flags.append(
-                    f"{tool_name}: claimed SQLi but no confirmation in output"
+                    f"{tool_name}: claimed SQLi but no confirmation in output",
                 )
                 return True
 
         return False
 
     def is_tool_allowed_for_phase(self, tool_phase: str) -> bool:
-        """
-        Check if tool is allowed in current phase.
+        """Check if tool is allowed in current phase.
 
         Args:
             tool_name: Name of the tool
@@ -526,6 +595,7 @@ class AgentState:
 
         Returns:
             True if allowed, False otherwise
+
         """
         phase_order: dict[str, int] = {
             "init": 0,
@@ -545,8 +615,7 @@ class AgentState:
         return tool_order <= current_order + PHASE_TOLERANCE
 
     def require_precondition(self, precondition: str) -> bool:
-        """
-        Check precondition.
+        """Check precondition.
 
         Args:
             precondition: Precondition string
@@ -558,14 +627,15 @@ class AgentState:
             - 'port_22_open' -> Is port 22 open?
             - 'has_vulnerability' -> At least 1 vuln?
             - 'has_foothold' -> Foothold achieved?
+
         """
         if precondition == "has_foothold":
             return self.has_foothold
-        elif precondition == "has_vulnerability":
+        if precondition == "has_vulnerability":
             return len(self.vulnerabilities) > 0
-        elif precondition == "has_services":
+        if precondition == "has_services":
             return len(self.open_services) > 0
-        elif precondition.startswith("port_") and precondition.endswith("_open"):
+        if precondition.startswith("port_") and precondition.endswith("_open"):
             try:
                 port = int(precondition.split("_")[1])
                 return port in self.open_services
@@ -574,89 +644,91 @@ class AgentState:
         return True  # Unknown precondition = allow
 
     def get_available_attack_surface(self) -> list[str]:
-        """
-        Get untested attack surfaces.
+        """Get untested attack surfaces.
 
         Returns:
             List of "port:service" strings
+
         """
         return list(self.remaining_attack_surface)
 
     def should_halt(self) -> tuple[bool, str]:
-        """
-        Check if system should halt.
+        """Check if system should halt.
 
         Returns:
             Tuple of (should_halt, reason)
+
         """
-        # Max iteration
-        if self.iteration_count >= self.max_iterations:
-            return True, "Max iteration reached"
+        with self._lock:  # THREAD SAFETY: Consistent state access
+            # Max iteration
+            if self.iteration_count >= self.max_iterations:
+                return True, "Max iteration reached"
 
-        # Invariant violation
-        if self.invariant_violations:
-            return True, f"Invariant violation: {self.invariant_violations[0]}"
+            # Invariant violation
+            if self.invariant_violations:
+                return True, f"Invariant violation: {self.invariant_violations[0]}"
 
-        # State stagnation check
-        if len(self.state_changes_history) >= STAGNATION_CHECK_WINDOW:
-            last_changes = self.state_changes_history[-STAGNATION_CHECK_WINDOW:]
-            if all(c.get("type") == "iteration" for c in last_changes):
-                return True, "State stagnation detected"
+            # State stagnation check
+            if len(self.state_changes_history) >= STAGNATION_CHECK_WINDOW:
+                last_changes = self.state_changes_history[-STAGNATION_CHECK_WINDOW:]
+                if all(c.get("type") == "iteration" for c in last_changes):
+                    return True, "State stagnation detected"
 
-        # Agentic loop: Same tool called consecutively
-        if self.consecutive_same_tool >= self.max_consecutive_same_tool:
-            return (
-                True,
-                f"Same tool called {self.consecutive_same_tool} times consecutively",
-            )
+            # Agentic loop: Same tool called consecutively
+            if self.consecutive_same_tool >= self.max_consecutive_same_tool:
+                return (
+                    True,
+                    f"Same tool called {self.consecutive_same_tool} times consecutively",
+                )
 
-        # Agentic loop: No targets left but still scanning
-        if (
-            self.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN]
-            and len(self.remaining_attack_surface) == 0
-            and len(self.open_services) > 0
-            and self.iteration_count > 5
-        ):
-            return True, "No remaining attack surface but still scanning"
+            # Agentic loop: No targets left but still scanning
+            if (
+                self.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN]
+                and len(self.remaining_attack_surface) == 0
+                and len(self.open_services) > 0
+                and self.iteration_count > 5
+            ):
+                return True, "No remaining attack surface but still scanning"
 
-        # Success check
-        if self.phase == AttackPhase.COMPLETE:
-            return True, "Attack complete"
+            # Success check
+            if self.phase == AttackPhase.COMPLETE:
+                return True, "Attack complete"
 
-        if self.phase == AttackPhase.FAILED:
-            return True, "Attack failed"
+            if self.phase == AttackPhase.FAILED:
+                return True, "Attack failed"
 
-        return False, ""
+            return False, ""
 
     def validate(self) -> bool:
-        """
-        State invariant check - MUST BE CALLED AT END OF EVERY LOOP.
+        """State invariant check - MUST BE CALLED AT END OF EVERY LOOP.
 
         Returns:
             True if valid, False if invariant violated
-        """
-        violations = []
-        violations.extend(self._check_foothold_invariant())
-        violations.extend(self._check_exploit_invariants())
-        violations.extend(self._check_iteration_invariant())
-        violations.extend(self._check_surface_invariants())
-        violations.extend(self._check_limits_invariants())
 
-        if violations:
-            self.invariant_violations.extend(violations)
-            logger.error(f"State invariant violations: {violations}")
-            return False
-        return True
+        """
+        with self._lock:
+            violations = []
+            violations.extend(self._check_foothold_invariant())
+            violations.extend(self._check_exploit_invariants())
+            violations.extend(self._check_iteration_invariant())
+            violations.extend(self._check_surface_invariants())
+            violations.extend(self._check_limits_invariants())
+
+            if violations:
+                self.invariant_violations.extend(violations)
+                logger.error("State invariant violations: %s", violations)
+                return False
+            return True
 
     def _check_foothold_invariant(self) -> list[str]:
-        """Check foothold-related invariants"""
+        """Check foothold-related invariants."""
         violations = []
         if not self.has_foothold and self.post_exploit_completed:
             violations.append("Post-exploit attempted without foothold")
         return violations
 
     def _check_exploit_invariants(self) -> list[str]:
-        """Check exploit phase invariants"""
+        """Check exploit phase invariants."""
         violations = []
         if self.phase == AttackPhase.EXPLOIT:
             if len(self.open_services) == 0:
@@ -667,30 +739,30 @@ class AgentState:
                 )
                 if not has_exploitable:
                     violations.append(
-                        "Exploit phase without any vulnerabilities or exploitable services"
+                        "Exploit phase without any vulnerabilities or exploitable services",
                     )
         return violations
 
     def _check_iteration_invariant(self) -> list[str]:
-        """Check iteration count invariant"""
+        """Check iteration count invariant."""
         violations = []
         if self.iteration_count > self.max_iterations:
             violations.append("Max iteration exceeded")
         return violations
 
     def _check_surface_invariants(self) -> list[str]:
-        """Check attack surface invariants"""
+        """Check attack surface invariants."""
         violations = []
         violations.extend(
-            self._validate_surface_set(self.tested_attack_surface, "Tested")
+            self._validate_surface_set(self.tested_attack_surface, "Tested"),
         )
         violations.extend(
-            self._validate_surface_set(self.remaining_attack_surface, "Remaining")
+            self._validate_surface_set(self.remaining_attack_surface, "Remaining"),
         )
         return violations
 
     def _validate_surface_set(self, surface_set: set, prefix: str) -> list[str]:
-        """Validate a surface set against open services"""
+        """Validate a surface set against open services."""
         violations = []
         for surface in surface_set:
             port_str = surface.split(":")[0]
@@ -698,36 +770,34 @@ class AgentState:
                 port = int(port_str)
                 if port not in self.open_services:
                     violations.append(
-                        f"{prefix} surface {surface} not in open services"
+                        f"{prefix} surface {surface} not in open services",
                     )
             except ValueError:
                 violations.append(f"Invalid {prefix.lower()} surface format: {surface}")
         return violations
 
     def _check_limits_invariants(self) -> list[str]:
-        """Check limit-related invariants"""
+        """Check limit-related invariants."""
         violations = []
-        MAX_HALLUCINATIONS_THRESHOLD = 5
-
         if len(self.hallucination_flags) >= MAX_HALLUCINATIONS_THRESHOLD:
             violations.append(
-                f"Too many hallucinations detected ({len(self.hallucination_flags)})"
+                f"Too many hallucinations detected ({len(self.hallucination_flags)})",
             )
 
         if self.consecutive_same_tool >= self.max_consecutive_same_tool:
             violations.append(
-                f"Same tool called {self.consecutive_same_tool} times consecutively"
+                f"Same tool called {self.consecutive_same_tool} times consecutively",
             )
 
         return violations
 
     def _record_change(self, change_type: str, data) -> None:
-        """
-        Record state change (last N changes).
+        """Record state change (last N changes).
 
         Args:
             change_type: Type of change
             data: Change data
+
         """
         change = {
             "type": change_type,
@@ -743,11 +813,11 @@ class AgentState:
             ]
 
     def to_dict(self) -> dict:
-        """
-        Convert full state to dict (for debug/logging).
+        """Convert full state to dict (for debug/logging).
 
         Returns:
             Dict representation of state
+
         """
         return {
             "target": self.target,
@@ -768,11 +838,11 @@ class AgentState:
         }
 
     def from_dict(self, data: dict) -> None:
-        """
-        Load state from dict (for session recovery).
+        """Load state from dict (for session recovery).
 
         Args:
             data: Dict representation of state
+
         """
         self.target = data.get("target")
         self.phase = AttackPhase(data.get("phase", "init"))
@@ -785,11 +855,11 @@ class AgentState:
 
 
 def get_state() -> AgentState:
-    """
-    Get global state instance (thread-safe singleton pattern).
+    """Get global state instance (thread-safe singleton pattern).
 
     Returns:
         AgentState singleton instance
+
     """
     global _state_instance
     if _state_instance is None:
@@ -800,17 +870,24 @@ def get_state() -> AgentState:
 
 
 def reset_state(target: str | None = None) -> AgentState:
-    """
-    Reset state for new run (thread-safe).
+    """Reset state for new run (thread-safe).
+
+    IMPORTANT: This clears the existing singleton instead of creating a new one.
+    This preserves existing references to the state instance.
 
     Args:
         target: New target (optional)
 
     Returns:
-        New AgentState instance
+        Same AgentState instance, cleared
+
     """
     global _state_instance
     with _state_lock:
-        _state_instance = None
-        _state_instance = AgentState(target)
+        if _state_instance is None:
+            _state_instance = AgentState(target)
+        else:
+            # Clear existing instance instead of creating new one
+            # This preserves references held by other modules
+            _state_instance.clear(target)
         return _state_instance

@@ -39,9 +39,6 @@ Thumbs.db
 
 # Test cache
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.benchmarks/
 .coverage
 htmlcov/
 .tox/
@@ -77,16 +74,9 @@ test_output.txt
 
 # Session files
 session.json
-.drakben_history
 *.pid
 
 # Build artifacts
 *.pyc
 *.pyo
 *.pyd
-
-# Specific Logs & Reports
-DRAKBEN_LOG.md
-coverage.xml
-drakben_evolution.db
-llm_cache.db

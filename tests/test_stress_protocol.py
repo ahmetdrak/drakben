@@ -57,13 +57,10 @@ def agent():
 
 
 @pytest.mark.asyncio
-async def test_full_kill_chain_simulation(agent):
-    """
-    NUCLEAR STRESS TEST: Validate Attack Chain Integrity without DB.
+async def test_full_kill_chain_simulation(agent) -> None:
+    """NUCLEAR STRESS TEST: Validate Attack Chain Integrity without DB.
     We inject 3 sequential steps into the Planner mock and verify Agent executes them.
     """
-    print("\n[TEST] ☢️ Starting Nuclear Stress Test (Kill Chain)...")
-
     # Define the 3 steps of the kill chain
     step1 = PlanStep(
         step_id="1",
@@ -137,23 +134,12 @@ async def test_full_kill_chain_simulation(agent):
     calls = agent.executor.terminal.execute.call_args_list
     executed_commands = [c[0][0] for c in calls]  # Arg 0 is command string
 
-    print(f"\n[REPORT] Commands Executed: {executed_commands}")
-
-    assert any("nmap" in cmd for cmd in executed_commands), (
-        "Failed to execute Recon step"
-    )
-    assert any("nikto" in cmd for cmd in executed_commands), (
-        "Failed to execute Vuln Scan step"
-    )
-    assert any("sqlmap" in cmd for cmd in executed_commands), (
-        "Failed to execute Exploit step"
-    )
-
-    print("✅ TEST PASSED: Full Kill Chain executed successfully.")
-    print("✅ Zero-Defect: Logic flow is valid.")
+    assert any("nmap" in cmd for cmd in executed_commands), "Failed to execute Recon step"
+    assert any("nikto" in cmd for cmd in executed_commands), "Failed to execute Vuln Scan step"
+    assert any("sqlmap" in cmd for cmd in executed_commands), "Failed to execute Exploit step"
 
 
-def test_tool_registry_integrity():
+def test_tool_registry_integrity() -> None:
     """Nuclear Check: Every registered tool MUST have executable code logic."""
     selector = ToolSelector()
     agent = RefactoredDrakbenAgent(ConfigManager())
@@ -161,12 +147,6 @@ def test_tool_registry_integrity():
     missing_handlers = []
 
     # Define critical tools that MUST operate
-    critical_tools = [
-        "generate_payload",  # Weapon Foundry
-        "synthesize_code",  # Singularity
-        "osint_scan",  # Social Eng
-        "hive_mind_attack",  # Swarm
-    ]
 
     handlers = {
         "generate_payload": "_execute_weapon_foundry",
@@ -184,9 +164,5 @@ def test_tool_registry_integrity():
 
     if missing_handlers:
         pytest.fail(
-            f"INTEGRATION FAILURE: Tools {missing_handlers} have no code handlers!"
+            f"INTEGRATION FAILURE: Tools {missing_handlers} have no code handlers!",
         )
-
-    print(
-        f"\n✅ INTEGRITY CHECK PASSED: All {len(critical_tools)} critical subsystems are integrated."
-    )

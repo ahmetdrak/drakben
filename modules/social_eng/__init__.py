@@ -1,5 +1,4 @@
-"""
-DRAKBEN Social Engineering Package
+"""DRAKBEN Social Engineering Package
 Modules for OSINT, Profiling, and spear-phishing campaigns.
 """
 

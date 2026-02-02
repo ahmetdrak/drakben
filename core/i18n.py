@@ -123,17 +123,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
 
 def t(key: str, lang: str = DEFAULT_LANG) -> str:
-    """Çeviri al"""
+    """Çeviri al."""
     lang_map = TRANSLATIONS.get(lang, TRANSLATIONS[DEFAULT_LANG])
     return lang_map.get(key, key)
 
 
 def get_language_name(lang: str) -> str:
-    """Dil adını al"""
+    """Dil adını al."""
     names = {"tr": "Türkçe", "en": "English"}
     return names.get(lang, lang)
 
 
 def get_available_languages() -> list:
-    """Mevcut dilleri listele"""
+    """Mevcut dilleri listele."""
     return list(TRANSLATIONS.keys())

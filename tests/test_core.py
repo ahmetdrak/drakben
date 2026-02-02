@@ -2,6 +2,7 @@
 # DRAKBEN Core Module Unit Tests
 # Comprehensive test coverage for core components
 
+import contextlib
 import os
 import sqlite3
 import sys
@@ -11,64 +12,64 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import contextlib
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class TestAgentState(unittest.TestCase):
-    """Tests for AgentState class"""
+    """Tests for AgentState class."""
 
-    def setUp(self):
-        """Reset singleton for each test"""
+    def setUp(self) -> None:
+        """Reset singleton for each test."""
         from core.state import reset_state
 
         reset_state()
 
-    def test_singleton_pattern(self):
-        """Test that AgentState is a singleton"""
+    def test_singleton_pattern(self) -> None:
+        """Test that AgentState is a singleton."""
         from core.state import AgentState
 
         state1 = AgentState()
         state2 = AgentState()
-        self.assertIs(state1, state2)
+        assert state1 is state2
 
-    def test_initial_state(self):
-        """Test initial state values"""
+    def test_initial_state(self) -> None:
+        """Test initial state values."""
         from core.state import AttackPhase, reset_state
 
         state = reset_state()
-        self.assertEqual(state.phase, AttackPhase.INIT)
-        self.assertIsNone(state.target)
-        self.assertFalse(state.has_foothold)
-        self.assertEqual(len(state.open_services), 0)
+        assert state.phase == AttackPhase.INIT
+        assert state.target is None
+        assert not state.has_foothold
+        assert len(state.open_services) == 0
 
-    def test_set_target(self):
-        """Test target setting"""
+    def test_set_target(self) -> None:
+        """Test target setting."""
         from core.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
-        self.assertEqual(state.target, "192.168.1.1")
-        self.assertEqual(
-            state.phase, AttackPhase.INIT
-        )  # Phase is set during initialization
+        assert state.target == "192.168.1.1"
+        assert state.phase == AttackPhase.INIT  # Phase is set during initialization
 
-    def test_add_service(self):
-        """Test service addition"""
+    def test_add_service(self) -> None:
+        """Test service addition."""
         from core.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
         service = ServiceInfo(
-            port=80, protocol="tcp", service="http", version="Apache/2.4"
+            port=80,
+            protocol="tcp",
+            service="http",
+            version="Apache/2.4",
         )
         state.update_services([service])
 
-        self.assertIn(80, state.open_services)
+        assert 80 in state.open_services
 
-    def test_add_vulnerability(self):
-        """Test vulnerability addition"""
+    def test_add_vulnerability(self) -> None:
+        """Test vulnerability addition."""
         from core.state import VulnerabilityInfo, reset_state
 
         state = reset_state("192.168.1.1")
@@ -82,40 +83,42 @@ class TestAgentState(unittest.TestCase):
         )
         state.add_vulnerability(vuln)
 
-        self.assertEqual(len(state.vulnerabilities), 1)
+        assert len(state.vulnerabilities) == 1
 
-    def test_state_validation(self):
-        """Test state invariant validation"""
+    def test_state_validation(self) -> None:
+        """Test state invariant validation."""
         from core.state import AgentState
 
         state = AgentState()
-        self.assertTrue(state.validate())
+        assert state.validate()
 
-    def test_phase_transition(self):
-        """Test phase transitions"""
+    def test_phase_transition(self) -> None:
+        """Test phase transitions."""
         from core.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
 
-        self.assertEqual(state.phase, AttackPhase.INIT)
+        assert state.phase == AttackPhase.INIT
 
         # Transition to recon phase
         state.phase = AttackPhase.RECON
-        self.assertEqual(state.phase, AttackPhase.RECON)
+        assert state.phase == AttackPhase.RECON
 
-    def test_thread_safety(self):
-        """Test thread-safe operations"""
+    def test_thread_safety(self) -> None:
+        """Test thread-safe operations."""
         from core.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
         errors = []
 
-        def add_services():
+        def add_services() -> None:
             for i in range(100):
                 try:
                     service = ServiceInfo(
-                        port=8000 + i, protocol="tcp", service=f"service_{i}"
+                        port=8000 + i,
+                        protocol="tcp",
+                        service=f"service_{i}",
                     )
                     state.update_services([service])
                 except Exception as e:
@@ -127,56 +130,56 @@ class TestAgentState(unittest.TestCase):
         for t in threads:
             t.join()
 
-        self.assertEqual(len(errors), 0)
+        assert len(errors) == 0
 
-    def test_reset(self):
-        """Test state reset"""
+    def test_reset(self) -> None:
+        """Test state reset."""
         from core.state import AttackPhase, reset_state
 
         state1 = reset_state("192.168.1.1")
-        self.assertEqual(state1.target, "192.168.1.1")
+        assert state1.target == "192.168.1.1"
 
         # Reset without target
         state2 = reset_state()
-        self.assertEqual(state2.phase, AttackPhase.INIT)
-        self.assertIsNone(state2.target)
+        assert state2.phase == AttackPhase.INIT
+        assert state2.target is None
 
 
 class TestConfigManager(unittest.TestCase):
-    """Tests for ConfigManager class"""
+    """Tests for ConfigManager class."""
 
-    def setUp(self):
-        """Create temp config file"""
+    def setUp(self) -> None:
+        """Create temp config file."""
         self.temp_dir = tempfile.mkdtemp()
         self.config_path = os.path.join(self.temp_dir, "settings.json")
 
-    def tearDown(self):
-        """Cleanup temp files"""
+    def tearDown(self) -> None:
+        """Cleanup temp files."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_default_config(self):
-        """Test default configuration values"""
+    def test_default_config(self) -> None:
+        """Test default configuration values."""
         from core.config import ConfigManager
 
         config = ConfigManager(config_file=self.config_path)
 
-        self.assertEqual(config.config.llm_provider, "auto")
-        self.assertEqual(config.config.language, "en")
+        assert config.config.llm_provider == "auto"
+        assert config.config.language == "en"
 
-    def test_set_and_get(self):
-        """Test setting and getting values"""
+    def test_set_and_get(self) -> None:
+        """Test setting and getting values."""
         from core.config import ConfigManager
 
         config = ConfigManager(config_file=self.config_path)
 
         config.config.language = "en"
         config.save_config()
-        self.assertEqual(config.config.language, "en")
+        assert config.config.language == "en"
 
-    def test_save_and_load(self):
-        """Test config persistence"""
+    def test_save_and_load(self) -> None:
+        """Test config persistence."""
         from core.config import ConfigManager
 
         config1 = ConfigManager(config_file=self.config_path)
@@ -185,17 +188,17 @@ class TestConfigManager(unittest.TestCase):
 
         # Create new instance
         config2 = ConfigManager(config_file=self.config_path)
-        self.assertEqual(config2.config.language, "en")
+        assert config2.config.language == "en"
 
-    def test_thread_safety(self):
-        """Test thread-safe config operations"""
+    def test_thread_safety(self) -> None:
+        """Test thread-safe config operations."""
         from core.config import ConfigManager
 
         config = ConfigManager(config_file=self.config_path)
 
         errors = []
 
-        def modify_config():
+        def modify_config() -> None:
             for i in range(100):
                 try:
                     config.config.language = f"lang_{i % 2}"
@@ -209,24 +212,24 @@ class TestConfigManager(unittest.TestCase):
         for t in threads:
             t.join()
 
-        self.assertEqual(len(errors), 0)
+        assert len(errors) == 0
 
 
 class TestEvolutionMemory(unittest.TestCase):
-    """Tests for EvolutionMemory class"""
+    """Tests for EvolutionMemory class."""
 
-    def setUp(self):
-        """Create temp database"""
+    def setUp(self) -> None:
+        """Create temp database."""
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.temp_db.close()
 
-    def tearDown(self):
-        """Cleanup temp database"""
+    def tearDown(self) -> None:
+        """Cleanup temp database."""
         with contextlib.suppress(OSError):
             os.unlink(self.temp_db.name)
 
-    def test_initialization(self):
-        """Test database initialization"""
+    def test_initialization(self) -> None:
+        """Test database initialization."""
         from core.evolution_memory import EvolutionMemory
 
         _ = EvolutionMemory(db_path=self.temp_db.name)
@@ -237,10 +240,10 @@ class TestEvolutionMemory(unittest.TestCase):
         tables = [row[0] for row in cursor]
         conn.close()
 
-        self.assertIn("tool_penalties", tables)
+        assert "tool_penalties" in tables
 
-    def test_record_action(self):
-        """Test action recording"""
+    def test_record_action(self) -> None:
+        """Test action recording."""
         from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
@@ -261,10 +264,10 @@ class TestEvolutionMemory(unittest.TestCase):
 
         # Verify recorded - check penalty instead
         penalty = memory.get_penalty("nmap")
-        self.assertIsInstance(penalty, float)
+        assert isinstance(penalty, float)
 
-    def test_tool_penalty(self):
-        """Test tool penalty system"""
+    def test_tool_penalty(self) -> None:
+        """Test tool penalty system."""
         from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
@@ -287,10 +290,10 @@ class TestEvolutionMemory(unittest.TestCase):
             memory.update_penalty("test_tool", success=False)
 
         penalty = memory.get_penalty("test_tool")
-        self.assertGreater(penalty, 0)
+        assert penalty > 0
 
-    def test_strategy_profile(self):
-        """Test strategy profile management"""
+    def test_strategy_profile(self) -> None:
+        """Test strategy profile management."""
         from core.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
@@ -312,14 +315,14 @@ class TestEvolutionMemory(unittest.TestCase):
         memory.update_penalty("nmap", success=False)
 
         penalty = memory.get_penalty("nmap")
-        self.assertGreater(penalty, 0)
+        assert penalty > 0
 
 
 class TestExecutionEngine(unittest.TestCase):
-    """Tests for ExecutionEngine class"""
+    """Tests for ExecutionEngine class."""
 
-    def test_command_sanitization(self):
-        """Test command sanitization with OS-specific vectors"""
+    def test_command_sanitization(self) -> None:
+        """Test command sanitization with OS-specific vectors."""
         from core.execution_engine import CommandSanitizer, SecurityError
 
         # Test Safe Commands
@@ -327,7 +330,7 @@ class TestExecutionEngine(unittest.TestCase):
 
         for cmd in safe_cmds:
             sanitized = CommandSanitizer.sanitize(cmd)
-            self.assertEqual(sanitized, cmd)
+            assert sanitized == cmd
 
         # Test Dangerous Commands (Linux & Windows)
         dangerous_vectors = [
@@ -358,17 +361,16 @@ class TestExecutionEngine(unittest.TestCase):
         for cmd in dangerous_vectors:
             try:
                 CommandSanitizer.sanitize(cmd)
-                print(f"❌ FAILED to block: {cmd}")  # Print directly for visibility
                 failure_count += 1
             except SecurityError:
                 pass  # This is what we want
 
-        self.assertEqual(
-            failure_count, 0, f"Failed to block {failure_count} dangerous commands!"
+        assert failure_count == 0, (
+            f"Failed to block {failure_count} dangerous commands!"
         )
 
-    def test_fuzzing_execution(self):
-        """Fuzz testing for execution engine input handling"""
+    def test_fuzzing_execution(self) -> None:
+        """Fuzz testing for execution engine input handling."""
         import random
         import string
 
@@ -378,8 +380,8 @@ class TestExecutionEngine(unittest.TestCase):
         for _ in range(100):
             # Random bytes as string
             garbage = "".join(
-                random.choices(string.printable, k=random.randint(10, 500))  # noqa: S311
-            )  # noqa: S311
+                random.choices(string.printable, k=random.randint(10, 500)),  # noqa: S311
+            )
 
             # Injection characters
             garbage += "; rm -rf /"
@@ -391,12 +393,12 @@ class TestExecutionEngine(unittest.TestCase):
                 pass
             except Exception as e:
                 self.fail(
-                    f"Execution Engine crashed on fuzz input: {garbage[:20]}... Error: {e}"
+                    f"Execution Engine crashed on fuzz input: {garbage[:20]}... Error: {e}",
                 )
 
     @patch("subprocess.Popen")
-    def test_execute_safe_command(self, mock_popen):
-        """Test safe command execution"""
+    def test_execute_safe_command(self, mock_popen) -> None:
+        """Test safe command execution."""
         # Mock Popen instance
         process_mock = MagicMock()
         process_mock.communicate.return_value = ("output", "")
@@ -411,10 +413,10 @@ class TestExecutionEngine(unittest.TestCase):
 
         # ExecutionEngine uses terminal.execute, not execute directly
         result = engine.terminal.execute("echo test", timeout=10)
-        self.assertEqual(result.status.value, "success")
+        assert result.status.value == "success"
 
-    def test_requires_confirmation(self):
-        """Test command confirmation detection"""
+    def test_requires_confirmation(self) -> None:
+        """Test command confirmation detection."""
         from core.execution_engine import CommandSanitizer
 
         # Commands that should require confirmation
@@ -428,14 +430,12 @@ class TestExecutionEngine(unittest.TestCase):
 
         for cmd, should_require in high_risk_commands:
             requires, _ = CommandSanitizer.requires_confirmation(cmd)
-            self.assertEqual(
-                requires,
-                should_require,
-                f"Command '{cmd}' should {'require' if should_require else 'not require'} confirmation",
+            assert requires == should_require, (
+                f"Command '{cmd}' should {'require' if should_require else 'not require'} confirmation"
             )
 
-    def test_url_sanitization(self):
-        """Test URL sanitization in command generator"""
+    def test_url_sanitization(self) -> None:
+        """Test URL sanitization in command generator."""
         from core.execution_engine import CommandGenerator
 
         generator = CommandGenerator()
@@ -447,24 +447,24 @@ class TestExecutionEngine(unittest.TestCase):
 
         # Dangerous characters (', ;, |) should be removed from the URL
         # This prevents the shell from interpreting ; as a command separator
-        self.assertNotIn(
-            "'; rm", cmd
+        assert (
+            "'; rm" not in cmd
         )  # Single quote + semicolon injection should be sanitized
-        self.assertNotIn(";", cmd)  # No semicolons should remain
+        assert ";" not in cmd  # No semicolons should remain
 
         # Valid URL should still work
         safe_url = "http://example.com/page?id=1"
         safe_cmd = generator.generate_sqlmap_command(safe_url)
-        self.assertIn("http://example.com/page?id=1", safe_cmd)
+        assert "http://example.com/page?id=1" in safe_cmd
 
-    def test_confirmation_callback(self):
-        """Test confirmation callback mechanism"""
+    def test_confirmation_callback(self) -> None:
+        """Test confirmation callback mechanism."""
         from core.execution_engine import SmartTerminal
 
         # Track if callback was called
         callback_called = [False]
 
-        def test_callback(cmd, reason):
+        def test_callback(cmd, reason) -> bool:
             callback_called[0] = True
             return False  # Deny
 
@@ -474,40 +474,40 @@ class TestExecutionEngine(unittest.TestCase):
         result = terminal.execute("sudo rm -rf /tmp/test", skip_sanitization=True)
 
         # Callback should have been called and command denied
-        self.assertTrue(callback_called[0])
-        self.assertEqual(result.exit_code, -2)  # Confirmation denied code
+        assert callback_called[0]
+        assert result.exit_code == -2  # Confirmation denied code
 
 
 class TestDrakbenBrain(unittest.TestCase):
-    """Tests for DrakbenBrain class"""
+    """Tests for DrakbenBrain class."""
 
-    def test_initialization(self):
-        """Test brain initialization"""
+    def test_initialization(self) -> None:
+        """Test brain initialization."""
         from core.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
-        self.assertIsNotNone(brain)
+        assert brain is not None
 
-    def test_reasoning_without_llm(self):
-        """Test reasoning fallback without LLM"""
+    def test_reasoning_without_llm(self) -> None:
+        """Test reasoning fallback without LLM."""
         from core.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
         # Should not raise error without LLM
         result = brain.think("What should I do next?", target=None)
-        self.assertIsNotNone(result)
+        assert result is not None
 
-    def test_plan_generation(self):
-        """Test plan generation"""
+    def test_plan_generation(self) -> None:
+        """Test plan generation."""
         from core.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
         # Brain uses think() which returns a dict with plan/steps
         result = brain.think("Scan 192.168.1.1", target="192.168.1.1")
-        self.assertIsNotNone(result)
+        assert result is not None
         # Result should contain plan or steps or command
         has_content = (
             "plan" in result
@@ -515,14 +515,14 @@ class TestDrakbenBrain(unittest.TestCase):
             or "command" in result
             or "llm_response" in result
         )
-        self.assertTrue(has_content)
+        assert has_content
 
 
 class TestToolSelector(unittest.TestCase):
-    """Tests for ToolSelector class"""
+    """Tests for ToolSelector class."""
 
-    def test_tool_selection(self):
-        """Test deterministic tool selection"""
+    def test_tool_selection(self) -> None:
+        """Test deterministic tool selection."""
         from core.state import reset_state
         from core.tool_selector import ToolSelector
 
@@ -531,28 +531,28 @@ class TestToolSelector(unittest.TestCase):
         selector = ToolSelector()
 
         # ToolSelector doesn't have get_suggested_tools, but has tools dict
-        self.assertIsInstance(selector.tools, dict)
-        self.assertGreater(len(selector.tools), 0)
+        assert isinstance(selector.tools, dict)
+        assert len(selector.tools) > 0
 
-    def test_tool_availability(self):
-        """Test tool availability check"""
+    def test_tool_availability(self) -> None:
+        """Test tool availability check."""
         from core.tool_selector import ToolSelector
 
         selector = ToolSelector()
 
         # ToolSelector doesn't have check_tool_available, but tools are in dict
         # Check if tool exists in selector
-        self.assertIsInstance(selector.tools, dict)
+        assert isinstance(selector.tools, dict)
         # Tools should be available if in the dict
         has_tools = len(selector.tools) > 0
-        self.assertTrue(has_tools)
+        assert has_tools
 
 
 class TestCoder(unittest.TestCase):
-    """Tests for Coder module"""
+    """Tests for Coder module."""
 
-    def test_ast_security_check(self):
-        """Test AST-based security check"""
+    def test_ast_security_check(self) -> None:
+        """Test AST-based security check."""
         from core.coder import ASTSecurityChecker
 
         checker = ASTSecurityChecker()
@@ -563,7 +563,7 @@ def hello():
     return "Hello, World!"
 """
         violations = checker.check(safe_code)
-        self.assertEqual(len(violations), 0)
+        assert len(violations) == 0
 
         # Dangerous code
         dangerous_code = """
@@ -571,10 +571,10 @@ import os
 os.system("rm -rf /")
 """
         violations = checker.check(dangerous_code)
-        self.assertGreater(len(violations), 0)
+        assert len(violations) > 0
 
-    def test_dangerous_imports(self):
-        """Test detection of dangerous imports"""
+    def test_dangerous_imports(self) -> None:
+        """Test detection of dangerous imports."""
         from core.coder import ASTSecurityChecker
 
         checker = ASTSecurityChecker()
@@ -588,26 +588,26 @@ os.system("rm -rf /")
         for code in dangerous_imports:
             violations = checker.check(code)
             # Should return a list (may be empty if allowed)
-            self.assertIsInstance(violations, list)
+            assert isinstance(violations, list)
 
 
 class TestPlanner(unittest.TestCase):
-    """Tests for Planner class"""
+    """Tests for Planner class."""
 
-    def setUp(self):
-        """Set up test fixtures"""
+    def setUp(self) -> None:
+        """Set up test fixtures."""
         from core.planner import Planner
 
         self.planner = Planner()
 
-    def test_initialization(self):
-        """Test planner initialization"""
-        self.assertIsNotNone(self.planner)
-        self.assertEqual(self.planner.current_step_index, 0)
-        self.assertEqual(len(self.planner.steps), 0)
+    def test_initialization(self) -> None:
+        """Test planner initialization."""
+        assert self.planner is not None
+        assert self.planner.current_step_index == 0
+        assert len(self.planner.steps) == 0
 
-    def test_create_plan_from_strategy(self):
-        """Test plan creation from strategy"""
+    def test_create_plan_from_strategy(self) -> None:
+        """Test plan creation from strategy."""
         from dataclasses import dataclass
 
         # Create mock strategy object
@@ -630,11 +630,11 @@ class TestPlanner(unittest.TestCase):
         )
 
         plan_id = self.planner.create_plan_from_strategy("192.168.1.1", strategy)
-        self.assertIsNotNone(plan_id)
-        self.assertEqual(len(self.planner.steps), 2)
+        assert plan_id is not None
+        assert len(self.planner.steps) == 2
 
-    def test_get_next_step(self):
-        """Test getting next step from plan"""
+    def test_get_next_step(self) -> None:
+        """Test getting next step from plan."""
         from dataclasses import dataclass
 
         @dataclass
@@ -658,11 +658,11 @@ class TestPlanner(unittest.TestCase):
         self.planner.create_plan_from_strategy("192.168.1.1", strategy)
         step = self.planner.get_next_step()
 
-        self.assertIsNotNone(step)
-        self.assertEqual(step.action, "port_scan")
+        assert step is not None
+        assert step.action == "port_scan"
 
-    def test_replan_limits(self):
-        """Test replan limits prevent infinite loops"""
+    def test_replan_limits(self) -> None:
+        """Test replan limits prevent infinite loops."""
         from dataclasses import dataclass
 
         @dataclass
@@ -693,14 +693,14 @@ class TestPlanner(unittest.TestCase):
 
         # Should hit limit
         total_replans = getattr(self.planner, "_total_replans", 0)
-        self.assertLessEqual(total_replans, self.planner.MAX_REPLAN_PER_SESSION)
+        assert total_replans <= self.planner.MAX_REPLAN_PER_SESSION
 
 
 class TestSelfRefiningEngine(unittest.TestCase):
-    """Tests for SelfRefiningEngine class"""
+    """Tests for SelfRefiningEngine class."""
 
-    def setUp(self):
-        """Set up test fixtures"""
+    def setUp(self) -> None:
+        """Set up test fixtures."""
         import os
         import tempfile
 
@@ -709,8 +709,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
         # Use in-memory database for tests
         os.environ["DRAKBEN_EVOLUTION_DB"] = ":memory:"
 
-    def tearDown(self):
-        """Cleanup"""
+    def tearDown(self) -> None:
+        """Cleanup."""
         import os
 
         try:
@@ -720,31 +720,31 @@ class TestSelfRefiningEngine(unittest.TestCase):
             # Ignore cleanup errors in tests
             pass
 
-    def test_initialization(self):
-        """Test engine initialization"""
+    def test_initialization(self) -> None:
+        """Test engine initialization."""
         from core.self_refining_engine import SelfRefiningEngine
 
         try:
             engine = SelfRefiningEngine()
-            self.assertIsNotNone(engine)
+            assert engine is not None
         except Exception as e:
             self.skipTest(f"SelfRefiningEngine initialization failed: {e}")
 
-    def test_strategy_selection(self):
-        """Test strategy selection"""
+    def test_strategy_selection(self) -> None:
+        """Test strategy selection."""
         from core.self_refining_engine import SelfRefiningEngine
 
         try:
             engine = SelfRefiningEngine()
             # Should return strategy and profile
             strategy, profile = engine.select_strategy_and_profile("192.168.1.1")
-            self.assertIsNotNone(strategy)
-            self.assertIsNotNone(profile)
+            assert strategy is not None
+            assert profile is not None
         except Exception as e:
             self.skipTest(f"Strategy selection test failed: {e}")
 
-    def test_profile_mutation(self):
-        """Test profile mutation on failure"""
+    def test_profile_mutation(self) -> None:
+        """Test profile mutation on failure."""
         from core.self_refining_engine import SelfRefiningEngine
 
         try:
@@ -760,25 +760,25 @@ class TestSelfRefiningEngine(unittest.TestCase):
             # Should create new profile
             _, profile2 = engine.select_strategy_and_profile("192.168.1.1")
             # New profile should be different
-            self.assertIsNotNone(profile2)
+            assert profile2 is not None
         except Exception as e:
             self.skipTest(f"Profile mutation test failed: {e}")
 
 
 class TestLogging(unittest.TestCase):
-    """Tests for logging configuration"""
+    """Tests for logging configuration."""
 
-    def test_logger_setup(self):
-        """Test logger initialization"""
+    def test_logger_setup(self) -> None:
+        """Test logger initialization."""
         from core.logging_config import get_logger, setup_logging
 
         setup_logging(level="DEBUG")
         logger = get_logger("test")
 
-        self.assertIsNotNone(logger)
+        assert logger is not None
 
-    def test_log_context(self):
-        """Test log context manager"""
+    def test_log_context(self) -> None:
+        """Test log context manager."""
         from core.logging_config import LogContext, get_logger
 
         logger = get_logger("test")
@@ -790,26 +790,26 @@ class TestLogging(unittest.TestCase):
 
 
 class TestI18n(unittest.TestCase):
-    """Tests for internationalization"""
+    """Tests for internationalization."""
 
-    def test_translation_loading(self):
-        """Test translation loading"""
+    def test_translation_loading(self) -> None:
+        """Test translation loading."""
         from core.i18n import t
 
         text = t("welcome", lang="tr")
-        self.assertIsNotNone(text)
-        self.assertIsInstance(text, str)
+        assert text is not None
+        assert isinstance(text, str)
 
-    def test_language_switch(self):
-        """Test language switching"""
+    def test_language_switch(self) -> None:
+        """Test language switching."""
         from core.i18n import t
 
         en_text = t("help", lang="en")
         tr_text = t("help", lang="tr")
 
         # Should be different (or same if not translated)
-        self.assertIsNotNone(en_text)
-        self.assertIsNotNone(tr_text)
+        assert en_text is not None
+        assert tr_text is not None
 
 
 if __name__ == "__main__":

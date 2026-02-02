@@ -1,45 +1,60 @@
-# DRAKBEN Requirements
-# Verified & Pinned for Stability (Zero Error Architecture)
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                    DRAKBEN - Autonomous Pentesting AI                    ║
+# ║                         Requirements for Kali Linux                       ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# KURULUM (Kali Linux):
+# ----------------------
+# 1. python3 -m venv .venv
+# 2. source .venv/bin/activate
+# 3. pip install -r requirements.txt
+#
+# NOT: Bazı paketler (curl_cffi, z3-solver) derleme gerektirir.
+# Kali'de şunları yükleyin: sudo apt install build-essential libffi-dev
 
 # ========== CORE ==========
-rich==14.2.0              # Terminal UI
-requests==2.32.5          # HTTP client
-python-dotenv==1.2.1      # Env vars
-psutil==7.2.1             # System monitoring
-aiohttp==3.13.3           # Async HTTP
-aiofiles==25.1.0          # Async File I/O
-typing_extensions==4.15.0 # Compatibility
+rich>=14.0.0              # Terminal UI (beautiful output)
+requests>=2.31.0          # HTTP client
+python-dotenv>=1.0.0      # Environment variables
+psutil>=5.9.0             # System monitoring
+aiohttp>=3.9.0            # Async HTTP client
+aiofiles>=23.0.0          # Async file I/O
+typing_extensions>=4.9.0  # Python typing compatibility
 
 # ========== INTELLIGENCE & REASONING ==========
-z3-solver==4.15.4.0       # Symbolic Execution Engine
-scikit-learn==1.8.0       # ML/Clustering (Future usage for anomaly detection)
-numpy==2.3.5              # Numerical operations
+z3-solver>=4.12.0         # Symbolic execution engine (SMT solver)
+scikit-learn>=1.4.0       # ML for anomaly detection
+numpy>=1.26.0             # Numerical operations
 
 # ========== NETWORK & RECON ==========
-beautifulsoup4==4.14.3    # HTML parsing
-dnspython==2.8.0          # DNS queries
-python-whois==0.9.6       # WHOIS lookups
+beautifulsoup4>=4.12.0    # HTML parsing
+dnspython>=2.6.0          # DNS queries
+python-whois>=0.9.0       # WHOIS lookups
 
 # ========== SECURITY & CRYPTO ==========
-pycryptodome==3.23.0      # Cryptography (AES-GCM, etc.)
-keyring==25.7.0           # Secure credential storage
-curl_cffi==0.7.4          # Advanced TLS Fingerprint Impersonation
+pycryptodome>=3.20.0      # Cryptography (AES-GCM, RSA)
+keyring>=25.0.0           # Secure credential storage
+curl_cffi>=0.7.0          # TLS fingerprint impersonation (bypass WAF)
 
-# ========== VISUALIZATION & VECTOR MEMORY ==========
-packaging
-chromadb
-pyvis
-networkx
+# ========== VECTOR MEMORY & VISUALIZATION ==========
+chromadb>=0.5.0           # Vector database for memory
+networkx>=3.2.0           # Graph analysis
+pyvis>=0.3.2              # Network visualization
+packaging>=23.0           # Version parsing
 
-# ========== ENHANCED FEATURES ==========
-prompt_toolkit==3.0.52    # Advanced prompts
-pyreadline3==3.5.4; sys_platform == 'win32' # Windows compatibility
+# ========== ENHANCED CLI ==========
+prompt_toolkit>=3.0.40    # Advanced interactive prompts
+pyreadline3>=3.5.0; sys_platform == 'win32'  # Windows readline
 
-# ========== TESTING & DEV ==========
-pytest==8.0.0
-pytest-asyncio==0.23.5
-pytest-mock==3.12.0
-coverage==7.4.1
+# ========== TESTING (optional for users) ==========
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-mock>=3.12.0
 
-# Note: Removed heavy desktop automation libs (opencv, pyautogui) 
-# to align with "Headless APT Agent" philosophy.
+# ========== AUTO-INSTALLED DEPENDENCIES ==========
+# (pip handles these automatically, listed for reference)
+# - certifi, charset-normalizer, idna, urllib3 (requests)
+# - soupsieve (beautifulsoup4)
+# - scipy, joblib, threadpoolctl (scikit-learn)
+# - markdown-it-py, pygments (rich)
+# - cffi, pycparser (curl_cffi)

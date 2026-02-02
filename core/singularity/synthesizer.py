@@ -1,5 +1,4 @@
-"""
-DRAKBEN Singularity - Code Synthesizer
+"""DRAKBEN Singularity - Code Synthesizer
 Author: @drak_ben
 Description: Generates functional code using LLM prompts and AST validation.
 """
@@ -13,12 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class CodeSynthesizer(ISynthesizer):
-    """
-    Generates code specific to attack requirements.
+    """Generates code specific to attack requirements.
     Uses Available LLM (via MCP or API) to write Python/Go/Bash tools.
     """
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-4o") -> None:
         self.model = model
         self.system_prompt = """
         You are Drakben's Code Architect.
@@ -27,11 +25,10 @@ class CodeSynthesizer(ISynthesizer):
         - No markdown formatting, no explanations.
         - Include error handling and logging.
         """
-        logger.info(f"Synthesizer initialized (Target Model: {model})")
+        logger.info("Synthesizer initialized (Target Model: %s)", model)
 
     def generate_tool(self, description: str, language: str = "python") -> CodeSnippet:
-        """
-        Generate a new tool based on description.
+        """Generate a new tool based on description.
 
         Args:
             description: What the tool should do (e.g. "port scanner with banner grabbing")
@@ -39,8 +36,9 @@ class CodeSynthesizer(ISynthesizer):
 
         Returns:
             CodeSnippet object
+
         """
-        logger.info(f"Synthesizing tool: {description} ({language})")
+        logger.info("Synthesizing tool: {description} (%s)", language)
 
         # 1. Construct Prompt
         prompt = f"Write a {language} script that performs: {description}"
@@ -73,20 +71,23 @@ class CodeSynthesizer(ISynthesizer):
         )
 
     def refactor_code(self, code: str) -> CodeSnippet:
-        """Refactor code for performance or stealth"""
+        """Refactor code for performance or stealth."""
         # Placeholder for refactoring logic
         return CodeSnippet(
-            code=code, language="python", purpose="refactor", dependencies=[]
+            code=code,
+            language="python",
+            purpose="refactor",
+            dependencies=[],
         )
 
     def _mock_llm_call(self, prompt: str, _language: str) -> str:
-        """Simulate LLM response for testing"""
+        """Simulate LLM response for testing."""
         if "scanner" in prompt:
             return """
 import socket
 import sys
 
-def scan(target, ports):
+def scan(target, ports) -> Any:
     print(f"Scanning {target}...")
     for port in ports:
         try:
@@ -105,22 +106,22 @@ if __name__ == "__main__":
         return f"# Placeholder code for: {prompt}"
 
     def _validate_python_syntax(self, code: str) -> bool:
-        """Check if Python code is syntactically correct"""
+        """Check if Python code is syntactically correct."""
         try:
             ast.parse(code)
             return True
         except SyntaxError as e:
-            logger.error(f"Syntax Error: {e}")
+            logger.exception("Syntax Error: %s", e)
             return False
 
     def _extract_dependencies(self, code: str, language: str) -> list[str]:
-        """Extract imports/requirements"""
+        """Extract imports/requirements."""
         if language == "python":
             return self._extract_python_deps(code)
         return []
 
     def _extract_python_deps(self, code: str) -> list[str]:
-        """Helper to extract Python imports"""
+        """Helper to extract Python imports."""
         deps = []
         try:
             tree = ast.parse(code)
@@ -133,6 +134,6 @@ if __name__ == "__main__":
         except SyntaxError:
             pass
         except Exception as e:
-            logger.warning(f"Failed to extract deps: {e}")
+            logger.warning("Failed to extract deps: %s", e)
 
         return list(set(deps))

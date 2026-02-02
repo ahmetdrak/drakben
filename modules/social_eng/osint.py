@@ -1,19 +1,18 @@
-"""
-DRAKBEN Social Engineering - OSINT Spider
+"""DRAKBEN Social Engineering - OSINT Spider
 Author: @drak_ben
 Description: Gathers target intelligence (personnel, emails) from public sources.
 """
 
 import logging
-from dataclasses import dataclass
 import secrets
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TargetPerson:
-    """Represents a human target"""
+    """Represents a human target."""
 
     full_name: str
     role: str = "Unknown"
@@ -23,11 +22,9 @@ class TargetPerson:
 
 
 class OSINTSpider:
-    """
-    Crawls open sources to build a target list.
-    """
+    """Crawls open sources to build a target list."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.common_formats = [
             "{first}.{last}@{domain}",
             "{first}{last}@{domain}",
@@ -37,11 +34,10 @@ class OSINTSpider:
         logger.info("OSINT Spider initialized")
 
     def harvest_domain(self, domain: str) -> list[TargetPerson]:
-        """
-        Main entry point: Harvest targets from a company domain.
+        """Main entry point: Harvest targets from a company domain.
         Uses search engines and public lookups (simulated hooks).
         """
-        logger.info(f"Harvesting intelligence for: {domain}")
+        logger.info("Harvesting intelligence for: %s", domain)
         targets = []
 
         # 1. Search Engine Recon (Simulation of Google Dorking)
@@ -64,20 +60,21 @@ class OSINTSpider:
                     role=role,
                     email=email,
                     social_profiles=[
-                        f"linkedin.com/in/{name.lower().replace(' ', '')}"
+                        f"linkedin.com/in/{name.lower().replace(' ', '')}",
                     ],
-                )
+                ),
             )
 
-        logger.info(f"Found {len(targets)} potential targets")
+        logger.info("Found %s potential targets", len(targets))
         return targets
 
     def predict_email(
-        self, full_name: str, domain: str, format_str: str = "{first}.{last}@{domain}"
+        self,
+        full_name: str,
+        domain: str,
+        format_str: str = "{first}.{last}@{domain}",
     ) -> str:
-        """
-        Predict email address based on name and domain.
-        """
+        """Predict email address based on name and domain."""
         try:
             parts = full_name.lower().split()
             if len(parts) >= 2:
@@ -85,16 +82,19 @@ class OSINTSpider:
                 f_initial, l_initial = first[0], last[0]
 
                 # Use a specific format or default
-                email = format_str.format(
-                    first=first, last=last, f=f_initial, l=l_initial, domain=domain
+                return format_str.format(
+                    first=first,
+                    last=last,
+                    f=f_initial,
+                    l=l_initial,
+                    domain=domain,
                 )
-                return email
             return f"{parts[0]}@{domain}"
         except Exception as e:
-            logger.error(f"Email prediction error: {e}")
+            logger.exception("Email prediction error: %s", e)
             return ""
 
     def search_leaked_credentials(self, email: str) -> bool:
-        """Check if email appears in known breaches (Mock: HaveIBeenPwned)"""
+        """Check if email appears in known breaches (Mock: HaveIBeenPwned)."""
         # Placeholder for HIBP API
         return secrets.choice([True, False, False, False])  # 25% chance of leak

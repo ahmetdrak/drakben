@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PluginLoader:
-    """
-    Safely loads external tool plugins from the 'plugins' directory.
+    """Safely loads external tool plugins from the 'plugins' directory.
     Implements strict error handling to prevent agent crashes from bad plugins.
     """
 
@@ -24,29 +23,29 @@ class PluginLoader:
         self._ensure_dir()
 
     def _ensure_dir(self) -> None:
-        """Create plugin directory if it doesn't exist"""
+        """Create plugin directory if it doesn't exist."""
         if not self.plugin_dir.exists():
             try:
                 self.plugin_dir.mkdir(parents=True, exist_ok=True)
                 self._create_example_plugin()
             except Exception as e:
-                logger.error(f"Failed to create plugin dir: {e}")
+                logger.exception("Failed to create plugin dir: %s", e)
 
     def _create_example_plugin(self) -> None:
-        """Create a template plugin for reference"""
+        """Create a template plugin for reference."""
         readme_path = self.plugin_dir / "README.txt"
         with open(readme_path, "w") as f:
             f.write("Drop .py files here.\n")
             f.write(
-                "Each file must have a 'register()' function returning a ToolSpec object.\n"
+                "Each file must have a 'register()' function returning a ToolSpec object.\n",
             )
 
     def load_plugins(self) -> dict[str, ToolSpec]:
-        """
-        Scan and load valid plugins.
+        """Scan and load valid plugins.
 
         Returns:
             Dict[str, ToolSpec]: Dictionary of successfully loaded tools.
+
         """
         loaded_tools: dict[str, ToolSpec] = {}
 
@@ -63,17 +62,17 @@ class PluginLoader:
                 # Check for duplicate names
                 if tool.name in loaded_tools:
                     logger.warning(
-                        f"Duplicate plugin tool name '{tool.name}' in {file_path.name}. Skipping."
+                        f"Duplicate plugin tool name '{tool.name}' in {file_path.name}. Skipping.",
                     )
                     continue
 
                 loaded_tools[tool.name] = tool
-                logger.info(f"Plugin loaded: {tool.name} from {file_path.name}")
+                logger.info("Plugin loaded: {tool.name} from %s", file_path.name)
 
         return loaded_tools
 
     def _load_single_plugin(self, file_path: Path) -> ToolSpec | None:
-        """Load a single plugin file safely"""
+        """Load a single plugin file safely."""
         module_name = file_path.stem
 
         try:
@@ -91,7 +90,7 @@ class PluginLoader:
             # Verification: Must have register() function
             if not hasattr(module, "register"):
                 logger.warning(
-                    f"Plugin {file_path.name} missing 'register()' function."
+                    f"Plugin {file_path.name} missing 'register()' function.",
                 )
                 return None
 
@@ -101,7 +100,7 @@ class PluginLoader:
             # Validation: Must be a ToolSpec instance
             if not isinstance(tool_spec, ToolSpec):
                 logger.warning(
-                    f"Plugin {file_path.name} register() did not return a ToolSpec."
+                    f"Plugin {file_path.name} register() did not return a ToolSpec.",
                 )
                 return None
 
@@ -109,5 +108,5 @@ class PluginLoader:
 
         except Exception as e:
             # Catch ALL errors (Syntax, Import, Runtime) so the main execution doesn't stop
-            logger.error(f"Failed to load plugin {file_path.name}: {e}")
+            logger.exception("Failed to load plugin {file_path.name}: %s", e)
             return None

@@ -1,5 +1,4 @@
-"""
-DRAKBEN Syscall Loader
+"""DRAKBEN Syscall Loader
 Author: @ahmetdrak
 Description: Loads and manages the Rust-based Syscall Engine DLL.
              Handles compilation checking and FFI (Foreign Function Interface) bridging.
@@ -27,11 +26,9 @@ else:
 
 
 class SyscallLoader:
-    """
-    Bridge between Python Agent and Rust Syscall Engine.
-    """
+    """Bridge between Python Agent and Rust Syscall Engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.dll_path = self._find_dll()
         self.lib = None
 
@@ -39,16 +36,16 @@ class SyscallLoader:
             try:
                 self.lib = ctypes.cdll.LoadLibrary(str(self.dll_path))
                 self._setup_signatures()
-                logger.info(f"Native Syscall Engine loaded from: {self.dll_path}")
+                logger.info("Native Syscall Engine loaded from: %s", self.dll_path)
             except Exception as e:
-                logger.error(f"Failed to load Syscall DLL: {e}")
+                logger.exception("Failed to load Syscall DLL: %s", e)
         else:
             logger.warning(
-                "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls"
+                "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls",
             )
 
-    def _find_dll(self) -> Path:
-        """Search for the compiled DLL/SO file"""
+    def _find_dll(self) -> Path | None:
+        """Search for the compiled DLL/SO file."""
         # 1. Check standard cargo output directory
         cargo_out = RUST_PROJECT_PATH / "target" / TARGET_DIR / DLL_NAME
         if cargo_out.exists():
@@ -61,8 +58,8 @@ class SyscallLoader:
 
         return None
 
-    def _setup_signatures(self):
-        """Define argument and return types for Rust functions"""
+    def _setup_signatures(self) -> None:
+        """Define argument and return types for Rust functions."""
         if not self.lib:
             return
 
@@ -80,7 +77,7 @@ class SyscallLoader:
         self.lib.direct_syscall.restype = c_int
 
     def is_available(self) -> bool:
-        """Check if engine is loaded and healthy"""
+        """Check if engine is loaded and healthy."""
         if not self.lib:
             return False
         try:
@@ -89,7 +86,7 @@ class SyscallLoader:
             return False
 
     def allocate_memory(self, size: int) -> int:
-        """Allocate RWX memory using Native Engine"""
+        """Allocate RWX memory using Native Engine."""
         if self.lib:
             return self.lib.allocate_rwx(size)
         return 0

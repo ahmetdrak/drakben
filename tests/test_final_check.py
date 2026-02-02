@@ -1,17 +1,16 @@
-import sys
 import os
+import sys
 
 # Add project root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-print("Starting Drakben Final System Check...")
 
 # -----------------------------------------------------------------------------
 # LATE IMPORTS (Moved to top for E402 compliance)
 # -----------------------------------------------------------------------------
 try:
-    from core.refactored_agent import RefactoredDrakbenAgent
     from core.config import ConfigManager
+    from core.refactored_agent import RefactoredDrakbenAgent
 except ImportError:
     RefactoredDrakbenAgent = None
     ConfigManager = None
@@ -32,50 +31,53 @@ except ImportError:
     CredentialHarvester = None
 
 try:
-    from modules.report_generator import ReportGenerator, ReportConfig
+    from modules.report_generator import ReportConfig, ReportGenerator
 except ImportError:
     ReportGenerator = None
     ReportConfig = None
 # -----------------------------------------------------------------------------
 
 
-def test_final_check():
-    """Verify all critical modules can be instantiated"""
+def test_final_check() -> None:
+    """Verify all critical modules can be instantiated."""
     # 1. Agent
     if RefactoredDrakbenAgent and ConfigManager:
         _ = RefactoredDrakbenAgent(ConfigManager())
     else:
-        assert False, "RefactoredDrakbenAgent or ConfigManager missing"
+        msg = "RefactoredDrakbenAgent or ConfigManager missing"
+        raise AssertionError(msg)
 
     # 2. Universal Adapter
     if UniversalAdapter:
         _ = UniversalAdapter()
     else:
-        assert False, "UniversalAdapter missing"
+        msg = "UniversalAdapter missing"
+        raise AssertionError(msg)
 
     # 3. Weapon Foundry
     if WeaponFoundry:
         _ = WeaponFoundry()
     else:
-        assert False, "WeaponFoundry missing"
+        msg = "WeaponFoundry missing"
+        raise AssertionError(msg)
 
     # 4. Hive Mind
     if CredentialHarvester:
         _ = CredentialHarvester()
     else:
-        assert False, "CredentialHarvester (HiveMind) missing"
+        msg = "CredentialHarvester (HiveMind) missing"
+        raise AssertionError(msg)
 
     # 5. Report Generator
     if ReportGenerator and ReportConfig:
         _ = ReportGenerator(ReportConfig(title="Test Report"))
     else:
-        assert False, "ReportGenerator missing"
+        msg = "ReportGenerator missing"
+        raise AssertionError(msg)
 
 
 if __name__ == "__main__":
     try:
         test_final_check()
-        print("\n🎉 Final Check Complete: System is Ready!")
-    except Exception as e:
-        print(f"\n❌ Final Check Failed: {e}")
+    except Exception:
         sys.exit(1)

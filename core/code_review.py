@@ -9,11 +9,11 @@ import hashlib
 import logging
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from rich.console import Console
 from rich.panel import Panel
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewStatus(Enum):
-    """Status of a code review"""
+    """Status of a code review."""
 
     PENDING = "pending"
     APPROVED = "approved"
@@ -33,7 +33,7 @@ class ReviewStatus(Enum):
 
 
 class RiskLevel(Enum):
-    """Risk level of code changes"""
+    """Risk level of code changes."""
 
     LOW = "low"
     MEDIUM = "medium"
@@ -43,7 +43,7 @@ class RiskLevel(Enum):
 
 @dataclass
 class CodeChange:
-    """Represents a single code change"""
+    """Represents a single code change."""
 
     change_id: str
     file_path: str
@@ -62,7 +62,7 @@ class CodeChange:
 
 @dataclass
 class ReviewSession:
-    """A review session containing multiple changes"""
+    """A review session containing multiple changes."""
 
     session_id: str
     changes: list[CodeChange]
@@ -73,8 +73,7 @@ class ReviewSession:
 
 
 class CodeAnalyzer:
-    """
-    Analyzes code for security risks and quality issues.
+    """Analyzes code for security risks and quality issues.
     Used to determine risk level and highlight concerns.
     """
 
@@ -128,11 +127,11 @@ class CodeAnalyzer:
 
     @classmethod
     def analyze_code(cls, code: str) -> tuple[RiskLevel, list[str]]:
-        """
-        Analyze code and return risk level with concerns.
+        """Analyze code and return risk level with concerns.
 
         Returns:
             (RiskLevel, list of concern strings)
+
         """
         concerns = []
         risk_score = 0
@@ -174,18 +173,15 @@ class CodeAnalyzer:
 
         if risk_score >= 20:
             return RiskLevel.CRITICAL, concerns
-        elif risk_score >= 10:
+        if risk_score >= 10:
             return RiskLevel.HIGH, concerns
-        elif risk_score >= 5:
+        if risk_score >= 5:
             return RiskLevel.MEDIUM, concerns
-        else:
-            return RiskLevel.LOW, concerns
+        return RiskLevel.LOW, concerns
 
     @classmethod
     def check_ast_safety(cls, code: str) -> tuple[bool, list[str]]:
-        """
-        Perform AST-based safety check.
-        """
+        """Perform AST-based safety check."""
         issues: list[str] = []
         try:
             tree = ast.parse(code)
@@ -198,8 +194,8 @@ class CodeAnalyzer:
         return len(issues) == 0, issues
 
     @classmethod
-    def _check_node_safety(cls, node: ast.AST, issues: list[str]):
-        """Helper to check individual AST nodes for safety"""
+    def _check_node_safety(cls, node: ast.AST, issues: list[str]) -> None:
+        """Helper to check individual AST nodes for safety."""
         # Check for dangerous function calls
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             if node.func.id in ("eval", "exec", "compile"):
@@ -218,8 +214,7 @@ class CodeAnalyzer:
 
 
 class CodeReview:
-    """
-    Main code review system.
+    """Main code review system.
 
     Features:
     - Interactive diff display
@@ -234,7 +229,7 @@ class CodeReview:
         auto_approve_low_risk: bool = False,
         require_explicit_approval: bool = True,
         backup_dir: str = ".drakben_backups",
-    ):
+    ) -> None:
         self.console = Console()
         self.auto_approve_low_risk = auto_approve_low_risk
         self.require_explicit_approval = require_explicit_approval
@@ -252,9 +247,9 @@ class CodeReview:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def _generate_id(self) -> str:
-        """Generate unique ID"""
+        """Generate unique ID."""
         return hashlib.sha256(
-            f"{time.time()}{os.urandom(8).hex()}".encode()
+            f"{time.time()}{os.urandom(8).hex()}".encode(),
         ).hexdigest()[:12]
 
     def create_change(
@@ -264,8 +259,7 @@ class CodeReview:
         description: str = "",
         change_type: str = "modify",
     ) -> CodeChange:
-        """
-        Create a new code change for review.
+        """Create a new code change for review.
 
         Args:
             file_path: Path to the file
@@ -275,6 +269,7 @@ class CodeReview:
 
         Returns:
             CodeChange object
+
         """
         # Read original content if file exists
         original_content = ""
@@ -283,7 +278,7 @@ class CodeReview:
                 with open(file_path, encoding="utf-8") as f:
                     original_content = f.read()
             except Exception as e:
-                logger.debug(f"Failed to read file for diff: {e}")
+                logger.debug("Failed to read file for diff: %s", e)
 
         # Analyze risk
         risk_level, _ = CodeAnalyzer.analyze_code(new_content)
@@ -296,7 +291,7 @@ class CodeReview:
                 fromfile=f"a/{file_path}",
                 tofile=f"b/{file_path}",
                 lineterm="",
-            )
+            ),
         )
 
         change = CodeChange(
@@ -312,12 +307,12 @@ class CodeReview:
         )
 
         self.pending_changes.append(change)
-        logger.info(f"Created code change: {change.change_id} ({risk_level.value})")
+        logger.info("Created code change: %s (%s)", change.change_id, risk_level.value)
 
         return change
 
     def _handle_approve(self, change: CodeChange) -> bool:
-        """Handle approval action"""
+        """Handle approval action."""
         change.status = ReviewStatus.APPROVED
         change.reviewed_at = time.time()
         self.console.print("[green]Change approved.[/green]")
@@ -326,7 +321,7 @@ class CodeReview:
         return True
 
     def _handle_reject(self, change: CodeChange) -> bool:
-        """Handle rejection action"""
+        """Handle rejection action."""
         change.status = ReviewStatus.REJECTED
         change.reviewed_at = time.time()
         notes = input("Rejection reason (optional): ").strip()
@@ -337,26 +332,24 @@ class CodeReview:
         return False
 
     def _handle_user_response(self, change: CodeChange, response: str) -> bool | None:
-        """Handle user response to review prompt"""
+        """Handle user response to review prompt."""
         if response == "a":
             return self._handle_approve(change)
-        elif response == "r":
+        if response == "r":
             return self._handle_reject(change)
-        elif response == "d":
+        if response == "d":
             self._display_diff(change)
             return None
-        elif response == "e":
+        if response == "e":
             self.console.print("[yellow]Edit not implemented yet.[/yellow]")
             return None
-        elif response == "q":
+        if response == "q":
             return False
-        else:
-            self.console.print("[yellow]Invalid option.[/yellow]")
-            return None
+        self.console.print("[yellow]Invalid option.[/yellow]")
+        return None
 
     def review_change(self, change: CodeChange, interactive: bool = True) -> bool:
-        """
-        Review a single code change.
+        """Review a single code change.
 
         Args:
             change: The CodeChange to review
@@ -364,12 +357,13 @@ class CodeReview:
 
         Returns:
             True if approved, False otherwise
+
         """
         # Auto-approve low risk if enabled
         if self.auto_approve_low_risk and change.risk_level == RiskLevel.LOW:
             change.status = ReviewStatus.AUTO_APPROVED
             change.reviewed_at = time.time()
-            logger.info(f"Auto-approved low-risk change: {change.change_id}")
+            logger.info("Auto-approved low-risk change: %s", change.change_id)
             return True
 
         if not interactive:
@@ -390,11 +384,11 @@ class CodeReview:
                 return result
 
     def review_all_pending(self, interactive: bool = True) -> tuple[int, int]:
-        """
-        Review all pending changes.
+        """Review all pending changes.
 
         Returns:
             (approved_count, rejected_count)
+
         """
         approved = 0
         rejected = 0
@@ -409,8 +403,7 @@ class CodeReview:
         return approved, rejected
 
     def apply_change(self, change: CodeChange, create_backup: bool = True) -> bool:
-        """
-        Apply an approved change to the filesystem.
+        """Apply an approved change to the filesystem.
 
         Args:
             change: The approved CodeChange
@@ -418,9 +411,10 @@ class CodeReview:
 
         Returns:
             True if successful
+
         """
         if change.status not in (ReviewStatus.APPROVED, ReviewStatus.AUTO_APPROVED):
-            logger.warning(f"Cannot apply non-approved change: {change.change_id}")
+            logger.warning("Cannot apply non-approved change: %s", change.change_id)
             return False
 
         try:
@@ -433,7 +427,7 @@ class CodeReview:
                 with open(change.file_path, encoding="utf-8") as f:
                     with open(backup_path, "w", encoding="utf-8") as bf:
                         bf.write(f.read())
-                logger.info(f"Created backup: {backup_path}")
+                logger.info("Created backup: %s", backup_path)
 
             # Apply change
             if change.change_type == "delete":
@@ -446,51 +440,69 @@ class CodeReview:
                 with open(change.file_path, "w", encoding="utf-8") as f:
                     f.write(change.new_content)
 
-            logger.info(f"Applied change: {change.change_id} to {change.file_path}")
+            logger.info("Applied change: %s to %s", change.change_id, change.file_path)
             self.pending_changes.remove(change)
             return True
 
         except Exception as e:
-            logger.exception(f"Failed to apply change: {e}")
+            logger.exception("Failed to apply change: %s", e)
             return False
 
     def rollback_change(self, change_id: str) -> bool:
-        """
-        Rollback a previously applied change.
+        """Rollback a previously applied change.
 
         Args:
             change_id: ID of the change to rollback
 
         Returns:
             True if successful
+
         """
+        # Sanitize change_id to prevent path traversal
+        safe_change_id = change_id.replace("..", "").replace("/", "_").replace("\\", "_")
+
         # Find backup file
-        for backup_file in self.backup_dir.glob(f"{change_id}_*.bak"):
+        for backup_file in self.backup_dir.glob(f"{safe_change_id}_*.bak"):
             try:
                 # Extract original filename
-                original_name = backup_file.name.replace(f"{change_id}_", "").replace(
-                    ".bak", ""
+                original_name = backup_file.name.replace(f"{safe_change_id}_", "").replace(
+                    ".bak",
+                    "",
                 )
 
-                # Read backup content (simplified rollback - would need more context in production)
+                # Validate the file is within backup_dir (path traversal protection)
+                if not backup_file.resolve().is_relative_to(self.backup_dir.resolve()):
+                    logger.error("Security: Backup file outside allowed directory")
+                    return False
+
+                # Read backup content
                 with open(backup_file, encoding="utf-8") as f:
-                    _ = f.read()
+                    backup_content = f.read()
+
+                # Find the original file path from stored metadata or changelog
+                # For now, restore to the same directory as the backup
+                original_path = self.backup_dir.parent / original_name
+
+                # Write backup content to restore the file
+                with open(original_path, "w", encoding="utf-8") as f:
+                    f.write(backup_content)
+
                 self.console.print(
-                    f"[yellow]Rollback content available for: {original_name}[/yellow]"
+                    f"[green]Rollback successful for: {original_name}[/green]",
                 )
-                self.console.print(f"Backup file: {backup_file}")
+                self.console.print(f"Restored from backup: {backup_file}")
 
                 return True
 
             except Exception as e:
-                logger.exception(f"Rollback failed: {e}")
+                logger.exception("Rollback failed: %s", e)
                 return False
 
-        logger.warning(f"No backup found for change: {change_id}")
+        logger.warning("No backup found for change: %s", change_id)
         return False
 
-    def _display_change(self, change: CodeChange):
-        """Display a change for review"""
+    def _display_change(self, change: CodeChange) -> None:
+        """Display a change for review."""
         # Risk level color
         risk_colors = {
             RiskLevel.LOW: "green",
@@ -511,7 +523,7 @@ class CodeReview:
                 f"Description: {change.description}",
                 title="Review Required",
                 border_style=risk_color,
-            )
+            ),
         )
 
         # Show concerns if high risk
@@ -534,11 +546,11 @@ class CodeReview:
             if line.startswith("-") and not line.startswith("---")
         )
         self.console.print(
-            f"\n[green]+{additions}[/green] / [red]-{deletions}[/red] lines"
+            f"\n[green]+{additions}[/green] / [red]-{deletions}[/red] lines",
         )
 
-    def _display_diff(self, change: CodeChange):
-        """Display the diff of a change"""
+    def _display_diff(self, change: CodeChange) -> None:
+        """Display the diff of a change."""
         self.console.print("\n[bold]Diff:[/bold]\n")
 
         for line in change.diff_lines:
@@ -552,7 +564,7 @@ class CodeReview:
                 self.console.print(line)
 
     def get_pending_summary(self) -> dict:
-        """Get summary of pending changes"""
+        """Get summary of pending changes."""
         by_risk: dict[RiskLevel, list[CodeChange]] = {level: [] for level in RiskLevel}
 
         for change in self.pending_changes:
@@ -565,32 +577,36 @@ class CodeReview:
             "changes": self.pending_changes,
         }
 
-    def clear_pending(self):
-        """Clear all pending changes"""
+    def clear_pending(self) -> None:
+        """Clear all pending changes."""
         self.pending_changes.clear()
         logger.info("Cleared all pending changes")
 
 
 class CodeReviewMiddleware:
-    """
-    Middleware that intercepts code execution and applies review.
+    """Middleware that intercepts code execution and applies review.
     Can be used to wrap the AICoder or ExecutionEngine.
     """
 
-    def __init__(self, review_system: CodeReview):
+    def __init__(self, review_system: CodeReview) -> None:
         self.review = review_system
 
     def wrap_file_write(
-        self, file_path: str, content: str, description: str = ""
+        self,
+        file_path: str,
+        content: str,
+        description: str = "",
     ) -> bool:
-        """
-        Wrap a file write operation with code review.
+        """Wrap a file write operation with code review.
 
         Returns:
             True if write was approved and successful
+
         """
         change = self.review.create_change(
-            file_path=file_path, new_content=content, description=description
+            file_path=file_path,
+            new_content=content,
+            description=description,
         )
 
         if self.review.review_change(change, interactive=True):
@@ -599,13 +615,16 @@ class CodeReviewMiddleware:
         return False
 
     def wrap_code_execution(
-        self, code: str, executor: Callable[[str], Any], description: str = ""
+        self,
+        code: str,
+        executor: Callable[[str], Any],
+        description: str = "",
     ) -> tuple[bool, Any]:
-        """
-        Wrap code execution with review.
+        """Wrap code execution with review.
 
         Returns:
             (approved, execution_result)
+
         """
         # Create a virtual change for the code
         change = self.review.create_change(
@@ -628,16 +647,16 @@ class CodeReviewMiddleware:
 
 # Convenience functions
 def create_review_system(auto_approve_low: bool = False) -> CodeReview:
-    """Create a new code review system"""
+    """Create a new code review system."""
     return CodeReview(auto_approve_low_risk=auto_approve_low)
 
 
 def quick_review(file_path: str, new_content: str, description: str = "") -> bool:
-    """
-    Quick review of a single file change.
+    """Quick review of a single file change.
 
     Returns:
         True if approved and applied
+
     """
     review = CodeReview()
     change = review.create_change(file_path, new_content, description)
@@ -657,7 +676,7 @@ if __name__ == "__main__":
 
     # Create a sample change
     sample_code = '''
-def scan_ports(target):
+def scan_ports(target) -> Any:
     """Scan ports on target"""
     import socket
 

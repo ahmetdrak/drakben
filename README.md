@@ -1,201 +1,242 @@
-<div align="center">
+# 🩸 DRAKBEN - Autonomous Pentest AI
 
-# 🧛 DRAKBEN V2
-### The Autonomous A.I. Offensive Security Agent
+Otonom Penetrasyon Test AI Framework - Kalıcı Hafıza & Sistem Tanıma
 
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker)
-![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.10+-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-**Drakben is not a scanner. It is an intelligent, self-evolving operator.**
-<br/>
-It bridges the gap between human expertise and machine speed by autonomously planning, executing, and refining offensive security operations.
-
-[Features](#-capabilities) • [Installation](#-quick-start) • [Usage](#-usage) • [Architecture](#-evolutionary-architecture)
-
-</div>
+⭐ **Star this repo if it helps you!**
 
 ---
 
-## ⚡ Quick Demo
+## 🚀 Kurulum
 
-Without memorizing complex flags, simply tell Drakben what you want to do.
-
-```console
-user@drakben:~$ ./drakben
-
-[?] What is your objective?
-> Scan target 10.10.11.23, stay stealthy, and if you find a website, look for SQL injection.
-
-[+] 🧠 SELF-REFINING ENGINE
-    └── Strategy Selected: STEALTH (Profile: Ghost_V2)
-    └── Policy Loaded: "Avoid WAF triggers", "Rate Limit: Low"
-
-[+] 👻 GHOST PROTOCOL
-    └── Rotating User-Agent...
-    └── Establishing Tor Circuit... [OK]
-
-[+] 🕵️ RECONNAISSANCE
-    └── Target: 10.10.11.23
-    └── Open Ports: 80 (HTTP), 22 (SSH)
-    └── Service: Apache 2.4.41
-
-[+] ⚔️ ATTACK VECTOR
-    └── Analyzing HTTP (Port 80)...
-    └── Vulnerability Found: SQL Injection in /login.php
-    └── Generating Polymorphic Exploit... [DONE]
-
-[?] Critical vulnerability confirmed. Proceed with exploitation? (y/n)
-> y
-```
-
----
-
-## 🚀 Capabilities
-
-### 🧠 Core & Evolution (The Brain)
-| Feature | Technical Implementation | State |
-| :--- | :--- | :---: |
-| **Self-Refining Engine** | Autonomous strategy evolution & failure-based policy generation. | ✅ |
-| **Self-Healer Module** | Auto-diagnosis of error logs with AI-assisted automatic fixes/retries. | ✅ |
-| **Singularity Engine** | Real-time Python code synthesis & JIT alternative tool generation. | ✅ |
-| **Distributed Swarm** | Redis-backed state synchronization for multi-agent coordination. | ✅ |
-| **Evolution Memory** | Persistent SQLite-WAL storage for learned behavioral patterns. | ✅ |
-| **Symbolic Reasoning** | Z3-Solver integration for automated vulnerability path analysis. | ✅ |
-
-### 👻 Ghost Protocol (Stealth & Evasion)
-| Feature | Technical Implementation | State |
-| :--- | :--- | :---: |
-| **AST Polymorphism** | Variable renaming, logic flattening, and dynamic Junk-Code injection. | ✅ |
-| **Native Syscall Engine** | Bypassing EDR/AV via direct Kernel Syscalls (NtAllocateVirtualMemory). | ✅ |
-| **Memory-Only Exec** | Fileless execution of Python/Native payloads directly in RAM. | ✅ |
-| **Anti-Forensics** | DoD 5220.22-M Three-pass secure wipe & Windows/Linux Timestompping. | ✅ |
-| **Stealth Client** | TLS fingerprint consistency & stateful Referer-chain tracking. | ✅ |
-| **Proxy Rotation** | ASN-aware proxy selection and stateful session management. | ✅ |
-
-### 🛰️ Universal Adapter (C2 & Communication)
-| Feature | Technical Implementation | State |
-| :--- | :--- | :---: |
-| **Domain Fronting** | Hiding C2 traffic behind reputable CDN/Cloud providers. | ✅ |
-| **DNS Tunneling** | Exfiltration of data via fragmented DNS TXT/Subdomain queries. | ✅ |
-| **Telegram C2** | Encrypted command loop via Bot API with multi-message support. | ✅ |
-| **Steganography** | Hiding data within image files using LSB (Least Significant Bit). | ✅ |
-| **Poly-Encryption** | Multi-algorithm packet encryption (AES-GCM, ChaCha20, RSA). | ✅ |
-
-### ⚔️ Tactical Modules (Offensive Operations)
-| Feature | Technical Implementation | State |
-| :--- | :--- | :---: |
-| **Hive Mind (AD)** | Automated Kerberoasting, AS-REP Toasting, and SMB Password Spraying. | ✅ |
-| **Weapon Foundry** | Automated payload factory producing Encrypted EXE, ELF, and PS1. | ✅ |
-| **Smart Fuzzer** | AI-guided mutation fuzzer for protocol and application research. | ✅ |
-| **Exploit Crafter** | Automated ROP-chain analysis and exploit skeleton generation. | ✅ |
-| **OSINT Spider** | Multi-source employee profiling, leaked credential search, and social graph. | ✅ |
-| **Social Engineering** | MFA Bypass scenarios, automated Phishing page generation & hosting. | ✅ |
-
-### 🔬 Operational Excellence
-| Feature | Technical Implementation | State |
-| :--- | :--- | :---: |
-| **Offline Intel** | Local CVE database with cross-referencing for air-gapped targets. | ✅ |
-| **Auto-Reporting** | Generation of professional HTML/PDF reports with impact scoring. | ✅ |
-| **i18n Support** | Native Turkish and English language support across the entire agent. | ✅ |
-| **Audit Logger** | Tamper-proof logging of every action for forensic compliance. | ✅ |
-| **Credential Store** | RSA-encrypted local vault for captured secrets and session tokens. | ✅ |
-| **Self-Sanitization** | One-click workspace cleanup and evidence removal. | ✅ |
-
----
-
-## 🧬 Evolutionary Architecture
-
-Drakben's core mimics a biological evolution process. It doesn't just run scripts; it **adapts**.
-
-```mermaid
-graph TD
-    User((Operator)) -->|Natural Language| Adapter[🛰️ Universal Adapter]
-    Adapter -->|Encrypted Intent| Brain[🧠 Self-Refining Brain]
-    
-    subgraph "Distributed Swarm"
-    Brain <-->|State Sync| Redis[(Redis Cluster)]
-    end
-
-    subgraph "Evolution & Execution Cycle"
-    Brain -->|Strategy| Hive[🕸️ Hive Mind - AD/Net]
-    Brain -->|Task| Singularity[🌌 Singularity - CodeGen]
-    Singularity -->|Polymorphic Code| Ghost[👻 Ghost Protocol]
-    Ghost -->|Syscall/Binary| Weapon[⚔️ Weapon Foundry]
-    end
-    
-    Weapon -->|Payload/Attack| Target((Target System))
-    Hive -->|Exploit| Target
-    
-    subgraph "Learning & Recovery"
-    Target -->|Raw Feedback| Memory[Evolution Memory]
-    Memory -->|Patterns| Brain
-    Target -->|Execution Failure| Healer[🔧 Self-Healer]
-    Healer -->|Auto-Fix/Repair| Brain
-    end
-    
-    Target -->|Loot/Data| Adapter
-    Adapter -->|Exfiltration| User
-```
-
----
-
-## � Quick Start
-
-### 🐳 Docker (Recommended)
-
-The safest and fastest way to run Drakben.
+### 🐳 Docker (Önerilen)
+En kolay ve sorunsuz yöntem. Tüm araçlar hazır gelir!
 
 ```bash
-# 1. Build the image
-docker build -t drakben/core .
-
-# 2. Run the agent (Host networking required for Nmap/Arp)
-docker run -it --network host drakben/core
-```
-
-### 🐍 Manual Installation
-
-```bash
-# 1. Clone
+# Projeyi indir
 git clone https://github.com/ahmetdrak/drakben.git
 cd drakben
 
-# 2. Install
-pip install -r requirements.txt
+# Tek komutla başlat (Kali Linux + tüm araçlar dahil)
+docker-compose up -d
 
-# 3. Configure (Optional)
-cp .env.example .env  # Add your LLM API Keys here
+# DRAKBEN'e bağlan
+docker exec -it drakben python3 drakben.py
+```
 
-# 4. Run
-python drakben.py
+**Docker Avantajları:**
+- ✅ Tüm bağımlılıklar otomatik yüklenir
+- ✅ Kali Linux araçları (nmap, sqlmap, nikto, hydra) hazır
+- ✅ Host sistemi temiz kalır
+- ✅ Farklı platformlarda aynı çalışır
+
+```bash
+# Yararlı Docker komutları
+docker-compose logs -f drakben    # Logları izle
+docker-compose down               # Durdur
+docker-compose up -d --build      # Yeniden oluştur
 ```
 
 ---
 
-## 💻 Natural Language Control
+### 📦 Manuel Kurulum (Alternatif)
 
-Drakben understands context. You don't need to speak "code".
+#### Kali Linux
+```bash
+# Sistem paketleri
+sudo apt update
+sudo apt install -y python3-venv python3-pip build-essential libffi-dev
 
-### Scenario 1: The Lazy Red Teamer
-> "I have a list of IPs in targets.txt. Check them all for MS17-010 but don't crash the services."
+# Projeyi indir ve kur
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 drakben.py
+```
 
-### Scenario 2: The CTF Player
-> "Analyze the binary running on port 1337. It looks like a buffer overflow. Write a fuzzer script for it."
+#### Ubuntu / Debian
+```bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip build-essential libffi-dev
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 drakben.py
+```
 
-### Scenario 3: The Operator
-> "Generate a FUD Windows payload, use Domain Fronting via Azure, and wait for my signal."
+#### Windows
+```powershell
+git clone https://github.com/ahmetdrak/drakben.git
+cd drakben
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python drakben.py
+```
+
+#### ⚡ Tek Satır (Linux)
+```bash
+git clone https://github.com/ahmetdrak/drakben.git && cd drakben && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && python3 drakben.py
+```
 
 ---
 
-## ⚠️ Disclaimer
+## 🤖 AI/LLM Kurulumu (Opsiyonel)
 
-**Simulated Environment Only.**
-This tool performs actual offensive actions. The developers disclaim all responsibility for unauthorized use. Use strictly for authorized Penetration Testing and Educational Research.
+Framework **%100 offline** çalışır. AI özellikleri için:
+
+| Provider | Kurulum | Not |
+|----------|---------|-----|
+| **Ollama** (Ücretsiz) | [ollama.ai](https://ollama.ai) → `ollama pull llama3.2` | Yerel, ücretsiz |
+| **OpenRouter** (Ücretsiz) | [openrouter.ai](https://openrouter.ai) | `deepseek/deepseek-chat` ücretsiz |
+| **OpenAI** (Ücretli) | [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o-mini |
+
+```bash
+# İlk çalıştırmada interaktif setup yapılır
+python drakben.py
+# veya manuel: cp .env.example config/api.env && nano config/api.env
+```
 
 ---
 
-<div align="center">
-    <sub>Developed by the Drakben Team • released under MIT License</sub>
-</div>
+## 🎯 Kullanım
+
+```bash
+python drakben.py
+
+# Doğal dil ile konuş:
+💬 "10.0.0.1 portlarını tara"
+💬 "example.com sql injection test et"
+💬 "192.168.1.1'e shell at"
+
+# Slash komutları:
+/target 192.168.1.100   # Hedef belirle
+/scan                    # Hedefi tara
+/status                  # Sistem durumu
+/stats                   # Hafıza istatistikleri
+/help                    # Yardım
+/exit                    # Çıkış
+```
+
+---
+
+## ✨ Özellikler
+
+### 🧠 Kalıcı Hafıza Sistemi
+- **Otomatik kayıt**: Tüm komutlar, çıktılar ve konuşmalar otomatik kaydedilir
+- **Pattern öğrenme**: Başarılı komutlar öğrenilir, sonraki sefere önerilir
+- **Sistem tanıma**: OS, yetkiler, araçlar otomatik algılanır ve hatırlanır
+- **Oturum geçmişi**: Önceki oturumlar ve hedefler saklanır
+
+### 🤖 Otonom Çalışma
+- **Tek seferlik onay**: İlk kez onay alır, sonra otomatik çalışır
+- **Auto-healing**: Hatalar otomatik düzeltilir
+- **Araç yükleme**: Eksik araçlar otomatik yüklenir
+- **Akıllı retry**: Başarısız komutlar alternatiflerle denenir
+
+### 🛡️ Güvenlik
+- **Safety checks**: Tehlikeli komutlar engellenir
+- **Risk analizi**: Her komut için risk değerlendirmesi
+- **Approval sistemi**: Kritik işlemler için onay
+
+### 🎨 Arayüz
+- **Dracula teması**: Mor/pembe/kırmızı terminal UI
+- **Türkçe/İngilizce**: Tam çoklu dil desteği
+- **Minimal**: Temiz, odaklanmış arayüz
+
+---
+
+## 📋 Komutlar
+
+| Komut | Açıklama |
+|-------|----------|
+| `/target <IP>` | Hedef belirle |
+| `/scan` | Mevcut hedefi tara |
+| `/status` | Sistem durumunu göster |
+| `/stats` | Hafıza ve AI istatistikleri |
+| `/help` | Detaylı yardım |
+| `/clear` | Ekranı temizle |
+| `/exit` | Çıkış |
+| Doğal dil | AI'a herhangi bir pentest görevi söyle |
+
+---
+
+## 📁 Proje Yapısı
+
+```
+drakben/
+├── drakben.py              # Ana giriş noktası
+├── core/
+│   ├── agent.py            # Ana agent orchestrator
+│   ├── brain.py            # AI reasoning ve planlama
+│   ├── memory_manager.py   # Kalıcı hafıza sistemi (SQLite)
+│   ├── system_intelligence.py  # Sistem tanıma
+│   ├── execution_engine.py # Komut çalıştırma
+│   ├── autonomous_solver.py    # Auto-healing
+│   ├── security_toolkit.py # Güvenlik kontrolleri
+│   ├── config.py           # Konfigürasyon yönetimi
+│   └── i18n.py             # Çoklu dil desteği
+├── llm/
+│   ├── brain.py            # LLM entegrasyonu
+│   └── openrouter_client.py    # Multi-provider client
+├── modules/
+│   ├── recon.py            # Keşif modülü
+│   ├── exploit.py          # Exploit modülü
+│   ├── payload.py          # Payload üretimi
+│   └── report.py           # Raporlama
+├── config/
+│   ├── api.env             # API anahtarları
+│   └── plugins.json        # Plugin registry
+└── drakben_memory.db       # Kalıcı hafıza veritabanı
+```
+
+---
+
+## 🔧 Sorun Giderme
+
+| Problem | Çözüm |
+|---------|-------|
+| `ModuleNotFoundError` | `pip install -r requirements.txt` |
+| `error: command 'gcc' failed` | `sudo apt install build-essential libffi-dev` |
+| `curl_cffi` hata | `sudo apt install libcurl4-openssl-dev` |
+| API çalışmıyor | Offline modda çalışır! Veya `config/api.env` kontrol et |
+| Permission denied | Linux'ta `sudo` ile çalıştır |
+| Python sürüm hatası | Python 3.10+ gerekli: `python3 --version` |
+
+### 🔄 Temiz Kurulum
+```bash
+# Eğer sorun yaşıyorsanız, venv'i sıfırdan oluşturun:
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+---
+
+## 📚 Dokümantasyon
+
+- [INSTALLATION.md](INSTALLATION.md) - Detaylı kurulum
+- [QUICKSTART.md](QUICKSTART.md) - Hızlı başlangıç
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Katkıda bulunma
+- [CHANGELOG.md](CHANGELOG.md) - Sürüm geçmişi
+
+---
+
+## 📄 Lisans
+
+MIT License - [LICENSE](LICENSE)
+
+---
+
+**Made with ❤️ for the security community**
+
+⚠️ **Sadece yetkili hedeflerde kullanın.**

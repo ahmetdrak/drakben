@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DRAKBEN Integration Test"""
+"""DRAKBEN Integration Test."""
 
 import os
 import sys
@@ -9,8 +9,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 errors = []
 passed = []
 
-def test_full_integration():
-    """DRAKBEN Integration Test - Verify all main subsystems connect correctly"""
+
+def test_full_integration() -> None:
+    """DRAKBEN Integration Test - Verify all main subsystems connect correctly."""
     # Test 1: Core imports
     from core.coder import ASTSecurityChecker
     from core.state import AgentState
@@ -44,9 +45,11 @@ def test_full_integration():
 
     # Test 9: Recon functions
     from modules.recon import detect_technologies, extract_domain
+
     assert extract_domain("https://example.com") == "example.com"
     techs = detect_technologies(
-        "<script src='jquery.js'></script>", {"Server": "nginx"}
+        "<script src='jquery.js'></script>",
+        {"Server": "nginx"},
     )
     assert len(techs) > 0
 
@@ -58,11 +61,9 @@ def test_full_integration():
 if __name__ == "__main__":
     try:
         test_full_integration()
-        print("Integration Test Passed!")
-    except Exception as e:
-        print(f"Integration Test Failed: {e}")
+    except Exception:
         sys.exit(1)
-else:
-    # If imported by pytest, raise error if any tests failed so pytest sees it
-    if errors:
-        raise RuntimeError(f"Integration tests failed: {errors}")
+# If imported by pytest, raise error if any tests failed so pytest sees it
+elif errors:
+    msg = f"Integration tests failed: {errors}"
+    raise RuntimeError(msg)
