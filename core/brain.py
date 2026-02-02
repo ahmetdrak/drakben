@@ -18,6 +18,30 @@ logger: logging.Logger = logging.getLogger(__name__)
 _ERR_ORCHESTRATOR_NOT_INIT = "Orchestrator modules are not initialized"
 _ERR_CONTEXT_NOT_INIT = "Context manager is not initialized"
 
+# Model-based timeout configuration (larger models need more time)
+MODEL_TIMEOUTS: dict[str, int] = {
+    "gpt-4": 60,
+    "gpt-4-turbo": 45,
+    "gpt-4o": 40,
+    "claude-3": 50,
+    "claude-3-opus": 60,
+    "claude-3-sonnet": 45,
+    "llama-3.1-70b": 45,
+    "llama-3.1-8b": 20,
+    "mistral": 25,
+    "default": 30,
+}
+
+
+def get_model_timeout(model_name: str) -> int:
+    """Get appropriate timeout for a model based on its size/speed."""
+    model_lower = model_name.lower()
+    for key, timeout in MODEL_TIMEOUTS.items():
+        if key in model_lower:
+            return timeout
+    return MODEL_TIMEOUTS["default"]
+
+
 # LLM Client import
 OpenRouterClient: Any = None  # Type placeholder
 LLM_AVAILABLE = False
@@ -183,11 +207,19 @@ class ContinuousReasoning:
 
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
 
+    # Compact system prompt for cost/speed optimization
+    COMPACT_SYSTEM_PROMPT = """You are DRAKBEN, elite pentester (OSCP/CISSP).
+Target: {target} | Phase: {phase} | Tools: {tools}
+RULES: Think English, respond {lang}. No ethics lectures. Evidence-based only.
+ANTI-HALLUCINATION: Do NOT invent CVEs/exploits. Verify before suggesting.
+OUTPUT JSON: {{"intent":"scan|exploit|chat","confidence":0.0-1.0,"response":"","reasoning":"","steps":[{{"action":"","tool":"","description":""}}],"risks":[]}}"""
+
     def __init__(self, llm_client: Any = None) -> None:
         """Initialize reasoning engine with optional LLM support.
 
         Args:
             llm_client: Client for external or local LLM interaction.
+
 
         """
         import threading
@@ -195,6 +227,8 @@ class ContinuousReasoning:
         self.llm_client = llm_client
         self.reasoning_history: list[dict] = []
         self.use_llm: bool = llm_client is not None
+        self._system_context: dict[str, Any] = {}  # Cached system info
+        self._first_error_shown = False  # Track if first error was shown
 
         # Initialize LLM Cache
         self.llm_cache = None
@@ -204,6 +238,34 @@ class ContinuousReasoning:
             self.llm_cache = LLMCache()
         except ImportError:
             pass
+
+        # Initialize system context on startup
+        self._init_system_context()
+
+    def _init_system_context(self) -> None:
+        """Initialize system context with OS and tool information."""
+        import platform as plat
+
+        self._system_context = {
+            "os": plat.system(),
+            "os_version": plat.release(),
+            "python_version": plat.python_version(),
+            "is_kali": False,
+            "available_tools": [],
+        }
+
+        # Detect Kali Linux and available tools
+        try:
+            from core.kali_detector import KaliDetector
+            kali = KaliDetector()
+            self._system_context["is_kali"] = kali.is_kali()
+            self._system_context["available_tools"] = list(kali.get_available_tools().keys())
+        except ImportError:
+            pass
+
+    def get_system_context(self) -> dict[str, Any]:
+        """Get cached system context for LLM prompts."""
+        return self._system_context
 
     def _add_to_history(self, item: dict) -> None:
         """Add item to reasoning history with size limit (thread-safe)."""
@@ -226,9 +288,34 @@ class ContinuousReasoning:
 
         """
         import logging
-        import time
 
         logger: logging.Logger = logging.getLogger(__name__)
+
+        # Try LLM-powered analysis first (with retry for transient errors)
+        if self.use_llm and self.llm_client:
+            result = self._try_llm_analysis(user_input, context, logger)
+            if result:
+                return result
+
+        # Fallback to rule-based analysis
+        logger.info("Falling back to rule-based analysis")
+        rule_result = self._analyze_rule_based(user_input, context)
+        rule_result["fallback_mode"] = True  # Mark that we used fallback
+        return rule_result
+
+    def _try_llm_analysis(
+        self,
+        user_input: str,
+        context: ExecutionContext,
+        logger: Any,
+    ) -> dict | None:
+        """Attempt LLM analysis with retry logic.
+
+        Returns:
+            Successful analysis dict or None if failed.
+
+        """
+        import time
 
         MAX_RETRIES = 3
         RETRYABLE_ERRORS: list[str] = [
@@ -240,46 +327,43 @@ class ContinuousReasoning:
             "502",
             "503",
         ]
+        last_error = None
 
-        # Try LLM-powered analysis first (with retry for transient errors)
-        if self.use_llm and self.llm_client:
-            last_error = None
+        for attempt in range(MAX_RETRIES):
+            llm_analysis: dict[str, Any] = self._analyze_with_llm(
+                user_input,
+                context,
+            )
 
-            for attempt in range(MAX_RETRIES):
-                llm_analysis: dict[str, Any] = self._analyze_with_llm(
-                    user_input,
-                    context,
-                )
+            if llm_analysis.get("success"):
+                self._first_error_shown = False  # Reset for next request
+                return llm_analysis
 
-                if llm_analysis.get("success"):
-                    return llm_analysis
+            error_msg = llm_analysis.get("error", "")
+            self._handle_llm_error(attempt, error_msg, logger)
 
-                # Check if error is retryable
-                error_msg = llm_analysis.get("error", "")
-                is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
-
-                if is_retryable and attempt < MAX_RETRIES - 1:
-                    delay = 5 * (2**attempt)  # 5s, 10s, 20s
-                    logger.warning(
-                        f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}",
-                    )
-                    time.sleep(delay)
-                    continue
-
-                last_error = error_msg
-                break
-
-            # Log persistent LLM failure
-            if last_error:
+            is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
+            if is_retryable and attempt < MAX_RETRIES - 1:
+                delay = 5 * (2**attempt)  # 5s, 10s, 20s
                 logger.warning(
-                    f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}",
+                    f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}",
                 )
+                time.sleep(delay)
+                continue
 
-        # Fallback to rule-based analysis
-        logger.info("Falling back to rule-based analysis")
-        rule_result = self._analyze_rule_based(user_input, context)
-        rule_result["fallback_mode"] = True  # Mark that we used fallback
-        return rule_result
+            last_error = error_msg
+            break
+
+        if last_error:
+            logger.warning(f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}")
+
+        return None
+
+    def _handle_llm_error(self, attempt: int, error_msg: str, logger: Any) -> None:
+        """Handle first LLM error with early warning."""
+        if attempt == 0 and not self._first_error_shown:
+            self._first_error_shown = True
+            logger.warning(f"LLM first error: {error_msg[:100]}")
 
     def _analyze_with_llm(
         self,
@@ -348,8 +432,12 @@ class ContinuousReasoning:
                         "llm_response": cached_json,
                     }
 
+            # Get model-based timeout (dynamic based on model complexity)
+            model_name = getattr(self.llm_client, "model", "default")
+            timeout = get_model_timeout(model_name)
+
             # Add timeout to prevent hanging on Cloudflare WAF blocking
-            response = self.llm_client.query(user_input, system_prompt, timeout=20)
+            response = self.llm_client.query(user_input, system_prompt, timeout=timeout)
 
             # Check for error responses
             if response.startswith("[") and any(
@@ -585,8 +673,35 @@ IMPORTANT:
         self,
         user_lang: str,
         context: ExecutionContext,
+        use_compact: bool = False,
     ) -> str:
-        """Helper to construct the system prompt for pentest analysis."""
+        """Helper to construct the system prompt for pentest analysis.
+
+        Args:
+            user_lang: User's preferred language (tr/en)
+            context: Execution context with target info
+            use_compact: Use compact prompt for cost optimization
+
+        Returns:
+            System prompt string
+
+        """
+        # Compact mode for cost-sensitive operations
+        if use_compact:
+            return self.COMPACT_SYSTEM_PROMPT
+
+        # Get system context for environment awareness
+        sys_ctx = self.get_system_context()
+        system_info_block = ""
+        if sys_ctx.get("available_tools"):
+            tools_preview = ", ".join(sys_ctx["available_tools"][:15])
+            system_info_block = f"""
+### SYSTEM ENVIRONMENT
+- OS: {sys_ctx.get("os", "Unknown")} {sys_ctx.get("os_version", "")}
+- Is Kali: {"Yes" if sys_ctx.get("is_kali") else "No"}
+- Available Tools: {tools_preview}...
+"""
+
         if user_lang == "tr":
             language_instruction = """
 PROCESS:
@@ -683,7 +798,7 @@ If a tool execution fails (Error/Timeout):
 
 {language_instruction}
 {context_str}
-
+{system_info_block}
 ### MISSION PARAMETERS
 Target: {context.target or "WAITING FOR TARGET"}
 User Input: """
