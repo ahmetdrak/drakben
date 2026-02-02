@@ -4,80 +4,141 @@
 
 *Let AI handle the methodology. You focus on the results.*
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
+[![Tests](https://img.shields.io/badge/tests-228%20passed-brightgreen.svg)]()
+[![SonarCloud](https://img.shields.io/badge/SonarCloud-clean-brightgreen.svg)]()
 
-[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Architecture](#architecture) • [Contributing](#contributing)
+[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
 </div>
 
 ---
 
-## What is DRAKBEN?
+## 🎯 What is DRAKBEN?
 
-DRAKBEN is an AI-powered penetration testing framework that understands natural language commands and autonomously executes security assessments. Instead of memorizing tool syntax, describe what you want in plain English—DRAKBEN handles the rest.
+DRAKBEN is an **AI-powered autonomous penetration testing framework** that understands natural language commands and executes security assessments with minimal human intervention. Instead of memorizing complex tool syntax, describe what you want in plain language—DRAKBEN handles the rest.
 
 ```
 You: "Scan the target for open ports and check for web vulnerabilities"
 DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 potential issues...
 ```
 
-The framework maintains state awareness throughout engagements, tracks tested attack surfaces, and intelligently selects tools based on discovered information.
+### 🌟 Key Differentiators
+
+| Feature | Traditional Tools | DRAKBEN |
+|---------|-------------------|---------|
+| Interface | CLI flags & syntax | Natural language |
+| Decision Making | Manual | AI-driven autonomous |
+| Learning | Static | Self-evolving strategies |
+| State | Stateless | Persistent state awareness |
+| Recovery | Manual restart | Self-healing |
 
 ---
 
-## Features
+## ✨ Features
 
 ### 🧠 AI-Driven Decision Making
-- Natural language command interface
-- Context-aware tool selection
-- Automatic attack chain orchestration
-- Multi-LLM support (OpenRouter, Ollama, OpenAI)
+- **Natural Language Interface** - Talk to DRAKBEN like a colleague
+- **Context-Aware Tool Selection** - Automatically picks the right tool
+- **Multi-LLM Support** - OpenRouter, Ollama, OpenAI, Custom APIs
+- **Bilingual** - Full Turkish and English support
+- **Anti-Hallucination Protocol** - Validates AI outputs against reality
+
+### 🔄 Self-Evolution Engine (Singularity)
+- **Code Synthesis** - Generates new tools from descriptions
+- **Polymorphic Mutation** - Transforms code to evade detection
+- **Strategy Mutation** - Adapts attack strategies based on failures
+- **Dynamic Tool Registration** - Creates and registers tools at runtime
+
+### 🧬 Evolution Memory
+- **Persistent Learning** - Remembers what works across sessions
+- **Tool Penalty System** - Deprioritizes failing tools automatically
+- **Strategy Profiles** - Multiple behavioral variants per attack type
+- **Pattern Recognition** - Learns from failure contexts
+
+### 🛡️ Self-Refining Engine
+- **Policy Engine** - Learned behavioral constraints
+- **Conflict Resolution** - Handles conflicting strategies
+- **Failure Context Analysis** - Extracts patterns from errors
+- **Automatic Replanning** - Recovers from failed steps
 
 ### 🔍 Reconnaissance
-- Port scanning and service enumeration
-- Subdomain discovery
-- WHOIS and DNS intelligence
-- Web technology fingerprinting
-- Passive OSINT gathering
+- **Port Scanning** - Nmap integration with smart defaults
+- **Service Enumeration** - Automatic version detection
+- **Subdomain Discovery** - Multiple techniques
+- **WHOIS & DNS Intelligence** - Full DNS record analysis
+- **Web Technology Fingerprinting** - CMS and framework detection
+- **Passive OSINT** - Non-intrusive information gathering
 
 ### ⚡ Exploitation
-- Automated vulnerability scanning
-- SQL injection detection and exploitation
-- Web application testing (XSS, CSRF, LFI/RFI)
-- Authentication attacks (brute-force, spray)
-- CVE database integration with exploit matching
+- **Automated Vulnerability Scanning** - Nikto, Nuclei integration
+- **SQL Injection** - Detection and exploitation with SQLMap
+- **Web Application Testing** - XSS, CSRF, LFI/RFI, SSTI
+- **Polyglot Payloads** - Context-agnostic exploit strings
+- **AI Evasion** - Semantic mutation for WAF bypass
+- **CVE Database Integration** - Automatic exploit matching
 
-### 🏢 Active Directory
-- Domain enumeration
-- Kerberoasting and AS-REP roasting
-- Pass-the-Hash / Pass-the-Ticket
-- BloodHound integration
-- Automated lateral movement
+### 🏢 Active Directory Attacks
+- **Domain Enumeration** - Users, groups, computers, trusts
+- **Kerberoasting** - Extract service account hashes
+- **AS-REP Roasting** - Target accounts without pre-auth
+- **Pass-the-Hash / Pass-the-Ticket** - Credential reuse
+- **DCSync** - Domain controller replication attack
+- **Lateral Movement** - PSExec, WMIExec, WinRM, SSH
 
-### 📡 Command & Control
-- Domain fronting support
-- DNS tunneling
-- Encrypted beacon communication
-- Traffic analysis evasion
-- Steganography channels
+### 🐝 Hive Mind (Distributed Operations)
+- **Network Topology Discovery** - Map internal networks
+- **Credential Harvesting** - SSH keys, passwords, tokens
+- **Attack Path Analysis** - BloodHound-style pathfinding
+- **Pivot Point Management** - Coordinate multi-hop attacks
 
-### 🛡️ Evasion
-- WAF bypass techniques
-- Payload obfuscation
-- EDR-aware execution
-- Anti-forensics capabilities
+### 📡 Command & Control Framework
+- **Domain Fronting** - Hide C2 behind legitimate CDNs
+- **DNS Tunneling** - Covert channel over DNS
+- **Encrypted Beacons** - AES-256-GCM communication
+- **Jitter Engine** - Human-like traffic patterns
+- **Telegram C2** - Use Telegram as C2 channel
+- **Steganography** - Hide data in images
 
-### 📊 Reporting
-- Automated finding documentation
-- Risk-scored vulnerability reports
-- Attack timeline visualization
-- Executive summary generation
+### 🛡️ Evasion & Stealth
+- **WAF Bypass Engine** - SQL/XSS/RCE payload mutation
+- **Ghost Protocol** - AST-based code transformation
+- **Variable Obfuscation** - Random name generation
+- **Dead Code Injection** - Anti-signature techniques
+- **String Encryption** - Hide sensitive strings
+- **Anti-Sandbox Checks** - Detect analysis environments
+
+### 🔧 Weapon Foundry (Payload Generation)
+- **Multi-Format Output** - Python, PowerShell, VBS, HTA, Bash, C#
+- **Multi-Layer Encryption** - XOR, AES, RC4, ChaCha20
+- **Shellcode Generation** - Pure Python/ASM (Keystone)
+- **Anti-Debug Techniques** - Evade debuggers
+- **Staged Payloads** - Multi-stage delivery
+
+### 🐳 Sandbox Execution
+- **Docker Isolation** - Run commands in containers
+- **Resource Limits** - CPU and memory constraints
+- **Automatic Cleanup** - No traces left on host
+- **Graceful Fallback** - Works without Docker
+
+### 📊 Professional Reporting
+- **Multiple Formats** - HTML, Markdown, JSON, PDF
+- **Executive Summary** - AI-generated overview
+- **Risk Scoring** - CVSS-based severity
+- **Evidence Documentation** - Screenshots and logs
+- **Remediation Guidance** - Actionable fixes
+
+### 🔒 Security Features
+- **Command Sanitization** - Prevents shell injection
+- **Forbidden Command Blocking** - Protects against destructive commands
+- **High-Risk Confirmation** - Requires approval for dangerous operations
+- **Crash Reporter** - Detailed crash dumps for debugging
 
 ---
 
-## Installation
+## 🚀 Installation
 
 ### Docker (Recommended)
 
@@ -112,21 +173,22 @@ python drakben.py
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 ### LLM Setup
 
-DRAKBEN works offline, but AI features require an LLM provider. Create `config/api.env`:
+DRAKBEN works offline with rule-based fallback, but AI features require an LLM provider. Create `config/api.env`:
 
 ```env
-# Option 1: OpenRouter (recommended)
+# Option 1: OpenRouter (recommended - multiple models)
 OPENROUTER_API_KEY=your_key_here
 
 # Option 2: OpenAI
 OPENAI_API_KEY=your_key_here
 
-# Option 3: Local Ollama (free)
+# Option 3: Local Ollama (free, private)
 OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3.2
 ```
 
 For Ollama, install from [ollama.ai](https://ollama.ai) and run:
@@ -136,7 +198,7 @@ ollama pull llama3.2
 
 ---
 
-## Usage
+## 💻 Usage
 
 ### Interactive Mode
 
@@ -144,70 +206,84 @@ ollama pull llama3.2
 python drakben.py
 ```
 
-Once started, interact using natural language:
+### Commands
 
-```
-drakben> scan 192.168.1.0/24 for web servers
-drakben> find vulnerabilities on port 80
-drakben> test sql injection on the login form
-drakben> enumerate the domain controller
-drakben> generate report
-```
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/target <IP/URL>` | Set target |
+| `/scan` | Start reconnaissance |
+| `/status` | Show current state |
+| `/shell` | Interactive shell mode |
+| `/report` | Generate report |
+| `/llm` | Configure LLM provider |
+| `/config` | View/edit configuration |
+| `/tr` | Switch to Turkish |
+| `/en` | Switch to English |
+| `/exit` | Exit DRAKBEN |
 
-### Examples
+### Natural Language Examples
 
 **Web Application Assessment:**
 ```
-scan target.com
-check for common web vulnerabilities
-test authentication bypass
-look for sensitive data exposure
+drakben> scan target.com
+drakben> check for common web vulnerabilities
+drakben> test sql injection on the login form
+drakben> generate report
 ```
 
 **Network Penetration Test:**
 ```
-discover hosts on 10.0.0.0/24
-identify services and versions
-search for known CVEs
-attempt exploitation on critical findings
+drakben> discover hosts on 10.0.0.0/24
+drakben> identify services and versions
+drakben> search for known CVEs
+drakben> attempt exploitation on critical findings
 ```
 
 **Active Directory Attack:**
 ```
-enumerate the domain
-find kerberoastable accounts
-extract hashes
-attempt lateral movement to DC
+drakben> enumerate the domain
+drakben> find kerberoastable accounts
+drakben> extract hashes
+drakben> attempt lateral movement to DC
 ```
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        DRAKBEN CORE                         │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────────┐ │
-│  │  Brain  │──│ Planner │──│  State  │──│ Execution Engine│ │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────────────┘ │
-├─────────────────────────────────────────────────────────────┤
-│                         MODULES                             │
-│  ┌───────┐ ┌─────────┐ ┌────────┐ ┌──────┐ ┌─────────────┐ │
-│  │ Recon │ │ Exploit │ │ Payload│ │  C2  │ │ Social Eng  │ │
-│  └───────┘ └─────────┘ └────────┘ └──────┘ └─────────────┘ │
-│  ┌────────────┐ ┌───────────┐ ┌────────────┐ ┌───────────┐ │
-│  │ AD Attacks │ │ Metasploit│ │ WAF Evasion│ │  Nuclei   │ │
-│  └────────────┘ └───────────┘ └────────────┘ └───────────┘ │
-├─────────────────────────────────────────────────────────────┤
-│                      LLM PROVIDERS                          │
-│         OpenRouter  │  OpenAI  │  Ollama (Local)            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DRAKBEN CORE                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
+│  │  Brain   │──│ Planner  │──│  State   │──│ Executor │──│ Tool Selector│  │
+│  │  (LLM)   │  │(Strategy)│  │(Singleton│  │ (Engine) │  │   (Kali)     │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────────┘  │
+│       │                           │                            │            │
+│       ▼                           ▼                            ▼            │
+│  ┌──────────┐              ┌──────────┐                 ┌──────────────┐   │
+│  │ Evolution│              │ Self-    │                 │  Singularity │   │
+│  │ Memory   │◄────────────►│ Refining │◄───────────────►│   Engine     │   │
+│  │ (SQLite) │              │ Engine   │                 │ (Code Gen)   │   │
+│  └──────────┘              └──────────┘                 └──────────────┘   │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                              MODULES                                        │
+│  ┌────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Recon  │ │ Exploit │ │ Payload │ │   C2   │ │ Hive Mind│ │ AD Attacks│  │
+│  └────────┘ └─────────┘ └─────────┘ └────────┘ └──────────┘ └───────────┘  │
+│  ┌────────────┐ ┌─────────────┐ ┌──────────────┐ ┌─────────────────────┐   │
+│  │ WAF Evasion│ │ Ghost Proto │ │Weapon Foundry│ │   Report Generator  │   │
+│  └────────────┘ └─────────────┘ └──────────────┘ └─────────────────────┘   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           LLM PROVIDERS                                     │
+│           OpenRouter  │  OpenAI  │  Ollama  │  Custom API                   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Attack Phases
-
-DRAKBEN follows a structured methodology:
 
 | Phase | Description |
 |-------|-------------|
@@ -215,48 +291,112 @@ DRAKBEN follows a structured methodology:
 | `RECON` | Information gathering and enumeration |
 | `VULN_SCAN` | Vulnerability identification |
 | `EXPLOIT` | Exploitation attempts |
+| `FOOTHOLD` | Initial access establishment |
 | `POST_EXPLOIT` | Privilege escalation and persistence |
-| `REPORT` | Documentation and cleanup |
+| `COMPLETE` | Mission accomplished |
 
 ---
 
-## Modules
+## 🔬 Advanced Capabilities
 
-| Module | Description |
-|--------|-------------|
-| `recon` | Passive and active reconnaissance |
-| `exploit` | Vulnerability exploitation engine |
-| `payload` | Payload generation and encoding |
-| `c2_framework` | Command & control infrastructure |
-| `ad_attacks` | Active Directory attack techniques |
-| `metasploit` | Metasploit Framework integration |
-| `nuclei` | Nuclei scanner integration |
-| `waf_evasion` | WAF bypass techniques |
-| `social_eng` | Social engineering toolkit |
-| `hive_mind` | Distributed agent coordination |
+### Singularity Engine
+
+The Singularity Engine allows DRAKBEN to create new capabilities on-the-fly:
+
+```python
+# DRAKBEN can generate tools from descriptions
+singularity.create_capability("A tool to exploit CVE-2024-XXXX")
+```
+
+### Evolution Memory
+
+Persistent learning across sessions:
+- **Tool Penalties** - Tools that fail repeatedly are deprioritized
+- **Strategy Profiles** - Behavioral variants that mutate on failure
+- **Pattern Learning** - Extracts patterns from failure contexts
+
+### Ghost Protocol
+
+Advanced evasion through code transformation:
+- **AST Transformation** - Modifies code structure
+- **Variable Renaming** - Randomized identifiers
+- **Dead Code Injection** - Anti-signature noise
+- **String Encryption** - Hides sensitive data
 
 ---
 
-## Legal Disclaimer
+## 📁 Project Structure
 
-This tool is provided for authorized security testing and educational purposes only. Users are responsible for obtaining proper authorization before conducting any security assessments. Unauthorized access to computer systems is illegal.
-
-**Always obtain written permission before testing systems you do not own.**
+```
+drakben/
+├── drakben.py              # Main entry point
+├── core/                   # Core engine components
+│   ├── brain.py            # AI reasoning engine
+│   ├── state.py            # Global state management
+│   ├── planner.py          # Attack planning
+│   ├── execution_engine.py # Command execution
+│   ├── tool_selector.py    # Tool selection logic
+│   ├── evolution_memory.py # Persistent learning
+│   ├── self_refining_engine.py # Strategy adaptation
+│   ├── ghost_protocol.py   # Code obfuscation
+│   ├── sandbox_manager.py  # Docker isolation
+│   ├── kali_detector.py    # Tool detection
+│   └── singularity/        # Code generation engine
+├── modules/                # Attack modules
+│   ├── recon.py            # Reconnaissance
+│   ├── exploit.py          # Exploitation
+│   ├── c2_framework.py     # Command & Control
+│   ├── hive_mind.py        # Lateral movement
+│   ├── weapon_foundry.py   # Payload generation
+│   ├── waf_evasion.py      # WAF bypass
+│   ├── ad_attacks.py       # Active Directory
+│   └── report_generator.py # Reporting
+├── llm/                    # LLM integration
+│   └── openrouter_client.py # Multi-provider client
+├── tests/                  # Test suite (228 tests)
+├── config/                 # Configuration files
+└── plugins/                # External plugins
+```
 
 ---
 
-## Contributing
+## 🧪 Testing
 
-Contributions are welcome. Please read the contribution guidelines before submitting pull requests.
+```bash
+# Run all tests
+python -m pytest --disable-warnings
+
+# Run with coverage
+python -m pytest --cov=core --cov=modules --cov-report=html
+```
+
+**Current Status:** 228 tests passing ✅
+
+---
+
+## ⚠️ Legal Disclaimer
+
+This tool is provided for **authorized security testing and educational purposes only**. Users are responsible for obtaining proper authorization before conducting any security assessments. Unauthorized access to computer systems is illegal.
+
+**⚡ Always obtain written permission before testing systems you do not own.**
+
+The developers assume no liability for misuse of this software.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read the contribution guidelines before submitting pull requests.
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -265,5 +405,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 **DRAKBEN** — *Autonomous Pentesting, Simplified.*
+
+Made with 🧛 by [@ahmetdrak](https://github.com/ahmetdrak)
 
 </div>
