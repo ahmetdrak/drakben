@@ -164,6 +164,16 @@ class NucleiScanner:
 
         return cmd
 
+    async def _kill_process_safe(self, process: asyncio.subprocess.Process | None) -> None:
+        """Safely kill a subprocess."""
+        if not process or process.returncode is not None:
+            return
+        with contextlib.suppress(Exception):
+            process.terminate()
+            await asyncio.sleep(0.1)
+            if process.returncode is None:
+                process.kill()
+
     async def _execute_nuclei_scan(self, cmd: list[str]) -> list[NucleiResult]:
         """Execute nuclei scan and parse output."""
         results = []
@@ -176,7 +186,6 @@ class NucleiScanner:
             )
             stdout, stderr = await process.communicate()
 
-            # Additional error logging from stderr
             if stderr and b"error" in stderr.lower():
                 logger.debug("Nuclei stderr: %s", stderr.decode(errors="replace"))
 
@@ -187,26 +196,13 @@ class NucleiScanner:
 
         except asyncio.CancelledError:
             logger.warning("Nuclei scan cancelled, killing subprocess...")
-            if process and process.returncode is None:
-                try:
-                    process.terminate()
-                    # Give it a tiny bit to terminate gracefully
-                    await asyncio.sleep(0.1)
-                    if process.returncode is None:
-                        process.kill()
-                except ProcessLookupError:
-                    pass
+            await self._kill_process_safe(process)
             raise
         except Exception as e:
             logger.exception("Nuclei scan failed: %s", e)
-            if process and process.returncode is None:
-                with contextlib.suppress(Exception):
-                    process.kill()
+            await self._kill_process_safe(process)
         finally:
-            # Ensure process is definitely dead
-            if process and process.returncode is None:
-                with contextlib.suppress(Exception):
-                    process.kill()
+            await self._kill_process_safe(process)
 
         return results
 

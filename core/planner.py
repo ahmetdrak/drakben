@@ -506,60 +506,60 @@ class Planner:
 
         return True
 
+    def _is_step_completed(self, step: "PlanStep") -> bool:
+        """Check if step is already completed/failed/skipped."""
+        return step.status in [StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED]
+
+    def _is_tool_blocked(self, step: "PlanStep") -> bool:
+        """Check if tool is blocked and skip if so."""
+        if not self.memory.is_tool_blocked(step.tool, step.target):
+            return False
+        step.status = StepStatus.SKIPPED
+        step.error = f"Tool {step.tool} blocked for target {step.target} due to high penalty"
+        self._persist_steps()
+        return True
+
+    def _check_dependencies(self, step: "PlanStep") -> bool:
+        """Check if all dependencies are satisfied. Returns True if satisfied."""
+        for dep_id in step.depends_on:
+            dep_step = self._find_step(dep_id)
+            if dep_step and dep_step.status not in [StepStatus.SUCCESS, StepStatus.SKIPPED]:
+                return False
+        return True
+
+    def _handle_failed_dependencies(self, step: "PlanStep") -> bool:
+        """Skip step if any dependency failed. Returns True if step was skipped."""
+        for dep_id in step.depends_on:
+            dep_step = self._find_step(dep_id)
+            if dep_step and dep_step.status == StepStatus.FAILED:
+                step.status = StepStatus.SKIPPED
+                step.error = f"Dependency {dep_id} failed. Skipping."
+                self._persist_steps()
+                return True
+        return False
+
     def get_next_step(self) -> PlanStep | None:
         """Get next executable step from current plan.
 
         Returns:
             Next PlanStep ready for execution, or None if plan complete
 
-        Selection Logic:
-            - Skips completed/failed steps
-            - Checks dependencies
-            - Returns first executable step
-
-        """
-        """
-        Get next step to execute.
-        Checks dependencies and skips blocked tools.
         """
         for i in range(self.current_step_index, len(self.steps)):
             step = self.steps[i]
 
-            # Skip completed/failed/skipped
-            if step.status in [StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED]:
+            if self._is_step_completed(step):
                 continue
 
-            # LOGIC FIX: Check if tool is blocked by penalty system (Per-Target)
-            if self.memory.is_tool_blocked(step.tool, step.target):
-                step.status = StepStatus.SKIPPED
-                step.error = f"Tool {step.tool} blocked for target {step.target} due to high penalty"
-                self._persist_steps()
+            if self._is_tool_blocked(step):
                 continue
 
-            # Check dependencies
-            deps_satisfied = True
-            for dep_id in step.depends_on:
-                dep_step = self._find_step(dep_id)
-                if dep_step and dep_step.status not in [
-                    StepStatus.SUCCESS,
-                    StepStatus.SKIPPED,
-                ]:
-                    deps_satisfied = False
-                    break
+            deps_satisfied = self._check_dependencies(step)
 
             if not deps_satisfied:
-                # LOGIC FIX: If a dependency FAILED (not skipped or success),
-                # this step should also be skipped to prevent deadlock.
-                for dep_id in step.depends_on:
-                    dep_step = self._find_step(dep_id)
-                    if dep_step and dep_step.status == StepStatus.FAILED:
-                        step.status = StepStatus.SKIPPED
-                        step.error = f"Dependency {dep_id} failed. Skipping."
-                        self._persist_steps()
-                        deps_satisfied = False
-                        break
-
-            if deps_satisfied:
+                if self._handle_failed_dependencies(step):
+                    continue
+            else:
                 self.current_step_index = i
                 return step
 

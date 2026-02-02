@@ -233,26 +233,29 @@ class PolymorphicTransformer(ast.NodeTransformer):
             logger.exception("Failed to unparse transformed AST: %s", e)
             return code
 
+    def _collect_import_names(self, node: ast.Import | ast.ImportFrom) -> None:
+        """Protect imported module/alias names from obfuscation."""
+        for alias in node.names:
+            name_to_protect = alias.asname or alias.name
+            self.defined_names.add(name_to_protect)
+            BUILTIN_NAMES.add(name_to_protect)
+
+    def _collect_function_names(self, node: ast.FunctionDef) -> None:
+        """Collect function and argument names."""
+        self.defined_names.add(node.name)
+        for arg in node.args.args:
+            self.defined_names.add(arg.arg)
+
     def _collect_defined_names(self, tree: ast.AST) -> None:
         """Collect and PROTECT imported names to prevent breakage."""
         for node in ast.walk(tree):
             if isinstance(node, ast.Import | ast.ImportFrom):
-                # LOGIC FIX: Protect imported module/alias names from obfuscation
-                for alias in node.names:
-                    name_to_protect = alias.asname or alias.name
-                    # Add to builtins effectively to shield from renaming
-                    self.defined_names.add(name_to_protect)
-                    # Also explicitly add to BUILTIN_NAMES for this session
-                    BUILTIN_NAMES.add(name_to_protect)
-
-            if isinstance(node, ast.FunctionDef):
-                self.defined_names.add(node.name)
-                for arg in node.args.args:
-                    self.defined_names.add(arg.arg)
+                self._collect_import_names(node)
+            elif isinstance(node, ast.FunctionDef):
+                self._collect_function_names(node)
             elif isinstance(node, ast.ClassDef):
                 self.defined_names.add(node.name)
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                # Only add if not already protected by an import
                 if node.id not in BUILTIN_NAMES:
                     self.defined_names.add(node.id)
             elif isinstance(node, ast.arg):

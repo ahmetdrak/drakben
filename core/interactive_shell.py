@@ -8,6 +8,7 @@ import os
 import shlex
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -632,55 +633,65 @@ class InteractiveShell:
         except Exception as e:
             return CommandResult(success=False, error=str(e))
 
+    def _config_show(self) -> None:
+        """Display current configuration."""
+        if not self.config:
+            self.console.print("[yellow]No configuration available[/yellow]")
+            return
+
+        table = Table(title="Configuration")
+        table.add_column("Setting", style="cyan")
+        table.add_column("Value")
+
+        table.add_row("Language", getattr(self.config, "language", "tr"))
+        table.add_row("LLM Available", str(bool(getattr(self.config, "llm_client", None))))
+
+        if hasattr(self.config, "llm_client") and self.config.llm_client:
+            info = self.config.llm_client.get_provider_info()
+            table.add_row("LLM Provider", info.get("provider", "unknown"))
+            table.add_row("LLM Model", info.get("model", "unknown"))
+
+        self.console.print(table)
+
+    def _config_set(self, key: str, value: str) -> CommandResult:
+        """Set a configuration value with type inference."""
+        if not hasattr(self.config, key):
+            self.console.print(f"[red]Unknown config key: {key}[/red]")
+            return CommandResult(success=True, output="")
+
+        current_val = getattr(self.config, key)
+        converted = self._convert_config_value(current_val, value, key)
+        if converted is None:
+            return CommandResult(success=False, error="Invalid type")
+
+        setattr(self.config, key, converted)
+        self.console.print(f"[green]Set {key} = {converted}[/green]")
+        return CommandResult(success=True, output="")
+
+    def _convert_config_value(self, current_val: Any, value: str, key: str) -> Any:
+        """Convert string value to appropriate type based on current value."""
+        if isinstance(current_val, bool):
+            return value.lower() in ("true", "1", "yes", "on")
+        if isinstance(current_val, int):
+            try:
+                return int(value)
+            except ValueError:
+                self.console.print(f"[red]Invalid integer for {key}[/red]")
+                return None
+        if isinstance(current_val, float):
+            try:
+                return float(value)
+            except ValueError:
+                self.console.print(f"[red]Invalid float for {key}[/red]")
+                return None
+        return value
+
     def _cmd_config(self, args: list[str]) -> CommandResult:
         """Show or edit configuration."""
         if not args:
-            # Show current config
-            if self.config:
-                table = Table(title="Configuration")
-                table.add_column("Setting", style="cyan")
-                table.add_column("Value")
-
-                table.add_row("Language", getattr(self.config, "language", "tr"))
-                table.add_row(
-                    "LLM Available",
-                    str(bool(getattr(self.config, "llm_client", None))),
-                )
-
-                if hasattr(self.config, "llm_client") and self.config.llm_client:
-                    info = self.config.llm_client.get_provider_info()
-                    table.add_row("LLM Provider", info.get("provider", "unknown"))
-                    table.add_row("LLM Model", info.get("model", "unknown"))
-
-                self.console.print(table)
-            else:
-                self.console.print("[yellow]No configuration available[/yellow]")
-        # Set config value
+            self._config_show()
         elif len(args) >= 2:
-            key, value = args[0], args[1]
-            if hasattr(self.config, key):
-                current_val = getattr(self.config, key)
-                # Type inference
-                if isinstance(current_val, bool):
-                    value = value.lower() in ("true", "1", "yes", "on")
-                elif isinstance(current_val, int):
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        self.console.print(f"[red]Invalid integer for {key}[/red]")
-                        return CommandResult(success=False, error="Invalid type")
-                elif isinstance(current_val, float):
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        self.console.print(f"[red]Invalid float for {key}[/red]")
-                        return CommandResult(success=False, error="Invalid type")
-
-                setattr(self.config, key, value)
-                self.console.print(f"[green]Set {key} = {value}[/green]")
-            else:
-                self.console.print(f"[red]Unknown config key: {key}[/red]")
-
+            return self._config_set(args[0], args[1])
         return CommandResult(success=True, output="")
 
 

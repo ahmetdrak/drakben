@@ -460,91 +460,77 @@ class DependencyResolver:
             return True
         return False
 
+    def _handle_dynamic_discovery(self, tool_name: str, force: bool, result: dict) -> dict | None:
+        """Handle dynamic tool discovery. Returns result if handled, None to continue."""
+        discovery = DynamicInstaller.search_tool(tool_name)
+
+        if not discovery["found"]:
+            result["message"] = f"Unknown tool: {tool_name} (Not found in Registry or Public Sources)"
+            return result
+
+        if not force:
+            result["success"] = False
+            result["requires_approval"] = True
+            result["proposal"] = discovery
+            result["message"] = (
+                f"Tool '{tool_name}' found on {discovery['source']}.\n"
+                f"Description: {discovery['description']}\n"
+                f"Command: {discovery['install_cmd']}\n"
+                f"⚠️ APPROVAL REQUIRED: Re-run with force=True to install."
+            )
+            return result
+
+        return self._execute_dynamic_install(discovery, result)
+
+    def _execute_dynamic_install(self, discovery: dict, result: dict) -> dict:
+        """Execute dynamic installation command."""
+        result["message"] = f"Installing discovered tool: {discovery['name']}..."
+        try:
+            proc = subprocess.run(
+                shlex.split(discovery["install_cmd"]),
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            result["success"] = proc.returncode == 0
+            result["message"] = (
+                f"Dynamic Installation Success: {discovery['name']}"
+                if result["success"]
+                else f"Install Failed: {proc.stderr}"
+            )
+            result["method"] = discovery["source"]
+        except Exception as e:
+            result["message"] = f"Dynamic Install Error: {e}"
+        return result
+
     def install_tool(self, tool_name: str, force: bool = False) -> dict[str, Any]:
         """Install a tool with reduced cognitive complexity."""
         result = {"tool": tool_name, "success": False, "message": "", "method": None}
         tool_def = TOOL_REGISTRY.get(tool_name)
 
         if not tool_def:
-            # DYNAMIC DISCOVERY LOGIC
-            logger.info(
-                f"Tool '{tool_name}' not in registry. Initiating dynamic search...",
-            )
-            discovery = DynamicInstaller.search_tool(tool_name)
-
-            if discovery["found"]:
-                # Check for FORCE/CONFIRM flag passed via args (simulated here via boolean)
-                # In real usage, the Agent must call this twice: check -> prompt -> install(force=True)
-
-                if force:
-                    result["message"] = (
-                        f"Installing discovered tool: {discovery['name']}..."
-                    )
-                    # Execute install command
-                    try:
-                        cmd = discovery["install_cmd"]
-                        if discovery["source"] == "github":
-                            # For git, we need to handle directory creation
-                            pass  # Handled by git clone usually
-
-                        proc = subprocess.run(
-                            shlex.split(cmd),
-                            shell=False,
-                            capture_output=True,
-                            text=True,
-                            timeout=300,
-                        )
-                        result["success"] = proc.returncode == 0
-                        result["message"] = (
-                            f"Dynamic Installation Success: {discovery['name']}"
-                            if result["success"]
-                            else f"Install Failed: {proc.stderr}"
-                        )
-                        result["method"] = discovery["source"]
-                        return result
-                    except Exception as e:
-                        result["message"] = f"Dynamic Install Error: {e}"
-                        return result
-                else:
-                    # RETURN PROMPT FOR APPROVAL
-                    result["success"] = False  # Not installed yet
-                    result["requires_approval"] = True
-                    result["proposal"] = discovery
-                    result["message"] = (
-                        f"Tool '{tool_name}' found on {discovery['source']}.\n"
-                        f"Description: {discovery['description']}\n"
-                        f"Command: {discovery['install_cmd']}\n"
-                        f"⚠️ APPROVAL REQUIRED: Re-run with force=True to install."
-                    )
-                    return result
-
-            result["message"] = (
-                f"Unknown tool: {tool_name} (Not found in Registry or Public Sources)"
-            )
-            return result
+            logger.info(f"Tool '{tool_name}' not in registry. Initiating dynamic search...")
+            return self._handle_dynamic_discovery(tool_name, force, result) or result
 
         if not force and self.is_tool_installed(tool_name):
             result["success"] = True
             result["message"] = f"{tool_name} is already installed"
             return result
 
-        # 1. Install dependencies
+        # Install dependencies
         for dep in tool_def.dependencies:
             if not self.install_tool(dep)["success"]:
                 result["message"] = f"Failed to install dependency: {dep}"
                 return result
 
-        # 2. Try installation methods
-        if self._install_via_package_manager(
-            tool_name,
-            tool_def.install_commands,
-            result,
-        ) or self._install_via_pip(tool_name, tool_def.install_commands, result):
+        # Try installation methods
+        if self._install_via_package_manager(tool_name, tool_def.install_commands, result):
             return result
-        result["message"] = (
-            f"No installation method available for {tool_name} on {self.system}"
-        )
+        if self._install_via_pip(tool_name, tool_def.install_commands, result):
+            return result
 
+        result["message"] = f"No installation method available for {tool_name} on {self.system}"
         return result
 
     def list_available_tools(self) -> list[dict[str, Any]]:

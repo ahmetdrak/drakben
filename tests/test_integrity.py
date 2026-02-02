@@ -37,33 +37,43 @@ def check_required_files():
     return missing
 
 
+def _should_skip_file(path: Path) -> bool:
+    """Check if file should be skipped during leak scan."""
+    return "api.env" in str(path) and "config" in str(path)
+
+
+def _scan_file_for_leaks(path: Path) -> list[str]:
+    """Scan single file for sensitive patterns."""
+    leaks = []
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            for pattern in SENSITIVE_PATTERNS:
+                if pattern in content and "your_key_here" not in content:
+                    logger.warning(f"Potential leak in {path}: Found '{pattern}'")
+                    leaks.append(str(path))
+                    break  # Only report file once
+    except Exception as e:
+        logger.debug(f"Could not read {path}: {e}")
+    return leaks
+
+
 def check_sensitive_leaks():
     """Check for hardcoded API keys or secrets in the codebase."""
     logger.info("Scanning for sensitive data leaks...")
     leaks = []
-    # Skip directories that are large or irrelevant
     skip_dirs = {".git", "__pycache__", "logs", "sessions", ".cache"}
 
     for root, dirs, files in os.walk("."):
         dirs[:] = [d for d in dirs if d not in skip_dirs]
         for file in files:
-            if file.endswith((".py", ".env", ".json", ".md")):
-                path = Path(root) / file
-                # Skip the template files themselves
-                if "api.env" in str(path) and "config" in str(path):
-                    continue
+            if not file.endswith((".py", ".env", ".json", ".md")):
+                continue
+            path = Path(root) / file
+            if _should_skip_file(path):
+                continue
+            leaks.extend(_scan_file_for_leaks(path))
 
-                try:
-                    with open(path, encoding="utf-8", errors="ignore") as f:
-                        content = f.read()
-                        for pattern in SENSITIVE_PATTERNS:
-                            if pattern in content and "your_key_here" not in content:
-                                logger.warning(
-                                    f"Potential leak in {path}: Found '{pattern}'",
-                                )
-                                leaks.append(str(path))
-                except Exception as e:
-                    logger.debug(f"Could not read {path}: {e}")
     return leaks
 
 

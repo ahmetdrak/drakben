@@ -562,6 +562,41 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 True,
             )
 
+    def _categorize_error(self, error_msg: str) -> str:
+        """Categorize error type from error message."""
+        error_lower = error_msg.lower()
+        if "timeout" in error_lower:
+            return "timeout"
+        if "connection refused" in error_lower:
+            return "connection_refused"
+        if "permission" in error_lower:
+            return "permission_denied"
+        if "not found" in error_lower or "not recognized" in error_lower:
+            return "tool_missing"
+        return "unknown"
+
+    def _attempt_tool_recovery(self, tool_name: str) -> bool:
+        """Attempt to install missing tool. Returns True if successful."""
+        try:
+            from core.universal_adapter import get_universal_adapter
+            adapter = get_universal_adapter()
+            if not adapter:
+                return False
+
+            install_result = adapter.install_tool(tool_name, force=True)
+            if install_result["success"]:
+                self.console.print(f"✅ Tool {tool_name} installed/recovered!", style="green")
+                return True
+
+            if install_result.get("requires_approval"):
+                logger.warning(f"Tool {tool_name} requires manual approval: {install_result['message']}")
+
+            self.console.print(f"❌ Recovery failed: {install_result['message']}", style="red")
+            return False
+        except Exception as e:
+            logger.exception("Dynamic recovery crashed: %s", e)
+            return False
+
     def _handle_step_failure(
         self,
         step: PlanStep,
@@ -569,63 +604,17 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     ) -> bool:
         """Handle failed step execution. Returns False if critical failure loop break needed."""
         stderr_msg = execution_result.get("stderr", "Unknown error")
-        should_replan: bool = self.planner.mark_step_failed(
-            step.step_id,
-            stderr_msg[:200],
-        )
+        should_replan: bool = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
         self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
 
-        # === RECORD FAILURE + POLICY LEARNING ===
-        error_msg = stderr_msg[:100]
-        error_type = "unknown"
-        if "timeout" in error_msg.lower():
-            error_type = "timeout"
-        elif "connection refused" in error_msg.lower():
-            error_type = "connection_refused"
-        elif "permission" in error_msg.lower():
-            error_type = "permission_denied"
-        elif "not found" in error_msg.lower() or "not recognized" in error_msg.lower():
-            self.console.print(
-                f"⚠️ Tool '{step.tool}' miss, attempting Auto-Recovery...",
-                style=self.STYLE_YELLOW,
-            )
-            # DYNAMIC RECOVERY: Try to install missing tool
-            try:
-                from core.universal_adapter import get_universal_adapter
+        error_type = self._categorize_error(stderr_msg[:100])
 
-                adapter = get_universal_adapter()
-                if adapter:
-                    # Search and install
-                    install_result = adapter.install_tool(
-                        step.tool,
-                        force=True,
-                    )  # Force true for autonomous mode checks
-                    if install_result["success"]:
-                        self.console.print(
-                            f"✅ Tool {step.tool} installed/recovered! Retrying step...",
-                            style="green",
-                        )
-                        # Re-queue the step to try again immediately
-                        self.planner.replan(step.step_id)
-                        return True
-                    # Check if it requires approval (e.g. from GitHub)
-                    if install_result.get("requires_approval"):
-                        logger.warning(
-                            f"Tool {step.tool} requires manual approval: {install_result['message']}",
-                        )
-
-                    self.console.print(
-                        f"❌ Recovery failed: {install_result['message']}",
-                        style="red",
-                    )
-
-            except Exception as e:
-                logger.exception("Dynamic recovery crashed: %s", e)
-
-            self.console.print(
-                f"🛑 CRITICAL: Tool '{step.tool}' irreparably missing.",
-                style=self.STYLE_RED,
-            )
+        if error_type == "tool_missing":
+            self.console.print(f"⚠️ Tool '{step.tool}' miss, attempting Auto-Recovery...", style=self.STYLE_YELLOW)
+            if self._attempt_tool_recovery(step.tool):
+                self.planner.replan(step.step_id)
+                return True
+            self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
             self.running = False
             return False
 
