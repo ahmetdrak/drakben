@@ -399,7 +399,8 @@ OUTPUT JSON: {{"intent":"scan|exploit|chat","confidence":0.0-1.0,"response":"","
             # Direct chat mode - no JSON, just conversation
             return self._chat_with_llm(user_input, user_lang, context)
 
-        # Context Construction
+        # Context Construction (auto-selects compact vs full based on model/task)
+        context.system_info["last_input"] = user_input  # For prompt selection
         system_prompt: str = self._construct_system_prompt(user_lang, context)
 
         try:
@@ -669,23 +670,74 @@ IMPORTANT:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _should_use_compact_prompt(
+        self,
+        user_input: str,
+        context: ExecutionContext,
+    ) -> bool:
+        """Determine if compact prompt should be used based on model and task.
+
+        Args:
+            user_input: The user's input text
+            context: Execution context
+
+        Returns:
+            True if compact prompt is sufficient, False for full prompt.
+
+        """
+        # Get model name from LLM client
+        model = ""
+        if self.llm_client:
+            model = getattr(self.llm_client, "model", "").lower()
+            if not model:
+                model = getattr(self.llm_client, "model_name", "").lower()
+
+        # Smart models that work well with compact prompts
+        smart_models = [
+            "gpt-4", "gpt-4o", "claude-3", "claude-3.5",
+            "gemini-pro", "gemini-1.5", "o1", "o3",
+        ]
+        is_smart = any(m in model for m in smart_models)
+
+        # Complex tasks that need full prompt
+        complex_keywords = [
+            "plan", "strateji", "lateral", "pivot", "chain",
+            "multi", "advanced", "gelişmiş", "karmaşık", "complex",
+        ]
+        user_lower = user_input.lower() if isinstance(user_input, str) else ""
+        is_complex = any(k in user_lower for k in complex_keywords)
+
+        # Decision matrix
+        if is_complex:
+            return False  # Complex tasks need full prompt
+        if is_smart:
+            return True  # Smart models work with compact
+        return False  # Default to full for safety
+
     def _construct_system_prompt(
         self,
         user_lang: str,
         context: ExecutionContext,
-        use_compact: bool = False,
+        use_compact: bool | None = None,
     ) -> str:
         """Helper to construct the system prompt for pentest analysis.
 
         Args:
             user_lang: User's preferred language (tr/en)
             context: Execution context with target info
-            use_compact: Use compact prompt for cost optimization
+            use_compact: Use compact prompt. None = auto-detect.
 
         Returns:
             System prompt string
 
         """
+        # Auto-detect if not specified
+        if use_compact is None:
+            use_compact = self._should_use_compact_prompt(
+                context.system_info.get("last_input", ""),
+                context,
+            )
+
         # Compact mode for cost-sensitive operations
         if use_compact:
             return self.COMPACT_SYSTEM_PROMPT
