@@ -1,0 +1,28 @@
+# DRAKBEN Git Attributes
+# Bu dosyalar sadece geliştirme için - git archive/download ile indirilmez
+
+# CI/CD & Developer Tools (end-user'a gereksiz)
+sonar-project.properties export-ignore
+ruff.toml export-ignore
+.github/ export-ignore
+.vscode/ export-ignore
+
+# Development files
+tests/ export-ignore
+conftest.py export-ignore
+pytest.ini export-ignore
+
+# Documentation for devs only
+ROADMAP_V3.md export-ignore
+
+# Keep these for end-users:
+# - README.md ✓
+# - LICENSE ✓
+# - requirements.txt ✓
+# - docker-compose.yml ✓
+# - Dockerfile ✓
+# - config/ ✓
+# - core/ ✓
+# - modules/ ✓
+# - llm/ ✓
+# - drakben.py ✓
