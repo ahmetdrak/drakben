@@ -1,15 +1,6 @@
 <div align="center">
 
-```
-    ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
-    ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║
-    ██║  ██║██████╔╝███████║█████╔╝ ██████╔╝█████╗  ██╔██╗ ██║
-    ██║  ██║██╔══██╗██╔══██║██╔═██╗ ██╔══██╗██╔══╝  ██║╚██╗██║
-    ██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝███████╗██║ ╚████║
-    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝
-```
-
-### Autonomous Penetration Testing Framework
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=200&section=header&text=DRAKBEN&fontSize=80&fontAlignY=35&desc=Autonomous%20Penetration%20Testing%20Framework&descAlignY=55&descSize=20&animation=twinkling" width="100%"/>
 
 *Let AI handle the methodology. You focus on the results.*
 
