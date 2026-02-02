@@ -157,6 +157,25 @@ class DrakbenMenu:
         )
         self.console.print()
 
+    def _get_status_labels(self, is_tr: bool) -> tuple[str, str, str, str]:
+        """Get localized status labels."""
+        return (
+            "HEDEF" if is_tr else "TARGET",
+            "SİSTEM" if is_tr else "SYSTEM",
+            "MOD" if is_tr else "MODE",
+            "KOMUTLAR" if is_tr else "COMMANDS",
+        )
+
+    def _get_mode_info(self, is_tr: bool) -> tuple[str, str]:
+        """Get stealth mode display info."""
+        is_stealth = getattr(self.config, "stealth_mode", False)
+        icon = "🥷" if is_stealth else "📢"
+        # Avoid nested ternary for SonarQube compliance
+        on_text, off_text = ("AÇIK", "KAPALI") if is_tr else ("ON", "OFF")
+        status = on_text if is_stealth else off_text
+        color = self.STYLE_BOLD_GREEN if is_stealth else self.STYLE_BOLD_YELLOW
+        return f"{icon} {status}", color
+
     def show_status_line(self) -> None:
         """Professional HUD Status Line (Premium Tactical Design)."""
         self.console.print()
@@ -164,62 +183,34 @@ class DrakbenMenu:
         from rich.table import Table
         from rich.text import Text
 
-        lang = self.config.language
-        is_tr = lang == "tr"
+        is_tr = self.config.language == "tr"
 
-        target = self.config.target or ("UNKNOWN" if not is_tr else "BELİRSİZ")
+        target = self.config.target or ("BELİRSİZ" if is_tr else "UNKNOWN")
         target_style = self.STYLE_BOLD_WHITE if self.config.target else "dim red"
+        os_info = "Kali 🐉" if self.system_info.get("is_kali") else f"{self.system_info.get('os')} 💻"
+        mode_text, mode_color = self._get_mode_info(is_tr)
+        lbl_target, lbl_system, lbl_mode, hint_lbl = self._get_status_labels(is_tr)
 
-        os_info = (
-            "Kali 🐉"
-            if self.system_info.get("is_kali")
-            else f"{self.system_info.get('os')} 💻"
-        )
-
-        # Mode logic - Strictly ON/OFF or AÇIK/KAPALI
-        is_stealth = getattr(self.config, "stealth_mode", False)
-        stealth_icon = "🥷" if is_stealth else "📢"
-
-        if is_tr:
-            mode_status = "AÇIK" if is_stealth else "KAPALI"
-        else:
-            mode_status = "ON" if is_stealth else "OFF"
-
-        mode_text = f"{stealth_icon} {mode_status}"
-        mode_color = self.STYLE_BOLD_GREEN if is_stealth else self.STYLE_BOLD_YELLOW
+        # Build segments helper
+        def get_seg(lbl: str, val: str, val_style: str = DrakbenMenu.STYLE_BOLD_WHITE) -> Text:
+            t = Text()
+            t.append(lbl, style="dim cyan")
+            t.append(f" {val}", style=val_style)
+            return t
 
         # Tactical HUD Table
         status_table = Table(show_header=False, box=None, expand=True, padding=(0, 2))
         status_table.add_column("C1", ratio=1)
         status_table.add_column("C2", ratio=1)
         status_table.add_column("C3", ratio=1)
-
-        # Build segments with labels
-        def get_seg(lbl: str, val: str, val_style: str = DrakbenMenu.STYLE_BOLD_WHITE) -> Any:  # noqa: ANN401
-            t = Text()
-            t.append(lbl, style="dim cyan")
-            t.append(f" {val}", style=val_style)
-            return t
-
-        lbl_target = "TARGET" if not is_tr else "HEDEF"
-        lbl_system = "SYSTEM" if not is_tr else "SİSTEM"
-        lbl_mode = "MODE" if not is_tr else "MOD"
-
         status_table.add_row(
             get_seg(lbl_target, target, target_style),
             get_seg(lbl_system, os_info),
             get_seg(lbl_mode, mode_text, mode_color),
         )
 
-        # Render
-        self.console.print(
-            Panel(status_table, style="blue", border_style="dim blue", padding=(0, 1)),
-        )
-
-        # Command Hint (Bold Cyan)
-        hint_lbl = "COMMANDS" if not is_tr else "KOMUTLAR"
+        self.console.print(Panel(status_table, style="blue", border_style="dim blue", padding=(0, 1)))
         commands = "[dim cyan]/help[/] • [dim cyan]/target[/] • [dim cyan]/scan[/] • [dim cyan]/status[/] • [dim cyan]/shell[/] • [dim cyan]/report[/] • [dim cyan]/llm[/] • [dim cyan]/config[/] • [dim cyan]/clear[/] • [dim cyan]/exit[/]"
-
         self.console.print(f" [{self.STYLE_BOLD_CYAN}]{hint_lbl}:[/] {commands}")
         self.console.print()
 
@@ -610,6 +601,28 @@ class DrakbenMenu:
             or re.match(domain_pattern, target, re.IGNORECASE),
         )
 
+    def _show_current_target_info(self, lang: str) -> None:
+        """Display current target information panel."""
+        from rich.panel import Panel
+
+        current_target = self.config.target
+        if current_target:
+            msg = (
+                f"🎯 Mevcut hedef: [bold white]{current_target}[/]\nDeğiştirmek için: /target <IP>"
+                if lang == "tr"
+                else f"🎯 Current target: [bold white]{current_target}[/]\nTo change: /target <IP>"
+            )
+            title, border = ("Hedef Bilgisi", "cyan") if lang == "tr" else ("Target Info", "cyan")
+        else:
+            msg = (
+                "Hedef ayarlanmamış. Kullanım: [bold]/target <IP>[/]"
+                if lang == "tr"
+                else "No target set. Usage: [bold]/target <IP>[/]"
+            )
+            title, border = ("Hedef Yok", "red") if lang == "tr" else ("No Target", "red")
+
+        self.console.print(Panel(f"{msg}", title=f"[bold]{title}[/]", border_style=border, padding=(0, 1)))
+
     def _cmd_target(self, args: str = "") -> None:
         """Set target - with visual feedback."""
         from rich.panel import Panel
@@ -618,36 +631,12 @@ class DrakbenMenu:
         args = args.strip()
 
         if not args:
-            current_target = self.config.target
-            if current_target:
-                msg = (
-                    f"🎯 Mevcut hedef: [bold white]{current_target}[/]\nDeğiştirmek için: /target <IP>"
-                    if lang == "tr"
-                    else f"🎯 Current target: [bold white]{current_target}[/]\nTo change: /target <IP>"
-                )
-                title = "Hedef Bilgisi" if lang == "tr" else "Target Info"
-                border = "cyan"
-            else:
-                msg = (
-                    "Hedef ayarlanmamış. Kullanım: [bold]/target <IP>[/]"
-                    if lang == "tr"
-                    else "No target set. Usage: [bold]/target <IP>[/]"
-                )
-                title = "Hedef Yok" if lang == "tr" else "No Target"
-                border = "red"
-
-            self.console.print(
-                Panel(
-                    f"{msg}",
-                    title=f"[bold]{title}[/]",
-                    border_style=border,
-                    padding=(0, 1),
-                ),
-            )
+            self._show_current_target_info(lang)
             return
 
         # Explicit clear check
-        if args.lower() in ["clear", "off", "none", "delete", "sil", "iptal", "remove"]:
+        clear_keywords = {"clear", "off", "none", "delete", "sil", "iptal", "remove"}
+        if args.lower() in clear_keywords:
             self._cmd_untarget("")
             return
 
@@ -664,16 +653,12 @@ class DrakbenMenu:
         self.config_manager.set_target(args)
         self.config = self.config_manager.config
 
-        if lang == "tr":
-            content: str = f"[bold {self.COLORS['green']}]🎯 Hedef ayarlandı:[/] [bold white]{args}[/]"
-        else:
-            content: str = (
-                f"[bold {self.COLORS['green']}]🎯 Target set:[/] [bold white]{args}[/]"
-            )
-
-        self.console.print(
-            Panel(content, border_style=self.COLORS["green"], padding=(0, 1)),
+        content = (
+            f"[bold {self.COLORS['green']}]🎯 Hedef ayarlandı:[/] [bold white]{args}[/]"
+            if lang == "tr"
+            else f"[bold {self.COLORS['green']}]🎯 Target set:[/] [bold white]{args}[/]"
         )
+        self.console.print(Panel(content, border_style=self.COLORS["green"], padding=(0, 1)))
 
     def _cmd_untarget(self, args: str = "") -> None:
         """Clear target command."""
@@ -1017,66 +1002,59 @@ class DrakbenMenu:
         )
         self.console.print()
 
-    def _create_live_findings_table(self) -> "Table":
-        """Create a table showing live ports and vulns."""
+    def _get_service_status(self, svc: Any, vuln_map: dict, is_tr: bool) -> str:  # noqa: ANN401
+        """Get status text for a service row."""
+        if svc.port in vuln_map:
+            v = vuln_map[svc.port]
+            return f"[bold red]⚠ {v.vuln_id} ({v.severity})[/]"
+        if svc.vulnerable:
+            vuln_text = "Potansiyel Zafiyet" if is_tr else "Potentially Vulnerable"
+            return f"[bold red]⚠ {vuln_text}[/]"
+        open_text = "Açık" if is_tr else "Open"
+        return f"[green]{open_text}[/]"
+
+    def _create_findings_table_base(self, is_tr: bool) -> "Table":
+        """Create base findings table with columns."""
         from rich.table import Table
 
-        lang = self.config.language
-        is_tr = lang == "tr"
-
+        svc_col = "SERVİS" if is_tr else "SERVICE"
+        status_col = "DURUM/ZAFİYET" if is_tr else "STATUS/VULN"
         table = Table(box=None, padding=(0, 1), expand=True)
         table.add_column("PORT", style=self.STYLE_BOLD_CYAN, width=10)
-        table.add_column("SERVICE" if not is_tr else "SERVİS", style="white", width=20)
-        table.add_column(
-            "STATUS/VULN" if not is_tr else "DURUM/ZAFİYET",
-            style="yellow",
-        )
+        table.add_column(svc_col, style="white", width=20)
+        table.add_column(status_col, style="yellow")
+        return table
+
+    def _create_live_findings_table(self) -> "Table":
+        """Create a table showing live ports and vulns."""
+        is_tr = self.config.language == "tr"
+        table = self._create_findings_table_base(is_tr)
 
         if not self.agent or not self.agent.state:
-            table.add_row(
-                "-",
-                "No active agent" if not is_tr else "Aktif ajan yok",
-                "[dim]N/A[/]",
-            )
+            no_agent = "Aktif ajan yok" if is_tr else "No active agent"
+            table.add_row("-", no_agent, "[dim]N/A[/]")
             return table
 
         state: AgentState = self.agent.state
-
-        # Add Services
         if not state.open_services and not state.vulnerabilities:
-            msg = "Scanning..." if not is_tr else "Tarama yapılıyor..."
-            wait_msg = "Wait" if not is_tr else "Bekle"
-            no_findings = "No findings yet" if not is_tr else "Henüz bulgu yok"
-            table.add_row(
-                f"[dim]{wait_msg}[/]",
-                f"[dim]{msg}[/]",
-                f"[dim]{no_findings}[/]",
-            )
+            self._add_scanning_row(table, is_tr)
             return table
 
-        # Map vulns by port for easier display
-        vuln_map = {}
-        for v in state.vulnerabilities:
-            vuln_map[v.port] = v
-
+        vuln_map = {v.port: v for v in state.vulnerabilities}
         for svc in state.open_services:
-            port_str = f"{svc.port}/{svc.protocol}"
-            svc_str = f"{svc.service} {svc.version or ''}"
-
-            status = "[green]Open[/]" if not is_tr else "[green]Açık[/]"
-            if svc.port in vuln_map:
-                v = vuln_map[svc.port]
-                status = f"[bold red]⚠ {v.vuln_id} ({v.severity})[/]"
-            elif svc.vulnerable:
-                status = (
-                    "[bold red]⚠ Potentially Vulnerable[/]"
-                    if not is_tr
-                    else "[bold red]⚠ Potansiyel Zafiyet[/]"
-                )
-
-            table.add_row(port_str, svc_str, status)
-
+            table.add_row(
+                f"{svc.port}/{svc.protocol}",
+                f"{svc.service} {svc.version or ''}",
+                self._get_service_status(svc, vuln_map, is_tr),
+            )
         return table
+
+    def _add_scanning_row(self, table: Any, is_tr: bool) -> None:  # noqa: ANN401
+        """Add scanning placeholder row to table."""
+        wait = "Bekle" if is_tr else "Wait"
+        scanning = "Tarama yapılıyor..." if is_tr else "Scanning..."
+        no_findings = "Henüz bulgu yok" if is_tr else "No findings yet"
+        table.add_row(f"[dim]{wait}[/]", f"[dim]{scanning}[/]", f"[dim]{no_findings}[/]")
 
     def _create_plan_table(self) -> "Table":
         """Create a table showing current plan steps."""

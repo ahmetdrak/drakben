@@ -6,6 +6,7 @@ Author: @ahmetdrak.
 
 import asyncio
 import logging
+import re
 import secrets
 import socket
 from typing import Any

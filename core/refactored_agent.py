@@ -621,10 +621,10 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         # Record failure to database
         if self.current_profile:
-            self._record_failure_learning(step, error_type, error_msg)
+            self._record_failure_learning(step, error_type, stderr_msg)
 
         if should_replan:
-            self._handle_replan(step, error_msg)
+            self._handle_replan(step, stderr_msg)
 
         return True
 
