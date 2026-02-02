@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12&height=200&section=header&text=DRAKBEN&fontSize=80&fontAlignY=35&desc=Autonomous%20Penetration%20Testing%20Framework&descAlignY=55&descSize=20&animation=twinkling" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=venom&color=0:8B0000,100:1a1a2e&height=200&section=header&text=DRAKBEN&fontSize=70&fontColor=ff5555&fontAlignY=35&desc=Autonomous%20Penetration%20Testing%20Framework&descAlignY=55&descSize=18&descColor=f8f8f2&animation=fadeIn" width="100%"/>
 
 *Let AI handle the methodology. You focus on the results.*
 
