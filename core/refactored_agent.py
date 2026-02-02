@@ -63,6 +63,9 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     5. Restart Evolution - Persist learning across restarts
     """
 
+    # Constant for assertion messages (SonarCloud: avoid duplicate literals)
+    MSG_STATE_NOT_NONE = "self.state is not None"
+
     def __init__(self, config_manager: ConfigManager) -> None:
         self.config: ConfigManager = config_manager
         self.console = Console()
@@ -447,8 +450,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         if self.state is None:
 
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         self.state.increment_iteration()
         return True
 
@@ -512,8 +514,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Record action to evolution memory."""
         # Using assertion for Mypy safety, logic handles None gracefully via defaults but type checker complains
         if self.state is None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         target: str | None = self.state.target
         record = ActionRecord(
             goal=f"pentest_{target}",
@@ -2084,8 +2085,7 @@ Respond in JSON:
     ) -> None:
         """Update state based on tool result."""
         if self.state is None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         # Set observation
         self.state.set_observation(observation)
 
@@ -2123,8 +2123,7 @@ Respond in JSON:
     def _process_exploit_result(self, tool_name: str, result: dict) -> None:
         """Helper to process exploit results."""
         if self.state is None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
         # Check if exploit succeeded
         if (
@@ -2138,9 +2137,8 @@ Respond in JSON:
 
     def _update_state_nmap_port_scan(self, result: dict) -> None:
         """Update state from Nmap port scan results."""
-        if not self.state is not None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+        if self.state is None:
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         from core.tool_parsers import parse_nmap_output
 
         stdout = result.get("stdout", "")
@@ -2165,8 +2163,7 @@ Respond in JSON:
     def _apply_mock_services(self) -> None:
         """Apply mock services for testing or fallback."""
         if self.state is None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         services: list[ServiceInfo] = [
             ServiceInfo(port=80, protocol="tcp", service="http"),
             ServiceInfo(port=443, protocol="tcp", service="https"),
@@ -2177,8 +2174,7 @@ Respond in JSON:
     def _update_state_service_completion(self, result: dict) -> None:
         """Mark service as tested."""
         if self.state is None:
-            msg = "self.state is not None"
-            raise AssertionError(msg)
+            raise AssertionError(self.MSG_STATE_NOT_NONE)
         args_port = result.get("args", {}).get("port")
         if not args_port:
             self.state.set_observation("Missing port in tool args; state not updated")

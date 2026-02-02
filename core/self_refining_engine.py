@@ -991,6 +991,46 @@ class SelfRefiningEngine:
             last_used_at=None,
         )
 
+    def _mutate_numeric_param(
+        self,
+        original_value: int | float,
+        is_int: bool,
+    ) -> int | float:
+        """Apply mutation to a single numeric parameter."""
+        u = (secrets.randbelow(200000) / 100000.0) - 1.0
+        change = u * self.MUTATION_PARAM_CHANGE
+        new_value = max(1, original_value * (1 + change))
+
+        if not is_int:
+            return new_value
+
+        new_val = int(new_value)
+        if new_val == original_value:
+            new_val = new_val + 1 if change >= 0 else max(1, new_val - 1)
+        return new_val
+
+    def _mutate_params(self, params: dict) -> dict:
+        """Mutate numeric parameters by ±20%."""
+        new_params = copy.deepcopy(params)
+        for key in new_params:
+            if isinstance(new_params[key], int | float):
+                new_params[key] = self._mutate_numeric_param(
+                    new_params[key],
+                    isinstance(params[key], int),
+                )
+        return new_params
+
+    def _mutate_steps(self, steps: list[str]) -> list[str]:
+        """Shuffle step order by swapping two random steps."""
+        new_steps = steps.copy()
+        if len(new_steps) >= 2:
+            idxs = list(range(len(new_steps)))
+            idx1 = secrets.choice(idxs)
+            idxs.remove(idx1)
+            idx2 = secrets.choice(idxs)
+            new_steps[idx1], new_steps[idx2] = new_steps[idx2], new_steps[idx1]
+        return new_steps
+
     def _apply_mutation(
         self,
         params: dict,
@@ -999,42 +1039,10 @@ class SelfRefiningEngine:
     ) -> dict:
         """Apply measurable mutation to create new profile."""
         new_id = self._generate_id("mut_")
-
-        # Mutation 1: Modify parameters
-        new_params = copy.deepcopy(params)
-        for key in new_params:
-            if isinstance(new_params[key], int | float):
-                # Change by ±20%
-                # secrets doesn't have uniform, so we do randbelow and scale
-                # random.uniform(-limit, limit) is roughly:
-                u = (secrets.randbelow(200000) / 100000.0) - 1.0  # -1.0 to 1.0
-                change = u * self.MUTATION_PARAM_CHANGE
-                new_params[key] = max(1, new_params[key] * (1 + change))
-                if isinstance(params[key], int):
-                    new_val = int(new_params[key])
-                    # Ensure minimal change for small integers
-                    if new_val == params[key]:
-                        # Force change: +1 if positive mutation, -1 if negative (but min 1)
-                        if change >= 0:
-                            new_val += 1
-                        else:
-                            new_val = max(1, new_val - 1)
-                    new_params[key] = new_val
-
-        # Mutation 2: Shuffle step order
-        new_steps = steps.copy()
-        if len(new_steps) >= 2:
-            # Swap two random steps
-            # random.sample replacement
-            idxs = list(range(len(new_steps)))
-            # Fisher-Yates shuffle part or just pick two distinct
-            idx1 = secrets.choice(idxs)
-            idxs.remove(idx1)
-            idx2 = secrets.choice(idxs)
-            new_steps[idx1], new_steps[idx2] = new_steps[idx2], new_steps[idx1]
+        new_params = self._mutate_params(params)
+        new_steps = self._mutate_steps(steps)
 
         # Mutation 3: Adjust aggressiveness
-        # random.uniform(-0.2, 0.2)
         aggression_change = ((secrets.randbelow(200) / 100.0) - 1.0) * 0.2
         new_aggression = max(0.0, min(1.0, aggression + aggression_change))
 

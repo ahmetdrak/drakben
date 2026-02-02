@@ -41,13 +41,27 @@ def fix_unicode_warnings(content):
     return content
 
 
+def _find_next_non_empty_line(lines: list[str], start_idx: int) -> int:
+    """Find the index of the next non-empty line."""
+    idx = start_idx
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+    return idx
+
+
+def _needs_docstring(lines: list[str], next_idx: int) -> bool:
+    """Check if a class/function definition needs a docstring."""
+    if next_idx >= len(lines):
+        return False
+    next_line = lines[next_idx].strip()
+    return not next_line.startswith(('\"\"\"', "'''"))
+
+
 def add_smart_placeholders(content):
     """D101, D102, D103: Add missing docstrings."""
     lines = content.splitlines()
     new_lines = []
-
-    # Regex to find classes and functions without docstrings
-    class_fn_pattern = re.compile(r"^(\s*)(class|def)\s+(\w+)")
+    class_fn_pattern = re.compile(r"^(\\s*)(class|def)\\s+(\\w+)")
 
     i = 0
     while i < len(lines):
@@ -55,28 +69,19 @@ def add_smart_placeholders(content):
         new_lines.append(line)
 
         match = class_fn_pattern.match(line)
-        if match:
+        if match and line.strip().endswith(":"):
             indent = match.group(1)
             keyword = match.group(2)
             name = match.group(3)
 
-            # Skip if this is just a decorator or continuation
-            if line.strip().endswith(":"):
-                # Check next non-empty line
-                next_idx = i + 1
-                while next_idx < len(lines) and not lines[next_idx].strip():
-                    next_idx += 1
-
-                if next_idx < len(lines):
-                    next_line = lines[next_idx].strip()
-                    if not (next_line.startswith(('"""', "'''"))):
-                        # Insert docstring
-                        doc_indent = indent + "    "
-                        new_lines.append(
-                            f'{doc_indent}"""Auto-generated docstring for {name} {keyword}."""',
-                        )
+            next_idx = _find_next_non_empty_line(lines, i + 1)
+            if _needs_docstring(lines, next_idx):
+                doc_indent = indent + "    "
+                new_lines.append(
+                    f'{doc_indent}\"\"\"Auto-generated docstring for {name} {keyword}.\"\"\"',
+                )
         i += 1
-    return "\n".join(new_lines)
+    return "\\n".join(new_lines)
 
 
 def add_missing_type_hints(content):

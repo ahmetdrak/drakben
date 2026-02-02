@@ -280,7 +280,7 @@ class CredentialHarvester:
                         source=filepath,
                     )
                     found_in_file.append(cred)
-        except (OSError, PermissionError):
+        except OSError:
             pass
         return found_in_file
 
@@ -373,37 +373,31 @@ class NetworkMapper:
 
     def get_local_interfaces(self) -> list[str]:
         """Get local network interfaces and their IPs."""
-        interfaces = []
+        interfaces: list[str] = []
 
+        # Get all network interfaces
+        hostname = socket.gethostname()
+
+        # Get all IPs for this host
         try:
-            # Get all network interfaces
-            import socket
+            ips = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            for ip_info in ips:
+                ip = ip_info[4][0]
+                if not ip.startswith("127."):
+                    interfaces.append(ip)
+        except socket.gaierror:
+            pass
 
-            hostname = socket.gethostname()
-
-            # Get all IPs for this host
-            try:
-                ips = socket.getaddrinfo(hostname, None, socket.AF_INET)
-                for ip_info in ips:
-                    ip = ip_info[4][0]
-                    if not ip.startswith("127."):
-                        interfaces.append(ip)
-            except socket.gaierror:
-                pass
-
-            # Also try to get the primary IP
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                primary_ip = s.getsockname()[0]
-                s.close()
-                if primary_ip not in interfaces:
-                    interfaces.append(primary_ip)
-            except Exception as e:
-                logger.debug("Failed to get primary IP: %s", e)
-
-        except Exception as e:
-            logger.debug("Error getting interfaces: %s", e)
+        # Also try to get the primary IP
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            primary_ip = s.getsockname()[0]
+            s.close()
+            if primary_ip not in interfaces:
+                interfaces.append(primary_ip)
+        except OSError as e:
+            logger.debug("Failed to get primary IP: %s", e)
 
         self.local_interfaces = interfaces
         return interfaces

@@ -220,7 +220,7 @@ class DrakbenMenu:
         hint_lbl = "COMMANDS" if not is_tr else "KOMUTLAR"
         commands = "[dim cyan]/help[/] • [dim cyan]/target[/] • [dim cyan]/scan[/] • [dim cyan]/status[/] • [dim cyan]/shell[/] • [dim cyan]/report[/] • [dim cyan]/llm[/] • [dim cyan]/config[/] • [dim cyan]/clear[/] • [dim cyan]/exit[/]"
 
-        self.console.print(f" [bold cyan]{hint_lbl}:[/] {commands}")
+        self.console.print(f" [{self.STYLE_BOLD_CYAN}]{hint_lbl}:[/] {commands}")
         self.console.print()
 
     def run(self) -> None:
@@ -1122,6 +1122,31 @@ class DrakbenMenu:
             )
         return table
 
+    def _build_report_summary_table(self, lang: str, final_path: str) -> "Table":
+        """Build summary table for report output."""
+        from rich.table import Table
+
+        summary_table = Table(show_header=False, box=None, padding=(0, 1))
+        summary_table.add_column("K", style="bold purple")
+        summary_table.add_column("V")
+
+        s = self.agent.state  # type: ignore[union-attr]
+        v_count = len(s.vulnerabilities)
+        svc_count = len(s.open_services)
+
+        if lang == "tr":
+            summary_table.add_row("📊 Durum:", "[bold green]BAŞARILI[/]")
+            summary_table.add_row("📂 Dosya:", f"[cyan]{final_path}[/]")
+            summary_table.add_row("🔌 Servisler:", f"{svc_count}")
+            summary_table.add_row("⚠️  Zafiyetler:", f"[bold red]{v_count}[/]")
+        else:
+            summary_table.add_row("📊 Status:", "[bold green]SUCCESS[/]")
+            summary_table.add_row("📂 Path:", f"[cyan]{final_path}[/]")
+            summary_table.add_row("🔌 Services:", f"{svc_count}")
+            summary_table.add_row("⚠️  Vulns:", f"[bold red]{v_count}[/]")
+
+        return summary_table
+
     def _cmd_report(self, args: str = "") -> None:
         """Generate professional report."""
         from rich.panel import Panel
@@ -1135,78 +1160,29 @@ class DrakbenMenu:
         lang = self.config.language
 
         if not self.agent or not self.agent.state:
-            msg = (
-                "Önce bir tarama başlatmalısın."
-                if lang == "tr"
-                else "You must start a scan first."
-            )
+            msg = "Önce bir tarama başlatmalısın." if lang == "tr" else "You must start a scan first."
             self.console.print(Panel(f"[red]❌ {msg}[/]", style="red"))
             return
 
-        gen_msg = (
-            "Profesyonel rapor oluşturuluyor..."
-            if lang == "tr"
-            else "Generating professional report..."
-        )
+        gen_msg = "Profesyonel rapor oluşturuluyor..." if lang == "tr" else "Generating professional report..."
         self.console.print(f"[bold {self.COLORS['purple']}]📝 {gen_msg}[/]")
 
         try:
-            # Create reports directory
             reports_dir = Path("reports")
             reports_dir.mkdir(exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            target_clean = (
-                (self.config.target or "unknown")
-                .replace(".", "_")
-                .replace("/", "_")
-                .replace(":", "_")
-            )
-            output_path = (
-                reports_dir / f"drakben_report_{target_clean}_{timestamp}.html"
-            )
+            target_clean = (self.config.target or "unknown").replace(".", "_").replace("/", "_").replace(":", "_")
+            output_path = reports_dir / f"drakben_report_{target_clean}_{timestamp}.html"
 
-            # Use ReportGenerator
-            config = ReportConfig(
-                title=f"DRAKBEN AI Security Report - {self.config.target}",
-                use_llm_summary=True,
-            )
+            config = ReportConfig(title=f"DRAKBEN AI Security Report - {self.config.target}", use_llm_summary=True)
+            final_path = generate_report_from_state(state=self.agent.state, output_path=str(output_path), format=ReportFormat.HTML, config=config)
 
-            final_path = generate_report_from_state(
-                state=self.agent.state,
-                output_path=str(output_path),
-                format=ReportFormat.HTML,
-                config=config,
-            )
-
-            # --- REPORT SUMMARY PANEL ---
-            from rich.table import Table
-
-            summary_table = Table(show_header=False, box=None, padding=(0, 1))
-            summary_table.add_column("K", style="bold purple")
-            summary_table.add_column("V")
-
-            s = self.agent.state
-            v_count = len(s.vulnerabilities)
-            svc_count = len(s.open_services)
-
-            if lang == "tr":
-                summary_table.add_row("📊 Durum:", "[bold green]BAŞARILI[/]")
-                summary_table.add_row("📂 Dosya:", f"[cyan]{final_path}[/]")
-                summary_table.add_row("🔌 Servisler:", f"{svc_count}")
-                summary_table.add_row("⚠️  Zafiyetler:", f"[bold red]{v_count}[/]")
-                stitle = "RAPOR ÖZETİ"
-            else:
-                summary_table.add_row("📊 Status:", "[bold green]SUCCESS[/]")
-                summary_table.add_row("📂 Path:", f"[cyan]{final_path}[/]")
-                summary_table.add_row("🔌 Services:", f"{svc_count}")
-                summary_table.add_row("⚠️  Vulns:", f"[bold red]{v_count}[/]")
-                stitle = "REPORT SUMMARY"
-
+            stitle = "RAPOR ÖZETİ" if lang == "tr" else "REPORT SUMMARY"
             self.console.print()
             self.console.print(
                 Panel(
-                    summary_table,
+                    self._build_report_summary_table(lang, final_path),
                     title=f"[bold {self.COLORS['purple']}]{stitle}[/]",
                     border_style=self.COLORS["purple"],
                     padding=(1, 2),
@@ -1214,23 +1190,38 @@ class DrakbenMenu:
             )
 
         except Exception as e:
-            err_msg = (
-                f"Rapor oluşturma hatası: {e}"
-                if lang == "tr"
-                else f"Report generation error: {e}"
-            )
+            err_msg = f"Rapor oluşturma hatası: {e}" if lang == "tr" else f"Report generation error: {e}"
             self.console.print(f"[bold red]❌ {err_msg}[/]")
+
+    def _get_localized_labels(self, is_tr: bool) -> dict[str, str]:
+        """Get localized labels for system table."""
+        return {
+            "header_id": "DİJİTAL KİMLİK" if is_tr else "OPERATIONAL IDENTITY",
+            "header_perf": "SİSTEM METRİKLERİ" if is_tr else "SYSTEM METRICS",
+            "lbl_status": "DURUM" if is_tr else "STATUS",
+            "lbl_value": "DEĞER" if is_tr else "VALUE",
+            "lbl_scope": "Aktif Kapsam" if is_tr else "Active Scope",
+            "lbl_lang": "Nöral Dil" if is_tr else "Neural Link",
+            "lbl_os": "Ana Bilgisayar" if is_tr else "Host Machine",
+            "lbl_tools": "Aktif Modüller" if is_tr else "Active Modules",
+            "lbl_stealth": "Görünürlük" if is_tr else "Visibility",
+            "lbl_threads": "İşlem Gücü" if is_tr else "Compute Power",
+            "unit_str": "Modül" if is_tr else "Modules",
+            "active_str": "GİZLİ (Korumalı)" if is_tr else "STEALTH (Secure)",
+            "inactive_str": "İZLENEBİLİR (Riskli)" if is_tr else "VISIBLE (High Risk)",
+            "core_str": "Çekirdek" if is_tr else "Cores",
+        }
 
     def _create_system_table(self, lang: str) -> "Table":
         from rich.table import Table
 
-        # Main container
         outer_table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
         outer_table.add_column("Left", ratio=1)
         outer_table.add_column("Right", ratio=1)
 
-        # Labels & Values Logic
         is_tr = lang == "tr"
+        labels = self._get_localized_labels(is_tr)
+
         target_val = self.config.target or ("HEDEF YOK" if is_tr else "NO TARGET")
         target_style = "bold white" if self.config.target else "dim red"
 
@@ -1242,134 +1233,75 @@ class DrakbenMenu:
         tool_count = len(tools)
         tool_color = "green" if tool_count > 10 else "yellow"
 
-        # Localized Strings
-        header_id = "DİJİTAL KİMLİK" if is_tr else "OPERATIONAL IDENTITY"
-        header_perf = "SİSTEM METRİKLERİ" if is_tr else "SYSTEM METRICS"
-        lbl_status = "DURUM" if is_tr else "STATUS"
-        lbl_value = "DEĞER" if is_tr else "VALUE"
+        # LEFT COLUMN: IDENTITY
+        left_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
+        left_content.add_column("🛡️", width=3)
+        left_content.add_column(labels["header_id"], width=22)
+        left_content.add_column(labels["lbl_status"], justify="right", width=15)
 
-        lbl_scope = "Aktif Kapsam" if is_tr else "Active Scope"
-        lbl_lang = "Nöral Dil" if is_tr else "Neural Link"
-        lbl_os = "Ana Bilgisayar" if is_tr else "Host Machine"
-        lbl_tools = "Aktif Modüller" if is_tr else "Active Modules"
-        lbl_stealth = "Görünürlük" if is_tr else "Visibility"
-        lbl_threads = "İşlem Gücü" if is_tr else "Compute Power"
+        left_content.add_row("🎯", f"[dim]{labels['lbl_scope']}[/]", f"[{target_style}]{target_val}[/]")
+        left_content.add_row("🌍", f"[dim]{labels['lbl_lang']}[/]", "Türkçe 🇹🇷" if is_tr else "English 🇬🇧")
+        left_content.add_row("💻", f"[dim]{labels['lbl_os']}[/]", os_display)
 
-        unit_str = "Modül" if is_tr else "Modules"
-        active_str = "GİZLİ (Korumalı)" if is_tr else "STEALTH (Secure)"
-        inactive_str = "İZLENEBİLİR (Riskli)" if is_tr else "VISIBLE (High Risk)"
-        core_str = "Çekirdek" if is_tr else "Cores"
+        # RIGHT COLUMN: PERFORMANCE
+        right_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
+        right_content.add_column("🚀", width=3)
+        right_content.add_column(labels["header_perf"], width=22)
+        right_content.add_column(labels["lbl_value"], justify="right", width=15)
 
-        # --- LEFT COLUMN: IDENTITY (3-Column for perfect precision) ---
-        left_content = Table(
-            show_header=True,
-            box=None,
-            header_style="bold cyan",
-            padding=(0, 0),
-        )
-        left_content.add_column("🛡️", width=3)  # Header icon in Column 0
-        left_content.add_column(header_id, width=22)  # Text starts exactly under 🛡️
-        left_content.add_column(lbl_status, justify="right", width=15)
-
-        left_content.add_row(
-            "🎯",
-            f"[dim]{lbl_scope}[/]",
-            f"[{target_style}]{target_val}[/]",
-        )
-        left_content.add_row(
-            "🌍",
-            f"[dim]{lbl_lang}[/]",
-            "Türkçe 🇹🇷" if is_tr else "English 🇬🇧",
-        )
-        left_content.add_row("💻", f"[dim]{lbl_os}[/]", os_display)
-
-        # --- RIGHT COLUMN: PERFORMANCE (3-Column for perfect precision) ---
-        right_content = Table(
-            show_header=True,
-            box=None,
-            header_style="bold cyan",
-            padding=(0, 0),
-        )
-        right_content.add_column("🚀", width=3)  # Header icon in Column 0
-        right_content.add_column(header_perf, width=22)  # Text starts exactly under 🚀
-        right_content.add_column(lbl_value, justify="right", width=15)
-
-        right_content.add_row(
-            "🛠️",
-            f"[dim]{lbl_tools}[/]",
-            f"[{tool_color}]{tool_count} {unit_str}[/]",
-        )
-        right_content.add_row(
-            "🥷",
-            f"[dim]{lbl_stealth}[/]",
-            f"[bold green]{active_str}[/]"
-            if self.config.stealth_mode
-            else f"[bold yellow]{inactive_str}[/]",
-        )
-        right_content.add_row(
-            "⚡",
-            f"[dim]{lbl_threads}[/]",
-            f"[bold yellow]{self.config.max_threads} {core_str}[/]",
-        )
+        right_content.add_row("🛠️", f"[dim]{labels['lbl_tools']}[/]", f"[{tool_color}]{tool_count} {labels['unit_str']}[/]")
+        stealth_str = f"[bold green]{labels['active_str']}[/]" if self.config.stealth_mode else f"[bold yellow]{labels['inactive_str']}[/]"
+        right_content.add_row("🥷", f"[dim]{labels['lbl_stealth']}[/]", stealth_str)
+        right_content.add_row("⚡", f"[dim]{labels['lbl_threads']}[/]", f"[bold yellow]{self.config.max_threads} {labels['core_str']}[/]")
 
         outer_table.add_row(left_content, right_content)
         return outer_table
+
+    def _get_phase_display_name(self, phase_value: str, is_tr: bool) -> str:
+        """Get localized phase display name."""
+        if not is_tr:
+            return phase_value
+        phase_map = {
+            "init": "başlatma",
+            "recon": "keşif",
+            "vulnerability_scan": "zafiyet_taraması",
+            "exploit": "sömürü",
+            "foothold": "erişim",
+            "post_exploit": "sızma_sonrası",
+            "complete": "tamamlandı",
+            "failed": "başarısız",
+        }
+        return phase_map.get(phase_value, phase_value)
 
     def _create_agent_table(self) -> "Table":
         from rich.table import Table
 
         lang = self.config.language
         is_tr = lang == "tr"
-
         state: AgentState | None = self.agent.state
+
         phase_colors: dict[str, str] = {
-            "init": "dim",
-            "recon": "yellow",
-            "vulnerability_scan": "cyan",
-            "exploit": "red",
-            "foothold": "green",
-            "post_exploit": "magenta",
-            "complete": "bold green",
-            "failed": "bold red",
+            "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
+            "exploit": "red", "foothold": "green", "post_exploit": "magenta",
+            "complete": "bold green", "failed": "bold red",
         }
         phase_color: str = phase_colors.get(state.phase.value, "white")
-
-        # Localize phase names for display
-        phase_name = state.phase.value
-        if is_tr:
-            phase_map = {
-                "init": "başlatma",
-                "recon": "keşif",
-                "vulnerability_scan": "zafiyet_taraması",
-                "exploit": "sömürü",
-                "foothold": "erişim",
-                "post_exploit": "sızma_sonrası",
-                "complete": "tamamlandı",
-                "failed": "başarısız",
-            }
-            phase_name = phase_map.get(phase_name, phase_name)
-
-        foothold_icon: str = "✅" if state.has_foothold else "❌"
+        phase_name = self._get_phase_display_name(state.phase.value, is_tr)
 
         agent_table = Table(show_header=False, box=None, padding=(0, 1))
         agent_table.add_column("Key", style=f"bold {self.COLORS['purple']}")
         agent_table.add_column("Value", style=self.COLORS["fg"])
 
-        lbl_phase = "📍 Phase" if not is_tr else "📍 Evre"
-        lbl_svc = "🔌 Services" if not is_tr else "🔌 Servisler"
-        lbl_vulns = "⚠️  Vulns" if not is_tr else "⚠️  Zafiyetler"
-        lbl_foothold = "🚩 Foothold" if not is_tr else "🚩 Erişim"
+        lbl_phase = "📍 Evre" if is_tr else "📍 Phase"
+        lbl_svc = "🔌 Servisler" if is_tr else "🔌 Services"
+        lbl_vulns = "⚠️  Zafiyetler" if is_tr else "⚠️  Vulns"
+        lbl_foothold = "🚩 Erişim" if is_tr else "🚩 Foothold"
 
-        agent_table.add_row(
-            lbl_phase,
-            f"[{phase_color}]{phase_name.replace('_', ' ').title()}[/]",
-        )
+        agent_table.add_row(lbl_phase, f"[{phase_color}]{phase_name.replace('_', ' ').title()}[/]")
         agent_table.add_row(lbl_svc, f"[cyan]{len(state.open_services)}[/]")
-        agent_table.add_row(
-            lbl_vulns,
-            f"[{'red' if state.vulnerabilities else 'dim'}]{len(state.vulnerabilities)}[/]",
-        )
-        agent_table.add_row(lbl_foothold, foothold_icon)
+        vuln_color = "red" if state.vulnerabilities else "dim"
+        agent_table.add_row(lbl_vulns, f"[{vuln_color}]{len(state.vulnerabilities)}[/]")
+        agent_table.add_row(lbl_foothold, "✅" if state.has_foothold else "❌")
         return agent_table
 
     def _create_llm_content(self) -> str:
@@ -1703,7 +1635,7 @@ class DrakbenMenu:
         y_label = "e" if lang == "tr" else "y"
         n_label = "h" if lang == "tr" else "n"
         header = "--- MANUEL AYARLAR ---" if lang == "tr" else "--- MANUAL SETTINGS ---"
-        self.console.print(f"\n   [bold cyan]{header}[/]")
+        self.console.print(f"\n   [{self.STYLE_BOLD_CYAN}]{header}[/]")
 
         # 1. Ghost Protocol
         p_s = "Ghost Protocol (Gizli Mod)" if lang == "tr" else "Ghost Protocol (Stealth)"
@@ -1772,7 +1704,7 @@ class DrakbenMenu:
             table.add_row("[0]", "Go Back (Cancel operation)")
             prompt = "Choice"
 
-        self.console.print(Panel(table, title=f"[bold cyan]{title}[/bold cyan]", border_style="cyan", padding=(1, 2)))
+        self.console.print(Panel(table, title=f"[{self.STYLE_BOLD_CYAN}]{title}[/{self.STYLE_BOLD_CYAN}]", border_style="cyan", padding=(1, 2)))
         self.console.print(f"   {prompt} [0-3]: ", end="")
         choice = input().strip()
 
