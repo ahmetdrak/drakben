@@ -73,6 +73,62 @@ class MasterOrchestrator:
         self.self_correction = self_corr
         self.decision_engine = decision
 
+    def _make_error_response(self, error_msg: str) -> dict:
+        """Create standardized error response."""
+        return {
+            "action": "error",
+            "error": error_msg,
+            "response": error_msg,
+            "llm_response": error_msg,
+            "needs_approval": False,
+            "steps": [],
+            "risks": [],
+        }
+
+    def _validate_modules(self) -> dict | None:
+        """Validate all core modules are initialized. Returns error dict if invalid."""
+        if self.reasoning_engine is None or self.decision_engine is None or self.self_correction is None:
+            return self._make_error_response(_ERR_ORCHESTRATOR_NOT_INIT)
+        if self.context_manager is None:
+            return self._make_error_response(_ERR_CONTEXT_NOT_INIT)
+        return None
+
+    def _update_context(self, system_context: dict) -> None:
+        """Update context manager and execution context."""
+        self.context_manager.update(system_context)
+        self.context.system_info.update(self.context_manager.current_context)
+        if "language" in system_context:
+            self.context.language = system_context["language"]
+        if "target" in system_context:
+            self.context.target = system_context["target"]
+
+    def _check_infinite_loop(self, decision: dict) -> dict | None:
+        """Check for infinite loop patterns. Returns error dict if detected."""
+        if len(self.context.history) < 3:
+            return None
+
+        last_3 = self.context.history[-3:]
+        current_action = decision.get("action") or decision.get("next_action", {}).get("type")
+        repeated_count = sum(1 for hist in last_3 if self._get_hist_action(hist) == current_action)
+
+        if repeated_count >= 3:
+            import logging
+            logging.getLogger(__name__).critical("Infinite Loop Detected: Same action proposed 3+ times.")
+            return {
+                "action": "error",
+                "error": "Infinite Loop Detected. The agent is repeating the same action.",
+                "needs_approval": True,
+                "risks": ["Infinite Loop"],
+            }
+        return None
+
+    def _get_hist_action(self, hist: dict) -> str | None:
+        """Extract action from history entry."""
+        hist_action_obj = hist.get("action", {})
+        if isinstance(hist_action_obj, dict):
+            return hist_action_obj.get("tool") or hist_action_obj.get("type")
+        return str(hist_action_obj)
+
     def process_request(self, user_input: str, system_context: dict) -> dict:
         """Ana işlem döngüsü.
 
@@ -85,51 +141,19 @@ class MasterOrchestrator:
             }
 
         """
-        # Ensure all core modules are initialized
-        if self.reasoning_engine is None or self.decision_engine is None or self.self_correction is None:
-            return {
-                "action": "error",
-                "error": _ERR_ORCHESTRATOR_NOT_INIT,
-                "response": _ERR_ORCHESTRATOR_NOT_INIT,
-                "llm_response": _ERR_ORCHESTRATOR_NOT_INIT,
-                "needs_approval": False,
-                "steps": [],
-                "risks": [],
-            }
+        # Validate modules
+        if validation_error := self._validate_modules():
+            return validation_error
+
         # Update context
-        if self.context_manager is None:
-            return {
-                "action": "error",
-                "error": _ERR_CONTEXT_NOT_INIT,
-                "response": _ERR_CONTEXT_NOT_INIT,
-                "llm_response": _ERR_CONTEXT_NOT_INIT,
-                "needs_approval": False,
-                "steps": [],
-                "risks": [],
-            }
-        self.context_manager.update(system_context)
-        # SYNC: Make sure ExecutionContext has access to the latest context manager data
-        self.context.system_info.update(self.context_manager.current_context)
-        if "language" in system_context:
-            self.context.language = system_context["language"]
-        if "target" in system_context:
-            self.context.target = system_context["target"]
+        self._update_context(system_context)
 
         # Continuous reasoning
         analysis = self.reasoning_engine.analyze(user_input, self.context)
 
-        # Check for errors from LLM (API key issues, connection errors, etc.)
+        # Check for errors from LLM
         if not analysis.get("success", True):
-            # Return error directly without going through decision engine
-            return {
-                "action": "error",
-                "error": analysis.get("error", "Unknown error"),
-                "response": analysis.get("error", ""),
-                "llm_response": analysis.get("error", ""),
-                "needs_approval": False,
-                "steps": [],
-                "risks": [],
-            }
+            return self._make_error_response(analysis.get("error", "Unknown error"))
 
         # Decision making
         decision = self.decision_engine.decide(analysis, self.context)
@@ -140,46 +164,13 @@ class MasterOrchestrator:
         if analysis.get("llm_response"):
             decision["llm_response"] = analysis["llm_response"]
 
-        # CRITICAL SAFETY: Circuit Breaker for Infinite Loops
-        if len(self.context.history) >= 3:
-            last_3 = self.context.history[-3:]
-            current_action = decision.get("action") or decision.get(
-                "next_action",
-                {},
-            ).get("type")
-
-            repeated_count = 0
-            for hist in last_3:
-                # Assuming history structure {"step":..., "action": {"tool": "x"}...}
-                hist_action_obj = hist.get("action", {})
-                # Handle both dict and object/string cases defensively
-                if isinstance(hist_action_obj, dict):
-                    hist_action = hist_action_obj.get("tool") or hist_action_obj.get(
-                        "type",
-                    )
-                else:
-                    hist_action = str(hist_action_obj)
-
-                if hist_action and current_action and hist_action == current_action:
-                    repeated_count += 1
-
-            if repeated_count >= 3:
-                import logging
-
-                logging.getLogger(__name__).critical(
-                    "Infinite Loop Detected: Same action proposed 3+ times.",
-                )
-                return {
-                    "action": "error",
-                    "error": "Infinite Loop Detected. The agent is repeating the same action.",
-                    "needs_approval": True,
-                    "risks": ["Infinite Loop"],
-                }
+        # Check for infinite loops
+        if loop_error := self._check_infinite_loop(decision):
+            return loop_error
 
         # Self-correction check
-        if decision.get("has_risks"):
-            corrected = self.self_correction.review(decision)
-            decision = corrected
+        if decision.get("has_risks") and self.self_correction:
+            decision = self.self_correction.review(decision)
 
         return decision
 

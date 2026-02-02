@@ -1655,15 +1655,97 @@ class DrakbenMenu:
         except Exception as e:
             self.console.print(f"\n[red]❌ Save error: {e}[/]")
 
+    def _config_apply_defaults(self, lang: str) -> None:
+        """Apply automatic default configuration."""
+        self.config.stealth_mode = False
+        self.config.max_threads = 4
+        self.config.timeout = 30
+        self.config.verbose = False
+        self.config_manager.save_config()
+        msg = "Standart ayarlar uygulandı (4 Thread, 30s)." if lang == "tr" else "Standard defaults applied (4 Threads, 30s)."
+        self.console.print(f"\n   [bold green]✅ {msg}[/]\n")
+
+    def _config_apply_shadow_mode(self, lang: str) -> None:
+        """Apply shadow mode (hacker preset) configuration."""
+        self.config.stealth_mode = True
+        self.config.max_threads = 1
+        self.config.timeout = 300
+        self.config.verbose = True
+        self.config_manager.save_config()
+        msg = "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout." if lang == "tr" else "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
+        self.console.print(f"\n   [bold purple]🥷 {msg}[/]\n")
+
+    def _config_prompt_bool(self, prompt: str, current: bool, y_label: str, n_label: str) -> bool | None:
+        """Prompt for boolean config value. Returns None if cancelled."""
+        self.console.print(f"   > {prompt} [{y_label}/{n_label}] ({y_label if current else n_label}): ", end="")
+        val = input().strip().lower()
+        if val == "0":
+            return None
+        return val in ["e", "y", "yes", "evet"] if val else current
+
+    def _config_prompt_int(self, prompt: str, current: int) -> int | None:
+        """Prompt for integer config value. Returns None if cancelled."""
+        self.console.print(f"   > {prompt} ({current}): ", end="")
+        val = input().strip()
+        if val == "0":
+            return None
+        return int(val) if val.isdigit() else current
+
+    def _config_manual(self, lang: str) -> None:
+        """Handle manual configuration."""
+        y_label = "e" if lang == "tr" else "y"
+        n_label = "h" if lang == "tr" else "n"
+        header = "--- MANUEL AYARLAR ---" if lang == "tr" else "--- MANUAL SETTINGS ---"
+        self.console.print(f"\n   [bold cyan]{header}[/]")
+
+        # 1. Ghost Protocol
+        p_s = "Ghost Protocol (Gizli Mod)" if lang == "tr" else "Ghost Protocol (Stealth)"
+        new_s = self._config_prompt_bool(p_s, getattr(self.config, "stealth_mode", False), y_label, n_label)
+        if new_s is None:
+            return
+
+        # 2. Concurrency
+        p_t = "Eşzamanlılık (Threads)" if lang == "tr" else "Concurrency (Threads)"
+        new_t = self._config_prompt_int(p_t, getattr(self.config, "max_threads", 4))
+        if new_t is None:
+            return
+
+        # 3. Timeout
+        p_to = "Operasyon Zaman Aşımı (sn)" if lang == "tr" else "Operation Timeout (sec)"
+        new_to = self._config_prompt_int(p_to, getattr(self.config, "timeout", 30))
+        if new_to is None:
+            return
+
+        # 4. Verbose
+        p_v = "Detaylı Çıktı (Verbose)" if lang == "tr" else "Neural Verbosity (Verbose)"
+        new_v = self._config_prompt_bool(p_v, getattr(self.config, "verbose", False), y_label, n_label)
+        if new_v is None:
+            return
+
+        # 5. Auto-Approve
+        p_a = "Otonom Onay (Auto-Approve)" if lang == "tr" else "Autonomous Approval (Auto)"
+        new_a = self._config_prompt_bool(p_a, getattr(self.config, "auto_approve", False), y_label, n_label)
+        if new_a is None:
+            return
+
+        # Save all
+        self.config.stealth_mode = new_s
+        self.config.max_threads = new_t
+        self.config.timeout = new_to
+        self.config.verbose = new_v
+        self.config.auto_approve = new_a
+        self.config_manager.save_config()
+
+        done_msg = "Sistem parametreleri güncellendi." if lang == "tr" else "System parameters optimized."
+        self.console.print(f"\n   [bold green]✅ {done_msg}[/]\n")
+
     def _cmd_config(self, args: str) -> None:
         """System Configuration Menu."""
         from rich.panel import Panel
         from rich.table import Table
 
         lang = self.config.language
-        title = (
-            "🔧 SİSTEM YAPILANDIRMASI" if lang == "tr" else "🔧 SYSTEM CONFIGURATION"
-        )
+        title = "🔧 SİSTEM YAPILANDIRMASI" if lang == "tr" else "🔧 SYSTEM CONFIGURATION"
 
         # Menu Table
         table = Table(show_header=False, box=None, padding=(0, 2))
@@ -1683,152 +1765,20 @@ class DrakbenMenu:
             table.add_row("[0]", "Go Back (Cancel operation)")
             prompt = "Choice"
 
-        self.console.print(
-            Panel(
-                table,
-                title=f"[bold cyan]{title}[/bold cyan]",
-                border_style="cyan",
-                padding=(1, 2),
-            ),
-        )
-
+        self.console.print(Panel(table, title=f"[bold cyan]{title}[/bold cyan]", border_style="cyan", padding=(1, 2)))
         self.console.print(f"   {prompt} [0-3]: ", end="")
         choice = input().strip()
 
         if choice == "1":
-            # 1. Automatic Defaults
-            self.config.stealth_mode = False
-            self.config.max_threads = 4
-            self.config.timeout = 30
-            self.config.verbose = False
-            self.config_manager.save_config()
-
-            msg = (
-                "Standart ayarlar uygulandı (4 Thread, 30s)."
-                if lang == "tr"
-                else "Standard defaults applied (4 Threads, 30s)."
-            )
-            self.console.print(f"\n   [bold green]✅ {msg}[/]\n")
-
+            self._config_apply_defaults(lang)
         elif choice == "2":
-            # 2. Manual Configuration
             try:
-                y_label = "e" if lang == "tr" else "y"
-                n_label = "h" if lang == "tr" else "n"
-
-                self.console.print(
-                    f"\n   [bold cyan]{'--- MANUEL AYARLAR ---' if lang == 'tr' else '--- MANUAL SETTINGS ---'}[/]",
-                )
-
-                # 1. Ghost Protocol (Stealth Mode)
-                curr_s = getattr(self.config, "stealth_mode", False)
-                p_s = (
-                    "Ghost Protocol (Gizli Mod)"
-                    if lang == "tr"
-                    else "Ghost Protocol (Stealth)"
-                )
-                self.console.print(
-                    f"   > {p_s} [{y_label}/{n_label}] ({y_label if curr_s else n_label}): ",
-                    end="",
-                )
-                val = input().strip().lower()
-                if val == "0":
-                    return
-                new_s = val in ["e", "y", "yes", "evet"] if val else curr_s
-
-                # 2. Concurrency (Threads)
-                curr_t = getattr(self.config, "max_threads", 4)
-                p_t = (
-                    "Eşzamanlılık (Threads)"
-                    if lang == "tr"
-                    else "Concurrency (Threads)"
-                )
-                self.console.print(f"   > {p_t} ({curr_t}): ", end="")
-                val = input().strip()
-                if val == "0":
-                    return
-                new_t = int(val) if val.isdigit() else curr_t
-
-                # 3. Operation Timeout
-                curr_to = getattr(self.config, "timeout", 30)
-                p_to = (
-                    "Operasyon Zaman Aşımı (sn)"
-                    if lang == "tr"
-                    else "Operation Timeout (sec)"
-                )
-                self.console.print(f"   > {p_to} ({curr_to}): ", end="")
-                val = input().strip()
-                if val == "0":
-                    return
-                new_to = int(val) if val.isdigit() else curr_to
-
-                # 4. Neural Verbosity
-                curr_v = getattr(self.config, "verbose", False)
-                p_v = (
-                    "Detaylı Çıktı (Verbose)"
-                    if lang == "tr"
-                    else "Neural Verbosity (Verbose)"
-                )
-                self.console.print(
-                    f"   > {p_v} [{y_label}/{n_label}] ({y_label if curr_v else n_label}): ",
-                    end="",
-                )
-                val = input().strip().lower()
-                if val == "0":
-                    return
-                new_v = val in ["e", "y", "yes", "evet"] if val else curr_v
-
-                # 5. Autonomous Approval
-                curr_a = getattr(self.config, "auto_approve", False)
-                p_a = (
-                    "Otonom Onay (Auto-Approve)"
-                    if lang == "tr"
-                    else "Autonomous Approval (Auto)"
-                )
-                self.console.print(
-                    f"   > {p_a} [{y_label}/{n_label}] ({y_label if curr_a else n_label}): ",
-                    end="",
-                )
-                val = input().strip().lower()
-                if val == "0":
-                    return
-                new_a = val in ["e", "y", "yes", "evet"] if val else curr_a
-
-                # Save
-                self.config.stealth_mode = new_s
-                self.config.max_threads = new_t
-                self.config.timeout = new_to
-                self.config.verbose = new_v
-                self.config.auto_approve = new_a
-                self.config_manager.save_config()
-
-                done_msg = (
-                    "Sistem parametreleri güncellendi."
-                    if lang == "tr"
-                    else "System parameters optimized."
-                )
-                self.console.print(f"\n   [bold green]✅ {done_msg}[/]\n")
-
+                self._config_manual(lang)
             except Exception as e:
                 self.console.print(f"   [red]❌ Hata: {e}[/red]")
-
         elif choice == "3":
-            # 3. Shadow Mode (Hacker Preset)
-            self.config.stealth_mode = True
-            self.config.max_threads = 1
-            self.config.timeout = 300
-            self.config.verbose = True
-            self.config_manager.save_config()
-
-            msg = (
-                "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout."
-                if lang == "tr"
-                else "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
-            )
-            self.console.print(f"\n   [bold purple]🥷 {msg}[/]\n")
-
+            self._config_apply_shadow_mode(lang)
         elif choice == "0":
-            # 0. Exit (Do nothing)
             self.console.print()
             return
         else:

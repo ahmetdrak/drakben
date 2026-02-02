@@ -22,9 +22,7 @@ class TestSandboxManagerBasic(unittest.TestCase):
     def test_initialization(self) -> None:
         """Test manager initialization."""
         manager = SandboxManager()
-        if manager is None:
-            msg = "manager is not None"
-            raise AssertionError(msg)
+        # manager is always initialized - no None check needed
         if manager.image != "python:3.11-slim":
             msg = 'manager.image == "python:3.11-slim"'
             raise AssertionError(msg)

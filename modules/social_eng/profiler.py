@@ -291,7 +291,7 @@ class PsychoProfiler:
         else:
             # Default Social/Reciprocity
             subject = "Invitation: Strategic Planning Lunch w/ Director"
-            body = self._tmpl_generic_VIP(target)
+            body = self._tmpl_generic_vip(target)
             spoof_sender = "executive-assist@corp.com"
 
         return {
