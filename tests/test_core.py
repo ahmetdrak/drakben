@@ -22,13 +22,13 @@ class TestAgentState(unittest.TestCase):
 
     def setUp(self) -> None:
         """Reset singleton for each test."""
-        from core.state import reset_state
+        from core.agent.state import reset_state
 
         reset_state()
 
     def test_singleton_pattern(self) -> None:
         """Test that AgentState is a singleton."""
-        from core.state import AgentState
+        from core.agent.state import AgentState
 
         state1 = AgentState()
         state2 = AgentState()
@@ -36,7 +36,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_initial_state(self) -> None:
         """Test initial state values."""
-        from core.state import AttackPhase, reset_state
+        from core.agent.state import AttackPhase, reset_state
 
         state = reset_state()
         assert state.phase == AttackPhase.INIT
@@ -46,7 +46,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_set_target(self) -> None:
         """Test target setting."""
-        from core.state import AttackPhase, reset_state
+        from core.agent.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
         assert state.target == "192.168.1.1"
@@ -54,7 +54,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_add_service(self) -> None:
         """Test service addition."""
-        from core.state import ServiceInfo, reset_state
+        from core.agent.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -70,7 +70,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_add_vulnerability(self) -> None:
         """Test vulnerability addition."""
-        from core.state import VulnerabilityInfo, reset_state
+        from core.agent.state import VulnerabilityInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -87,14 +87,14 @@ class TestAgentState(unittest.TestCase):
 
     def test_state_validation(self) -> None:
         """Test state invariant validation."""
-        from core.state import AgentState
+        from core.agent.state import AgentState
 
         state = AgentState()
         assert state.validate()
 
     def test_phase_transition(self) -> None:
         """Test phase transitions."""
-        from core.state import AttackPhase, reset_state
+        from core.agent.state import AttackPhase, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -106,7 +106,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_thread_safety(self) -> None:
         """Test thread-safe operations."""
-        from core.state import ServiceInfo, reset_state
+        from core.agent.state import ServiceInfo, reset_state
 
         state = reset_state("192.168.1.1")
 
@@ -134,7 +134,7 @@ class TestAgentState(unittest.TestCase):
 
     def test_reset(self) -> None:
         """Test state reset."""
-        from core.state import AttackPhase, reset_state
+        from core.agent.state import AttackPhase, reset_state
 
         state1 = reset_state("192.168.1.1")
         assert state1.target == "192.168.1.1"
@@ -230,7 +230,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_initialization(self) -> None:
         """Test database initialization."""
-        from core.evolution_memory import EvolutionMemory
+        from core.intelligence.evolution_memory import EvolutionMemory
 
         _ = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -244,7 +244,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_record_action(self) -> None:
         """Test action recording."""
-        from core.evolution_memory import ActionRecord, EvolutionMemory
+        from core.intelligence.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -268,7 +268,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_tool_penalty(self) -> None:
         """Test tool penalty system."""
-        from core.evolution_memory import ActionRecord, EvolutionMemory
+        from core.intelligence.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -294,7 +294,7 @@ class TestEvolutionMemory(unittest.TestCase):
 
     def test_strategy_profile(self) -> None:
         """Test strategy profile management."""
-        from core.evolution_memory import ActionRecord, EvolutionMemory
+        from core.intelligence.evolution_memory import ActionRecord, EvolutionMemory
 
         memory = EvolutionMemory(db_path=self.temp_db.name)
 
@@ -323,7 +323,7 @@ class TestExecutionEngine(unittest.TestCase):
 
     def test_command_sanitization(self) -> None:
         """Test command sanitization with OS-specific vectors."""
-        from core.execution_engine import CommandSanitizer, SecurityError
+        from core.execution.execution_engine import CommandSanitizer, SecurityError
 
         # Test Safe Commands
         safe_cmds = ["nmap -sV 192.168.1.1", "python3 test.py", "ls -la", "dir /w"]
@@ -374,13 +374,13 @@ class TestExecutionEngine(unittest.TestCase):
         import random
         import string
 
-        from core.execution_engine import CommandSanitizer, SecurityError
+        from core.execution.execution_engine import CommandSanitizer, SecurityError
 
         # Generate garbage inputs
         for _ in range(100):
             # Random bytes as string
             garbage = "".join(
-                random.choices(string.printable, k=random.randint(10, 500)),  # noqa: S311
+                random.choices(string.printable, k=random.randint(10, 500)),
             )
 
             # Injection characters
@@ -407,7 +407,7 @@ class TestExecutionEngine(unittest.TestCase):
         # Configure Popen constructor to return our mock
         mock_popen.return_value = process_mock
 
-        from core.execution_engine import ExecutionEngine
+        from core.execution.execution_engine import ExecutionEngine
 
         engine = ExecutionEngine()
 
@@ -417,7 +417,7 @@ class TestExecutionEngine(unittest.TestCase):
 
     def test_requires_confirmation(self) -> None:
         """Test command confirmation detection."""
-        from core.execution_engine import CommandSanitizer
+        from core.execution.execution_engine import CommandSanitizer
 
         # Commands that should require confirmation
         high_risk_commands = [
@@ -436,7 +436,7 @@ class TestExecutionEngine(unittest.TestCase):
 
     def test_url_sanitization(self) -> None:
         """Test URL sanitization in command generator."""
-        from core.execution_engine import CommandGenerator
+        from core.execution.execution_engine import CommandGenerator
 
         generator = CommandGenerator()
 
@@ -459,7 +459,7 @@ class TestExecutionEngine(unittest.TestCase):
 
     def test_confirmation_callback(self) -> None:
         """Test confirmation callback mechanism."""
-        from core.execution_engine import SmartTerminal
+        from core.execution.execution_engine import SmartTerminal
 
         # Track if callback was called
         callback_called = [False]
@@ -483,7 +483,7 @@ class TestDrakbenBrain(unittest.TestCase):
 
     def test_initialization(self) -> None:
         """Test brain initialization."""
-        from core.brain import DrakbenBrain
+        from core.agent.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
@@ -491,7 +491,7 @@ class TestDrakbenBrain(unittest.TestCase):
 
     def test_reasoning_without_llm(self) -> None:
         """Test reasoning fallback without LLM."""
-        from core.brain import DrakbenBrain
+        from core.agent.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
@@ -501,7 +501,7 @@ class TestDrakbenBrain(unittest.TestCase):
 
     def test_plan_generation(self) -> None:
         """Test plan generation."""
-        from core.brain import DrakbenBrain
+        from core.agent.brain import DrakbenBrain
 
         brain = DrakbenBrain()
 
@@ -523,8 +523,8 @@ class TestToolSelector(unittest.TestCase):
 
     def test_tool_selection(self) -> None:
         """Test deterministic tool selection."""
-        from core.state import reset_state
-        from core.tool_selector import ToolSelector
+        from core.agent.state import reset_state
+        from core.execution.tool_selector import ToolSelector
 
         # Reset state
         _ = reset_state("192.168.1.1")
@@ -536,7 +536,7 @@ class TestToolSelector(unittest.TestCase):
 
     def test_tool_availability(self) -> None:
         """Test tool availability check."""
-        from core.tool_selector import ToolSelector
+        from core.execution.tool_selector import ToolSelector
 
         selector = ToolSelector()
 
@@ -553,7 +553,7 @@ class TestCoder(unittest.TestCase):
 
     def test_ast_security_check(self) -> None:
         """Test AST-based security check."""
-        from core.coder import ASTSecurityChecker
+        from core.intelligence.coder import ASTSecurityChecker
 
         checker = ASTSecurityChecker()
 
@@ -575,7 +575,7 @@ os.system("rm -rf /")
 
     def test_dangerous_imports(self) -> None:
         """Test detection of dangerous imports."""
-        from core.coder import ASTSecurityChecker
+        from core.intelligence.coder import ASTSecurityChecker
 
         checker = ASTSecurityChecker()
 
@@ -596,7 +596,7 @@ class TestPlanner(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        from core.planner import Planner
+        from core.agent.planner import Planner
 
         self.planner = Planner()
 
@@ -722,7 +722,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def test_initialization(self) -> None:
         """Test engine initialization."""
-        from core.self_refining_engine import SelfRefiningEngine
+        from core.intelligence.self_refining_engine import SelfRefiningEngine
 
         try:
             engine = SelfRefiningEngine()
@@ -732,7 +732,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def test_strategy_selection(self) -> None:
         """Test strategy selection."""
-        from core.self_refining_engine import SelfRefiningEngine
+        from core.intelligence.self_refining_engine import SelfRefiningEngine
 
         try:
             engine = SelfRefiningEngine()
@@ -745,7 +745,7 @@ class TestSelfRefiningEngine(unittest.TestCase):
 
     def test_profile_mutation(self) -> None:
         """Test profile mutation on failure."""
-        from core.self_refining_engine import SelfRefiningEngine
+        from core.intelligence.self_refining_engine import SelfRefiningEngine
 
         try:
             engine = SelfRefiningEngine()
@@ -794,7 +794,7 @@ class TestI18n(unittest.TestCase):
 
     def test_translation_loading(self) -> None:
         """Test translation loading."""
-        from core.i18n import t
+        from core.ui.i18n import t
 
         text = t("welcome", lang="tr")
         assert text is not None
@@ -802,7 +802,7 @@ class TestI18n(unittest.TestCase):
 
     def test_language_switch(self) -> None:
         """Test language switching."""
-        from core.i18n import t
+        from core.ui.i18n import t
 
         en_text = t("help", lang="en")
         tr_text = t("help", lang="tr")

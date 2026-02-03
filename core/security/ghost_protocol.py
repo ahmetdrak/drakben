@@ -1142,7 +1142,7 @@ class FilelessLoader:
                 for key, value in headers.items():
                     request.add_header(key, value)
 
-            with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=30) as response:
                 data = response.read()
 
             if decode == "base64":

@@ -407,7 +407,7 @@ class DomainFronter:
             context = self._create_secure_context(verify=self.verify_ssl)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-            with urllib.request.urlopen(  # noqa: S310
+            with urllib.request.urlopen(
                 request,
                 timeout=timeout,
                 context=context,
@@ -986,7 +986,7 @@ class C2Channel:
             )
             context.minimum_version = ssl.TLSVersion.TLSv1_2
 
-            with urllib.request.urlopen(  # noqa: S310
+            with urllib.request.urlopen(
                 request,
                 timeout=30,
                 context=context,

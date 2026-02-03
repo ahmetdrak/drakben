@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 if TYPE_CHECKING:
-    from core.state import AgentState
+    from core.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ class AutoUpdater:
             url = f"{self.db.NVD_API_BASE}?lastModStartDate={start_date}&lastModEndDate={end_date}"
             req = urllib.request.Request(url, headers=headers)
 
-            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode())
                     vulns = data.get("vulnerabilities", [])

@@ -311,7 +311,7 @@ class SelfRefiningEngine:
         return self._connect_raw()
 
     @contextmanager
-    def _db_operation(self, timeout: float = 5.0) -> Any:  # noqa: ANN401
+    def _db_operation(self, timeout: float = 5.0) -> Any:
         """Safe database operation context manager.
 
         Automatically handles:
@@ -993,7 +993,7 @@ class SelfRefiningEngine:
 
     def _mutate_numeric_param(
         self,
-        original_value: int | float,
+        original_value: float,
         is_int: bool,
     ) -> int | float:
         """Apply mutation to a single numeric parameter."""
@@ -1222,7 +1222,7 @@ class SelfRefiningEngine:
             for key, value in condition.items()
         )
 
-    def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:  # noqa: ANN401
+    def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:
         """Check if a single condition key matches context."""
         if key not in context:
             return False
@@ -1235,7 +1235,7 @@ class SelfRefiningEngine:
             return self._check_dict_condition(value, ctx_value)
         return ctx_value == value
 
-    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:  # noqa: ANN401
+    def _check_dict_condition(self, value: dict, ctx_value: Any) -> bool:
         """Check dictionary-based condition (contains/not)."""
         if "contains" in value:
             return value["contains"] in str(ctx_value)
@@ -1631,7 +1631,7 @@ class SelfRefiningEngine:
 
     def _analyze_target_for_selection(
         self, target: str, start_time: float, max_duration: float,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Step 1: Classify and generate signature."""
         import time
 
@@ -1646,7 +1646,7 @@ class SelfRefiningEngine:
 
     def _select_strategy(
         self, context: dict[str, Any], start_time: float, max_duration: float,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Step 2: Select best strategy."""
         import time
 
@@ -1671,7 +1671,7 @@ class SelfRefiningEngine:
         context: dict[str, Any],
         start_time: float,
         max_duration: float,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Step 3: Select, filter and mutate profile."""
         import time
 
@@ -1727,7 +1727,7 @@ class SelfRefiningEngine:
 
     def _handle_no_profiles(
         self, strategy: "Strategy", failed_profiles: list[str],
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Handle case where all profiles are exhausted."""
         try:
             return self.select_best_profile(strategy.name, failed_profiles)

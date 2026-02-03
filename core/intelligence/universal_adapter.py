@@ -248,7 +248,7 @@ class DynamicInstaller:
         # 1. Search PyPI (JSON API)
         try:
             url = f"https://pypi.org/pypi/{tool_name}/json"
-            with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310
+            with urllib.request.urlopen(url, timeout=5) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode())
                     info = data.get("info", {})
@@ -356,7 +356,7 @@ class DependencyResolver:
                 shlex.split(tool_def.check_command),
                 shell=False,
                 capture_output=True,
-                timeout=10,
+                timeout=10, check=False,
             )
             return result.returncode == 0
         except Exception:
@@ -385,7 +385,7 @@ class DependencyResolver:
                 shell=False,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=10, check=False,
             )
             if result.returncode == 0:
                 # Extract version from first line
@@ -414,7 +414,7 @@ class DependencyResolver:
                     shell=False,
                     capture_output=True,
                     text=True,
-                    timeout=300,
+                    timeout=300, check=False,
                 )
                 if proc.returncode == 0:
                     result["success"] = True
@@ -447,7 +447,7 @@ class DependencyResolver:
                     shell=False,
                     capture_output=True,
                     text=True,
-                    timeout=120,
+                    timeout=120, check=False,
                 )
                 result["success"] = proc.returncode == 0
                 result["message"] = (
@@ -491,7 +491,7 @@ class DependencyResolver:
                 shell=False,
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=300, check=False,
             )
             result["success"] = proc.returncode == 0
             result["message"] = (

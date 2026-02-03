@@ -498,7 +498,7 @@ class ImpacketWrapper:
             result = subprocess.run(
                 ["which", ImpacketTool.PSEXEC.value],
                 capture_output=True,
-                text=True,
+                text=True, check=False,
             )
             if result.returncode == 0:
                 return os.path.dirname(result.stdout.strip())

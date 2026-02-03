@@ -13,30 +13,31 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from core.agent.brain import DrakbenBrain
 from core.agent.error_diagnostics import ErrorDiagnosticsMixin
-from core.brain import DrakbenBrain
-from core.coder import AICoder
+from core.agent.planner import Planner, PlanStep, StepStatus
+from core.agent.recovery.healer import SelfHealer
+from core.agent.state import AgentState, AttackPhase, ServiceInfo, reset_state
 from core.config import ConfigManager
-from core.evolution_memory import (
+from core.execution.execution_engine import ExecutionEngine, ExecutionResult
+from core.execution.tool_selector import ToolSelector, ToolSpec
+from core.intelligence.coder import AICoder
+from core.intelligence.evolution_memory import (
     ActionRecord,
     EvolutionMemory,
     PlanRecord,
     get_evolution_memory,
 )
-from core.execution_engine import ExecutionEngine, ExecutionResult
-from core.planner import Planner, PlanStep, StepStatus
-from core.security_utils import audit_command
-from core.self_refining_engine import (
+from core.intelligence.self_refining_engine import (
     Policy,
     PolicyTier,
     SelfRefiningEngine,
     Strategy,
     StrategyProfile,
 )
-from core.state import AgentState, AttackPhase, ServiceInfo, reset_state
-from core.structured_logger import DrakbenLogger
-from core.tool_parsers import normalize_error_message
-from core.tool_selector import ToolSelector, ToolSpec
+from core.security.security_utils import audit_command
+from core.storage.structured_logger import DrakbenLogger
+from core.tools.tool_parsers import normalize_error_message
 from modules.research.exploit_crafter import ExploitCrafter
 from modules.research.fuzzer import FuzzResult
 from modules.stealth_client import BROWSER_IMPERSONATIONS
@@ -50,6 +51,9 @@ if TYPE_CHECKING:
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
+
+# Error message constants (SonarCloud compliance)
+_ERR_UNKNOWN = "Unknown error"
 
 
 class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
@@ -82,6 +86,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.refining_engine = SelfRefiningEngine()  # NEW: Profile-based evolution
         self.planner = Planner()
         self.coder: AICoder = AICoder(self.brain)
+        self.healer = SelfHealer(self.executor, self.console)  # Error recovery
 
         # Additional Modules for Full System Test
         try:
@@ -357,9 +362,17 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """EVOLVED AGENTIC LOOP
         Refactored to reduce Cognitive Complexity.
         """
+        from core.stop_controller import check_stop, stop_controller
+
+        # Reset stop state for new scan
+        stop_controller.reset()
+
         self.console.print(
             "\n🚀 Starting evolved autonomous loop...\n",
             style=self.STYLE_GREEN,
+        )
+        self.console.print(
+            "   [dim]💡 İpucu: Durdurmak için Ctrl+C[/dim]\n",
         )
 
         if not self.state:
@@ -368,6 +381,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         max_iterations: int = self.state.max_iterations
         while self.running and self.state.iteration_count < max_iterations:
+            # Check for global stop signal
+            if check_stop():
+                self.console.print("\n🛑 [yellow]Kullanıcı tarafından durduruldu.[/yellow]")
+                self.running = False
+                break
+
             should_continue: bool = self._run_single_iteration(max_iterations)
             if not should_continue:
                 break
@@ -422,9 +441,15 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         """
         self.planner.mark_step_executing(step.step_id)
-        self.console.print(f"🔧 Executing: {step.tool}...", style="yellow")
 
-        execution_result = self._execute_tool(step.tool, step.params)
+        # Show what we're about to do with context
+        self.console.print(f"\n🔧 [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
+        if step.params:
+            params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
+            self.console.print(f"   📎 Params: {params_display}", style="dim")
+
+        # Execute with progress indicator and timeout handling
+        execution_result = self._execute_tool_with_progress(step.tool, step.params)
         success = execution_result.get("success", False)
 
         target = self.state.target if self.state else "global"
@@ -579,7 +604,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _attempt_tool_recovery(self, tool_name: str) -> bool:
         """Attempt to install missing tool. Returns True if successful."""
         try:
-            from core.universal_adapter import get_universal_adapter
+            from core.intelligence.universal_adapter import get_universal_adapter
             adapter = get_universal_adapter()
             if not adapter:
                 return False
@@ -604,7 +629,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         execution_result: dict[str, Any],
     ) -> bool:
         """Handle failed step execution. Returns False if critical failure loop break needed."""
-        stderr_msg = execution_result.get("stderr", "Unknown error")
+        stderr_msg = execution_result.get("stderr", _ERR_UNKNOWN)
         should_replan: bool = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
         self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
 
@@ -804,11 +829,11 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Check if we should retry based on attempt number."""
         return attempt < max_retries - 1
 
-    def _is_valid_llm_result(self, result: Any) -> bool:  # noqa: ANN401
+    def _is_valid_llm_result(self, result: Any) -> bool:
         """Check if LLM result is valid."""
         return isinstance(result, dict) and "tool" in result
 
-    def _extract_llm_error(self, result: Any) -> str | None:  # noqa: ANN401
+    def _extract_llm_error(self, result: Any) -> str | None:
         """Extract error message from LLM result."""
         if isinstance(result, dict) and result.get("error"):
             return result.get("error")
@@ -842,84 +867,67 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return {"tool": tool_name, "args": args}
         return None
 
-    def _install_tool(self, tool_name: str) -> bool:
-        """Attempt to automatically install a missing tool.
-        Supports: Linux (apt), MacOS (brew), Windows (choco/winget).
-        """
-        import platform
+    def _execute_tool_with_progress(self, tool_name: str, args: dict) -> dict:
+        """Execute tool with progress indicator and timeout handling."""
+        import threading
+        import time as time_module
 
-        # Map internal tool names to package names
-        tool_pkg_map: dict[str, str] = {
-            # Nmap variants
-            "nmap_port_scan": "nmap",
-            "nmap_service_scan": "nmap",
-            "nmap_vuln_scan": "nmap",
-            "nmap": "nmap",
-            # SQLMap
-            "sqlmap_scan": "sqlmap",
-            "sqlmap_exploit": "sqlmap",
-            "sqlmap": "sqlmap",
-            # Web scanners
-            "nikto_web_scan": "nikto",
-            "nikto": "nikto",
-            "gobuster": "gobuster",
-            "dirb": "dirb",
-            "wfuzz": "wfuzz",
-            # Network tools
-            "netcat": "netcat",
-            "nc": "netcat",
-            "hydra": "hydra",
-            "medusa": "medusa",
-            # Metasploit
-            "msfconsole": "metasploit-framework",
-            "msfvenom": "metasploit-framework",
-            # Other common tools
-            "whatweb": "whatweb",
-            "wpscan": "wpscan",
-            "masscan": "masscan",
-            "john": "john",
-            "hashcat": "hashcat",
-            "aircrack-ng": "aircrack-ng",
-            "wireshark": "wireshark",
-            "tcpdump": "tcpdump",
-            "curl": "curl",
-            "wget": "wget",
-        }
+        result_container: dict = {}
+        execution_done = threading.Event()
 
-        pkg: str | None = tool_pkg_map.get(tool_name)
-        if not pkg:
-            # Try using tool_name directly as package name
-            pkg: str = tool_name.split("_")[0]  # nmap_port_scan -> nmap
+        def run_execution():
+            result_container["result"] = self._execute_tool(tool_name, args)
+            execution_done.set()
 
-        system: str = platform.system().lower()
-        self.console.print(f"🛠️ Attempting to auto-install '{pkg}'...", style="yellow")
+        # Start execution in thread
+        exec_thread = threading.Thread(target=run_execution, daemon=True)
+        exec_thread.start()
 
-        install_cmd: str = ""
-        if system == "linux":
-            install_cmd: str = f"sudo apt-get update && sudo apt-get install -y {pkg}"
-        elif system == "darwin":  # MacOS
-            install_cmd: str = f"brew install {pkg}"
-        elif system == "windows":
-            # Try winget first (standard on modern Windows)
-            install_cmd: str = f"winget install {pkg} --accept-source-agreements --accept-package-agreements"
+        # Show progress while waiting
+        wait_start = time_module.time()
+        max_display_wait = 120  # Show progress for max 2 minutes
+        feedback_interval = 15  # Give feedback every 15 seconds
+        last_feedback = wait_start
 
-        if not install_cmd:
-            return False
+        while not execution_done.is_set():
+            elapsed = time_module.time() - wait_start
 
-        # Execute install
-        try:
-            res: ExecutionResult = self.executor.terminal.execute(
-                install_cmd,
-                timeout=300,
-            )
-            if res.exit_code == 0:
-                self.console.print(f"✅ Successfully installed {pkg}", style="green")
-                return True
-            self.console.print(f"❌ Auto-install failed: {res.stderr}", style="red")
-            return False
-        except Exception as e:
-            self.console.print(f"❌ Auto-install error: {e}", style="red")
-            return False
+            # Periodic feedback to user
+            if time_module.time() - last_feedback >= feedback_interval:
+                self.console.print(
+                    f"   ⏳ Hala çalışıyor... ({int(elapsed)}s geçti)",
+                    style="dim",
+                )
+                last_feedback = time_module.time()
+
+            # Check for very long execution
+            if elapsed > max_display_wait:
+                self.console.print(
+                    f"\n   ⚠️ [yellow]Tool {tool_name} çok uzun sürüyor ({int(elapsed)}s)![/yellow]",
+                    style="yellow",
+                )
+                self.console.print(
+                    "   💡 İpucu: Hedef erişilebilir mi? Ağ bağlantısı var mı?",
+                    style="dim",
+                )
+                # Wait a bit more but don't spam
+                execution_done.wait(timeout=30)
+                if not execution_done.is_set():
+                    self.console.print(
+                        f"   🛑 [red]Timeout! {tool_name} yanıt vermiyor.[/red]",
+                        style="red",
+                    )
+                    return {
+                        "success": False,
+                        "error": f"Execution timeout after {int(elapsed)}s",
+                        "timeout": True,
+                        "args": args,
+                    }
+                break
+
+            execution_done.wait(timeout=0.5)
+
+        return result_container.get("result", {"success": False, "error": _ERR_UNKNOWN})
 
     def _execute_tool(self, tool_name: str, args: dict) -> dict:
         """Execute tool with error handling and retry logic."""
@@ -1067,8 +1075,49 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         except KeyError as e:
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
+        # ====== KOMUTU KULLANICIYA GÖSTER ======
+        from rich.panel import Panel
+        self.console.print(
+            Panel(
+                f"[bold cyan]{command}[/bold cyan]",
+                title=f"💻 {tool_name}",
+                border_style="cyan",
+                padding=(0, 1),
+            ),
+        )
+
         # Execute via execution engine
         result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
+
+        # ====== OUTPUT'U KULLANICIYA GÖSTER ======
+        if result.stdout and result.stdout.strip():
+            # Truncate very long output
+            output_display = result.stdout[:2000]
+            if len(result.stdout) > 2000:
+                output_display += f"\n... ({len(result.stdout) - 2000} karakter daha)"
+            self.console.print(
+                Panel(
+                    output_display,
+                    title="📄 Output",
+                    border_style="green" if result.exit_code == 0 else "red",
+                    padding=(0, 1),
+                ),
+            )
+
+        if result.stderr and result.stderr.strip() and result.exit_code != 0:
+            self.console.print(
+                Panel(
+                    result.stderr[:1000],
+                    title="⚠️ Stderr",
+                    border_style="yellow",
+                    padding=(0, 1),
+                ),
+            )
+
+        # Execution time feedback
+        self.console.print(
+            f"   [dim]⏱️ Süre: {result.duration:.1f}s | Exit: {result.exit_code}[/dim]",
+        )
 
         # Track tool failures globally
         if result.exit_code != 0:
@@ -1160,305 +1209,24 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         command: str,
         combined_output: str,
     ) -> tuple[bool, Any | None]:
-        """Apply error-specific healing strategies."""
-        error_type = error_diagnosis["type"]
-        healing_map = {
-            "missing_tool": self._heal_missing_tool,
-            "permission_denied": self._heal_permission_denied,
-            "python_module_missing": self._heal_python_module_missing,
-            "connection_error": self._heal_connection_error,
-            "timeout": self._heal_timeout,
-            "library_missing": self._heal_library_missing,
-            "rate_limit": self._heal_rate_limit,
-            "port_in_use": self._heal_port_in_use,
-            "disk_full": self._heal_disk_full,
-            "firewall_blocked": self._heal_firewall_blocked,
-            "database_error": self._heal_database_error,
-        }
+        """Apply error-specific healing strategies using SelfHealer."""
+        # Delegate to SelfHealer for known error types
+        healed, result = self.healer.apply_healing(error_diagnosis, tool_name, command)
+        if healed:
+            return healed, result
 
-        if error_type in healing_map:
-            return healing_map[error_type](tool_name, command, error_diagnosis)
+        # For unknown errors, try LLM-assisted fix
+        error_type = error_diagnosis.get("type", "unknown")
         if error_type == "unknown" and self.brain:
             return self._llm_assisted_error_fix(tool_name, command, combined_output)
 
         return False, None
 
-    def _heal_missing_tool(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal missing tool error by auto-installing."""
-        if self._install_tool(tool_name):
-            self.console.print(
-                f"🔄 {tool_name} yüklendi, yeniden deneniyor...",
-                style="cyan",
-            )
-            retry_result: ExecutionResult = self.executor.terminal.execute(
-                command,
-                timeout=300,
-            )
-            return retry_result.exit_code == 0, retry_result
-        return False, None
-
-    def _heal_permission_denied(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal permission denied by trying sudo."""
-        import platform
-
-        if platform.system().lower() != "windows" and not command.startswith("sudo"):
-            self.console.print("🔐 İzin hatası - sudo ile deneniyor...", style="yellow")
-            sudo_cmd: str = f"sudo {command}"
-            retry_result: ExecutionResult = self.executor.terminal.execute(
-                sudo_cmd,
-                timeout=300,
-            )
-            return retry_result.exit_code == 0, retry_result
-        return False, None
-
-    def _heal_python_module_missing(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal missing Python module by pip install."""
-        module_name = error_diagnosis.get("module")
-        if module_name:
-            self.console.print(
-                f"📦 Python modülü eksik: {module_name} - yükleniyor...",
-                style="yellow",
-            )
-            pip_cmd: str = f"pip install {module_name}"
-            pip_result: ExecutionResult = self.executor.terminal.execute(
-                pip_cmd,
-                timeout=120,
-            )
-            if pip_result.exit_code == 0:
-                self.console.print(
-                    f"✅ {module_name} yüklendi, yeniden deneniyor...",
-                    style="green",
-                )
-                retry_result: ExecutionResult = self.executor.terminal.execute(
-                    command,
-                    timeout=300,
-                )
-                return retry_result.exit_code == 0, retry_result
-        return False, None
-
-    def _heal_connection_error(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal connection error by retrying with backoff."""
-        self.console.print(
-            "🌐 Bağlantı hatası - 3 saniye bekleyip yeniden deneniyor...",
-            style="yellow",
-        )
-        time.sleep(3)
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_timeout(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal timeout by retrying with longer timeout."""
-        self.console.print(
-            "⏱️ Zaman aşımı - daha uzun timeout ile deneniyor...",
-            style="yellow",
-        )
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=600,
-        )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_library_missing(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal missing library by installing system package."""
-        library = error_diagnosis.get("library", "")
-        if not library:
-            return False, None
-
-        self.console.print(
-            f"📚 Kütüphane eksik: {library} - yükleniyor...",
-            style="yellow",
-        )
-        import platform
-
-        system: str = platform.system().lower()
-        lib_pkg_map: dict[str, str] = {
-            "libssl": "openssl" if system == "darwin" else "libssl-dev",
-            "libcrypto": "openssl" if system == "darwin" else "libssl-dev",
-            "libffi": "libffi-dev",
-            "libpython": "python3-dev",
-        }
-        pkg: str | None = lib_pkg_map.get(library.split(".")[0], library)
-
-        if system == "linux":
-            install_cmd: str = f"sudo apt-get install -y {pkg}"
-        elif system == "darwin":
-            install_cmd: str = f"brew install {pkg}"
-        else:
-            return False, None
-
-        install_result: ExecutionResult = self.executor.terminal.execute(
-            install_cmd,
-            timeout=180,
-        )
-        if install_result.exit_code == 0:
-            retry_result: ExecutionResult = self.executor.terminal.execute(
-                command,
-                timeout=300,
-            )
-            return retry_result.exit_code == 0, retry_result
-        return False, None
-
-    def _heal_rate_limit(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict[str, Any],
-    ) -> tuple[bool, Any | None]:
-        """Heal rate limit by waiting and retrying."""
-        self.console.print("⏳ İstek limiti - 30 saniye bekleniyor...", style="yellow")
-        time.sleep(30)
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_port_in_use(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict,
-    ) -> tuple[bool, Any | None]:
-        """Heal port in use by killing process."""
-        port = error_diagnosis.get("port")
-        if not port:
-            return False, None
-
-        self.console.print(
-            f"🔌 Port {port} kullanımda - işlem sonlandırılmaya çalışılıyor...",
-            style="yellow",
-        )
-        import platform
-
-        if platform.system().lower() != "windows":
-            kill_cmd: str = f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
-        else:
-            kill_cmd: str = f'for /f "tokens=5" %a in (\'netstat -aon ^| find ":{port}"\') do taskkill /F /PID %a'
-
-        self.executor.terminal.execute(kill_cmd, timeout=30)
-        time.sleep(2)
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_disk_full(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict,
-    ) -> tuple[bool, Any | None]:
-        """Heal disk full by cleaning up."""
-        self.console.print(
-            "💾 Disk alanı yetersiz - temizlik yapılıyor...",
-            style="yellow",
-        )
-        import platform
-
-        if platform.system().lower() != "windows":
-            cleanup_cmd = "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
-        else:
-            cleanup_cmd = "del /q/f/s %TEMP%\\* 2>nul"
-
-        self.executor.terminal.execute(cleanup_cmd, timeout=60)
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_firewall_blocked(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict,
-    ) -> tuple[bool, Any | None]:
-        """Heal firewall blocked by waiting and trying slower."""
-        self.console.print(
-            "🛡️ Güvenlik duvarı engeli - 10 saniye bekleyip stealth modda deneniyor...",
-            style="yellow",
-        )
-        time.sleep(10)
-        if "--rate" in command or "-T" in command:
-            slower_cmd: str = command.replace("-T4", "-T1").replace("-T5", "-T2")
-            retry_result: ExecutionResult = self.executor.terminal.execute(
-                slower_cmd,
-                timeout=600,
-            )
-        else:
-            retry_result: ExecutionResult = self.executor.terminal.execute(
-                command,
-                timeout=300,
-            )
-        return retry_result.exit_code == 0, retry_result
-
-    def _heal_database_error(
-        self,
-        tool_name: str,
-        command: str,
-        error_diagnosis: dict,
-    ) -> tuple[bool, Any | None]:
-        """Heal database error by removing lock files."""
-        self.console.print(
-            "🗄️ Veritabanı hatası - düzeltme deneniyor...",
-            style="yellow",
-        )
-        import glob
-        import os
-
-        for lock_file in (
-            glob.glob("*.db-journal") + glob.glob("*.db-wal") + glob.glob("*.db-shm")
-        ):
-            try:
-                os.remove(lock_file)
-                self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
-            except OSError as e:
-                logger.debug("Could not remove lock file {lock_file}: %s", e)
-        retry_result: ExecutionResult = self.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-        return retry_result.exit_code == 0, retry_result
-
     def _finalize_healing_result(
         self,
         healed: bool,
-        retry_result: Any | None,  # noqa: ANN401
-        result: Any,  # noqa: ANN401
+        retry_result: Any | None,
+        result: Any,
         tool_name: str,
         args: dict[str, Any],
     ) -> dict[str, Any]:
@@ -1473,416 +1241,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         # FIX: Return formatted result instead of recursive call
         return self._format_tool_result(result, args)
 
-    def _diagnose_error(self, output: str, exit_code: int) -> dict:
-        """Comprehensive error diagnosis from output and exit code.
-        Covers 25+ error types in multiple languages.
-
-        Returns diagnosis with type, description, and suggested fix.
-        """
-        output_lower: str = output.lower()
-        diagnosis = self._run_error_checks(output_lower, exit_code, output)
-
-        if diagnosis:
-            return diagnosis
-
-        self._log_unknown_error(output, exit_code)
-        return {
-            "type": "unknown",
-            "type_tr": "Tanımlanamayan hata",
-            "raw_output": output[:500],
-        }
-
-    def _run_error_checks(
-        self,
-        output_lower: str,
-        exit_code: int,
-        output: str,
-    ) -> dict | None:
-        """Run all error checks in priority order."""
-        checkers = [
-            self._check_missing_tool,
-            self._check_permission_error,
-            self._check_python_module_error,
-            self._check_library_error,
-            self._check_network_error,
-            self._check_timeout_error,
-            self._check_syntax_error,
-            self._check_file_error,
-            self._check_memory_error,
-            self._check_disk_error,
-            self._check_auth_error,
-            self._check_port_error,
-            self._check_database_error,
-            self._check_parse_error,
-            self._check_version_error,
-            self._check_rate_limit_error,
-            self._check_firewall_error,
-            self._check_resource_error,
-        ]
-
-        for checker in checkers:
-            result = checker(output_lower)
-            if result:
-                return result
-
-        return self._check_exit_code_error(exit_code, output)
-
-    def _check_missing_tool(self, output_lower: str) -> dict | None:
-        """Check for missing tool/command errors."""
-        import re
-
-        patterns: list[str] = [
-            "not found",
-            "not recognized",
-            "bulunamadı",
-            "command not found",
-            "komut bulunamadı",
-            "no such command",
-            "unknown command",
-            "is not recognized as",
-            "bash:",
-            "sh:",
-            "zsh:",
-            "cmd:",
-            "powershell:",
-        ]
-        if any(x in output_lower for x in patterns):
-            match: Match[str] | None = re.search(
-                r"['\"]?(\w+)['\"]?[:\s]*(command )?not found",
-                output_lower,
-            )
-            tool: str | Any | None = match.group(1) if match else None
-            return {"type": "missing_tool", "type_tr": "Araç bulunamadı", "tool": tool}
-        return None
-
-    def _check_permission_error(self, output_lower: str) -> dict | None:
-        """Check for permission/access denied errors."""
-        patterns: list[str] = [
-            "permission denied",
-            "access denied",
-            "izin reddedildi",
-            "operation not permitted",
-            "root privileges required",
-            "sudo required",
-            "eacces",
-            "eperm",
-            "requires elevation",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "permission_denied", "type_tr": "İzin hatası"}
-        return None
-
-    def _check_python_module_error(self, output_lower: str) -> dict | None:
-        """Check for Python module missing errors."""
-        import re
-
-        patterns: list[str] = [
-            "no module named",
-            "modulenotfounderror",
-            "importerror",
-            "cannot import name",
-            "modül bulunamadı",
-        ]
-        if any(x in output_lower for x in patterns):
-            match: Match[str] | None = re.search(
-                r"no module named ['\"]?([.\w]+)",
-                output_lower,
-            )
-            if not match:
-                match: Match[str] | None = re.search(
-                    r"cannot import name ['\"]?(\w+)",
-                    output_lower,
-                )
-            module: str | Any | None = match.group(1) if match else None
-            return {
-                "type": "python_module_missing",
-                "type_tr": "Python modülü eksik",
-                "module": module,
-            }
-        return None
-
-    def _check_library_error(self, output_lower: str) -> dict | None:
-        """Check for missing library/shared object errors."""
-        import re
-
-        patterns: list[str] = [
-            "cannot open shared object",
-            "library not found",
-            ".so:",
-            ".dll",
-            "libssl",
-            "libcrypto",
-            "libpython",
-            "kütüphane bulunamadı",
-        ]
-        if any(x in output_lower for x in patterns):
-            match: Match[str] | None = re.search(
-                r"(lib\w+\.so[.\d]*|[\w]+\.dll)",
-                output_lower,
-            )
-            library: str | Any | None = match.group(1) if match else None
-            return {
-                "type": "library_missing",
-                "type_tr": "Sistem kütüphanesi eksik",
-                "library": library,
-            }
-        return None
-
-    def _check_network_error(self, output_lower: str) -> dict | None:
-        """Check for connection/network errors."""
-        patterns: list[str] = [
-            "connection refused",
-            "connection reset",
-            "network unreachable",
-            "no route to host",
-            "econnrefused",
-            "ssl error",
-            "tls",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
-        return None
-
-    def _check_timeout_error(self, output_lower: str) -> dict | None:
-        """Check for timeout errors."""
-        patterns: list[str] = [
-            "timed out",
-            "timeout",
-            "zaman aşımı",
-            "etimedout",
-            "deadline exceeded",
-            "request timeout",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "timeout", "type_tr": "Zaman aşımı"}
-        return None
-
-    def _check_syntax_error(self, output_lower: str) -> dict | None:
-        """Check for syntax/argument errors."""
-        patterns: list[str] = [
-            "invalid argument",
-            "invalid option",
-            "unrecognized option",
-            "syntax error",
-            "bad argument",
-            "usage:",
-            "try '--help'",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "invalid_argument", "type_tr": "Geçersiz argüman/sözdizimi"}
-        return None
-
-    def _check_file_error(self, output_lower: str) -> dict | None:
-        """Check for file not found errors."""
-        import re
-
-        patterns: list[str] = [
-            "no such file",
-            "file not found",
-            "dosya bulunamadı",
-            "enoent",
-            "path not found",
-            "cannot find",
-        ]
-        if any(x in output_lower for x in patterns):
-            match: Match[str] | None = re.search(
-                r"['\"]?([/\\]?[\w./\\-]+\.\w+)['\"]?",
-                output_lower,
-            )
-            filepath: str | Any | None = match.group(1) if match else None
-            return {
-                "type": "file_not_found",
-                "type_tr": "Dosya bulunamadı",
-                "file": filepath,
-            }
-        return None
-
-    def _check_memory_error(self, output_lower: str) -> dict | None:
-        """Check for memory errors."""
-        patterns: list[str] = [
-            "out of memory",
-            "memory error",
-            "enomem",
-            "oom",
-            "segmentation fault",
-            "segfault",
-            "core dumped",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "memory_error", "type_tr": "Bellek hatası"}
-        return None
-
-    def _check_disk_error(self, output_lower: str) -> dict | None:
-        """Check for disk space errors."""
-        patterns: list[str] = [
-            "no space left",
-            "disk full",
-            "disk quota",
-            "enospc",
-            "yetersiz disk alanı",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "disk_full", "type_tr": "Disk alanı yetersiz"}
-        return None
-
-    def _check_auth_error(self, output_lower: str) -> dict | None:
-        """Check for authentication errors."""
-        patterns: list[str] = [
-            "authentication failed",
-            "invalid credentials",
-            "unauthorized",
-            "401",
-            "403 forbidden",
-            "login failed",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
-        return None
-
-    def _check_port_error(self, output_lower: str) -> dict | None:
-        """Check for port in use errors."""
-        import re
-
-        patterns: list[str] = [
-            "address already in use",
-            "port already in use",
-            "eaddrinuse",
-            "bind failed",
-            "port kullanımda",
-        ]
-        if any(x in output_lower for x in patterns):
-            match: Match[str] | None = re.search(r"port[:\s]*(\d+)", output_lower)
-            port: str | Any | None = match.group(1) if match else None
-            return {"type": "port_in_use", "type_tr": "Port kullanımda", "port": port}
-        return None
-
-    def _check_database_error(self, output_lower: str) -> dict | None:
-        """Check for database errors."""
-        patterns: list[str] = [
-            "database",
-            "sqlite",
-            "mysql",
-            "postgresql",
-            "db error",
-            "veritabanı hatası",
-            "locked",
-            "deadlock",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "database_error", "type_tr": "Veritabanı hatası"}
-        return None
-
-    def _check_parse_error(self, output_lower: str) -> dict | None:
-        """Check for JSON/XML parsing errors."""
-        patterns: list[str] = [
-            "json",
-            "xml",
-            "parsing error",
-            "decode error",
-            "invalid json",
-            "malformed",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
-        return None
-
-    def _check_version_error(self, output_lower: str) -> dict | None:
-        """Check for version/compatibility errors."""
-        patterns: list[str] = [
-            "version",
-            "incompatible",
-            "requires python",
-            "unsupported",
-            "deprecated",
-            "sürüm uyumsuz",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
-        return None
-
-    def _check_rate_limit_error(self, output_lower: str) -> dict | None:
-        """Check for rate limiting errors."""
-        patterns: list[str] = [
-            "rate limit",
-            "too many requests",
-            "429",
-            "throttled",
-            "quota exceeded",
-            "istek limiti",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
-        return None
-
-    def _check_firewall_error(self, output_lower: str) -> dict | None:
-        """Check for firewall/WAF blocked errors."""
-        patterns: list[str] = [
-            "blocked",
-            "firewall",
-            "waf",
-            "forbidden",
-            "filtered",
-            "connection reset by peer",
-            "güvenlik duvarı",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
-        return None
-
-    def _check_resource_error(self, output_lower: str) -> dict | None:
-        """Check for process/resource errors."""
-        patterns: list[str] = [
-            "too many open files",
-            "resource temporarily unavailable",
-            "eagain",
-            "emfile",
-            "process limit",
-        ]
-        if any(x in output_lower for x in patterns):
-            return {"type": "resource_limit", "type_tr": "Kaynak limiti"}
-        return None
-
-    def _check_exit_code_error(self, exit_code: int, output: str) -> dict | None:
-        """Check for exit code based errors."""
-        if exit_code != 0 and not output.strip():
-            exit_code_map: dict[int, dict[str, str]] = {
-                1: {"type": "general_error", "type_tr": "Genel hata"},
-                2: {"type": "invalid_argument", "type_tr": "Geçersiz argüman"},
-                126: {"type": "permission_denied", "type_tr": "Çalıştırma izni yok"},
-                127: {"type": "missing_tool", "type_tr": "Komut bulunamadı"},
-                128: {"type": "invalid_argument", "type_tr": "Geçersiz çıkış kodu"},
-                130: {"type": "interrupted", "type_tr": "Kullanıcı tarafından iptal"},
-                137: {"type": "killed", "type_tr": "İşlem sonlandırıldı (OOM?)"},
-                139: {"type": "segfault", "type_tr": "Segmentation fault"},
-                143: {"type": "terminated", "type_tr": "SIGTERM ile sonlandırıldı"},
-            }
-            if exit_code in exit_code_map:
-                return exit_code_map[exit_code]
-            if exit_code > 128:
-                signal_num: int = exit_code - 128
-                return {
-                    "type": "signal_killed",
-                    "type_tr": f"Sinyal {signal_num} ile sonlandırıldı",
-                }
-        return None
-
-    def _log_unknown_error(self, output: str, exit_code: int) -> None:
-        """Log unknown errors for future pattern learning."""
-        try:
-            import os
-            from datetime import datetime
-
-            log_dir = "logs"
-            os.makedirs(log_dir, exist_ok=True)
-
-            log_file: str = os.path.join(log_dir, "unknown_errors.log")
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"\n{'=' * 60}\n")
-                f.write(f"Timestamp: {datetime.now().isoformat()}\n")
-                f.write(f"Exit Code: {exit_code}\n")
-                f.write(f"Output:\n{output[:1000]}\n")
-        except OSError as e:
-            logger.debug("Could not write to log file {log_file}: %s", e)
+    # Error diagnosis methods are inherited from ErrorDiagnosticsMixin
+    # See: core/agent/error_diagnostics.py
 
     def _llm_assisted_error_fix(
         self,
@@ -1957,7 +1317,7 @@ Respond in JSON:
 
         return (False, None)
 
-    def _format_tool_result(self, result: Any, args: dict) -> dict:  # noqa: ANN401
+    def _format_tool_result(self, result: Any, args: dict) -> dict:
         """Format execution result dictionary with standardized errors."""
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
@@ -1994,7 +1354,7 @@ Respond in JSON:
 
         return final_result
 
-    def _run_async(self, coro: Any, timeout: int = 60) -> Any:  # noqa: ANN401
+    def _run_async(self, coro: Any, timeout: int = 60) -> Any:
         """Run async coroutine deterministically from sync context.
         Includes proper timeout and error handling to prevent hangs.
 
@@ -2026,7 +1386,7 @@ Respond in JSON:
             # Falls back to asyncio.wait_for for older Python versions
             if hasattr(asyncio, "timeout"):
                 # Python 3.11+ - use modern timeout context manager
-                async def _run_with_timeout() -> Any:  # noqa: ANN401
+                async def _run_with_timeout() -> Any:
                     async with asyncio.timeout(timeout):
                         return await coro
 
@@ -2052,7 +1412,7 @@ Respond in JSON:
         SADECE: Anlamlı özet
         """
         if not result.get("success"):
-            error_msg = result.get("error") or result.get("stderr", "Unknown error")
+            error_msg = result.get("error") or result.get("stderr", _ERR_UNKNOWN)
             return f"Tool {tool_name} failed: {error_msg[:100]}"
 
         # Success - create meaningful observation
@@ -2139,7 +1499,7 @@ Respond in JSON:
         """Update state from Nmap port scan results."""
         if self.state is None:
             raise AssertionError(self.MSG_STATE_NOT_NONE)
-        from core.tool_parsers import parse_nmap_output
+        from core.tools.tool_parsers import parse_nmap_output
 
         stdout = result.get("stdout", "")
         # Hybrid parsing with LLM fallback
@@ -2220,7 +1580,7 @@ Respond in JSON:
         """Process SQLMap results and update state."""
         import time
 
-        from core.tool_parsers import parse_sqlmap_output
+        from core.tools.tool_parsers import parse_sqlmap_output
 
         stdout = result.get("stdout", "")
         # Hybrid parsing with LLM fallback
@@ -2230,7 +1590,7 @@ Respond in JSON:
         if result.get("success") and "findings" in result:
             for finding in result["findings"]:
                 if self.state:
-                    from core.state import VulnerabilityInfo
+                    from core.agent.state import VulnerabilityInfo
 
                     # Adapt finding dict to VulnerabilityInfo dataclass
                     severity_str: str = str(finding.get("severity", "medium")).lower()

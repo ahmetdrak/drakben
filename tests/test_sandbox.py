@@ -8,7 +8,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.sandbox_manager import (
+from core.execution.sandbox_manager import (
     ContainerStatus,
     SandboxManager,
     get_sandbox_manager,

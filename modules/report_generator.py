@@ -23,7 +23,7 @@ try:
 except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
 
-from core.state import AgentState
+from core.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 

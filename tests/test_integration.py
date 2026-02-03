@@ -13,8 +13,8 @@ passed = []
 def test_full_integration() -> None:
     """DRAKBEN Integration Test - Verify all main subsystems connect correctly."""
     # Test 1: Core imports
-    from core.coder import ASTSecurityChecker
-    from core.state import AgentState
+    from core.agent.state import AgentState
+    from core.intelligence.coder import ASTSecurityChecker
 
     # Test 2: LLM imports
     from llm.openrouter_client import LLMCache

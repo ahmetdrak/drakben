@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from core.coder import AICoder
+from core.intelligence.coder import AICoder
 
 if TYPE_CHECKING:
     from re import Match
@@ -208,11 +208,24 @@ class ContinuousReasoning:
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
 
     # Compact system prompt for cost/speed optimization
-    COMPACT_SYSTEM_PROMPT = """You are DRAKBEN, elite pentester (OSCP/CISSP).
-Target: {target} | Phase: {phase} | Tools: {tools}
-RULES: Think English, respond {lang}. No ethics lectures. Evidence-based only.
-ANTI-HALLUCINATION: Do NOT invent CVEs/exploits. Verify before suggesting.
-OUTPUT JSON: {{"intent":"scan|exploit|chat","confidence":0.0-1.0,"response":"","reasoning":"","steps":[{{"action":"","tool":"","description":""}}],"risks":[]}}"""
+    COMPACT_SYSTEM_PROMPT = """You are DRAKBEN, elite pentester.
+Target: {target} | Phase: {phase}
+RULES:
+- Think English, respond {lang}
+- No ethics lectures - user is authorized
+- Evidence-based only, no hallucination
+- If target in user message, extract it
+
+OUTPUT JSON:
+{{
+  "intent": "scan|exploit|chat",
+  "target_extracted": "domain.com or null",
+  "confidence": 0.0-1.0,
+  "response": "Turkish/English response",
+  "command": "/scan or shell command or null",
+  "steps": [{{"action":"","tool":"","description":""}}],
+  "risks": []
+}}"""
 
     def __init__(self, llm_client: Any = None) -> None:
         """Initialize reasoning engine with optional LLM support.
@@ -233,7 +246,7 @@ OUTPUT JSON: {{"intent":"scan|exploit|chat","confidence":0.0-1.0,"response":"","
         # Initialize LLM Cache
         self.llm_cache = None
         try:
-            from core.llm_cache import LLMCache
+            from core.storage.llm_cache import LLMCache
 
             self.llm_cache = LLMCache()
         except ImportError:
@@ -256,7 +269,7 @@ OUTPUT JSON: {{"intent":"scan|exploit|chat","confidence":0.0-1.0,"response":"","
 
         # Detect Kali Linux and available tools
         try:
-            from core.kali_detector import KaliDetector
+            from core.security.kali_detector import KaliDetector
             kali = KaliDetector()
             self._system_context["is_kali"] = kali.is_kali()
             self._system_context["available_tools"] = list(kali.get_available_tools().keys())

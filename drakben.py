@@ -110,6 +110,13 @@ def cleanup_resources(signum=None, frame=None) -> None:
     try:
         logger.info("Shutdown signal received. Cleaning up...")
 
+        # GLOBAL STOP - Terminate all active processes
+        try:
+            from core.stop_controller import stop_controller
+            stop_controller.stop()
+        except ImportError:
+            pass
+
         # Close Database (if initialized)
         try:
             # Dynamically close DB instances if accessible via core
@@ -252,7 +259,7 @@ def main() -> None:
         )
 
         # Start interactive menu system
-        from core.menu import DrakbenMenu
+        from core.ui.menu import DrakbenMenu
 
         menu = DrakbenMenu(config_manager)
         menu.run()

@@ -13,7 +13,7 @@ def test_main_menu_launch() -> None:
     if "drakben" in sys.modules:
         del sys.modules["drakben"]
 
-    with patch("core.menu.DrakbenMenu") as MockMenu:
+    with patch("core.ui.menu.DrakbenMenu") as MockMenu:
         with patch("core.config.ConfigManager"):
             with patch("core.plugin_loader.PluginLoader"):
                 # Setup mocks

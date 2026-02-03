@@ -9,11 +9,11 @@ logger = logging.getLogger("integrity_check")
 
 REQUIRED_FILES = [
     "drakben.py",
-    "core/state.py",
-    "core/execution_engine.py",
-    "core/security_utils.py",
-    "core/ghost_protocol.py",
-    "core/universal_adapter.py",
+    "core/agent/state.py",
+    "core/execution/execution_engine.py",
+    "core/security/security_utils.py",
+    "core/security/ghost_protocol.py",
+    "core/intelligence/universal_adapter.py",
     "core/config.py",
 ]
 

@@ -7,7 +7,7 @@ import time
 from unittest.mock import MagicMock
 
 import core.brain
-from core.refactored_agent import RefactoredDrakbenAgent
+from core.agent.refactored_agent import RefactoredDrakbenAgent
 
 core.brain.OpenRouterClient = MagicMock()
 

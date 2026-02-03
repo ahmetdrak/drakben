@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import aiohttp
 
 if TYPE_CHECKING:
-    from core.state import AgentState
+    from core.agent.state import AgentState
 
 # Setup logger
 logger = logging.getLogger(__name__)

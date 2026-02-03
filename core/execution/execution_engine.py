@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from core.sandbox_manager import ContainerInfo, SandboxManager
+from core.execution.sandbox_manager import ContainerInfo, SandboxManager
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def _get_sandbox_manager() -> SandboxManager | None:
     global _sandbox_manager
     if _sandbox_manager is None:
         try:
-            from core.sandbox_manager import get_sandbox_manager
+            from core.execution.sandbox_manager import get_sandbox_manager
 
             _sandbox_manager = get_sandbox_manager()
         except ImportError:
@@ -602,7 +602,16 @@ class SmartTerminal:
             popen_kwargs["stdout"] = subprocess.DEVNULL
             popen_kwargs["stderr"] = subprocess.DEVNULL
 
-        return subprocess.Popen(cmd_args, **popen_kwargs)
+        process = subprocess.Popen(cmd_args, **popen_kwargs)
+
+        # Register with global stop controller
+        try:
+            from core.stop_controller import stop_controller
+            stop_controller.register_process(process)
+        except ImportError:
+            pass
+
+        return process
 
     def _wait_for_process(
         self,

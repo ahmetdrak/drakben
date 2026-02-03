@@ -4,7 +4,7 @@
 import logging
 import os
 
-from core.state import get_state
+from core.agent.state import get_state
 
 # Configure logger
 logger = logging.getLogger(__name__)

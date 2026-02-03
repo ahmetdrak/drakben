@@ -15,14 +15,14 @@ def test_module_health() -> None:
     """Verify all critical modules are importable."""
     logger.info("Starting Drakben Health Check...")
     modules_to_check = [
-        "core.refactored_agent",
-        "core.universal_adapter",
-        "core.self_refining_engine",
-        "core.evolution_memory",
+        "core.agent.refactored_agent",
+        "core.intelligence.universal_adapter",
+        "core.intelligence.self_refining_engine",
+        "core.intelligence.evolution_memory",
         "modules.weapon_foundry",
         "modules.hive_mind",
         "modules.c2_framework",
-        "core.ghost_protocol",
+        "core.security.ghost_protocol",
     ]
 
     failed_modules = []

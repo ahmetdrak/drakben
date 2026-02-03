@@ -9,14 +9,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # LATE IMPORTS (Moved to top for E402 compliance)
 # -----------------------------------------------------------------------------
 try:
+    from core.agent.refactored_agent import RefactoredDrakbenAgent
     from core.config import ConfigManager
-    from core.refactored_agent import RefactoredDrakbenAgent
 except ImportError:
     RefactoredDrakbenAgent = None
     ConfigManager = None
 
 try:
-    from core.universal_adapter import UniversalAdapter
+    from core.intelligence.universal_adapter import UniversalAdapter
 except ImportError:
     UniversalAdapter = None
 

@@ -22,8 +22,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.execution_engine import ExecutionResult, ExecutionStatus
-from core.ghost_protocol import GhostProtocol
+from core.execution.execution_engine import ExecutionResult, ExecutionStatus
+from core.security.ghost_protocol import GhostProtocol
 from modules.c2_framework import BeaconMessage, C2Channel, C2Config, C2Protocol
 from modules.hive_mind import Credential, CredentialType, HiveMind, NetworkHost
 from modules.weapon_foundry import EncryptionMethod, PayloadFormat, WeaponFoundry
@@ -77,7 +77,7 @@ class TestWarGameSimulation(unittest.TestCase):
     def mock_exploitation(self) -> None:
         """Mock the actual execution of exploits (safe simulation)."""
         # Patch execution engine to simulate success instead of running real exploits
-        self.execution_patcher = patch("core.execution_engine.SmartTerminal.execute")
+        self.execution_patcher = patch("core.execution.execution_engine.SmartTerminal.execute")
         self.mock_execute = self.execution_patcher.start()
 
         def side_effect(command, **kwargs):
@@ -236,7 +236,7 @@ class TestWarGameSimulation(unittest.TestCase):
 
         # Mock the secure delete
         with patch(
-            "core.ghost_protocol.SecureCleanup.secure_delete",
+            "core.security.ghost_protocol.SecureCleanup.secure_delete",
             return_value=True,
         ) as mock_wipe:
             self.ghost.secure_delete_file(evidence_file)

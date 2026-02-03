@@ -297,7 +297,7 @@ class DrakbenProgress:
             transient=True,
         )
 
-    async def async_spinner(self, coro: Any, description: str = PROCESSING_TEXT) -> Any:  # noqa: ANN401
+    async def async_spinner(self, coro: Any, description: str = PROCESSING_TEXT) -> Any:
         """Run async coroutine with spinner.
 
         Args:
@@ -319,7 +319,7 @@ class DrakbenProgress:
         targets: list[str],
         scan_func: Callable,
         description: str = "Scanning",
-    ) -> list[Any]:  # noqa: ANN401
+    ) -> list[Any]:
         """Show progress for scanning multiple targets.
 
         Args:
@@ -350,7 +350,7 @@ class DrakbenProgress:
         scan_func: Callable,
         description: str = "Scanning",
         concurrency: int = 5,
-    ) -> list[Any]:  # noqa: ANN401
+    ) -> list[Any]:
         """Show progress for async scanning.
 
         Args:
@@ -366,7 +366,7 @@ class DrakbenProgress:
         results = []
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def limited_scan(target: str) -> Any:  # noqa: ANN401
+        async def limited_scan(target: str) -> Any:
             async with semaphore:
                 return await scan_func(target)
 
@@ -444,7 +444,7 @@ class StatusDisplay:
         self.start()
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:  # noqa: ANN401
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
 
 
@@ -545,7 +545,7 @@ def show_spinner(description: str = PROCESSING_TEXT) -> Progress:
     return progress.spinner(description)
 
 
-async def run_with_spinner(coro: Any, description: str = PROCESSING_TEXT) -> Any:  # noqa: ANN401
+async def run_with_spinner(coro: Any, description: str = PROCESSING_TEXT) -> Any:
     """Run coroutine with spinner."""
     progress = DrakbenProgress()
     return await progress.async_spinner(coro, description)

@@ -10,7 +10,7 @@ import secrets
 from .base import IMutationEngine, MutationResult
 
 # Late imports inside methods to prevent circular dependency
-# from core.ghost_protocol import get_ghost_protocol
+# from core.security.ghost_protocol import get_ghost_protocol
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class MutationEngine(IMutationEngine):
         """
         try:
             # Import Ghost Protocol dynamically
-            from core.ghost_protocol import get_ghost_protocol
+            from core.security.ghost_protocol import get_ghost_protocol
 
             ghost = get_ghost_protocol()
 
@@ -85,7 +85,7 @@ class MutationEngine(IMutationEngine):
             if result.success:
                 # In real scenario, we would use result.code but here logic is tied to ghost protocol
                 # Since get_ghost_protocol().obfuscate_code returns code directly:
-                from core.ghost_protocol import get_ghost_protocol
+                from core.security.ghost_protocol import get_ghost_protocol
 
                 current_code = get_ghost_protocol().obfuscate_code(current_code)
 

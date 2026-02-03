@@ -9,11 +9,11 @@ if TYPE_CHECKING:
 
     from rich.table import Table
 
-    from core.brain import DrakbenBrain
-    from core.execution_engine import ExecutionResult
-    from core.refactored_agent import RefactoredDrakbenAgent
-    from core.state import AgentState
-    from core.tool_selector import ToolSpec
+    from core.agent.brain import DrakbenBrain
+    from core.agent.refactored_agent import RefactoredDrakbenAgent
+    from core.agent.state import AgentState
+    from core.execution.execution_engine import ExecutionResult
+    from core.execution.tool_selector import ToolSpec
 
 from rich.console import Console
 from rich.prompt import Prompt
@@ -29,7 +29,7 @@ except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
 from core.config import ConfigManager, DrakbenConfig
-from core.kali_detector import KaliDetector
+from core.security.kali_detector import KaliDetector
 
 
 class DrakbenMenu:
@@ -63,6 +63,7 @@ class DrakbenMenu:
     STYLE_BOLD_GREEN = "bold green"
     STYLE_BOLD_CYAN = "bold cyan"
     STYLE_BOLD_YELLOW = "bold yellow"
+    STYLE_DIM_CYAN = "dim cyan"
     MSG_AGENT_NOT_NONE = "self.agent is not None"
 
     BANNER = r"""
@@ -194,7 +195,7 @@ class DrakbenMenu:
         # Build segments helper
         def get_seg(lbl: str, val: str, val_style: str = DrakbenMenu.STYLE_BOLD_WHITE) -> Text:
             t = Text()
-            t.append(lbl, style="dim cyan")
+            t.append(lbl, style=DrakbenMenu.STYLE_DIM_CYAN)
             t.append(f" {val}", style=val_style)
             return t
 
@@ -229,30 +230,60 @@ class DrakbenMenu:
 
         # MAIN LOOP
         while self.running:
-            try:
-                # Get user input with protected prompt
-                user_input: str = self._get_input().strip()
-
-                if not user_input:
-                    continue
-
-                # Is it a slash command?
-                if user_input.startswith("/"):
-                    self._handle_command(user_input)
-                else:
-                    # Send to AI
-                    self._process_with_ai(user_input)
-
-            except KeyboardInterrupt:
-                # Ctrl+C = Direct exit
-                self.console.print("\n")
-                break
-            except EOFError:
+            if not self._run_main_loop_iteration(lang):
                 break
 
         # Exit
         msg: str = "Görüşürüz!" if lang == "tr" else "Goodbye!"
         self.console.print(f"👋 {msg}", style=self.COLORS["purple"])
+
+    def _run_main_loop_iteration(self, lang: str) -> bool:
+        """Run a single iteration of the main loop.
+
+        Returns:
+            True to continue, False to exit
+        """
+        try:
+            # Get user input with protected prompt
+            user_input: str = self._get_input().strip()
+
+            if not user_input:
+                return True
+
+            # Is it a slash command?
+            if user_input.startswith("/"):
+                self._handle_command(user_input)
+            else:
+                # Send to AI
+                self._process_with_ai(user_input)
+            return True
+
+        except KeyboardInterrupt:
+            return self._handle_keyboard_interrupt(lang)
+        except EOFError:
+            return False
+
+    def _handle_keyboard_interrupt(self, lang: str) -> bool:
+        """Handle Ctrl+C in main menu.
+
+        Returns:
+            True to continue, False to exit
+        """
+        self.console.print("\n")
+        confirm_msg = (
+            "Çıkmak istiyor musunuz? (e/h)"
+            if lang == "tr"
+            else "Do you want to exit? (y/n)"
+        )
+        try:
+            response = Prompt.ask(confirm_msg, choices=["e", "h", "y", "n"], default="h")
+            if response.lower() in ["e", "y"]:
+                return False
+            self.console.print("👍 Menüye dönüldü.\n", style="green")
+            return True
+        except (KeyboardInterrupt, EOFError):
+            # Double Ctrl+C = Force exit
+            return False
 
     def _show_welcome_message(self, lang: str) -> None:
         """Helper to show welcome message."""
@@ -284,7 +315,7 @@ class DrakbenMenu:
                 self.console.print(f"[dim green]{msg}[/dim]")
 
                 # Enterprise Plugin Registration (No Monkey Patching)
-                from core.tool_selector import ToolSelector
+                from core.execution.tool_selector import ToolSelector
 
                 ToolSelector.register_global_plugins(plugins)
 
@@ -347,50 +378,268 @@ class DrakbenMenu:
             self.console.print(f"❌ {msg}", style="red")
 
     def _process_with_ai(self, user_input: str) -> None:
-        """Process with AI."""
+        """Process with AI - Interactive mode with step-by-step approval.
+
+        Doğal dil komutlarında her adım için onay istenir.
+        /scan komutu için tam otonom mod kullanılır.
+        """
         lang: str = self.config.language
 
         # Lazy load brain
         if not self.brain:
-            from core.brain import DrakbenBrain
+            from core.agent.brain import DrakbenBrain
 
             self.brain = DrakbenBrain()
 
+        # ====== DOĞAL DİLDEN HEDEF ÇIKARMA ======
+        extracted_target = self._extract_target_from_text(user_input)
+        if extracted_target and not self.config.target:
+            self.config.target = extracted_target
+            self.console.print(
+                f"🎯 [bold green]Hedef ayarlandı: {extracted_target}[/]",
+            )
+
         thinking: str = "Düşünüyor..." if lang == "tr" else "Thinking..."
 
-        with self.console.status(f"[bold {self.COLORS['purple']}]🧠 {thinking}"):
-            if self.brain is None:
-                msg = "self.brain is not None"
-                raise AssertionError(msg)
-            result = self.brain.think(user_input, self.config.target, lang)
+        try:
+            with self.console.status(f"[bold {self.COLORS['purple']}]🧠 {thinking}"):
+                if self.brain is None:
+                    msg = "self.brain is not None"
+                    raise AssertionError(msg)
+                result = self.brain.think(user_input, self.config.target, lang)
 
-        self._handle_ai_response_text(result, lang)
-        self._handle_ai_command(result, lang)
+            # Show AI response text
+            self._handle_ai_response_text(result, lang)
 
-    def _handle_ai_response_text(self, result: Any, lang: str) -> None:  # noqa: ANN401
+            # Process steps with approval (interactive mode)
+            steps = result.get("steps", [])
+            if steps and isinstance(steps, list) and len(steps) > 0:
+                self._execute_steps_with_approval(steps, lang)
+            else:
+                # Single command mode (backward compatibility)
+                self._handle_ai_command(result, lang)
+
+        except KeyboardInterrupt:
+            # Ctrl+C during LLM thinking = Cancel and return to prompt
+            self.console.print("\n🛑 İptal edildi.", style="yellow")
+
+    def _execute_steps_with_approval(self, steps: list, lang: str) -> None:
+        """Execute plan steps with user approval for each step.
+
+        Args:
+            steps: List of step dicts with 'command', 'tool', 'description'
+            lang: Language code ('tr' or 'en')
+        """
+        total = len(steps)
+
+        for i, step in enumerate(steps, 1):
+            result = self._process_single_step(step, i, total, lang)
+            if result == "stop":
+                return
+            # result == "skip" or "done" -> continue loop
+
+        # Completion message
+        done_msg = "✅ Tüm adımlar tamamlandı." if lang == "tr" else "✅ All steps completed."
+        self.console.print(f"\n{done_msg}\n", style="green")
+
+    def _process_single_step(self, step: dict, index: int, total: int, lang: str) -> str:
+        """Process a single step with approval.
+
+        Returns:
+            'stop' - Stop all remaining steps
+            'skip' - Step was skipped
+            'done' - Step was executed
+        """
+        from rich.panel import Panel
+
+        command = step.get("command") or step.get("tool", "")
+        if not command:
+            return "skip"
+
+        # Show step info
+        description = step.get("description", "")
+        step_header = f"[{index}/{total}] {description}" if description else f"[{index}/{total}]"
+        self.console.print(f"\n⏳ {step_header}", style="cyan")
+
+        # Show command panel
+        self.console.print(Panel(f"💻 {command}", border_style="yellow", padding=(0, 1)))
+
+        # Ask for approval
+        approval = self._ask_step_approval(lang)
+
+        if approval == "stop":
+            stop_msg = "⚠️ İşlem durduruldu. Menüye dönüldü." if lang == "tr" else "⚠️ Operation stopped. Returning to menu."
+            self.console.print(f"\n{stop_msg}\n", style="yellow")
+            return "stop"
+
+        if approval == "no":
+            skip_msg = "⏭️ Adım atlandı." if lang == "tr" else "⏭️ Step skipped."
+            self.console.print(skip_msg, style="dim")
+            return "skip"
+
+        # Execute the command
+        self._execute_command(command)
+        self._show_next_step_hint(index, total, step, lang)
+        return "done"
+
+    def _show_next_step_hint(self, current_idx: int, total: int, steps: dict, lang: str) -> None:
+        """Show hint about next step if available."""
+        # Note: steps parameter not used here, but kept for potential future use
+        if current_idx >= total:
+            return
+        next_msg = "⏳ Sonraki adıma geçiliyor..." if lang == "tr" else "⏳ Moving to next step..."
+        self.console.print(f"\n{next_msg}", style=self.STYLE_DIM_CYAN)
+
+    def _ask_step_approval(self, lang: str) -> str:
+        """Ask user for step approval.
+
+        Returns:
+            'yes' - Execute the step
+            'no' - Skip the step
+            'stop' - Stop all remaining steps
+        """
+        prompt_text, choices, yes_set, stop_set = self._get_approval_config(lang)
+
+        try:
+            resp = Prompt.ask(prompt_text, choices=choices, default=choices[0])
+            if resp in yes_set:
+                return "yes"
+            if resp in stop_set:
+                return "stop"
+            return "no"
+        except KeyboardInterrupt:
+            return "stop"
+
+    def _get_approval_config(self, lang: str) -> tuple[str, list[str], set[str], set[str]]:
+        """Get approval prompt configuration for language.
+
+        Returns:
+            Tuple of (prompt_text, choices, yes_choices_set, stop_choices_set)
+        """
+        if lang == "tr":
+            return (
+                "Çalıştır? [E]vet / [H]ayır / [D]urdur",
+                ["e", "h", "d", "E", "H", "D"],
+                {"e", "E"},
+                {"d", "D"},
+            )
+        return (
+            "Run? [Y]es / [N]o / [S]top",
+            ["y", "n", "s", "Y", "N", "S"],
+            {"y", "Y"},
+            {"s", "S"},
+        )
+    def _extract_target_from_text(self, text: str) -> str | None:
+        """Doğal dilden hedef (domain/IP) çıkar.
+
+        Örnekler:
+        - "filmfabrikasi.com sitesini tara" -> filmfabrikasi.com
+        - "192.168.1.1 adresini kontrol et" -> 192.168.1.1
+        - "https://example.com'u tara" -> example.com
+        """
+        import re
+
+        # URL pattern (with protocol)
+        url_match = re.search(
+            r"https?://([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}",
+            text,
+        )
+        if url_match:
+            # Extract just the domain
+            domain = url_match.group(0)
+            domain = re.sub(r"^https?://", "", domain)
+            domain = domain.split("/")[0]
+            return domain
+
+        # Domain pattern (without protocol)
+        domain_match = re.search(
+            r"\b([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}\b",
+            text,
+        )
+        if domain_match:
+            return domain_match.group(0)
+
+        # IP address pattern
+        ip_match = re.search(
+            r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+            text,
+        )
+        if ip_match:
+            return ip_match.group(0)
+
+        return None
+
+    def _handle_ai_response_text(self, result: Any, lang: str) -> None:
         """Handle displaying the AI response text."""
-        response_text = (
+        response_text = self._extract_response_text(result)
+
+        if response_text:
+            self.console.print(f"\n🧛 {response_text}\n", style=self.COLORS["cyan"])
+            self._show_planned_steps(result, lang)
+            self._show_confidence(result)
+        elif result.get("error"):
+            self.console.print(f"\n❌ Hata: {result['error']}\n", style="red")
+        else:
+            self._show_offline_message(lang)
+
+    def _extract_response_text(self, result: Any) -> str | None:
+        """Extract response text from result dict."""
+        return (
             result.get("llm_response")
             or result.get("reply")
             or result.get("response")
             or result.get("reasoning")
         )
 
-        if response_text:
-            self.console.print(f"\n🧛 {response_text}\n", style=self.COLORS["cyan"])
-        # No response - show error or offline message
-        elif result.get("error"):
-            self.console.print(f"\n❌ Hata: {result['error']}\n", style="red")
-        else:
-            offline_msg: str = (
-                "LLM bağlantısı yok. Lütfen API ayarlarını kontrol edin."
-                if lang == "tr"
-                else "No LLM connection. Please check API settings."
-            )
-            self.console.print(f"\n⚠️ {offline_msg}\n", style="yellow")
+    def _show_planned_steps(self, result: Any, lang: str) -> None:
+        """Show planned steps from AI response."""
+        from rich.panel import Panel
 
-    def _handle_ai_command(self, result: Any, lang: str) -> None:  # noqa: ANN401
-        """Handle executing the command suggested by AI."""
+        steps = result.get("steps", [])
+        if not steps or not isinstance(steps, list):
+            return
+
+        step_lines = []
+        for i, s in enumerate(steps[:5]):
+            action = s.get("action", s.get("tool", "unknown"))
+            desc = s.get("description", s.get("tool", ""))[:50]
+            step_lines.append(f"  {i+1}. {action} - {desc}")
+
+        step_text = "\n".join(step_lines)
+        if step_text.strip():
+            title = "📋 Planlanan Adımlar" if lang == "tr" else "📋 Planned Steps"
+            self.console.print(
+                Panel(step_text, title=title, border_style="dim cyan", padding=(0, 1)),
+            )
+
+    def _show_confidence(self, result: Any) -> None:
+        """Show confidence score with color coding."""
+        confidence = result.get("confidence", 0)
+        if confidence <= 0:
+            return
+
+        conf_color = self._get_confidence_color(confidence)
+        self.console.print(f"   [dim]Güven: [{conf_color}]{confidence:.0%}[/][/dim]")
+
+    def _get_confidence_color(self, confidence: float) -> str:
+        """Get color for confidence level."""
+        if confidence > 0.7:
+            return "green"
+        if confidence > 0.4:
+            return "yellow"
+        return "red"
+
+    def _show_offline_message(self, lang: str) -> None:
+        """Show offline/no connection message."""
+        offline_msg = (
+            "LLM bağlantısı yok. Lütfen API ayarlarını kontrol edin."
+            if lang == "tr"
+            else "No LLM connection. Please check API settings."
+        )
+        self.console.print(f"\n⚠️ {offline_msg}\n", style="yellow")
+
+    def _handle_ai_command(self, result: Any, lang: str) -> None:
+        """Handle executing a single command suggested by AI (backward compatibility)."""
         command = result.get("command")
         if not command:
             return
@@ -402,18 +651,27 @@ class DrakbenMenu:
             self._execute_command(command)
             return
 
-        self.console.print(f"📝 Komut: [bold yellow]{command}[/]")
+        # Show command in panel
+        from rich.panel import Panel
+        self.console.print(
+            Panel(
+                f"💻 {command}",
+                border_style="yellow",
+                padding=(0, 1),
+            ),
+        )
 
-        # Check approval
-        if result.get("needs_approval", True):
-            q: str = "Çalıştır? (e/h)" if lang == "tr" else "Run? (y/n)"
-            # ... prompt code ...
-            # For now just default to asking
-            resp: str = Prompt.ask(q, choices=["e", "h", "y", "n"], default="e")
-            if resp.lower() in ["e", "y"]:
-                self._execute_command(command)
-        else:
+        # Ask for approval with proper language support
+        approval = self._ask_step_approval(lang)
+
+        if approval == "yes":
             self._execute_command(command)
+        elif approval == "stop":
+            stop_msg = "⚠️ İşlem durduruldu." if lang == "tr" else "⚠️ Operation stopped."
+            self.console.print(f"\n{stop_msg}\n", style="yellow")
+        else:
+            skip_msg = "⏭️ Komut atlandı." if lang == "tr" else "⏭️ Command skipped."
+            self.console.print(skip_msg, style="dim")
 
     def _execute_command(self, command: str) -> None:
         """Execute command."""
@@ -430,7 +688,7 @@ class DrakbenMenu:
 
         # Agent lazy load
         if not self.agent:
-            from core.refactored_agent import RefactoredDrakbenAgent
+            from core.agent.refactored_agent import RefactoredDrakbenAgent
 
             self.agent = RefactoredDrakbenAgent(self.config_manager)
             if self.agent is None:
@@ -486,7 +744,7 @@ class DrakbenMenu:
         self.console.print(f"[yellow]🔍 Searching for: {query}...[/yellow]")
 
         try:
-            from core.web_researcher import WebResearcher
+            from core.network.web_researcher import WebResearcher
 
             researcher = WebResearcher()
             results = researcher.search_tool(query)
@@ -784,12 +1042,25 @@ class DrakbenMenu:
                 raise AssertionError(self.MSG_AGENT_NOT_NONE)
             self.agent.run_autonomous_loop()
         except KeyboardInterrupt:
+            # Ctrl+C during scan = Stop scan, return to menu
+            try:
+                from core.stop_controller import stop_controller
+                stop_controller.stop()
+            except ImportError:
+                pass
             interrupt_msg: str = (
-                "Tarama kullanıcı tarafından durduruldu."
+                "\n🛑 Tarama durduruldu. Menüye dönülüyor..."
                 if lang == "tr"
-                else "Scan stopped by user."
+                else "\n🛑 Scan stopped. Returning to menu..."
             )
-            self.console.print(f"\n⚠️ {interrupt_msg}", style="yellow")
+            self.console.print(interrupt_msg, style="yellow")
+            # Reset stop controller for next operation
+            try:
+                from core.stop_controller import stop_controller
+                stop_controller.reset()
+            except ImportError:
+                pass
+            # Don't re-raise - return to menu gracefully
         except Exception as e:
             import logging
 
@@ -803,7 +1074,7 @@ class DrakbenMenu:
     def _ensure_agent_initialized(self) -> None:
         """Ensure agent is initialized."""
         if not self.agent:
-            from core.refactored_agent import RefactoredDrakbenAgent
+            from core.agent.refactored_agent import RefactoredDrakbenAgent
 
             self.agent = RefactoredDrakbenAgent(self.config_manager)
 
@@ -831,7 +1102,7 @@ class DrakbenMenu:
                 ),
             )
             # Retry with fresh agent
-            from core.refactored_agent import RefactoredDrakbenAgent
+            from core.agent.refactored_agent import RefactoredDrakbenAgent
 
             target: str = self.config.target or "localhost"
             self.agent = RefactoredDrakbenAgent(self.config_manager)
@@ -893,7 +1164,7 @@ class DrakbenMenu:
             ),
         )
 
-        from core.interactive_shell import InteractiveShell
+        from core.ui.interactive_shell import InteractiveShell
 
         shell = InteractiveShell(config_manager=self.config_manager, agent=self.agent)
         shell.current_target = self.config.target
@@ -1002,7 +1273,7 @@ class DrakbenMenu:
         )
         self.console.print()
 
-    def _get_service_status(self, svc: Any, vuln_map: dict, is_tr: bool) -> str:  # noqa: ANN401
+    def _get_service_status(self, svc: Any, vuln_map: dict, is_tr: bool) -> str:
         """Get status text for a service row."""
         if svc.port in vuln_map:
             v = vuln_map[svc.port]
@@ -1049,7 +1320,7 @@ class DrakbenMenu:
             )
         return table
 
-    def _add_scanning_row(self, table: Any, is_tr: bool) -> None:  # noqa: ANN401
+    def _add_scanning_row(self, table: Any, is_tr: bool) -> None:
         """Add scanning placeholder row to table."""
         wait = "Bekle" if is_tr else "Wait"
         scanning = "Tarama yapılıyor..." if is_tr else "Scanning..."
@@ -1060,7 +1331,7 @@ class DrakbenMenu:
         """Create a table showing current plan steps."""
         from rich.table import Table
 
-        from core.planner import StepStatus
+        from core.agent.planner import StepStatus
 
         lang = self.config.language
         is_tr = lang == "tr"
@@ -1359,7 +1630,7 @@ class DrakbenMenu:
             ),
         )
 
-    def _select_provider_for_setup(self, lang: str, providers: dict[str, Any]) -> Any:  # noqa: ANN401
+    def _select_provider_for_setup(self, lang: str, providers: dict[str, Any]) -> Any:
         from rich.table import Table
 
         # Provider selection
@@ -1546,7 +1817,7 @@ class DrakbenMenu:
             )
             self.console.print(f"\n[dim]{test_msg}[/dim]")
 
-            from core.brain import DrakbenBrain
+            from core.agent.brain import DrakbenBrain
 
             self.brain = DrakbenBrain()
 

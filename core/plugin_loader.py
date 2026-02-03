@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 # Type checking imports
-from core.tool_selector import ToolSpec
+from core.execution.tool_selector import ToolSpec
 
 logger = logging.getLogger(__name__)
 

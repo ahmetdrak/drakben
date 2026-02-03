@@ -26,7 +26,7 @@ class CodeValidator(IValidator):
 
         # Check for SandboxManager
         try:
-            from core.sandbox_manager import get_sandbox_manager
+            from core.execution.sandbox_manager import get_sandbox_manager
 
             self.sandbox = get_sandbox_manager()
             self.use_docker = True

@@ -15,7 +15,7 @@ _SecurityError_cls: Any = Exception
 
 # Import Computer integration
 try:
-    from core.computer import computer as _comp
+    from core.tools.computer import computer as _comp
 
     _computer_obj = _comp
     COMPUTER_AVAILABLE = True
@@ -24,8 +24,8 @@ except ImportError:
 
 # Import CommandSanitizer for security
 try:
-    from core.execution_engine import CommandSanitizer as _CS
-    from core.execution_engine import SecurityError as _SE
+    from core.execution.execution_engine import CommandSanitizer as _CS
+    from core.execution.execution_engine import SecurityError as _SE
 
     _CommandSanitizer_cls = _CS
     _SecurityError_cls = _SE

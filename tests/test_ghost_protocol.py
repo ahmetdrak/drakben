@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.ghost_protocol import (
+from core.security.ghost_protocol import (
     GhostProtocol,
     PolymorphicTransformer,
     SecureCleanup,

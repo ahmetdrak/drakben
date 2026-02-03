@@ -1,4 +1,4 @@
-# core/tool_selector.py
+# core/execution/tool_selector.py
 # DRAKBEN Tool Selector - DETERMINISTIC TOOL SELECTION
 # REQUIRED: LLM tool selection limited to state.remaining_attack_surface
 # NEW: KaliDetector integration - only available tools
@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from .state import AgentState, AttackPhase
+from core.agent.state import AgentState, AttackPhase
 
 logger = logging.getLogger(__name__)
 
 # Kali entegrasyonu
 try:
-    from .kali_detector import KaliDetector
+    from core.security.kali_detector import KaliDetector
 
     KALI_AVAILABLE = True
 except ImportError:

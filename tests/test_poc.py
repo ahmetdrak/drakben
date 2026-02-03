@@ -21,7 +21,7 @@ except ImportError:
     WAFEvasion = None
 
 try:
-    from core.database_manager import SQLiteProvider
+    from core.storage.database_manager import SQLiteProvider
 except ImportError:
     SQLiteProvider = None
 
@@ -37,7 +37,7 @@ logger = logging.getLogger("TheGauntlet")
 
 
 @pytest.mark.asyncio
-async def test_gauntlet_poc() -> None:
+async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally complex for full feature verification
     """DRAKBEN 'THE GAUNTLET' PROOF-OF-CONCEPT - Full feature verification."""
     results = {"Stealth": False, "WAF": False, "Database": False, "PostExploit": False}
 

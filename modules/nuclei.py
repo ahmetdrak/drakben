@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    from core.state import AgentState
+    from core.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -357,7 +357,7 @@ async def nuclei_scan_state_target(
     results = await scanner.scan(targets, config)
 
     # Update state with vulnerabilities
-    from core.state import VulnerabilityInfo
+    from core.agent.state import VulnerabilityInfo
 
     for result in results:
         if result.severity in [

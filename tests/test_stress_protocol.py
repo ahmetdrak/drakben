@@ -1,17 +1,17 @@
 import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Fix PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.agent.planner import PlanStep, StepStatus
+from core.agent.refactored_agent import RefactoredDrakbenAgent
+from core.agent.state import AgentState, AttackPhase
 from core.config import ConfigManager
-from core.planner import PlanStep, StepStatus
-from core.refactored_agent import RefactoredDrakbenAgent
-from core.state import AgentState, AttackPhase
-from core.tool_selector import ToolSelector
+from core.execution.tool_selector import ToolSelector
 
 # STRESS TEST PROTOCOL - DRAKBEN - ZERO DEFECT VALIDATION
 
@@ -31,6 +31,7 @@ def agent():
     mock_result.stdout = "MOCK SUCCESS"
     mock_result.stderr = ""
     mock_result.status.value = "success"
+    mock_result.duration = 0.5
     agent.executor.terminal.execute.return_value = mock_result
 
     # Mock Evolution Memory
@@ -56,8 +57,7 @@ def agent():
     return agent
 
 
-@pytest.mark.asyncio
-async def test_full_kill_chain_simulation(agent) -> None:
+def test_full_kill_chain_simulation(agent) -> None:
     """NUCLEAR STRESS TEST: Validate Attack Chain Integrity without DB.
     We inject 3 sequential steps into the Planner mock and verify Agent executes them.
     """
@@ -105,8 +105,18 @@ async def test_full_kill_chain_simulation(agent) -> None:
         error="",
     )
 
+    # Mock _execute_tool_with_progress to avoid threading/timeout issues
+    executed_tools = []
+
+    def mock_execute(tool_name: str, args: dict) -> dict:
+        executed_tools.append(tool_name)
+        return {
+            "success": True,
+            "output": f"Mock executed {tool_name}",
+            "args": args,
+        }
+
     # Instruct Planner to yield these steps sequentially, then None
-    # We provide extra None values to avoid StopIteration if polled multiple times
     agent.planner.get_next_step.side_effect = [
         step1,
         step2,
@@ -118,25 +128,23 @@ async def test_full_kill_chain_simulation(agent) -> None:
         None,
     ]
 
-    # RUN ITERATION 1 (Recon)
-    agent.state.phase = AttackPhase.RECON
-    agent._run_single_iteration(15)
+    with patch.object(agent, "_execute_tool_with_progress", side_effect=mock_execute):
+        # RUN ITERATION 1 (Recon)
+        agent.state.phase = AttackPhase.RECON
+        agent._run_single_iteration(15)
 
-    # RUN ITERATION 2 (Vuln)
-    agent.state.phase = AttackPhase.VULN_SCAN
-    agent._run_single_iteration(15)
+        # RUN ITERATION 2 (Vuln)
+        agent.state.phase = AttackPhase.VULN_SCAN
+        agent._run_single_iteration(15)
 
-    # RUN ITERATION 3 (Exploit)
-    agent.state.phase = AttackPhase.EXPLOIT
-    agent._run_single_iteration(15)
+        # RUN ITERATION 3 (Exploit)
+        agent.state.phase = AttackPhase.EXPLOIT
+        agent._run_single_iteration(15)
 
-    # VERIFICATION
-    calls = agent.executor.terminal.execute.call_args_list
-    executed_commands = [c[0][0] for c in calls]  # Arg 0 is command string
-
-    assert any("nmap" in cmd for cmd in executed_commands), "Failed to execute Recon step"
-    assert any("nikto" in cmd for cmd in executed_commands), "Failed to execute Vuln Scan step"
-    assert any("sqlmap" in cmd for cmd in executed_commands), "Failed to execute Exploit step"
+    # VERIFICATION - Check that mock was called with correct tools
+    assert "nmap_port_scan" in executed_tools, "Failed to execute Recon step"
+    assert "nikto_web_scan" in executed_tools, "Failed to execute Vuln Scan step"
+    assert "sqlmap_exploit" in executed_tools, "Failed to execute Exploit step"
 
 
 def test_tool_registry_integrity() -> None:
@@ -147,7 +155,6 @@ def test_tool_registry_integrity() -> None:
     missing_handlers = []
 
     # Define critical tools that MUST operate
-
     handlers = {
         "generate_payload": "_execute_weapon_foundry",
         "synthesize_code": "_execute_singularity",

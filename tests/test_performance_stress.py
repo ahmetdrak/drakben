@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.brain import ContinuousReasoning, ExecutionContext
-from core.execution_engine import CommandSanitizer, SmartTerminal
+from core.agent.brain import ContinuousReasoning, ExecutionContext
+from core.execution.execution_engine import CommandSanitizer, SmartTerminal
 from core.singularity.engine import SingularityEngine
 
 # Setup Logger
@@ -45,11 +45,11 @@ class TestPerformanceStress(unittest.TestCase):
         # PATCH 2: Bypass "sanitize" to allow ';' in python one-liners (stress test only)
         with (
             patch(
-                "core.execution_engine.CommandSanitizer.requires_confirmation",
+                "core.execution.execution_engine.CommandSanitizer.requires_confirmation",
                 return_value=(False, ""),
             ),
             patch(
-                "core.execution_engine.CommandSanitizer.sanitize",
+                "core.execution.execution_engine.CommandSanitizer.sanitize",
                 side_effect=lambda x, **kwargs: x,
             ),
         ):

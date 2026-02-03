@@ -343,6 +343,14 @@ class OpenRouterClient:
             LLM response string
 
         """
+        # Check for global stop signal
+        try:
+            from core.stop_controller import check_stop
+            if check_stop():
+                return "[Stopped] Operation cancelled by user."
+        except ImportError:
+            pass
+
         if system_prompt is None:
             system_prompt = "You are a penetration testing assistant. Provide clear, actionable security advice."
 

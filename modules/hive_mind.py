@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 class CredentialType(Enum):
     """Types of harvested credentials."""
 
-    PASSWORD = "password"  # noqa: S105
+    PASSWORD = "password"
     NTLM_HASH = "ntlm_hash"
     KERBEROS_TICKET = "kerberos_ticket"
     SSH_KEY = "ssh_key"
-    TOKEN = "token"  # noqa: S105
+    TOKEN = "token"
     CERTIFICATE = "certificate"
 
 
@@ -53,8 +53,8 @@ class MovementTechnique(Enum):
     WINRM = "winrm"
     SSH = "ssh"
     RDP = "rdp"
-    PASS_THE_HASH = "pth"  # noqa: S105
-    PASS_THE_TICKET = "ptt"  # noqa: S105
+    PASS_THE_HASH = "pth"
+    PASS_THE_TICKET = "ptt"
 
 
 class ADAttack(Enum):

@@ -196,7 +196,7 @@ if __name__ == "__main__":
     res = researcher.search_tool(q)
 
     if not res:
-        print(f"No results found for: {q}")  # noqa: T201
+        print(f"No results found for: {q}")
     else:
         for _r in res:
-            print(f"Found: {_r}")  # noqa: T201
+            print(f"Found: {_r}")

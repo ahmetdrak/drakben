@@ -195,7 +195,7 @@ class AgentState:
             for cred in self.credentials:
                 if cred.password:
                     try:
-                        from core.ghost_protocol import get_ram_cleaner
+                        from core.security.ghost_protocol import get_ram_cleaner
                         get_ram_cleaner().register_sensitive(cred.password)
                     except Exception:
                         pass  # RAMCleaner optional, continue cleanup regardless
@@ -474,7 +474,7 @@ class AgentState:
     ) -> None:
         """Add credential securely with RAM cleaning support."""
         # Local import to avoid circular dependency
-        from core.ghost_protocol import get_ram_cleaner
+        from core.security.ghost_protocol import get_ram_cleaner
 
         with self._lock:
             # Register sensitive data for secure wiping
@@ -516,7 +516,7 @@ class AgentState:
     ) -> None:
         """Save captured credential to secure store."""
         try:
-            from core.security_utils import CredentialStore, get_credential_store
+            from core.security.security_utils import CredentialStore, get_credential_store
 
             store: CredentialStore = get_credential_store()
 

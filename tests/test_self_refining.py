@@ -9,7 +9,7 @@ import unittest
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.self_refining_engine import SelfRefiningEngine, Strategy, StrategyProfile
+from core.intelligence.self_refining_engine import SelfRefiningEngine, Strategy, StrategyProfile
 
 
 class TestSelfRefiningEngine(unittest.TestCase):

@@ -584,14 +584,14 @@ class InteractiveShell:
                 # Expression - use eval but it's already within safe_globals
                 # We'll use a local result variable to avoid potential issues
                 try:
-                    expr_result = eval(code, safe_globals)  # noqa: S307
+                    expr_result = eval(code, safe_globals)
                     if expr_result is not None:
                         self.console.print(repr(expr_result))
                 except Exception as e:
                     self.console.print(f"[red]Expression error: {e}[/red]")
             else:
                 # Statement - use exec
-                exec(code, safe_globals)  # noqa: S102
+                exec(code, safe_globals)
 
             return CommandResult(success=True, output="")
         except Exception as e:
@@ -603,7 +603,7 @@ class InteractiveShell:
         self.session_vars = {}
 
         if self.agent and self.agent.state:
-            from core.state import reset_state
+            from core.agent.state import reset_state
 
             self.agent.state = reset_state()
 

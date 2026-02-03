@@ -237,6 +237,7 @@ class EvolutionMemory:
 
     def record_action(self, record: ActionRecord) -> None:
         """Record action outcome - PERSISTENT."""
+        import json
         with self._lock:
             conn = self._get_conn()
             cursor = conn.cursor()
@@ -252,7 +253,7 @@ class EvolutionMemory:
                     record.step_id,
                     record.action_name,
                     record.tool,
-                    record.parameters,
+                    json.dumps(record.parameters) if isinstance(record.parameters, dict) else record.parameters,
                     record.outcome,
                     record.timestamp,
                     record.penalty_score,
