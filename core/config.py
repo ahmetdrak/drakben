@@ -74,7 +74,7 @@ class DrakbenConfig:
     llm_setup_complete: bool = False
 
     # UI Settings
-    language: str = "en"  # tr, en
+    language: str = "en"  # tr, en - Default English
     use_colors: bool = True
     verbose: bool = False
 

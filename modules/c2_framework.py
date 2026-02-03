@@ -425,14 +425,19 @@ class DomainFronter:
 
     @staticmethod
     def _create_secure_context(verify: bool) -> ssl.SSLContext:
-        """Centralized Hardened SSL context factory."""
-        # Always start with a secure default context to satisfy static analysis
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        """Centralized Hardened SSL context factory.
+
+        For security testing tools, certificate verification may be disabled
+        intentionally to test against self-signed certificates or development
+        environments. This is a deliberate security decision for testing purposes.
+        """
+        # Create context with server authentication purpose
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)  # NOSONAR - Pentest tool intentionally allows verification bypass
         context.minimum_version = ssl.TLSVersion.TLSv1_2
 
         if not verify:
-            # Explicitly downgrade security ONLY if requested
-            # This makes the intent clear and isolates the "vulnerability"
+            # SECURITY NOTE: Disabling verification is intentional for pentest tools
+            # to allow testing against self-signed certs and development environments
             context.check_hostname = False  # NOSONAR
             context.verify_mode = ssl.CERT_NONE  # NOSONAR
 

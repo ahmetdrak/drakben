@@ -1,4 +1,4 @@
-# core/refactored_agent.py
+﻿# core/refactored_agent.py
 # DRAKBEN SELF-REFINING EVOLVING AGENT
 # PROFILE-BASED EVOLUTION + POLICY CONFLICT RESOLUTION + META-LEARNING
 
@@ -127,7 +127,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                   - "aggressive": Use high-aggression profiles, fast scans
 
         ENFORCED ORDER:
-        1. Classify target → target_signature
+        1. Classify target â†’ target_signature
         2. Select strategy.name (with policy filtering)
         3. Select best strategy_profile (not retired, not failed)
         4. Generate plan FROM THAT PROFILE
@@ -158,9 +158,9 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         except sqlite3.OperationalError as e:
             logger.critical("Database error during init: %s", e)
-            self.console.print(f"⚠️  Database error: {e}", style="yellow")
+            self.console.print(f"âš ï¸  Database error: {e}", style="yellow")
             self.console.print(
-                "⚠️  Switching to fallback mode (limited functionality)",
+                "âš ï¸  Switching to fallback mode (limited functionality)",
                 style="yellow",
             )
             self._fallback_mode = True
@@ -169,12 +169,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Setup scan mode and display initialization message."""
         self._scan_mode: str = mode.lower() if mode else "auto"
         mode_label: str = {
-            "stealth": "🥷 STEALTH (Sessiz)",
-            "aggressive": "⚡ AGGRESSIVE (Hızlı)",
-            "auto": "🤖 AUTO",
-        }.get(self._scan_mode, "🤖 AUTO")
+            "stealth": "ğŸ¥· STEALTH (Sessiz)",
+            "aggressive": "âš¡ AGGRESSIVE (HÄ±zlÄ±)",
+            "auto": "ğŸ¤– AUTO",
+        }.get(self._scan_mode, "ğŸ¤– AUTO")
         self.console.print(
-            f"🔄 Initializing agent for target: {target} [{mode_label}]",
+            f"ğŸ”„ Initializing agent for target: {target} [{mode_label}]",
             style=self.STYLE_BLUE,
         )
 
@@ -185,14 +185,14 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         try:
             self.tool_selector.evolve_strategies(self.evolution)
         except Exception as e:
-            self.console.print(f"⚠️  Tool evolution skipped: {e}", style="yellow")
+            self.console.print(f"âš ï¸  Tool evolution skipped: {e}", style="yellow")
 
     def _classify_target(self, target: str) -> str:
         """Classify target and set signature."""
         target_type: str = self.refining_engine.classify_target(target)
         self.target_signature = self.refining_engine.get_target_signature(target)
-        self.console.print(f"🎯 Target Classification: {target_type}", style="cyan")
-        self.console.print(f"🔑 Target Signature: {self.target_signature}", style="dim")
+        self.console.print(f"ğŸ¯ Target Classification: {target_type}", style="cyan")
+        self.console.print(f"ğŸ”‘ Target Signature: {self.target_signature}", style="dim")
         return target_type
 
     def _select_and_filter_profile(self, target: str) -> bool:
@@ -203,12 +203,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             )
             self._apply_mode_filtering()
         except Exception as e:
-            self.console.print(f"❌ Strategy selection failed: {e}", style="red")
+            self.console.print(f"âŒ Strategy selection failed: {e}", style="red")
             logger.exception("Strategy selection error")
             return False
 
         if not self.current_strategy or not self.current_profile:
-            self.console.print("❌ No strategy/profile available", style="red")
+            self.console.print("âŒ No strategy/profile available", style="red")
             return False
         return True
 
@@ -224,7 +224,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _switch_to_stealth_profile(self) -> None:
         """Switch to low-aggression profile for stealth mode."""
         self.console.print(
-            "🥷 Stealth mode: Searching for low-aggression profile...",
+            "ğŸ¥· Stealth mode: Searching for low-aggression profile...",
             style="dim",
         )
         if not self.current_strategy:
@@ -241,14 +241,14 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 key=lambda p: p.aggressiveness,
             )[0]
             self.console.print(
-                f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})",
+                f"ğŸ¥· Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})",
                 style="green",
             )
 
     def _switch_to_aggressive_profile(self) -> None:
         """Switch to high-aggression profile for aggressive mode."""
         self.console.print(
-            "⚡ Aggressive mode: Searching for high-aggression profile...",
+            "âš¡ Aggressive mode: Searching for high-aggression profile...",
             style="dim",
         )
         if not self.current_strategy:
@@ -265,33 +265,33 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 key=lambda p: -p.aggressiveness,
             )[0]
             self.console.print(
-                f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})",
+                f"âš¡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})",
                 style="yellow",
             )
 
     def _display_selected_profile(self) -> None:
         """Display selected strategy and profile information."""
         if not self.current_strategy or not self.current_profile:
-            self.console.print("⚠️ No strategy/profile active.", style="yellow")
+            self.console.print("âš ï¸ No strategy/profile active.", style="yellow")
             return
 
         self.console.print(
-            f"🧠 Selected Strategy: {self.current_strategy.name}",
+            f"ğŸ§  Selected Strategy: {self.current_strategy.name}",
             style=self.STYLE_MAGENTA,
         )
         self.console.print(
-            f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
+            f"ğŸ­ Selected Profile: {self.current_profile.profile_id[:12]}... "
             f"(gen: {self.current_profile.mutation_generation}, "
             f"success_rate: {self.current_profile.success_rate:.1%}, "
             f"aggression: {self.current_profile.aggressiveness:.2f})",
             style=self.STYLE_CYAN,
         )
         self.console.print(
-            f"   📋 Step Order: {self.current_profile.step_order}",
+            f"   ğŸ“‹ Step Order: {self.current_profile.step_order}",
             style="dim",
         )
         self.console.print(
-            f"   ⚙️  Parameters: {json.dumps(self.current_profile.parameters)}",
+            f"   âš™ï¸  Parameters: {json.dumps(self.current_profile.parameters)}",
             style="dim",
         )
 
@@ -302,7 +302,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         )
         if existing_plan:
             self.console.print(
-                f"🔁 Resuming plan: {existing_plan.plan_id}",
+                f"ğŸ” Resuming plan: {existing_plan.plan_id}",
                 style=self.STYLE_GREEN,
             )
             self.planner.load_plan(existing_plan.plan_id)
@@ -313,7 +313,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 f"pentest_{target}",
             )
             self.console.print(
-                f"📋 Created plan from profile: {plan_id}",
+                f"ğŸ“‹ Created plan from profile: {plan_id}",
                 style=self.STYLE_GREEN,
             )
 
@@ -322,7 +322,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         try:
             status = self.refining_engine.get_evolution_status()
             self.console.print(
-                f"🧬 Evolution Status: {status['active_policies']} policies, "
+                f"ğŸ§¬ Evolution Status: {status['active_policies']} policies, "
                 f"{status['retired_profiles']} retired profiles, "
                 f"{status['max_mutation_generation']} max mutation gen",
                 style="dim",
@@ -337,7 +337,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             )
             if policies:
                 self.console.print(
-                    f"📜 Active Policies: {len(policies)}",
+                    f"ğŸ“œ Active Policies: {len(policies)}",
                     style="yellow",
                 )
                 for p in policies[:3]:
@@ -349,7 +349,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         except Exception as e:
             logger.exception("Critical initialization error: %s", e)
             self.console.print(
-                f"❌ Critical error during initialization: {e}",
+                f"âŒ Critical error during initialization: {e}",
                 style=self.STYLE_RED,
             )
             # Still allow basic operation
@@ -368,22 +368,22 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         stop_controller.reset()
 
         self.console.print(
-            "\n🚀 Starting evolved autonomous loop...\n",
+            "\n[*] Starting autonomous scan...\n",
             style=self.STYLE_GREEN,
         )
         self.console.print(
-            "   [dim]💡 İpucu: Durdurmak için Ctrl+C[/dim]\n",
+            "   [dim]Tip: Press Ctrl+C to stop[/dim]\n",
         )
 
         if not self.state:
-            self.console.print("❌ FATAL: State not initialized.", style=self.STYLE_RED)
+            self.console.print("âŒ FATAL: State not initialized.", style=self.STYLE_RED)
             return
 
         max_iterations: int = self.state.max_iterations
         while self.running and self.state.iteration_count < max_iterations:
             # Check for global stop signal
             if check_stop():
-                self.console.print("\n🛑 [yellow]Kullanıcı tarafından durduruldu.[/yellow]")
+                self.console.print("\n[!] [yellow]Stopped by user.[/yellow]")
                 self.running = False
                 break
 
@@ -403,7 +403,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         self.console.print(f"\n{'=' * 60}", style="dim")
         self.console.print(
-            f"⚡ Iteration {iteration}/{max_iterations}",
+            f"[>] Iteration {iteration}/{max_iterations}",
             style=self.STYLE_CYAN,
         )
 
@@ -418,7 +418,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return False
 
         self.console.print(
-            f"📋 Plan Step: {step.step_id} | Action: {step.action} | Tool: {step.tool}",
+            f"[*] Step: {step.step_id} | Action: {step.action} | Tool: {step.tool}",
             style="cyan",
         )
 
@@ -443,10 +443,10 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.planner.mark_step_executing(step.step_id)
 
         # Show what we're about to do with context
-        self.console.print(f"\n🔧 [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
+        self.console.print(f"\n[>] [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
         if step.params:
             params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
-            self.console.print(f"   📎 Params: {params_display}", style="dim")
+            self.console.print(f"   Params: {params_display}", style="dim")
 
         # Execute with progress indicator and timeout handling
         execution_result = self._execute_tool_with_progress(step.tool, step.params)
@@ -483,7 +483,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Check for stagnation and triggering replan if needed. Returns True if halt required."""
         if self.evolution.detect_stagnation():
             self.console.print(
-                "⚠️  STAGNATION DETECTED - forcing replan",
+                "âš ï¸  STAGNATION DETECTED - forcing replan",
                 style=self.STYLE_YELLOW,
             )
             current_step: PlanStep | None = self.planner.get_next_step()
@@ -493,7 +493,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
             if self.stagnation_counter >= 3:
                 self.console.print(
-                    "🛑 HALT: Too many stagnations",
+                    "ğŸ›‘ HALT: Too many stagnations",
                     style=self.STYLE_RED,
                 )
                 return True
@@ -502,12 +502,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _handle_plan_completion(self) -> None:
         """Handle case where no steps are left."""
         if self.planner.is_plan_complete():
-            self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
+            self.console.print("âœ… Plan complete!", style=self.STYLE_GREEN)
             if self.state:
                 self.state.phase = AttackPhase.COMPLETE
             self.running = False
         else:
-            self.console.print("❓ No executable step found", style="yellow")
+            self.console.print("â“ No executable step found", style="yellow")
             self.running = False
 
     def _check_tool_blocked(self, step: PlanStep) -> bool:
@@ -516,7 +516,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         penalty: float = self.evolution.get_tool_penalty(step.tool, target)
         if self.evolution.is_tool_blocked(step.tool, target):
             self.console.print(
-                f"🚫 Tool {step.tool} is BLOCKED for {target} (penalty={penalty:.1f})",
+                f"ğŸš« Tool {step.tool} is BLOCKED for {target} (penalty={penalty:.1f})",
                 style=self.STYLE_RED,
             )
             # Trigger replan
@@ -524,7 +524,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return True
 
         self.console.print(
-            f"📊 Tool {step.tool} penalty for {target}: {penalty:.1f} / {self.evolution.BLOCK_THRESHOLD}",
+            f"ğŸ“Š Tool {step.tool} penalty for {target}: {penalty:.1f} / {self.evolution.BLOCK_THRESHOLD}",
             style="dim",
         )
         return False
@@ -578,7 +578,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             step.step_id,
             execution_result.get("stdout", "")[:200],
         )
-        self.console.print("✅ Step succeeded", style="green")
+        self.console.print("âœ… Step succeeded", style="green")
         self.stagnation_counter = 0
 
         # Update profile outcome on success
@@ -611,13 +611,13 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
             install_result = adapter.install_tool(tool_name, force=True)
             if install_result["success"]:
-                self.console.print(f"✅ Tool {tool_name} installed/recovered!", style="green")
+                self.console.print(f"âœ… Tool {tool_name} installed/recovered!", style="green")
                 return True
 
             if install_result.get("requires_approval"):
                 logger.warning(f"Tool {tool_name} requires manual approval: {install_result['message']}")
 
-            self.console.print(f"❌ Recovery failed: {install_result['message']}", style="red")
+            self.console.print(f"âŒ Recovery failed: {install_result['message']}", style="red")
             return False
         except Exception as e:
             logger.exception("Dynamic recovery crashed: %s", e)
@@ -631,16 +631,16 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Handle failed step execution. Returns False if critical failure loop break needed."""
         stderr_msg = execution_result.get("stderr", _ERR_UNKNOWN)
         should_replan: bool = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
-        self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
+        self.console.print(f"âŒ Step failed: {stderr_msg[:200]}", style="red")
 
         error_type = self._categorize_error(stderr_msg[:100])
 
         if error_type == "tool_missing":
-            self.console.print(f"⚠️ Tool '{step.tool}' miss, attempting Auto-Recovery...", style=self.STYLE_YELLOW)
+            self.console.print(f"âš ï¸ Tool '{step.tool}' miss, attempting Auto-Recovery...", style=self.STYLE_YELLOW)
             if self._attempt_tool_recovery(step.tool):
                 self.planner.replan(step.step_id)
                 return True
-            self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
+            self.console.print(f"ğŸ›‘ CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
             self.running = False
             return False
 
@@ -673,7 +673,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         )
         if policy_id:
             self.console.print(
-                f"📚 Learned new policy: {policy_id[:12]}...",
+                f"ğŸ“š Learned new policy: {policy_id[:12]}...",
                 style="dim",
             )
 
@@ -686,7 +686,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         )
         if retired_profile:
             self.console.print(
-                f"⚠️  Profile {retired_profile.profile_id[:12]}... RETIRED. Emergency re-selection...",
+                f"âš ï¸  Profile {retired_profile.profile_id[:12]}... RETIRED. Emergency re-selection...",
                 style="yellow",
             )
             # LOGIC FIX: Don't keep using a retired profile. Resync immediately.
@@ -702,19 +702,19 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
     def _handle_replan(self, step: "PlanStep", error_msg: str) -> None:
         """Handle replanning logic and AI tool creation backup."""
-        self.console.print("🔄 Triggering replan...", style="yellow")
+        self.console.print("ğŸ”„ Triggering replan...", style="yellow")
         replan_success: bool = self.planner.replan(step.step_id)
 
         if not replan_success:
             self.console.print(
-                "📝 Replan failed - will select different profile next time",
+                "ğŸ“ Replan failed - will select different profile next time",
                 style="yellow",
             )
 
         # === SELF-CODING: If replan failed, try to create new tool ===
         if not replan_success and self.tools_created_this_session < 3:
             self.console.print(
-                "🧠 No alternative tool found. Attempting to CREATE one...",
+                "ğŸ§  No alternative tool found. Attempting to CREATE one...",
                 style=self.STYLE_MAGENTA,
             )
 
@@ -728,7 +728,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             if create_result.get("success"):
                 new_tool_name = create_result["tool_name"]
                 self.console.print(
-                    f"✨ Created new tool: {new_tool_name}",
+                    f"âœ¨ Created new tool: {new_tool_name}",
                     style=self.STYLE_GREEN,
                 )
                 self.tools_created_this_session += 1
@@ -746,7 +746,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 step.retry_count = 0
             else:
                 self.console.print(
-                    f"⚠️  Could not create tool: {create_result.get('error')}",
+                    f"âš ï¸  Could not create tool: {create_result.get('error')}",
                     style="yellow",
                 )
 
@@ -756,14 +756,14 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             return False
 
         if not self.state.validate():
-            self.console.print("❌ STATE INVARIANT VIOLATION!", style=self.STYLE_RED)
+            self.console.print("âŒ STATE INVARIANT VIOLATION!", style=self.STYLE_RED)
             for violation in self.state.invariant_violations:
                 self.console.print(f"   - {violation}", style="red")
             return False
 
         should_halt, halt_reason = self.state.should_halt()
         if should_halt:
-            self.console.print(f"\n🛑 HALT: {halt_reason}", style=self.STYLE_YELLOW)
+            self.console.print(f"\nğŸ›‘ HALT: {halt_reason}", style=self.STYLE_YELLOW)
             return False
 
         return True
@@ -771,8 +771,8 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _get_llm_decision(self, context: dict) -> dict | None:
         """LLM'den TEK aksiyon al - with retry and fallback mechanism.
 
-        LLM'ye gönderilen:
-        - State snapshot (5 satır özet)
+        LLM'ye gÃ¶nderilen:
+        - State snapshot (5 satÄ±r Ã¶zet)
         - Allowed tools
         - Remaining attack surfaces
         - Last observation (max 200 char)
@@ -842,16 +842,16 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     def _handle_llm_retry(self, attempt: int, max_retries: int) -> None:
         """Handle LLM retry with user feedback."""
         self.console.print(
-            f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{max_retries})",
+            f"âš ï¸  LLM hatasÄ±, yeniden deneniyor... ({attempt + 1}/{max_retries})",
             style="yellow",
         )
         time.sleep(1)
 
     def _log_llm_failure(self, llm_error: str, _max_retries: int) -> None:
         """Log LLM failure and switch to fallback."""
-        self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
+        self.console.print(f"âš ï¸  LLM kullanÄ±lamÄ±yor: {llm_error}", style="yellow")
         self.console.print(
-            "🔄 Deterministik karar mekanizmasına geçiliyor...",
+            "ğŸ”„ Deterministik karar mekanizmasÄ±na geÃ§iliyor...",
             style="dim",
         )
         logger.warning("LLM decision failed after {max_retries} attempts: %s", llm_error)
@@ -863,7 +863,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         deterministic_decision = self.tool_selector.recommend_next_action(self.state)
         if deterministic_decision:
             _, tool_name, args = deterministic_decision
-            self.console.print(f"✅ Deterministik karar: {tool_name}", style="dim")
+            self.console.print(f"âœ… Deterministik karar: {tool_name}", style="dim")
             return {"tool": tool_name, "args": args}
         return None
 
@@ -895,7 +895,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             # Periodic feedback to user
             if time_module.time() - last_feedback >= feedback_interval:
                 self.console.print(
-                    f"   ⏳ Hala çalışıyor... ({int(elapsed)}s geçti)",
+                    f"   [~] Running... ({int(elapsed)}s)",
                     style="dim",
                 )
                 last_feedback = time_module.time()
@@ -903,18 +903,18 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             # Check for very long execution
             if elapsed > max_display_wait:
                 self.console.print(
-                    f"\n   ⚠️ [yellow]Tool {tool_name} çok uzun sürüyor ({int(elapsed)}s)![/yellow]",
+                    f"\n   [!] [yellow]Tool {tool_name} taking too long ({int(elapsed)}s)[/yellow]",
                     style="yellow",
                 )
                 self.console.print(
-                    "   💡 İpucu: Hedef erişilebilir mi? Ağ bağlantısı var mı?",
+                    "   [?] Is target reachable? Check network.",
                     style="dim",
                 )
                 # Wait a bit more but don't spam
                 execution_done.wait(timeout=30)
                 if not execution_done.is_set():
                     self.console.print(
-                        f"   🛑 [red]Timeout! {tool_name} yanıt vermiyor.[/red]",
+                        f"   [!] [red]Timeout: {tool_name} not responding.[/red]",
                         style="red",
                     )
                     return {
@@ -1075,12 +1075,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         except KeyError as e:
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
-        # ====== KOMUTU KULLANICIYA GÖSTER ======
+        # ====== KOMUTU KULLANICIYA GÃ–STER ======
         from rich.panel import Panel
         self.console.print(
             Panel(
                 f"[bold cyan]{command}[/bold cyan]",
-                title=f"💻 {tool_name}",
+                title=f"ğŸ’» {tool_name}",
                 border_style="cyan",
                 padding=(0, 1),
             ),
@@ -1089,7 +1089,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         # Execute via execution engine
         result: ExecutionResult = self.executor.terminal.execute(command, timeout=300)
 
-        # ====== OUTPUT'U KULLANICIYA GÖSTER ======
+        # ====== OUTPUT'U KULLANICIYA GÃ–STER ======
         if result.stdout and result.stdout.strip():
             # Truncate very long output
             output_display = result.stdout[:2000]
@@ -1098,7 +1098,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             self.console.print(
                 Panel(
                     output_display,
-                    title="📄 Output",
+                    title="ğŸ“„ Output",
                     border_style="green" if result.exit_code == 0 else "red",
                     padding=(0, 1),
                 ),
@@ -1108,7 +1108,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             self.console.print(
                 Panel(
                     result.stderr[:1000],
-                    title="⚠️ Stderr",
+                    title="âš ï¸ Stderr",
                     border_style="yellow",
                     padding=(0, 1),
                 ),
@@ -1116,7 +1116,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         # Execution time feedback
         self.console.print(
-            f"   [dim]⏱️ Süre: {result.duration:.1f}s | Exit: {result.exit_code}[/dim]",
+            f"   [dim]â±ï¸ SÃ¼re: {result.duration:.1f}s | Exit: {result.exit_code}[/dim]",
         )
 
         # Track tool failures globally
@@ -1139,12 +1139,12 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         """Handle tool failure with comprehensive self-healing.
 
         Error Types Handled:
-        1. Missing tool → Auto-install
-        2. Permission denied → Suggest sudo / elevate
-        3. Connection refused → Network check / retry
-        4. Timeout → Increase timeout / retry
-        5. Python module missing → pip install
-        6. Unknown → LLM-assisted diagnosis
+        1. Missing tool â†’ Auto-install
+        2. Permission denied â†’ Suggest sudo / elevate
+        3. Connection refused â†’ Network check / retry
+        4. Timeout â†’ Increase timeout / retry
+        5. Python module missing â†’ pip install
+        6. Unknown â†’ LLM-assisted diagnosis
 
         LOOP PROTECTION:
         - Maximum 2 self-heal attempts per tool per session
@@ -1160,7 +1160,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
             self.console.print(
-                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})",
+                f"âš ï¸ {tool_name} iÃ§in self-heal limiti aÅŸÄ±ldÄ± ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})",
                 style="yellow",
             )
             self.tool_selector.record_tool_failure(tool_name)
@@ -1175,14 +1175,14 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
         if error_diagnosis["type"] != "unknown":
             self.console.print(
-                f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}",
+                f"ğŸ” Hata teÅŸhisi: {error_diagnosis['type_tr']}",
                 style="yellow",
             )
 
         # Increment self-heal attempt counter
         self._self_heal_attempts[heal_key] = current_attempts + 1
         self.console.print(
-            f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}",
+            f"ğŸ”§ Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}",
             style="dim",
         )
 
@@ -1232,7 +1232,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
     ) -> dict[str, Any]:
         """Finalize healing result and return formatted output."""
         if healed and retry_result:
-            self.console.print("✅ Hata otomatik olarak düzeltildi!", style="green")
+            self.console.print("âœ… Hata otomatik olarak dÃ¼zeltildi!", style="green")
             return self._format_tool_result(retry_result, args)
 
         if result.exit_code != 0:
@@ -1254,7 +1254,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         Returns (healed: bool, retry_result).
         """
         try:
-            self.console.print("🤖 LLM ile hata analizi yapılıyor...", style="dim")
+            self.console.print("ğŸ¤– LLM ile hata analizi yapÄ±lÄ±yor...", style="dim")
 
             prompt: str = f"""Analyze this command execution error and suggest a fix:
 
@@ -1282,7 +1282,7 @@ Respond in JSON:
                 fix_data = json.loads(json_match.group())
 
                 self.console.print(
-                    f"🔍 LLM Analizi: {fix_data.get('explanation', 'Analiz tamamlandı')}",
+                    f"ğŸ” LLM Analizi: {fix_data.get('explanation', 'Analiz tamamlandÄ±')}",
                     style="dim",
                 )
 
@@ -1290,7 +1290,7 @@ Respond in JSON:
                 fix_cmd = fix_data.get("fix_command")
                 if fix_cmd and fix_cmd != "null":
                     self.console.print(
-                        f"🔧 Düzeltme uygulanıyor: {fix_cmd}",
+                        f"ğŸ”§ DÃ¼zeltme uygulanÄ±yor: {fix_cmd}",
                         style="yellow",
                     )
                     fix_result: ExecutionResult = self.executor.terminal.execute(
@@ -1303,7 +1303,7 @@ Respond in JSON:
                         False,
                     ):
                         self.console.print(
-                            "🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...",
+                            "ğŸ”„ DÃ¼zeltme baÅŸarÄ±lÄ±, orijinal komut yeniden deneniyor...",
                             style="cyan",
                         )
                         retry_result: ExecutionResult = self.executor.terminal.execute(
@@ -1373,7 +1373,7 @@ Respond in JSON:
 
         if loop and loop.is_running():
             self.console.print(
-                "⚠️  Cannot run async: event loop already running",
+                "âš ï¸  Cannot run async: event loop already running",
                 style="yellow",
             )
             return {
@@ -1396,20 +1396,20 @@ Respond in JSON:
         except TimeoutError:
             # Both asyncio.timeout and asyncio.wait_for raise TimeoutError
             self.console.print(
-                f"⚠️  Async task timeout after {timeout}s",
+                f"âš ï¸  Async task timeout after {timeout}s",
                 style="yellow",
             )
             return {"success": False, "error": f"Async task timed out after {timeout}s"}
         except Exception as e:
             logger.exception("Async execution error: %s", e)
-            self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
+            self.console.print(f"âš ï¸  Async execution error: {e}", style="yellow")
             return {"success": False, "error": f"Async execution failed: {e!s}"}
 
     def _create_observation(self, tool_name: str, result: dict) -> str:
-        """Tool sonucundan ÖZET observation oluştur.
+        """Tool sonucundan Ã–ZET observation oluÅŸtur.
 
         YASAK: Raw log, tool output spam
-        SADECE: Anlamlı özet
+        SADECE: AnlamlÄ± Ã¶zet
         """
         if not result.get("success"):
             error_msg = result.get("error") or result.get("stderr", _ERR_UNKNOWN)
@@ -1571,7 +1571,7 @@ Respond in JSON:
                     mock_crash,
                 )
                 self.console.print(
-                    f"🚀 [bold green]Autonomous PoC Generated:[/] {poc_path}",
+                    f"ğŸš€ [bold green]Autonomous PoC Generated:[/] {poc_path}",
                 )
             except Exception as e:
                 logger.debug("PoC generation failed: %s", e)
@@ -1637,12 +1637,12 @@ Respond in JSON:
         return 80  # Default fallback
 
     def _check_phase_transition(self) -> None:
-        """Phase transition kontrolü - DETERMİNİSTİK."""
+        """Phase transition kontrolÃ¼ - DETERMÄ°NÄ°STÄ°K."""
         # INIT -> RECON (target set)
         if self.state.phase == AttackPhase.INIT and self.state.target:
             self.state.phase = AttackPhase.RECON
             self.console.print(
-                "📈 Phase transition: INIT -> RECON",
+                "ğŸ“ˆ Phase transition: INIT -> RECON",
                 style=self.STYLE_BLUE,
             )
 
@@ -1658,7 +1658,7 @@ Respond in JSON:
                 surface_key: str = f"{port}:{svc.service}"
                 self.state.remaining_attack_surface.add(surface_key)
             self.console.print(
-                "📈 Phase transition: RECON -> VULN_SCAN",
+                "ğŸ“ˆ Phase transition: RECON -> VULN_SCAN",
                 style=self.STYLE_BLUE,
             )
 
@@ -1670,7 +1670,7 @@ Respond in JSON:
         ):
             self.state.phase = AttackPhase.EXPLOIT
             self.console.print(
-                "📈 Phase transition: VULN_SCAN -> EXPLOIT",
+                "ğŸ“ˆ Phase transition: VULN_SCAN -> EXPLOIT",
                 style=self.STYLE_BLUE,
             )
 
@@ -1682,38 +1682,38 @@ Respond in JSON:
         ):
             self.state.phase = AttackPhase.COMPLETE
             self.console.print(
-                "📈 Phase transition: VULN_SCAN -> COMPLETE (no vulns found)",
+                "ğŸ“ˆ Phase transition: VULN_SCAN -> COMPLETE (no vulns found)",
                 style=self.STYLE_YELLOW,
             )
 
         elif self.state.phase == AttackPhase.EXPLOIT and self.state.has_foothold:
             self.impersonate_target = secrets.choice(BROWSER_IMPERSONATIONS)
             self.console.print(
-                "📈 Phase transition: EXPLOIT -> POST_EXPLOIT",
+                "ğŸ“ˆ Phase transition: EXPLOIT -> POST_EXPLOIT",
                 style=self.STYLE_BLUE,
             )
 
     def _show_final_report(self) -> None:
         """Show final execution report."""
         self.console.print("\n" + "=" * 60, style="bold")
-        self.console.print("📊 FINAL REPORT", style=self.STYLE_GREEN)
+        self.console.print("ğŸ“Š FINAL REPORT", style=self.STYLE_GREEN)
         self.console.print("=" * 60, style="bold")
 
         report = Text()
-        report.append(f"🎯 Target: {self.state.target}\n", style="bold")
+        report.append(f"ğŸ¯ Target: {self.state.target}\n", style="bold")
         report.append(
-            f"🔄 Iterations: {self.state.iteration_count}/{self.state.max_iterations}\n",
+            f"ğŸ”„ Iterations: {self.state.iteration_count}/{self.state.max_iterations}\n",
         )
-        report.append(f"📍 Final Phase: {self.state.phase.value}\n")
-        report.append(f"🔓 Services Found: {len(self.state.open_services)}\n")
-        report.append(f"⚠️  Vulnerabilities: {len(self.state.vulnerabilities)}\n")
-        report.append(f"🎪 Foothold: {'YES' if self.state.has_foothold else 'NO'}\n")
+        report.append(f"ğŸ“ Final Phase: {self.state.phase.value}\n")
+        report.append(f"ğŸ”“ Services Found: {len(self.state.open_services)}\n")
+        report.append(f"âš ï¸  Vulnerabilities: {len(self.state.vulnerabilities)}\n")
+        report.append(f"ğŸª Foothold: {'YES' if self.state.has_foothold else 'NO'}\n")
 
         if self.state.has_foothold:
             report.append(f"   Method: {self.state.foothold_method}\n", style="green")
 
         if self.state.invariant_violations:
-            report.append("\n❌ Invariant Violations:\n", style=self.STYLE_RED)
+            report.append("\nâŒ Invariant Violations:\n", style=self.STYLE_RED)
             for violation in self.state.invariant_violations:
                 report.append(f"   - {violation}\n", style="red")
 
@@ -1739,9 +1739,9 @@ Respond in JSON:
 
             if not lhost:
                 lhost = "127.0.0.1"
-                self.console.print("⚠️ LHOST missing, using localhost.", style="yellow")
+                self.console.print("âš ï¸ LHOST missing, using localhost.", style="yellow")
 
-            self.console.print(f"🔨 Forging Payload ({payload_type})...", style="cyan")
+            self.console.print(f"ğŸ”¨ Forging Payload ({payload_type})...", style="cyan")
 
             artifact: GeneratedPayload = foundry.forge(
                 lhost=lhost,
@@ -1781,7 +1781,7 @@ Respond in JSON:
                 }
 
             self.console.print(
-                f"🔮 Singularity: Synthesizing {lang} code...",
+                f"ğŸ”® Singularity: Synthesizing {lang} code...",
                 style="magenta",
             )
 
@@ -1818,7 +1818,7 @@ Respond in JSON:
             if not target:
                 return {"success": False, "error": "Target required"}
 
-            self.console.print(f"🕵️ OSINT Scanning: {target}", style="blue")
+            self.console.print(f"ğŸ•µï¸ OSINT Scanning: {target}", style="blue")
             results = recon.harvest_domain(target)
             return {"success": True, "output": str(results)[:2000]}
         except Exception as e:
@@ -1831,7 +1831,7 @@ Respond in JSON:
 
             hive = HiveMind()
 
-            self.console.print("🐝 Waking up HIVE MIND...", style="magenta")
+            self.console.print("ğŸ Waking up HIVE MIND...", style="magenta")
 
             if tool_name == "hive_mind_scan":
                 init_res: dict[str, Any] = hive.initialize()
@@ -1857,7 +1857,7 @@ Respond in JSON:
                 }
 
             if tool_name == "hive_mind_attack":
-                self.console.print("🐝 Calculating Attack Paths...", style="magenta")
+                self.console.print("ğŸ Calculating Attack Paths...", style="magenta")
                 target = args.get("target", "Domain Admin")
                 paths: list[AttackPath] = hive.find_attack_paths(target)
 
@@ -1866,7 +1866,7 @@ Respond in JSON:
 
                 # Execute best path
                 best_path: AttackPath = paths[0]
-                self.console.print(f"🚀 Executing Path: {best_path}", style="red")
+                self.console.print(f"ğŸš€ Executing Path: {best_path}", style="red")
 
                 result: dict[str, Any] = hive.execute_movement(best_path)
                 return {
@@ -1895,7 +1895,7 @@ Respond in JSON:
             if not module:
                 return {"success": False, "error": "Metasploit module name required"}
 
-            self.console.print(f"🔥 Launching Metasploit: {module}", style="red")
+            self.console.print(f"ğŸ”¥ Launching Metasploit: {module}", style="red")
             result = msf.execute_module(module, options)
 
             return {
@@ -1973,3 +1973,4 @@ Respond in JSON:
         except Exception as e:
             logger.exception("AD Attack error")
             return {"success": False, "error": f"AD Attack failed: {e}"}
+

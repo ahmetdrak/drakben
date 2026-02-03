@@ -4,11 +4,12 @@
 
 *Let AI handle the methodology. You focus on the results.*
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
 [![Tests](https://img.shields.io/badge/tests-228%20passed-brightgreen.svg)]()
-[![SonarCloud](https://img.shields.io/badge/SonarCloud-clean-brightgreen.svg)]()
+[![Ruff](https://img.shields.io/badge/ruff-0%20errors-brightgreen.svg)]()
+[![SonarQube](https://img.shields.io/badge/SonarQube-0%20issues-brightgreen.svg)]()
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
@@ -212,7 +213,9 @@ python drakben.py
 |---------|-------------|
 | `/help` | Show available commands |
 | `/target <IP/URL>` | Set target |
-| `/scan` | Start reconnaissance |
+| `/untarget` | Clear target |
+| `/scan` | Start autonomous scan |
+| `/tools` | List available tools |
 | `/status` | Show current state |
 | `/shell` | Interactive shell mode |
 | `/report` | Generate report |
@@ -331,17 +334,26 @@ Advanced evasion through code transformation:
 drakben/
 ├── drakben.py              # Main entry point
 ├── core/                   # Core engine components
-│   ├── brain.py            # AI reasoning engine
-│   ├── state.py            # Global state management
-│   ├── planner.py          # Attack planning
-│   ├── execution_engine.py # Command execution
-│   ├── tool_selector.py    # Tool selection logic
-│   ├── evolution_memory.py # Persistent learning
-│   ├── self_refining_engine.py # Strategy adaptation
-│   ├── ghost_protocol.py   # Code obfuscation
-│   ├── sandbox_manager.py  # Docker isolation
-│   ├── kali_detector.py    # Tool detection
-│   └── singularity/        # Code generation engine
+│   ├── agent/              # Agent & Brain modules
+│   │   ├── brain.py        # AI reasoning engine
+│   │   ├── state.py        # Global state management
+│   │   ├── planner.py      # Attack planning
+│   │   ├── pentest_orchestrator.py # NEW: State machine + LLM coordinator
+│   │   └── refactored_agent.py    # Self-refining agent
+│   ├── execution/          # Execution engine
+│   │   ├── execution_engine.py
+│   │   └── tool_selector.py
+│   ├── intelligence/       # AI modules
+│   │   ├── evolution_memory.py
+│   │   ├── self_refining_engine.py
+│   │   └── coder.py
+│   ├── singularity/        # Code generation engine
+│   ├── tools/              # NEW: Tool registry system
+│   │   ├── tool_registry.py # Central tool hub (17 tools registered)
+│   │   ├── tool_parsers.py
+│   │   └── computer.py
+│   └── ui/                 # User interface
+│       └── menu.py
 ├── modules/                # Attack modules
 │   ├── recon.py            # Reconnaissance
 │   ├── exploit.py          # Exploitation
@@ -349,10 +361,12 @@ drakben/
 │   ├── hive_mind.py        # Lateral movement
 │   ├── weapon_foundry.py   # Payload generation
 │   ├── waf_evasion.py      # WAF bypass
+│   ├── post_exploit.py     # Post-exploitation
 │   ├── ad_attacks.py       # Active Directory
-│   └── report_generator.py # Reporting
+│   ├── native/             # Low-level syscalls
+│   └── report_generator.py
 ├── llm/                    # LLM integration
-│   └── openrouter_client.py # Multi-provider client
+│   └── openrouter_client.py
 ├── tests/                  # Test suite (228 tests)
 ├── config/                 # Configuration files
 └── plugins/                # External plugins
