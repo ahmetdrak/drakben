@@ -224,7 +224,8 @@ class CredentialStore:
             key = self._derive_key(password, salt)
             decrypted = self._decrypt(encrypted, key)
             return json.loads(decrypted)
-        except Exception:
+        except (OSError, ValueError) as e:
+            logger.debug("Failed to load credentials: %s", e)
             return {}
 
     def _save_file(self, credentials: dict[str, str], password: str) -> None:
@@ -468,7 +469,8 @@ class AuditLogger:
             query += " AND target LIKE ?"
             params.append(f"%{target}%")
 
-        query += f" ORDER BY timestamp DESC LIMIT {limit}"
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
 
         results = []
         with sqlite3.connect(self._db_path_str) as conn:
@@ -571,7 +573,7 @@ class ProxyManager:
             test_socket.connect(("check.torproject.org", 80))
             test_socket.close()
             return True
-        except Exception:
+        except (OSError, socks.ProxyConnectionError):
             return False
 
     def add_proxy(self, proxy: ProxyConfig) -> None:
@@ -626,7 +628,7 @@ class ProxyManager:
 
         """
         try:
-            import requests
+            import requests  # type: ignore[import-untyped]
 
             response = requests.get(
                 "https://httpbin.org/ip",

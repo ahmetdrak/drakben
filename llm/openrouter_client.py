@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 
-import requests
+import requests  # type: ignore[import-untyped]
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -443,13 +443,13 @@ class OpenRouterClient:
             logger.warning("Ollama request timeout")
             yield "[Timeout] Ollama streaming timed out."
         except requests.exceptions.ConnectionError as e:
-            logger.warning(f"Ollama connection error: {e}")
+            logger.warning("Ollama connection error: %s", e)
             yield "[Offline] Ollama connection failed."
         except requests.exceptions.RequestException as e:
-            logger.exception(f"Ollama request error: {e}")
+            logger.exception("Ollama request error: %s", e)
             yield f"[Request Error] {e!s}"
         except Exception as e:
-            logger.exception(f"Ollama streaming error: {e}")
+            logger.exception("Ollama streaming error: %s", e)
             yield f"[Error] {e!s}"
 
     def _query_openai_streaming(
@@ -488,13 +488,13 @@ class OpenRouterClient:
             )
             yield "[Timeout] API streaming timed out (possible WAF blocking)."
         except requests.exceptions.ConnectionError as e:
-            logger.warning(f"OpenAI-compatible API connection error: {e}")
+            logger.warning("OpenAI-compatible API connection error: %s", e)
             yield "[Offline] No internet connection or connection refused."
         except requests.exceptions.RequestException as e:
-            logger.exception(f"OpenAI-compatible API request error: {e}")
+            logger.exception("OpenAI-compatible API request error: %s", e)
             yield f"[Request Error] {e!s}"
         except Exception as e:
-            logger.exception(f"API streaming error: {e}")
+            logger.exception("API streaming error: %s", e)
             yield f"[Error] {e!s}"
 
     def _build_headers(self) -> dict[str, str]:
@@ -736,8 +736,13 @@ class OpenRouterClient:
     def _handle_api_response(self, response: requests.Response, attempt: int) -> str | None:
         """Handle API response with status code logic."""
         if response.status_code == 200:
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+            try:
+                data = response.json()
+                if "choices" in data and len(data["choices"]) > 0:
+                    return data["choices"][0]["message"]["content"]
+                return "[API Error] Unexpected response format"
+            except (KeyError, IndexError, ValueError) as e:
+                return f"[API Error] Failed to parse response: {e}"
         if response.status_code == 401:
             return "[Auth Error] Invalid API key. Check config/api.env"
         if response.status_code == 429:
@@ -778,7 +783,7 @@ class OpenRouterClient:
 
     def _handle_api_connection_error(self, e: Exception, attempt: int) -> str:
         """Handle API connection errors."""
-        logger.warning(f"Connection error: {e}")
+        logger.warning("Connection error: %s", e)
         if attempt < self.max_retries - 1:
             time.sleep(min(2**attempt, 5))
             return ""  # Continue retry
@@ -786,7 +791,7 @@ class OpenRouterClient:
 
     def _handle_api_request_error(self, e: Exception, attempt: int) -> str:
         """Handle API request errors."""
-        logger.error(f"Request error: {e}")
+        logger.error("Request error: %s", e)
         if attempt < self.max_retries - 1:
             time.sleep(1)
             return ""  # Continue retry
@@ -814,7 +819,7 @@ class OpenRouterClient:
             result = self.query("Hello", use_cache=False, timeout=10)
             return "[Error]" not in result and "[Offline]" not in result
         except (ConnectionError, TimeoutError, ValueError) as e:
-            logger.debug(f"Health check failed: {e}")
+            logger.debug("Health check failed: %s", e)
             return False
 
     def clear_cache(self) -> None:
@@ -872,6 +877,77 @@ class OpenRouterClient:
             except json.JSONDecodeError:
                 continue
 
+    def switch_model(self, model: str) -> bool:
+        """Switch to a different LLM model.
+
+        Args:
+            model: Model name/identifier
+
+        Returns:
+            True if switch successful
+
+        """
+        old_model = self.model
+        self.model = model
+        logger.info("Switched LLM model: %s -> %s", old_model, model)
+        return True
+
+    def switch_provider(self, provider: str, **kwargs: str) -> bool:
+        """Switch to a different LLM provider.
+
+        Args:
+            provider: Provider name ('openrouter', 'ollama', 'openai', 'custom')
+            **kwargs: Provider-specific settings (api_key, base_url, model)
+
+        Returns:
+            True if switch successful
+
+        """
+        valid_providers = {"openrouter", "ollama", "openai", "custom"}
+        if provider not in valid_providers:
+            logger.error("Invalid provider: %s. Valid: %s", provider, valid_providers)
+            return False
+
+        old_provider = self.provider
+        self.provider = provider
+
+        # Apply kwargs overrides
+        if "api_key" in kwargs:
+            self.api_key = kwargs["api_key"]
+        if "base_url" in kwargs:
+            self.base_url = kwargs["base_url"]
+        if "model" in kwargs:
+            self.model = kwargs["model"]
+        else:
+            # Setup default model for provider
+            self._setup_provider()
+
+        logger.info("Switched LLM provider: %s -> %s", old_provider, provider)
+        return True
+
+    def list_ollama_models(self) -> list[str]:
+        """List available Ollama models (local only).
+
+        Returns:
+            List of model names or empty list if Ollama unavailable
+
+        """
+        if self.provider != "ollama":
+            logger.debug("list_ollama_models only works with Ollama provider")
+            return []
+
+        try:
+            response = self._session.get(
+                "http://localhost:11434/api/tags",
+                timeout=5,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return [m.get("name", "") for m in data.get("models", [])]
+        except (requests.RequestException, ValueError) as e:
+            logger.debug("Failed to list Ollama models: %s", e)
+        return []
+
     def close(self) -> None:
         """Close the session and cleanup resources."""
         if self._session:
@@ -883,4 +959,4 @@ class OpenRouterClient:
         try:
             self.close()
         except (AttributeError, RuntimeError) as e:
-            logger.debug(f"Error during cleanup: {e}")
+            logger.debug("Error during cleanup: %s", e)

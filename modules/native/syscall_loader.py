@@ -133,7 +133,7 @@ class SyscallLoader:
             return False
         try:
             return self.lib.check_health() == 1337
-        except Exception:
+        except (OSError, AttributeError):
             return False
 
     def allocate_memory(self, size: int) -> int:

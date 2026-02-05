@@ -20,7 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class CognitiveBias(Enum):
-    """Auto-generated docstring for CognitiveBias class."""
+    """Psychological manipulation vectors based on cognitive science.
+
+    These biases are exploited in social engineering attacks:
+    - AUTHORITY: Trust in perceived power figures
+    - SCARCITY: Fear of missing out (FOMO)
+    - RECIPROCITY: Obligation to return favors
+    - COMMITMENT: Consistency with past behavior
+    - LIKING: Affinity for similar/friendly people
+    - SOCIAL_PROOF: Following the crowd
+    - CURIOSITY: Need to fill information gaps
+    - FEAR: Loss aversion (most powerful but risky)
+    """
 
     AUTHORITY = "authority"  # Obedience to power
     SCARCITY = "scarcity"  # FOMO, Time pressure
@@ -34,7 +45,15 @@ class CognitiveBias(Enum):
 
 @dataclass
 class PsychologicalProfile:
-    """Auto-generated docstring for PsychologicalProfile class."""
+    """Target's psychological profile for attack customization.
+
+    Attributes:
+        primary_bias: Main manipulation vector to exploit
+        secondary_bias: Backup vector if primary fails
+        tone: Communication style (formal, urgent, casual)
+        vocabulary_level: Complexity level (1-10)
+        synthetic_context: Pretext scenario (JIRA, Slack, HR, etc.)
+    """
 
     primary_bias: CognitiveBias
     secondary_bias: CognitiveBias

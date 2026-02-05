@@ -3,14 +3,20 @@ Author: @drak_ben
 Description: Validates generated code via Sandbox execution.
 """
 
+from __future__ import annotations
+
 import ast
 import logging
 import os
 import subprocess
 import sys
 import tempfile
+from typing import TYPE_CHECKING
 
 from .base import CodeSnippet, IValidator
+
+if TYPE_CHECKING:
+    from core.execution.sandbox_manager import SandboxManager
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +34,7 @@ class CodeValidator(IValidator):
         try:
             from core.execution.sandbox_manager import get_sandbox_manager
 
-            self.sandbox = get_sandbox_manager()
+            self.sandbox: SandboxManager | None = get_sandbox_manager()
             self.use_docker = True
             logger.info("Validator initialized with Docker Sandbox")
         except ImportError:
@@ -53,12 +59,53 @@ class CodeValidator(IValidator):
             return self._validate_docker(snippet)
         return self._validate_subprocess(snippet)
 
-    def _validate_docker(self, _snippet: CodeSnippet) -> bool:
-        """Execute via Docker Sandbox."""
-        # Placeholder for integration with core.sandbox_manager
-        # Assuming sandbox.run_code(code, lang) exists
+    def _validate_docker(self, snippet: CodeSnippet) -> bool:
+        """Execute via Docker Sandbox.
+
+        Uses SandboxManager to run code in isolated container.
+        Validates both syntax and runtime execution.
+        """
+        if not self.sandbox:
+            logger.warning("Docker sandbox not available, falling back to subprocess")
+            return self._validate_subprocess(snippet)
+
         try:
-            return True  # Mock success if Docker logic is complex
+            # Step 1: Syntax validation first (fast fail)
+            if snippet.language.lower() == "python":
+                try:
+                    ast.parse(snippet.code)
+                except SyntaxError as e:
+                    logger.error("Syntax error in code: %s", e)
+                    return False
+
+            # Step 2: Execute in sandbox
+            result = self.sandbox.execute_code(
+                code=snippet.code,
+                language=snippet.language,
+                timeout=self.timeout,
+            )
+
+            # Step 3: Check execution result
+            if result is None:
+                logger.warning("Sandbox returned None result")
+                return False
+
+            # Handle different result types
+            if isinstance(result, dict):
+                success = result.get("success", False)
+                if not success:
+                    error = result.get("error", "Unknown error")
+                    logger.error("Docker validation failed: %s", error)
+                return success
+            elif isinstance(result, bool):
+                return result
+            else:
+                # Assume string output means success
+                return True
+
+        except TimeoutError:
+            logger.error("Docker validation timed out after %ss", self.timeout)
+            return False
         except Exception as e:
             logger.exception("Docker validation failed: %s", e)
             return False

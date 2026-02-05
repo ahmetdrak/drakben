@@ -108,7 +108,7 @@ class ShadowCloner:
         try:
             resp = requests.get(url, timeout=5, verify=True)
             return resp.text if resp.status_code == 200 else ""
-        except Exception:
+        except requests.RequestException:
             return ""
 
 
@@ -188,9 +188,30 @@ class PhishingGenerator:
             logger.exception("Cloning failed: %s", e)
             return ""
 
-    def _fix_asset_links(self, soup: BeautifulSoup, base_url: str) -> None:
-        """Deprecated in favor of ShadowCloner."""
+    def _fix_asset_links(
+        self, soup: BeautifulSoup, base_url: str  # noqa: ARG002
+    ) -> None:
+        """Fix asset links in cloned page.
 
-    def generate_campaign(self, target_list, template_name: str) -> None:
+        .. deprecated::
+            This method is deprecated and does nothing.
+            Use :class:`modules.weapon_foundry.ShadowCloner` instead.
+
+        Args:
+            soup: BeautifulSoup object (unused, kept for backward compatibility)
+            base_url: Base URL (unused, kept for backward compatibility)
+        """
+        import warnings
+
+        # Parameters intentionally unused - method is deprecated
+        _ = soup, base_url
+
+        warnings.warn(
+            "_fix_asset_links is deprecated. Use ShadowCloner instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    def generate_campaign(self, _target_list: list[str], template_name: str) -> None:
         """Launch a mass mailing campaign."""
         # Placeholder for SMTP integration

@@ -77,14 +77,16 @@ class DrakbenMenu:
     CMD_UNTARGET = "/untarget"
     CMD_TOOLS = "/tools"
 
+    # Modern minimal banner - inspired by professional tools like sqlmap, sherlock
     BANNER = r"""
-    ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
-    ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║
-    ██║  ██║██████╔╝███████║█████╔╝ ██████╔╝█████╗  ██╔██╗ ██║
-    ██║  ██║██╔══██╗██╔══██║██╔═██╗ ██╔══██╗██╔══╝  ██║╚██╗██║
-    ██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝███████╗██║ ╚████║
-    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝
+ ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
+ ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║
+ ██║  ██║██████╔╝███████║█████╔╝ ██████╔╝█████╗  ██╔██╗ ██║
+ ██║  ██║██╔══██╗██╔══██║██╔═██╗ ██╔══██╗██╔══╝  ██║╚██╗██║
+ ██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝███████╗██║ ╚████║
+ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝
     """
+    VERSION = "2.0.0"
 
     def __init__(self, config_manager: ConfigManager) -> None:
         self.config_manager: ConfigManager = config_manager
@@ -130,9 +132,10 @@ class DrakbenMenu:
             try:
                 from llm.openrouter_client import OpenRouterClient
                 llm_client = OpenRouterClient()
-                if not llm_client.is_available():
+                # Check if API key is configured
+                if not getattr(llm_client, "api_key", None):
                     llm_client = None
-            except Exception:
+            except (ImportError, OSError, AttributeError):
                 pass
 
             self.orchestrator = get_orchestrator(llm_client)
@@ -155,45 +158,48 @@ class DrakbenMenu:
         }
 
     def show_banner(self) -> None:
-        """Show banner - Stylized (Diagonal Split)."""
-        # Diagonal Coloring: Top-Left (Red) -> Bottom-Right (Dark Gray)
-        # Custom render for effective appearance
-
+        """Show banner - Modern professional style inspired by sqlmap/sherlock."""
         if not self.BANNER.strip():
             return
 
         lines: list[LiteralString] = self.BANNER.strip("\n").split("\n")
         text = Text()
 
-        color_primary: str = self.COLORS["red"]
-        color_dark = "#6272a4"  # Dracula Comment (Dark elegant gray)
-
-        max_width: int = max(len(line) for line in lines) if lines else 1
+        # Gradient: Cyan (#8BE9FD) -> Purple (#BD93F9) - Dracula theme
+        color_start = (139, 233, 253)  # Cyan RGB
+        color_end = (189, 147, 249)    # Purple RGB
         total_lines: int = len(lines)
 
         for y, line in enumerate(lines):
-            for x, char in enumerate(line):
-                # Normalize coordinates (0.0 - 1.0)
-                nx: float = x / max_width
-                ny: float = y / total_lines
+            # Calculate gradient position (0.0 to 1.0)
+            progress = y / max(total_lines - 1, 1)
+            # Linear interpolation between colors
+            r = int(color_start[0] + (color_end[0] - color_start[0]) * progress)
+            g = int(color_start[1] + (color_end[1] - color_start[1]) * progress)
+            b = int(color_start[2] + (color_end[2] - color_start[2]) * progress)
+            color = f"#{r:02x}{g:02x}{b:02x}"
 
-                # Diagonal Split (Top-Left -> Bottom-Right)
-                # Threshold ~0.8-1.2 range. 0.95 provides balanced transition.
-                if (nx + ny) < 0.95:
-                    text.append(char, style=f"bold {color_primary}")
-                else:
-                    text.append(char, style=f"bold {color_dark}")
+            text.append(line, style=f"bold {color}")
             text.append("\n")
 
         self.console.print(text)
-        self.console.print(
-            "    [*] DRAKBEN - Autonomous Pentest AI",
-            style=f"bold {self.COLORS['purple']}",
-        )
-        self.console.print(
-            "    [*] Kali Linux | AI-Powered | Autonomous Security Validation",
-            style=self.COLORS["fg"],
-        )
+
+        # Compact info line - professional style like sqlmap
+        is_tr = self.config.language == "tr"
+        os_name = "Kali" if self.system_info.get("is_kali") else self.system_info.get("os", "Unknown")
+
+        info_line = Text()
+        info_line.append(" DRAKBEN", style="bold white")
+        info_line.append(f" v{self.VERSION}", style="dim")
+        info_line.append(" │ ", style="dim")
+        if is_tr:
+            info_line.append("Otonom Pentest AI", style="cyan")
+        else:
+            info_line.append("Autonomous Pentest AI", style="cyan")
+        info_line.append(" │ ", style="dim")
+        info_line.append(os_name, style="green")
+
+        self.console.print(info_line)
         self.console.print()
 
     def _get_status_labels(self, is_tr: bool) -> tuple[str, str, str, str]:
@@ -208,52 +214,59 @@ class DrakbenMenu:
     def _get_mode_info(self, is_tr: bool) -> tuple[str, str]:
         """Get stealth mode display info."""
         is_stealth = getattr(self.config, "stealth_mode", False)
-        icon = "🥷" if is_stealth else "📢"
         # Avoid nested ternary for SonarQube compliance
-        on_text, off_text = ("AÇIK", "KAPALI") if is_tr else ("ON", "OFF")
-        status = on_text if is_stealth else off_text
-        color = self.STYLE_BOLD_GREEN if is_stealth else self.STYLE_BOLD_YELLOW
-        return f"{icon} {status}", color
+        if is_stealth:
+            status = "STEALTH" if not is_tr else "GİZLİ"
+            color = self.STYLE_BOLD_GREEN
+        else:
+            status = "NORMAL" if not is_tr else "NORMAL"
+            color = "dim"
+        return status, color
 
     def show_status_line(self) -> None:
-        """Professional HUD Status Line (Premium Tactical Design)."""
-        self.console.print()
-        from rich.panel import Panel
-        from rich.table import Table
+        """Compact professional status line - inspired by modern CLI tools."""
         from rich.text import Text
 
         is_tr = self.config.language == "tr"
 
-        target = self.config.target or ("BELİRSİZ" if is_tr else "UNKNOWN")
-        target_style = self.STYLE_BOLD_WHITE if self.config.target else "dim red"
-        os_info = "Kali Linux" if self.system_info.get("is_kali") else self.system_info.get('os')
+        # Build compact status line
+        status = Text()
+
+        # Target section
+        target = self.config.target
+        if target:
+            status.append(" TARGET ", style="black on green")
+            status.append(f" {target} ", style="bold white")
+        else:
+            no_target = "Hedef yok" if is_tr else "No target"
+            status.append(" TARGET ", style="black on red")
+            status.append(f" {no_target} ", style="dim")
+
+        status.append(" │ ", style="dim")
+
+        # Mode section
         mode_text, mode_color = self._get_mode_info(is_tr)
-        lbl_target, lbl_system, lbl_mode, hint_lbl = self._get_status_labels(is_tr)
+        status.append(mode_text, style=mode_color)
 
-        # Build segments helper
-        def get_seg(lbl: str, val: str, val_style: str = DrakbenMenu.STYLE_BOLD_WHITE) -> Text:
-            t = Text()
-            t.append(lbl, style=DrakbenMenu.STYLE_DIM_CYAN)
-            t.append(f" {val}", style=val_style)
-            return t
+        status.append(" │ ", style="dim")
 
-        # Tactical HUD Table
-        status_table = Table(show_header=False, box=None, expand=True, padding=(0, 2))
-        status_table.add_column("C1", ratio=1)
-        status_table.add_column("C2", ratio=1)
-        status_table.add_column("C3", ratio=1)
-        status_table.add_row(
-            get_seg(lbl_target, target, target_style),
-            get_seg(lbl_system, os_info),
-            get_seg(lbl_mode, mode_text, mode_color),
-        )
+        # LLM section
+        if self.brain and self.brain.llm_client:
+            info = self.brain.llm_client.get_provider_info()
+            model = info.get("model", "N/A")
+            # Shorten model name
+            short_model = model.split("/")[-1][:20] if "/" in model else model[:20]
+            status.append("LLM ", style="dim")
+            status.append(short_model, style="green")
+        else:
+            llm_off = "LLM kapalı" if is_tr else "LLM off"
+            status.append(llm_off, style="dim red")
 
-        self.console.print(Panel(status_table, style="blue", border_style="dim blue", padding=(0, 1)))
-        # Build commands string using constants
-        cmd_list = ["/help", "/target", self.CMD_SCAN, self.CMD_STATUS, self.CMD_SHELL,
-                    self.CMD_REPORT, "/llm", self.CMD_CONFIG, self.CMD_CLEAR, self.CMD_EXIT]
-        commands = " • ".join(f"[dim cyan]{c}[/]" for c in cmd_list)
-        self.console.print(f" [{self.STYLE_BOLD_CYAN}]{hint_lbl}:[/] {commands}")
+        self.console.print(status)
+
+        # Quick commands hint
+        help_lbl = "Yardım:" if is_tr else "Help:"
+        self.console.print(f"[dim]{help_lbl}[/] [green]/help[/]")
         self.console.print()
 
     def run(self) -> None:
@@ -276,7 +289,7 @@ class DrakbenMenu:
 
         # Exit
         msg: str = "Görüşürüz!" if lang == "tr" else "Goodbye!"
-        self.console.print(f"👋 {msg}", style=self.COLORS["purple"])
+        self.console.print(f"[dim]{msg}[/]")
 
     def _run_main_loop_iteration(self, lang: str) -> bool:
         """Run a single iteration of the main loop.
@@ -330,13 +343,11 @@ class DrakbenMenu:
         """Helper to show welcome message."""
         if lang == "tr":
             self.console.print(
-                "[DRAKBEN] Hazır. Doğal dilde komut verebilirsiniz.\n",
-                style=self.COLORS["green"],
+                "[dim]Hazır.[/] [green]/help[/] [dim]yazın veya doğal dilde komut verin.[/]\n",
             )
         else:
             self.console.print(
-                "[DRAKBEN] Ready. You can use natural language commands.\n",
-                style=self.COLORS["green"],
+                "[dim]Ready. Type[/] [green]/help[/] [dim]or use natural language.[/]\n",
             )
 
     def _load_plugins_at_startup(self, lang: str) -> None:
@@ -582,19 +593,50 @@ class DrakbenMenu:
 
     def _process_with_brain_fallback(self, user_input: str, lang: str) -> None:
         """Fallback to old brain processing."""
+        from core.ui.unified_display import ThinkingDisplay
+
         # Lazy load brain
         if not self.brain:
             from core.agent.brain import DrakbenBrain
             self.brain = DrakbenBrain()
 
-        thinking: str = "Düşünüyor..." if lang == "tr" else "Thinking..."
+        # Use unified thinking display
+        thinking_display = ThinkingDisplay(console=self.console, language=lang)
 
         try:
-            with self.console.status(f"[bold {self.COLORS['purple']}]{thinking}"):
-                if self.brain is None:
-                    msg = "self.brain is not None"
-                    raise AssertionError(msg)
-                result = self.brain.think(user_input, self.config.target, lang)
+            # Get phase from orchestrator if available
+            phase = ""
+            if self.orchestrator:
+                phase = getattr(self.orchestrator, "current_phase", "")
+
+            thinking_display.start_thinking(
+                target=self.config.target or "",
+                phase=phase,
+                model=getattr(self.brain, "model_name", "") if self.brain else "",
+            )
+
+            if self.brain is None:
+                msg = "self.brain is not None"
+                raise AssertionError(msg)
+
+            # Update display while thinking
+            thinking_display.update(sub_message=user_input[:50] + "..." if len(user_input) > 50 else user_input)
+
+            result = self.brain.think(user_input, self.config.target, lang)
+
+            # Check if LLM had errors
+            llm_success = result.get("success", True) if isinstance(result, dict) else True
+            if not llm_success:
+                error_msg = result.get("error", "Unknown error") if isinstance(result, dict) else "Error"
+                thinking_display.finish_thinking(success=False)
+                self.console.print(f"[red]LLM Error: {error_msg}[/]")
+                return
+
+            # Mark as analyzing
+            thinking_display.set_analyzing("response")
+
+            # Finish thinking display
+            thinking_display.finish_thinking(success=True)
 
             # Show AI response text
             self._handle_ai_response_text(result, lang)
@@ -638,29 +680,33 @@ class DrakbenMenu:
             'skip' - Step was skipped
             'done' - Step was executed
         """
-        from rich.panel import Panel
+        from core.ui.unified_display import ConfirmationRequest, RiskLevel, UnifiedConfirmation
 
         command = step.get("command") or step.get("tool", "")
         if not command:
             return "skip"
+
+        # Determine risk level based on command
+        risk_level = self._get_command_risk_level(command)
 
         # Show step info
         description = step.get("description", "")
         step_header = f"[{index}/{total}] {description}" if description else f"[{index}/{total}]"
         self.console.print(f"\n⏳ {step_header}", style="cyan")
 
-        # Show command panel
-        self.console.print(Panel(f"💻 {command}", border_style="yellow", padding=(0, 1)))
+        # Use unified confirmation
+        confirmation = UnifiedConfirmation(console=self.console, language=lang)
+        request = ConfirmationRequest(
+            command=command,
+            risk_level=risk_level,
+            reason=description or (f"Step {index} of {total}"),
+            details=[f"Tool: {step.get('tool', 'shell')}" if step.get('tool') else ""],
+            allow_auto=risk_level == RiskLevel.LOW,
+        )
 
-        # Ask for approval
-        approval = self._ask_step_approval(lang)
+        approved = confirmation.ask(request)
 
-        if approval == "stop":
-            stop_msg = "⚠️ İşlem durduruldu. Menüye dönüldü." if lang == "tr" else "⚠️ Operation stopped. Returning to menu."
-            self.console.print(f"\n{stop_msg}\n", style="yellow")
-            return "stop"
-
-        if approval == "no":
+        if not approved:
             skip_msg = "⏭️ Adım atlandı." if lang == "tr" else "⏭️ Step skipped."
             self.console.print(skip_msg, style="dim")
             return "skip"
@@ -669,6 +715,29 @@ class DrakbenMenu:
         self._execute_command(command)
         self._show_next_step_hint(index, total, step, lang)
         return "done"
+
+    def _get_command_risk_level(self, command: str) -> Any:
+        """Determine risk level for a command."""
+        from core.ui.unified_display import RiskLevel
+
+        command_lower = command.lower()
+
+        # Critical risk patterns
+        critical_patterns = ["rm -rf", "mkfs", "dd if=", "> /dev/", "shutdown", "reboot"]
+        if any(p in command_lower for p in critical_patterns):
+            return RiskLevel.CRITICAL
+
+        # High risk patterns
+        high_patterns = ["sudo", "exploit", "msfconsole", "reverse", "shell", "payload"]
+        if any(p in command_lower for p in high_patterns):
+            return RiskLevel.HIGH
+
+        # Medium risk patterns
+        medium_patterns = ["nmap", "nikto", "sqlmap", "hydra", "gobuster", "curl", "wget"]
+        if any(p in command_lower for p in medium_patterns):
+            return RiskLevel.MEDIUM
+
+        return RiskLevel.LOW
 
     def _show_next_step_hint(self, current_idx: int, total: int, steps: dict, lang: str) -> None:
         """Show hint about next step if available."""
@@ -921,14 +990,14 @@ class DrakbenMenu:
     def _cmd_research(self, args: str) -> None:
         """Web research command."""
         if not args:
-            self.console.print("Usage: /research <query>")
+            self.console.print("[dim]Usage: /research <query>[/]")
             return
 
         if isinstance(args, list):
             query: str = " ".join(args)
         else:
             query = str(args)
-        self.console.print(f"[yellow]🔍 Searching for: {query}...[/yellow]")
+        self.console.print(f"[cyan]Searching: {query}[/]")
 
         try:
             from core.network.web_researcher import WebResearcher
@@ -937,80 +1006,78 @@ class DrakbenMenu:
             results = researcher.search_tool(query)
 
             if not results:
-                self.console.print("[red]❌ No results found.[/red]")
+                self.console.print("[red]No results found.[/]")
                 return
 
-            self.console.print(
-                f"\n[bold green]Found {len(results)} results:[/bold green]\n",
-            )
+            self.console.print(f"\n[green]Found {len(results)} results:[/]\n")
             for i, r in enumerate(results, 1):
-                self.console.print(f"{i}. [bold]{r['title']}[/bold]")
-                self.console.print(f"   [blue underline]{r['href']}[/blue underline]")
+                self.console.print(f"{i}. [bold]{r['title']}[/]")
+                self.console.print(f"   [cyan underline]{r['href']}[/]")
                 body: Any | str = (
                     r.get("body", "")[:200] + "..."
                     if r.get("body")
                     else "No description."
                 )
-                self.console.print(f"   [dim]{body}[/dim]\n")
+                self.console.print(f"   [dim]{body}[/]\n")
 
         except Exception as e:
-            self.console.print(f"[red]Error during research: {e}[/red]")
+            self.console.print(f"[red]Error: {e}[/]")
 
     def _cmd_help(self, args: str = "") -> None:
-        """Help command - Professional CLI style."""
+        """Help command - Clean minimal style."""
         from rich.table import Table
 
         lang: str = self.config.language
+        is_tr = lang == "tr"
 
-        # Commands table - clean, no emojis
-        table = Table(show_header=True, box=None, padding=(0, 2))
-        table.add_column("Command", style=self.STYLE_BOLD_CYAN, width=16)
-        table.add_column("Description", style="white")
+        # Compact command table
+        table = Table(show_header=True, box=None, padding=(0, 3))
+        table.add_column("Command" if not is_tr else "Komut", style="cyan", width=18)
+        table.add_column("Description" if not is_tr else "Açıklama", style="dim")
 
-        if lang == "tr":
+        if is_tr:
             commands: list[tuple[str, str]] = [
                 ("/target <IP>", "Hedef belirle"),
-                (self.CMD_UNTARGET, "Hedefi temizle"),
-                (self.CMD_SCAN, "Otonom tarama baslat"),
-                (self.CMD_TOOLS, "Mevcut araclari listele"),
-                (self.CMD_STATUS, "Durum goster"),
-                (self.CMD_REPORT, "Rapor olustur"),
-                (self.CMD_SHELL, "Terminal erisimi"),
-                (self.CMD_CONFIG, "Ayarlar"),
-                ("/llm", "LLM yapilandirmasi"),
-                ("/tr | /en", "Dil secimi"),
-                (self.CMD_CLEAR, "Ekrani temizle"),
-                (self.CMD_EXIT, "Cikis"),
+                ("/untarget", "Hedefi temizle"),
+                ("/scan", "Tarama başlat"),
+                ("/status", "Durum göster"),
+                ("/tools", "Araçları listele"),
+                ("/report", "Rapor oluştur"),
+                ("/shell", "Terminal erişimi"),
+                ("/config", "Ayarlar"),
+                ("/llm", "LLM ayarları"),
+                ("/tr /en", "Dil değiştir"),
+                ("/clear", "Ekranı temizle"),
+                ("/exit", "Çıkış"),
             ]
-            tip_text = '[dim]Dogal dilde konusabilirsin: "10.0.0.1 tara", "sql injection bul"[/]'
         else:
             commands: list[tuple[str, str]] = [
                 ("/target <IP>", "Set target"),
-                (self.CMD_UNTARGET, "Clear target"),
-                (self.CMD_SCAN, "Start autonomous scan"),
-                (self.CMD_TOOLS, "List available tools"),
-                (self.CMD_STATUS, "Show status"),
-                (self.CMD_REPORT, "Generate report"),
-                (self.CMD_SHELL, "Terminal access"),
-                (self.CMD_CONFIG, "Settings"),
-                ("/llm", "LLM configuration"),
-                ("/tr | /en", "Language"),
-                (self.CMD_CLEAR, "Clear screen"),
-                (self.CMD_EXIT, "Exit"),
+                ("/untarget", "Clear target"),
+                ("/scan", "Start scan"),
+                ("/status", "Show status"),
+                ("/tools", "List tools"),
+                ("/report", "Generate report"),
+                ("/shell", "Terminal access"),
+                ("/config", "Settings"),
+                ("/llm", "LLM settings"),
+                ("/tr /en", "Change language"),
+                ("/clear", "Clear screen"),
+                ("/exit", "Exit"),
             ]
-            tip_text = '[dim]Chat naturally: "scan 10.0.0.1", "find sql injection"[/]'
 
-        # Add rows to table
         for cmd, desc in commands:
             table.add_row(cmd, desc)
 
-        # Simple output - no heavy panels
         self.console.print()
-        self.console.print(f"[{self.STYLE_BOLD_CYAN}]DRAKBEN Commands[/]")
-        self.console.print("─" * 40)
         self.console.print(table)
-        self.console.print("─" * 40)
-        self.console.print(tip_text)
+        self.console.print()
+
+        # Natural language tip
+        if is_tr:
+            self.console.print("[dim]Doğal dilde de yazabilirsiniz: \"10.0.0.1 tara\"[/]")
+        else:
+            self.console.print('[dim]Or type naturally: "scan 10.0.0.1"[/]')
         self.console.print()
 
     def _validate_target(self, target: str) -> bool:
@@ -1026,31 +1093,21 @@ class DrakbenMenu:
         )
 
     def _show_current_target_info(self, lang: str) -> None:
-        """Display current target information panel."""
-        from rich.panel import Panel
-
+        """Display current target information - minimal style."""
         current_target = self.config.target
         if current_target:
-            msg = (
-                f"🎯 Mevcut hedef: [bold white]{current_target}[/]\nDeğiştirmek için: /target <IP>"
-                if lang == "tr"
-                else f"🎯 Current target: [bold white]{current_target}[/]\nTo change: /target <IP>"
-            )
-            title, border = ("Hedef Bilgisi", "cyan") if lang == "tr" else ("Target Info", "cyan")
+            if lang == "tr":
+                self.console.print(f"Mevcut hedef: [bold]{current_target}[/]")
+            else:
+                self.console.print(f"Current target: [bold]{current_target}[/]")
         else:
-            msg = (
-                "Hedef ayarlanmamış. Kullanım: [bold]/target <IP>[/]"
-                if lang == "tr"
-                else "No target set. Usage: [bold]/target <IP>[/]"
-            )
-            title, border = ("Hedef Yok", "red") if lang == "tr" else ("No Target", "red")
-
-        self.console.print(Panel(f"{msg}", title=f"[bold]{title}[/]", border_style=border, padding=(0, 1)))
+            if lang == "tr":
+                self.console.print("[dim]Hedef yok. Kullanım:[/] [green]/target <IP>[/]")
+            else:
+                self.console.print("[dim]No target set. Usage:[/] [green]/target <IP>[/]")
 
     def _cmd_target(self, args: str = "") -> None:
-        """Set target - with visual feedback."""
-        from rich.panel import Panel
-
+        """Set target - minimal style."""
         lang: str = self.config.language
         args = args.strip()
 
@@ -1081,24 +1138,18 @@ class DrakbenMenu:
         if self.orchestrator:
             self.orchestrator.set_target(args)
 
-        content = (
-            f"[bold {self.COLORS['green']}]Hedef ayarlandı:[/] [bold white]{args}[/]"
-            if lang == "tr"
-            else f"[bold {self.COLORS['green']}]Target set:[/] [bold white]{args}[/]"
-        )
-        self.console.print(Panel(content, border_style=self.COLORS["green"], padding=(0, 1)))
+        if lang == "tr":
+            self.console.print(f"[green]Hedef ayarlandı:[/] [bold]{args}[/]")
+        else:
+            self.console.print(f"[green]Target set:[/] [bold]{args}[/]")
 
     def _cmd_untarget(self, args: str = "") -> None:
-        """Clear target command."""
-        from rich.panel import Panel
-
+        """Clear target command - minimal style."""
         lang: str = self.config.language
 
         if not self.config.target:
             msg = "Zaten hedef belirlenmemiş." if lang == "tr" else "No target is set."
-            self.console.print(
-                Panel(f"[yellow]⚠️  {msg}[/]", border_style="yellow", padding=(0, 1)),
-            )
+            self.console.print(f"[yellow]{msg}[/]")
             return
 
         self.config_manager.set_target(None)
@@ -1108,12 +1159,8 @@ class DrakbenMenu:
         if self.orchestrator:
             self.orchestrator.clear_target()
 
-        msg = (
-            "[bold green]✅ Hedef temizlendi[/]"
-            if lang == "tr"
-            else "[bold green]✅ Target cleared[/]"
-        )
-        self.console.print(Panel(msg, border_style="green", padding=(0, 1)))
+        msg = "Hedef temizlendi." if lang == "tr" else "Target cleared."
+        self.console.print(f"[green]{msg}[/]")
 
     def _cmd_tools(self, args: str = "") -> None:
         """List all available tools from the registry."""
@@ -1156,8 +1203,10 @@ class DrakbenMenu:
         self.console.print(table)
 
         # Show usage hint
-        hint = "Kullanım: /tools [recon|vuln|exploit|post|lateral]" if lang == "tr" else "Usage: /tools [recon|vuln|exploit|post|lateral]"
-        self.console.print(f"\n[dim]{hint}[/]")
+        if lang == "tr":
+            self.console.print("\n[dim]Kullanım:[/] [green]/tools[/] [dim][recon|vuln|exploit|post|lateral][/]")
+        else:
+            self.console.print("\n[dim]Usage:[/] [green]/tools[/] [dim][recon|vuln|exploit|post|lateral][/]")
 
     def _cmd_scan(self, args: str = "") -> None:
         """Scan target - with visual feedback.
@@ -1171,11 +1220,42 @@ class DrakbenMenu:
         """
         scan_mode: str = self._parse_scan_mode(args)
 
+        # Check target FIRST before creating any display
         if not self._check_target_set():
             return
 
-        self._display_scan_panel(scan_mode)
-        self._start_scan_with_recovery(scan_mode)
+        # Only create display after target check passes
+        from core.ui.unified_display import ScanDisplay
+
+        lang: str = self.config.language
+        scan_display = ScanDisplay(console=self.console, language=lang)
+
+        try:
+            scan_display.start_scan(
+                target=self.config.target or "",
+                mode=scan_mode,
+                phase="RECON",
+            )
+
+            self._ensure_agent_initialized()
+            self._initialize_agent_with_retry(scan_mode, lang)
+
+            if self.agent is None:
+                raise AssertionError(self.MSG_AGENT_NOT_NONE)
+
+            # Update display with tool info
+            scan_display.update_progress(tool="nmap", current_action="Port scanning...")
+
+            # Run autonomous loop (this will take over display)
+            scan_display.stop(final_message="Starting autonomous scan...", success=True)
+            self.agent.run_autonomous_loop()
+
+        except KeyboardInterrupt:
+            scan_display.finish_scan(success=False)
+            self._handle_scan_interrupt(lang)
+        except Exception as e:
+            scan_display.finish_scan(success=False)
+            self._handle_scan_error(e, lang)
 
     def _parse_scan_mode(self, args: str) -> str:
         """Parse scan mode from arguments."""
@@ -1188,27 +1268,15 @@ class DrakbenMenu:
 
     def _check_target_set(self) -> bool:
         """Check if target is set, show error if not."""
-        from rich.panel import Panel
-
         if self.config.target:
             return True
 
         lang: str = self.config.language
         if lang == "tr":
-            msg = "Önce hedef belirle: [bold]/target <IP>[/]"
-            title = "❌ Hedef Yok"
+            self.console.print("[red]Hedef yok.[/] [dim]Kullanım:[/] [green]/target <IP>[/]")
         else:
-            msg = "Set target first: [bold]/target <IP>[/]"
-            title = "❌ No Target"
+            self.console.print("[red]No target.[/] [dim]Usage:[/] [green]/target <IP>[/]")
 
-        self.console.print(
-            Panel(
-                f"[red]{msg}[/]",
-                title=f"[red]{title}[/]",
-                border_style="red",
-                padding=(0, 1),
-            ),
-        )
         return False
 
     def _display_scan_panel(self, scan_mode: str) -> None:
@@ -1242,7 +1310,7 @@ class DrakbenMenu:
         self.console.print()
 
     def _start_scan_with_recovery(self, scan_mode: str) -> None:
-        """Start scan with error recovery."""
+        """Start scan with error recovery (legacy method)."""
         lang: str = self.config.language
 
         try:
@@ -1252,34 +1320,39 @@ class DrakbenMenu:
                 raise AssertionError(self.MSG_AGENT_NOT_NONE)
             self.agent.run_autonomous_loop()
         except KeyboardInterrupt:
-            # Ctrl+C during scan = Stop scan, return to menu
-            try:
-                from core.stop_controller import stop_controller
-                stop_controller.stop()
-            except ImportError:
-                pass
-            interrupt_msg: str = (
-                "\n🛑 Tarama durduruldu. Menüye dönülüyor..."
-                if lang == "tr"
-                else "\n🛑 Scan stopped. Returning to menu..."
-            )
-            self.console.print(interrupt_msg, style="yellow")
-            # Reset stop controller for next operation
-            try:
-                from core.stop_controller import stop_controller
-                stop_controller.reset()
-            except ImportError:
-                pass
-            # Don't re-raise - return to menu gracefully
+            self._handle_scan_interrupt(lang)
         except Exception as e:
-            import logging
+            self._handle_scan_error(e, lang)
 
-            logger = logging.getLogger(__name__)
-            logger.exception("Scan error: %s", e)
-            error_msg: str = (
-                f"Tarama sırasında hata: {e}" if lang == "tr" else f"Scan error: {e}"
-            )
-            self.console.print(f"❌ {error_msg}", style="red")
+    def _handle_scan_interrupt(self, lang: str) -> None:
+        """Handle scan interruption (Ctrl+C)."""
+        try:
+            from core.stop_controller import stop_controller
+            stop_controller.stop()
+        except ImportError:
+            pass
+        interrupt_msg: str = (
+            "\nTarama durduruldu."
+            if lang == "tr"
+            else "\nScan stopped."
+        )
+        self.console.print(f"[yellow]{interrupt_msg}[/]")
+        try:
+            from core.stop_controller import stop_controller
+            stop_controller.reset()
+        except ImportError:
+            pass
+
+    def _handle_scan_error(self, error: Exception, lang: str) -> None:
+        """Handle scan error."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.exception("Scan error: %s", error)
+        error_msg: str = (
+            f"Tarama hatası: {error}" if lang == "tr" else f"Scan error: {error}"
+        )
+        self.console.print(f"[red]{error_msg}[/]")
 
     def _ensure_agent_initialized(self) -> None:
         """Ensure agent is initialized."""
@@ -1290,8 +1363,6 @@ class DrakbenMenu:
 
     def _initialize_agent_with_retry(self, scan_mode: str, lang: str) -> None:
         """Initialize agent with retry on failure."""
-        from rich.panel import Panel
-
         try:
             if self.agent is None:
                 raise AssertionError(self.MSG_AGENT_NOT_NONE)
@@ -1299,22 +1370,18 @@ class DrakbenMenu:
             self.agent.initialize(target=target, mode=scan_mode)
         except Exception as init_error:
             error_msg: str = (
-                f"Agent başlatma hatası: {init_error}"
+                f"Agent hatası: {init_error}"
                 if lang == "tr"
-                else f"Agent initialization error: {init_error}"
+                else f"Agent error: {init_error}"
             )
-            self.console.print(
-                Panel(
-                    f"[red]{error_msg}[/]\n[dim]Yeniden deneniyor... / Retrying...[/]",
-                    title="[red]⚠️ Hata / Error[/]",
-                    border_style="yellow",
-                    padding=(0, 1),
-                ),
-            )
+            retry_msg = "Yeniden deneniyor..." if lang == "tr" else "Retrying..."
+            self.console.print(f"[yellow]{error_msg}[/]")
+            self.console.print(f"[dim]{retry_msg}[/]")
+
             # Retry with fresh agent
             from core.agent.refactored_agent import RefactoredDrakbenAgent
 
-            target: str = self.config.target or "localhost"
+            target = self.config.target or "localhost"
             self.agent = RefactoredDrakbenAgent(self.config_manager)
             self.agent.initialize(target=target, mode=scan_mode)
 
@@ -1326,53 +1393,24 @@ class DrakbenMenu:
 
     def _cmd_turkish(self, args: str = "") -> None:
         """Switch to Turkish."""
-        from rich.panel import Panel
-
         self.config_manager.set_language("tr")
         self.config: DrakbenConfig = self.config_manager.config
-        self.console.print(
-            Panel(
-                "[bold]🇹🇷 Dil Türkçe olarak ayarlandı[/]",
-                border_style=self.COLORS["green"],
-                padding=(0, 1),
-            ),
-        )
+        self.console.print("[green]Dil Türkçe olarak ayarlandı.[/]")
 
     def _cmd_english(self, args: str = "") -> None:
         """Switch to English."""
-        from rich.panel import Panel
-
         self.config_manager.set_language("en")
         self.config: DrakbenConfig = self.config_manager.config
-        self.console.print(
-            Panel(
-                "[bold]🇬🇧 Language set to English[/]",
-                border_style=self.COLORS["green"],
-                padding=(0, 1),
-            ),
-        )
+        self.console.print("[green]Language set to English.[/]")
 
     def _cmd_shell(self, args: str = "") -> None:
         """Launch interactive shell."""
-        from rich.panel import Panel
-
         lang: str = self.config.language
 
         if lang == "tr":
-            msg = "[bold]💻 İnteraktif kabuk başlatılıyor...[/]\n[dim]Çıkmak için 'exit' yazın[/]"
+            self.console.print("[İnteraktif kabuk başlatılıyor... Çıkmak için 'exit' yazın]")
         else:
-            msg = (
-                "[bold]💻 Starting interactive shell...[/]\n[dim]Type 'exit' to quit[/]"
-            )
-
-        self.console.print(
-            Panel(
-                msg,
-                title=f"[bold {self.COLORS['cyan']}]DRAKBEN Shell[/]",
-                border_style=self.COLORS["cyan"],
-                padding=(0, 1),
-            ),
-        )
+            self.console.print("[Starting interactive shell... Type 'exit' to quit]")
 
         from core.ui.interactive_shell import InteractiveShell
 
@@ -1417,71 +1455,117 @@ class DrakbenMenu:
         )
 
         if self.agent.planner and self.agent.planner.steps:
-            plan_title = "📋 Mission Plan" if lang == "en" else "📋 Görev Planı"
+            plan_title = "Mission Plan" if lang == "en" else "Görev Planı"
             self.console.print(
                 Panel(
                     self._create_plan_table(),
-                    title=f"[bold {self.COLORS['pink']}]{plan_title}[/]",
-                    border_style=self.COLORS["pink"],
+                    title=f"[bold cyan]{plan_title}[/]",
+                    border_style="cyan",
                     padding=(0, 1),
                 ),
             )
 
     def _show_idle_panel(self, lang: str) -> None:
-        """Show idle message panel when agent is not active."""
-        from rich.panel import Panel
-
-        idle_msg = (
-            "[dim]Ajan şu an aktif değil. Bir tarama başlatmak için:[/]\n"
-            f"[{self.STYLE_BOLD_CYAN}]1.[/] /target <IP>\n"
-            f"[{self.STYLE_BOLD_CYAN}]2.[/] /scan"
-            if lang == "tr"
-            else "[dim]Agent is currently idle. To start a scan:[/]\n"
-            f"[{self.STYLE_BOLD_CYAN}]1.[/] /target <IP>\n"
-            f"[{self.STYLE_BOLD_CYAN}]2.[/] /scan"
-        )
-        idle_title = "🤖 Agent Idle" if lang == "en" else "🤖 Ajan Beklemede"
-        self.console.print(
-            Panel(
-                idle_msg,
-                title=f"[bold yellow]{idle_title}[/]",
-                border_style="yellow",
-                padding=(0, 1),
-            ),
-        )
+        """Show idle message when agent is not active."""
+        if lang == "tr":
+            self.console.print("[dim]Ajan aktif değil. Başlatmak için: /target <IP> sonra /scan[/]")
+        else:
+            self.console.print("[dim]Agent idle. To start: /target <IP> then /scan[/]")
 
     def _cmd_status(self, args: str = "") -> None:
-        """Show current status - Modern dashboard style."""
+        """Show current status - Clean, professional dashboard."""
         from rich.panel import Panel
+        from rich.table import Table
 
         lang: str = self.config.language
+        is_tr = lang == "tr"
         self.console.print()
 
-        title: str = "📊 DRAKBEN Status" if lang == "en" else "📊 DRAKBEN Durumu"
-        self.console.print(
-            Panel(
-                self._create_system_table(lang),
-                title=f"[bold {self.COLORS['cyan']}]{title}[/]",
-                border_style=self.COLORS["purple"],
-                padding=(0, 1),
-            ),
-        )
+        # Single compact status table
+        status_table = Table(box=None, padding=(0, 2), expand=True, show_header=False)
+        status_table.add_column("Key", style="dim", width=15)
+        status_table.add_column("Value", style="white")
 
-        if self.agent and self.agent.state:
-            self._show_agent_panels(lang)
+        # Target
+        target = self.config.target or ("Belirlenmedi" if is_tr else "Not set")
+        target_style = "bold green" if self.config.target else "dim red"
+        status_table.add_row("Target" if not is_tr else "Hedef", f"[{target_style}]{target}[/]")
+
+        # Mode
+        mode = "Stealth" if self.config.stealth_mode else "Normal"
+        mode_style = "green" if self.config.stealth_mode else "dim"
+        status_table.add_row("Mode" if not is_tr else "Mod", f"[{mode_style}]{mode}[/]")
+
+        # Threads
+        status_table.add_row("Threads", f"{self.config.max_threads}")
+
+        # Tools
+        tools = self.system_info.get("available_tools", {})
+        tool_count = len(tools)
+        status_table.add_row("Tools" if not is_tr else "Araçlar", f"{tool_count}")
+
+        # LLM
+        if self.brain and self.brain.llm_client:
+            info = self.brain.llm_client.get_provider_info()
+            model = info.get("model", "N/A")
+            short_model = model.split("/")[-1][:25] if "/" in model else model[:25]
+            status_table.add_row("LLM", f"[green]{short_model}[/]")
         else:
-            self._show_idle_panel(lang)
+            off_text = "Kapalı" if is_tr else "Off"
+            status_table.add_row("LLM", f"[dim]{off_text}[/]")
 
-        llm_title = "🧠 LLM"
-        self.console.print(
-            Panel(
-                self._create_llm_content(),
-                title=f"[bold {self.COLORS['green']}]{llm_title}[/]",
-                border_style=self.COLORS["green"],
-                padding=(0, 1),
-            ),
-        )
+        title = "DRAKBEN Status" if not is_tr else "DRAKBEN Durumu"
+        self.console.print(Panel(
+            status_table,
+            title=f"[bold cyan]{title}[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        ))
+
+        # Agent status if active
+        if self.agent and self.agent.state:
+            self._show_agent_status_compact(is_tr)
+
         self.console.print()
+
+    def _show_agent_status_compact(self, is_tr: bool) -> None:
+        """Show compact agent status."""
+        from rich.panel import Panel
+        from rich.table import Table
+
+        state = self.agent.state
+        phase_colors = {
+            "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
+            "exploit": "red", "foothold": "green", "post_exploit": "magenta",
+            "complete": "bold green", "failed": "bold red",
+        }
+        phase_color = phase_colors.get(state.phase.value, "white")
+        phase_name = self._get_phase_display_name(state.phase.value, is_tr)
+
+        agent_table = Table(box=None, padding=(0, 2), show_header=False, expand=True)
+        agent_table.add_column("Key", style="dim", width=15)
+        agent_table.add_column("Value", style="white")
+
+        agent_table.add_row("Phase" if not is_tr else "Aşama", f"[{phase_color}]{phase_name}[/]")
+        agent_table.add_row("Services" if not is_tr else "Servisler", f"{len(state.open_services)}")
+
+        vuln_count = len(state.vulnerabilities)
+        vuln_style = "bold red" if vuln_count > 0 else "dim"
+        agent_table.add_row("Vulns" if not is_tr else "Zafiyetler", f"[{vuln_style}]{vuln_count}[/]")
+
+        foothold_text = "Yes" if state.has_foothold else "No"
+        if is_tr:
+            foothold_text = "Evet" if state.has_foothold else "Hayır"
+        foothold_style = "green" if state.has_foothold else "dim"
+        agent_table.add_row("Foothold" if not is_tr else "Erişim", f"[{foothold_style}]{foothold_text}[/]")
+
+        title = "Agent Status" if not is_tr else "Ajan Durumu"
+        self.console.print(Panel(
+            agent_table,
+            title=f"[bold yellow]{title}[/]",
+            border_style="yellow",
+            padding=(0, 1),
+        ))
 
     def _get_service_status(self, svc: Any, vuln_map: dict, is_tr: bool) -> str:
         """Get status text for a service row."""
@@ -1586,7 +1670,7 @@ class DrakbenMenu:
         from rich.table import Table
 
         summary_table = Table(show_header=False, box=None, padding=(0, 1))
-        summary_table.add_column("K", style="bold purple")
+        summary_table.add_column("K", style="bold cyan")
         summary_table.add_column("V")
 
         s = self.agent.state  # type: ignore[union-attr]
@@ -1608,8 +1692,6 @@ class DrakbenMenu:
 
     def _cmd_report(self, args: str = "") -> None:
         """Generate professional report."""
-        from rich.panel import Panel
-
         from modules.report_generator import (
             ReportConfig,
             ReportFormat,
@@ -1619,12 +1701,12 @@ class DrakbenMenu:
         lang = self.config.language
 
         if not self.agent or not self.agent.state:
-            msg = "Önce bir tarama başlatmalısın." if lang == "tr" else "You must start a scan first."
-            self.console.print(Panel(f"[red]❌ {msg}[/]", style="red"))
+            msg = "Önce bir tarama başlatın." if lang == "tr" else "Start a scan first."
+            self.console.print(f"[red]{msg}[/]")
             return
 
-        gen_msg = "Profesyonel rapor oluşturuluyor..." if lang == "tr" else "Generating professional report..."
-        self.console.print(f"[bold {self.COLORS['purple']}]📝 {gen_msg}[/]")
+        gen_msg = "Rapor oluşturuluyor..." if lang == "tr" else "Generating report..."
+        self.console.print(f"[{self.COLORS['purple']}]{gen_msg}[/]")
 
         try:
             reports_dir = Path("reports")
@@ -1634,23 +1716,27 @@ class DrakbenMenu:
             target_clean = (self.config.target or "unknown").replace(".", "_").replace("/", "_").replace(":", "_")
             output_path = reports_dir / f"drakben_report_{target_clean}_{timestamp}.html"
 
-            config = ReportConfig(title=f"DRAKBEN AI Security Report - {self.config.target}", use_llm_summary=True)
-            final_path = generate_report_from_state(state=self.agent.state, output_path=str(output_path), format=ReportFormat.HTML, config=config)
-
-            stitle = "RAPOR ÖZETİ" if lang == "tr" else "REPORT SUMMARY"
-            self.console.print()
-            self.console.print(
-                Panel(
-                    self._build_report_summary_table(lang, final_path),
-                    title=f"[bold {self.COLORS['purple']}]{stitle}[/]",
-                    border_style=self.COLORS["purple"],
-                    padding=(1, 2),
-                ),
+            config = ReportConfig(
+                title=f"DRAKBEN AI Security Report - {self.config.target}",
+                use_llm_summary=True,
+            )
+            final_path = generate_report_from_state(
+                state=self.agent.state,
+                output_path=str(output_path),
+                format=ReportFormat.HTML,
+                config=config,
             )
 
+            stitle = "RAPOR" if lang == "tr" else "REPORT"
+            self.console.print()
+            self.console.print(f"[bold {self.COLORS['cyan']}]{stitle}[/]")
+            self.console.print("─" * 40)
+            self.console.print(self._build_report_summary_table(lang, final_path))
+            self.console.print("─" * 40)
+
         except Exception as e:
-            err_msg = f"Rapor oluşturma hatası: {e}" if lang == "tr" else f"Report generation error: {e}"
-            self.console.print(f"[bold red]❌ {err_msg}[/]")
+            err_msg = f"Rapor hatası: {e}" if lang == "tr" else f"Report error: {e}"
+            self.console.print(f"[red]{err_msg}[/]")
 
     def _get_localized_labels(self, is_tr: bool) -> dict[str, str]:
         """Get localized labels for system table."""
@@ -1694,24 +1780,29 @@ class DrakbenMenu:
 
         # LEFT COLUMN: IDENTITY
         left_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
-        left_content.add_column("🛡️", width=3)
+        left_content.add_column("", width=2)
         left_content.add_column(labels["header_id"], width=22)
         left_content.add_column(labels["lbl_status"], justify="right", width=15)
 
-        left_content.add_row("🎯", f"[dim]{labels['lbl_scope']}[/]", f"[{target_style}]{target_val}[/]")
-        left_content.add_row("🌍", f"[dim]{labels['lbl_lang']}[/]", "Türkçe 🇹🇷" if is_tr else "English 🇬🇧")
-        left_content.add_row("💻", f"[dim]{labels['lbl_os']}[/]", os_display)
+        left_content.add_row("*", f"[dim]{labels['lbl_scope']}[/]", f"[{target_style}]{target_val}[/]")
+        left_content.add_row("*", f"[dim]{labels['lbl_lang']}[/]", "TR" if is_tr else "EN")
+        left_content.add_row("*", f"[dim]{labels['lbl_os']}[/]", os_display)
 
         # RIGHT COLUMN: PERFORMANCE
         right_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
-        right_content.add_column("🚀", width=3)
+        right_content.add_column("", width=2)
         right_content.add_column(labels["header_perf"], width=22)
         right_content.add_column(labels["lbl_value"], justify="right", width=15)
 
-        right_content.add_row("🛠️", f"[dim]{labels['lbl_tools']}[/]", f"[{tool_color}]{tool_count} {labels['unit_str']}[/]")
-        stealth_str = f"[bold green]{labels['active_str']}[/]" if self.config.stealth_mode else f"[bold yellow]{labels['inactive_str']}[/]"
-        right_content.add_row("🥷", f"[dim]{labels['lbl_stealth']}[/]", stealth_str)
-        right_content.add_row("⚡", f"[dim]{labels['lbl_threads']}[/]", f"[bold yellow]{self.config.max_threads} {labels['core_str']}[/]")
+        tools_val = f"[{tool_color}]{tool_count} {labels['unit_str']}[/]"
+        right_content.add_row("*", f"[dim]{labels['lbl_tools']}[/]", tools_val)
+        if self.config.stealth_mode:
+            stealth_str = "[green]STEALTH[/]"
+        else:
+            stealth_str = "[yellow]VISIBLE[/]"
+        right_content.add_row("*", f"[dim]{labels['lbl_stealth']}[/]", stealth_str)
+        threads_val = f"[yellow]{self.config.max_threads} {labels['core_str']}[/]"
+        right_content.add_row("*", f"[dim]{labels['lbl_threads']}[/]", threads_val)
 
         outer_table.add_row(left_content, right_content)
         return outer_table
@@ -1751,16 +1842,16 @@ class DrakbenMenu:
         agent_table.add_column("Key", style=f"bold {self.COLORS['purple']}")
         agent_table.add_column("Value", style=self.COLORS["fg"])
 
-        lbl_phase = "📍 Evre" if is_tr else "📍 Phase"
-        lbl_svc = "🔌 Servisler" if is_tr else "🔌 Services"
-        lbl_vulns = "⚠️  Zafiyetler" if is_tr else "⚠️  Vulns"
-        lbl_foothold = "🚩 Erişim" if is_tr else "🚩 Foothold"
+        lbl_phase = "Phase" if not is_tr else "Evre"
+        lbl_svc = "Services" if not is_tr else "Servisler"
+        lbl_vulns = "Vulns" if not is_tr else "Zafiyetler"
+        lbl_foothold = "Foothold" if not is_tr else "Erişim"
 
         agent_table.add_row(lbl_phase, f"[{phase_color}]{phase_name.replace('_', ' ').title()}[/]")
         agent_table.add_row(lbl_svc, f"[cyan]{len(state.open_services)}[/]")
         vuln_color = "red" if state.vulnerabilities else "dim"
         agent_table.add_row(lbl_vulns, f"[{vuln_color}]{len(state.vulnerabilities)}[/]")
-        agent_table.add_row(lbl_foothold, "✅" if state.has_foothold else "❌")
+        agent_table.add_row(lbl_foothold, "[green]YES[/]" if state.has_foothold else "[dim]NO[/]")
         return agent_table
 
     def _create_llm_content(self) -> str:
@@ -1815,30 +1906,25 @@ class DrakbenMenu:
         self._save_llm_config(provider_key, selected_model, api_key)
 
     def _display_llm_setup_status(self, lang: str) -> None:
-        from rich.panel import Panel
-
         # Show current status
-        title: str = "🤖 LLM Kurulumu" if lang == "tr" else "🤖 LLM Setup"
+        title: str = "LLM Kurulumu" if lang == "tr" else "LLM Setup"
         self.console.print()
+        self.console.print(f"[bold {self.COLORS['cyan']}]{title}[/]")
+        self.console.print("─" * 30)
 
         # Show current config
         current_info: str = (
-            "[dim]Mevcut ayar yok[/dim]"
+            "[dim]Ayar yok[/]"
             if lang == "tr"
-            else "[dim]No current config[/dim]"
+            else "[dim]No config[/]"
         )
         if self.brain and self.brain.llm_client:
             info = self.brain.llm_client.get_provider_info()
-            current_info: str = f"[green]●[/green] {info.get('provider', 'N/A')} / {info.get('model', 'N/A')}"
+            current_info = f"[green]●[/] {info.get('provider', 'N/A')} / {info.get('model', 'N/A')}"
 
-        self.console.print(
-            Panel(
-                f"{'Mevcut' if lang == 'tr' else 'Current'}: {current_info}",
-                title=f"[bold {self.COLORS['cyan']}]{title}[/]",
-                border_style=self.COLORS["purple"],
-                padding=(0, 1),
-            ),
-        )
+        lbl = "Mevcut" if lang == "tr" else "Current"
+        self.console.print(f"{lbl}: {current_info}")
+        self.console.print("─" * 30)
 
     def _select_provider_for_setup(self, lang: str, providers: dict[str, Any]) -> Any:
         from rich.table import Table
@@ -1963,15 +2049,13 @@ class DrakbenMenu:
 
             if not api_key:
                 msg: str = "API key gerekli!" if lang == "tr" else "API key required!"
-                self.console.print(f"[red]❌ {msg}[/red]")
+                self.console.print(f"[red]{msg}[/]")
                 return None, None
 
         return selected_model, api_key
 
     def _save_llm_config(self, provider_key: str, selected_model: str, api_key: str) -> None:
         from pathlib import Path
-
-        from rich.panel import Panel
 
         env_file = Path("config/api.env")
 
@@ -1984,7 +2068,7 @@ class DrakbenMenu:
 
         config_body: str | None = templates.get(provider_key)
         if not config_body:
-            self.console.print(f"[red]❌ Unknown provider: {provider_key}[/red]")
+            self.console.print(f"[red]Unknown provider: {provider_key}[/]")
             return
 
         env_content: str = f"# DRAKBEN LLM Configuration\n# Auto-generated by /llm command\n\n{config_body}\n"
@@ -2009,17 +2093,11 @@ class DrakbenMenu:
             # Success message
             lang: str = self.config.language
             msg: str = (
-                f"✅ LLM ayarlandı: {provider_key} / {selected_model}"
+                f"LLM ayarlandı: {provider_key} / {selected_model}"
                 if lang == "tr"
-                else f"✅ LLM configured: {provider_key} / {selected_model}"
+                else f"LLM configured: {provider_key} / {selected_model}"
             )
-            self.console.print(
-                Panel(
-                    f"[bold green]{msg}[/bold green]",
-                    border_style="green",
-                    padding=(0, 1),
-                ),
-            )
+            self.console.print(f"\n[green]{msg}[/]")
 
             # Test connection
             test_msg: str = (
@@ -2035,23 +2113,23 @@ class DrakbenMenu:
                 test_result = self.brain.test_llm()
                 if test_result.get("connected"):
                     ok_msg: str = (
-                        "✅ Bağlantı başarılı!"
+                        "Bağlantı başarılı."
                         if lang == "tr"
-                        else "✅ Connection successful!"
+                        else "Connection OK."
                     )
-                    self.console.print(f"[green]{ok_msg}[/green]\n")
+                    self.console.print(f"[green]{ok_msg}[/]\n")
                 else:
                     err_msg: str = (
-                        "❌ Bağlantı hatası:"
+                        "Bağlantı hatası:"
                         if lang == "tr"
-                        else "❌ Connection error:"
+                        else "Connection error:"
                     )
                     self.console.print(
-                        f"[red]{err_msg} {test_result.get('error', 'Unknown')}[/red]\n",
+                        f"[red]{err_msg} {test_result.get('error', 'Unknown')}[/]\n",
                     )
 
         except Exception as e:
-            self.console.print(f"\n[red]❌ Save error: {e}[/]")
+            self.console.print(f"\n[red]Save error: {e}[/]")
 
     def _config_apply_defaults(self, lang: str) -> None:
         """Apply automatic default configuration."""
@@ -2060,8 +2138,11 @@ class DrakbenMenu:
         self.config.timeout = 30
         self.config.verbose = False
         self.config_manager.save_config()
-        msg = "Standart ayarlar uygulandı (4 Thread, 30s)." if lang == "tr" else "Standard defaults applied (4 Threads, 30s)."
-        self.console.print(f"\n   [bold green]✅ {msg}[/]\n")
+        if lang == "tr":
+            msg = "Standart ayarlar uygulandı (4 Thread, 30s)."
+        else:
+            msg = "Standard defaults applied (4 Threads, 30s)."
+        self.console.print(f"\n[green]{msg}[/]\n")
 
     def _config_apply_shadow_mode(self, lang: str) -> None:
         """Apply shadow mode (hacker preset) configuration."""
@@ -2070,8 +2151,11 @@ class DrakbenMenu:
         self.config.timeout = 300
         self.config.verbose = True
         self.config_manager.save_config()
-        msg = "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout." if lang == "tr" else "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
-        self.console.print(f"\n   [bold purple]🥷 {msg}[/]\n")
+        if lang == "tr":
+            msg = "Shadow Mode Aktif: Ghost Protocol ON, 1 Thread, 300s Timeout."
+        else:
+            msg = "Shadow Mode Active: Ghost Protocol ON, 1 Thread, 300s Timeout."
+        self.console.print(f"\n[bold cyan]{msg}[/]\n")
 
     def _config_prompt_bool(self, prompt: str, current: bool, y_label: str, n_label: str) -> bool | None:
         """Prompt for boolean config value. Returns None if cancelled."""

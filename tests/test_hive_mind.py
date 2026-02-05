@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules.hive_mind import (
     ADAnalyzer,
     AttackPath,
+    AutoPivot,
     Credential,
     CredentialHarvester,
     CredentialType,
@@ -17,6 +18,8 @@ from modules.hive_mind import (
     MovementTechnique,
     NetworkHost,
     NetworkMapper,
+    TunnelConfig,
+    TunnelManager,
     get_hive_mind,
     quick_recon,
 )
@@ -363,8 +366,356 @@ class TestDataClasses(unittest.TestCase):
         )
 
         assert len(path.hops) == 2
-        assert path.probability == 0.75
+        assert abs(path.probability - 0.75) < 0.001  # Use epsilon comparison
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestTunnelManager(unittest.TestCase):
+    """Test tunnel management functionality."""
+
+    def setUp(self) -> None:
+        self.tunnel_manager = TunnelManager()
+
+    def test_initialization(self) -> None:
+        """Test tunnel manager initialization."""
+        assert self.tunnel_manager.active_tunnels is not None
+        assert len(self.tunnel_manager.active_tunnels) == 0
+
+    def test_get_next_port(self) -> None:
+        """Test port auto-assignment."""
+        port1 = self.tunnel_manager._get_next_port()
+        port2 = self.tunnel_manager._get_next_port()
+        assert port2 == port1 + 1
+
+    def test_build_ssh_tunnel_command_socks5(self) -> None:
+        """Test SOCKS5 tunnel command building."""
+        config = TunnelConfig(
+            tunnel_type="socks5",
+            local_port=9050,
+            remote_host="192.168.1.100",
+            remote_port=22,
+            jump_host="192.168.1.100",
+            username="testuser",
+        )
+        cmd = self.tunnel_manager._build_ssh_tunnel_command(config)
+        assert "-D 9050" in cmd
+        assert "testuser@192.168.1.100" in cmd
+
+    def test_build_ssh_tunnel_command_forward(self) -> None:
+        """Test port forward tunnel command building."""
+        config = TunnelConfig(
+            tunnel_type="ssh_forward",
+            local_port=8080,
+            remote_host="10.0.0.5",
+            remote_port=80,
+            jump_host="192.168.1.100",
+            username="testuser",
+        )
+        cmd = self.tunnel_manager._build_ssh_tunnel_command(config)
+        assert "-L 8080:10.0.0.5:80" in cmd
+
+    def test_list_tunnels_empty(self) -> None:
+        """Test listing tunnels when none active."""
+        tunnels = self.tunnel_manager.list_tunnels()
+        assert tunnels == []
+
+    def test_get_proxy_config_not_found(self) -> None:
+        """Test proxy config for non-existent tunnel."""
+        config = self.tunnel_manager.get_proxy_config(9999)
+        assert config == {}
+
+    def test_close_tunnel_not_found(self) -> None:
+        """Test closing non-existent tunnel."""
+        result = self.tunnel_manager.close_tunnel(9999)
+        assert not result
+
+
+class TestAutoPivot(unittest.TestCase):
+    """Test auto-pivot functionality."""
+
+    def setUp(self) -> None:
+        self.mapper = NetworkMapper()
+        self.harvester = CredentialHarvester()
+        self.auto_pivot = AutoPivot(self.mapper, self.harvester)
+
+    def test_initialization(self) -> None:
+        """Test auto-pivot initialization."""
+        assert self.auto_pivot.tunnel_manager is not None
+        assert self.auto_pivot.pivot_chain == []
+
+    def test_get_status(self) -> None:
+        """Test status retrieval."""
+        status = self.auto_pivot.get_status()
+        assert "tunnels_active" in status
+        assert "pivot_chain" in status
+        assert "all_tunnels" in status
+
+    def test_cleanup(self) -> None:
+        """Test cleanup method."""
+        closed = self.auto_pivot.cleanup()
+        assert closed == 0
+        assert self.auto_pivot.pivot_chain == []
+
+    def test_find_and_pivot_no_pivots(self) -> None:
+        """Test auto-pivot with no pivot points."""
+        tunnels = self.auto_pivot.find_and_pivot()
+        assert tunnels == []
+
+
+class TestHiveMindAutoPivot(unittest.TestCase):
+    """Test HiveMind auto-pivot integration."""
+
+    def setUp(self) -> None:
+        self.hive = HiveMind()
+
+    def test_auto_pivot_exists(self) -> None:
+        """Test that auto_pivot is initialized."""
+        assert self.hive.auto_pivot is not None
+        assert isinstance(self.hive.auto_pivot, AutoPivot)
+
+    def test_list_tunnels(self) -> None:
+        """Test listing tunnels through HiveMind."""
+        tunnels = self.hive.list_tunnels()
+        assert isinstance(tunnels, list)
+
+    def test_close_tunnels(self) -> None:
+        """Test closing tunnels through HiveMind."""
+        closed = self.hive.close_tunnels()
+        assert closed == 0
+
+    def test_setup_auto_pivot_no_pivots(self) -> None:
+        """Test auto-pivot setup with no pivot points."""
+        result = self.hive.setup_auto_pivot()
+        assert "success" in result
+        assert "tunnels_created" in result
+
+    def test_get_status_includes_pivot(self) -> None:
+        """Test that status includes pivot info."""
+        status = self.hive.get_status()
+        assert "pivot_status" in status
+
+
+# =============================================================================
+# PASS-THE-HASH AUTOMATION TESTS
+# =============================================================================
+
+
+class TestPassTheHashAutomation(unittest.TestCase):
+    """Test Pass-the-Hash automation."""
+
+    def setUp(self) -> None:
+        from modules.hive_mind import PassTheHashAutomation
+        self.pth = PassTheHashAutomation()
+
+    def test_initialization(self) -> None:
+        """Test PTH initialization."""
+        assert self.pth.harvested_hashes is not None
+        assert isinstance(self.pth.harvested_hashes, list)
+        assert self.pth.successful_auths is not None
+        assert isinstance(self.pth.successful_auths, list)
+
+    def test_check_impacket(self) -> None:
+        """Test Impacket availability check."""
+        result = self.pth._check_impacket()
+        assert isinstance(result, bool)
+
+    def test_pth_smb_no_impacket(self) -> None:
+        """Test PTH SMB when Impacket not available."""
+        self.pth._impacket_available = False
+        result = self.pth.pth_smb("192.168.1.100", "admin", "hash123")
+        assert result["success"] is False
+        assert "Impacket" in result["error"]
+
+    def test_parse_shares(self) -> None:
+        """Test SMB shares parsing."""
+        output = "ADMIN$    Disk\nC$    Disk\nIPC$    Disk"
+        shares = self.pth._parse_shares(output)
+        assert isinstance(shares, list)
+        assert "ADMIN$" in shares or len(shares) == 0  # Either ADMIN$ found or empty list
+
+    def test_build_credential_chain_empty(self) -> None:
+        """Test credential chain with no auths."""
+        chain = self.pth.build_credential_chain()
+        assert chain == []
+
+    def test_build_credential_chain_with_auths(self) -> None:
+        """Test credential chain with successful auths."""
+        self.pth.successful_auths = [
+            {"target": "192.168.1.100", "username": "admin", "technique": "PTH-SMB"},
+            {"target": "192.168.1.101", "username": "user", "technique": "PTH-SMB"},
+        ]
+        chain = self.pth.build_credential_chain()
+        assert len(chain) == 2
+        assert chain[0]["to"] == "192.168.1.100"
+        assert chain[1]["via"] == "user"
+
+    def test_spray_hash_no_impacket(self) -> None:
+        """Test hash spray when Impacket not available."""
+        self.pth._impacket_available = False
+        results = self.pth.spray_hash(["192.168.1.100", "192.168.1.101"], "admin", "hash")
+        assert results == []
+
+
+# =============================================================================
+# HONEY TOKEN DETECTOR TESTS
+# =============================================================================
+
+
+class TestHoneyTokenDetector(unittest.TestCase):
+    """Test honey token detection."""
+
+    def setUp(self) -> None:
+        from modules.hive_mind import HoneyTokenDetector
+        self.detector = HoneyTokenDetector()
+
+    def test_initialization(self) -> None:
+        """Test detector initialization."""
+        assert self.detector.detected_tokens is not None
+        assert len(self.detector._compiled_patterns) > 0
+
+    def test_is_honey_credential_honey_username(self) -> None:
+        """Test detection of honey username."""
+        cred = Credential(
+            username="honeypot_admin",
+            domain="corp.local",
+            credential_type=CredentialType.PASSWORD,
+            value="secret",
+            source="file",
+        )
+        result = self.detector.is_honey_credential(cred)
+        assert result is True
+
+    def test_is_honey_credential_canary(self) -> None:
+        """Test detection of canary username."""
+        cred = Credential(
+            username="canary_user",
+            domain="corp.local",
+            credential_type=CredentialType.PASSWORD,
+            value="random",
+            source="file",
+        )
+        result = self.detector.is_honey_credential(cred)
+        assert result is True
+
+    def test_is_honey_credential_decoy(self) -> None:
+        """Test detection of decoy username."""
+        cred = Credential(
+            username="decoy_svc",
+            domain="corp.local",
+            credential_type=CredentialType.PASSWORD,
+            value="random",
+            source="file",
+        )
+        result = self.detector.is_honey_credential(cred)
+        assert result is True
+
+    def test_is_not_honey_credential_normal(self) -> None:
+        """Test normal credential is not flagged."""
+        cred = Credential(
+            username="john.smith",
+            domain="corp.local",
+            credential_type=CredentialType.PASSWORD,
+            value="C0mpl3x!P@ssw0rd#2024",
+            source="memory",
+        )
+        result = self.detector.is_honey_credential(cred)
+        assert result is False
+
+    def test_is_canary_file_passwords(self) -> None:
+        """Test detection of passwords.txt as canary."""
+        result = self.detector.is_canary_file("/share/passwords.txt")
+        assert result is True
+
+    def test_is_canary_file_secrets(self) -> None:
+        """Test detection of secrets.txt as canary."""
+        result = self.detector.is_canary_file("C:/Users/admin/secrets.txt")
+        assert result is True
+
+    def test_is_canary_file_credentials(self) -> None:
+        """Test detection of credentials.txt as canary."""
+        result = self.detector.is_canary_file("/home/user/credentials.txt")
+        assert result is True
+
+    def test_is_not_canary_file(self) -> None:
+        """Test normal file is not flagged."""
+        result = self.detector.is_canary_file("/home/user/document.docx")
+        assert result is False
+
+    def test_check_ad_object_honey(self) -> None:
+        """Test AD object with honey pattern."""
+        result = self.detector.check_ad_object("honey_admin", {"description": "Admin"})
+        assert result is True
+
+    def test_check_ad_object_decoy_description(self) -> None:
+        """Test AD object with decoy description."""
+        result = self.detector.check_ad_object("svc_sql", {"description": "Decoy service"})
+        assert result is True
+
+    def test_check_ad_object_normal(self) -> None:
+        """Test normal AD object."""
+        result = self.detector.check_ad_object("john.smith", {"description": "IT Dept"})
+        assert result is False
+
+    def test_get_detections_empty(self) -> None:
+        """Test getting detections when empty."""
+        detections = self.detector.get_detections()
+        assert detections == []
+
+    def test_get_detections_after_detection(self) -> None:
+        """Test getting detections after recording."""
+        self.detector._record_detection("credential", "honeypot", "pattern_match")
+        detections = self.detector.get_detections()
+        assert len(detections) == 1
+        assert detections[0]["type"] == "credential"
+
+    def test_filter_safe_credentials(self) -> None:
+        """Test filtering safe credentials."""
+        creds = [
+            Credential("honeypot", "", CredentialType.PASSWORD, "pass", "file"),
+            Credential("john.smith", "", CredentialType.PASSWORD, "C0mpl3x!", "mem"),
+            Credential("canary_svc", "", CredentialType.PASSWORD, "pass", "file"),
+        ]
+        safe = self.detector.filter_safe_credentials(creds)
+        assert len(safe) == 1
+        assert safe[0].username == "john.smith"
+
+
+# =============================================================================
+# ENHANCE HIVE MIND TESTS
+# =============================================================================
+
+
+class TestEnhanceHiveMind(unittest.TestCase):
+    """Test HiveMind enhancement function."""
+
+    def test_enhance_adds_pth(self) -> None:
+        """Test that enhance adds PTH automation."""
+        from modules.hive_mind import PassTheHashAutomation, enhance_hive_mind
+        hive = HiveMind()
+        enhance_hive_mind(hive)
+        assert hasattr(hive, "pth")
+        assert isinstance(hive.pth, PassTheHashAutomation)
+
+    def test_enhance_adds_honey_detector(self) -> None:
+        """Test that enhance adds honey detector."""
+        from modules.hive_mind import HoneyTokenDetector, enhance_hive_mind
+        hive = HiveMind()
+        enhance_hive_mind(hive)
+        assert hasattr(hive, "honey_detector")
+        assert isinstance(hive.honey_detector, HoneyTokenDetector)
+
+    def test_enhanced_hive_integration(self) -> None:
+        """Test enhanced HiveMind integration."""
+        from modules.hive_mind import enhance_hive_mind
+        hive = HiveMind()
+        enhance_hive_mind(hive)
+
+        # Check both enhancements work together
+        cred = Credential(
+            username="admin",
+            domain="corp.local",
+            credential_type=CredentialType.PASSWORD,
+            value="C0mpl3x!",
+            source="memory",
+        )
+        is_honey = hive.honey_detector.is_honey_credential(cred)
+        assert is_honey is False

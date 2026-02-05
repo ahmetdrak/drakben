@@ -59,7 +59,7 @@ class EvolutionMemory:
         if db_path == ":memory:":
             self.db_path = db_path
             self._is_memory = True
-            self._persistent_conn = None  # Will hold the connection for in-memory mode
+            self._persistent_conn: sqlite3.Connection | None = None
         else:
             self.db_path = str(Path(db_path))
             self._is_memory = False

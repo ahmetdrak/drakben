@@ -2,6 +2,7 @@
 # DRAKBEN - AI Brain with 5 Core Modules
 # Real LLM Integration
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -235,17 +236,18 @@ OUTPUT JSON:
   "risks": []
 }}"""
 
-    def __init__(self, llm_client: Any = None) -> None:
+    def __init__(self, llm_client: Any = None, cognitive_memory: Any = None) -> None:
         """Initialize reasoning engine with optional LLM support.
 
         Args:
             llm_client: Client for external or local LLM interaction.
-
+            cognitive_memory: CognitiveMemoryManager for Stanford-style context
 
         """
         import threading
         self._lock = threading.Lock()  # Thread safety for history
         self.llm_client = llm_client
+        self.cognitive_memory = cognitive_memory  # Stanford Memory System
         self.reasoning_history: list[dict] = []
         self.use_llm: bool = llm_client is not None
         self._system_context: dict[str, Any] = {}  # Cached system info
@@ -367,7 +369,8 @@ OUTPUT JSON:
             if is_retryable and attempt < MAX_RETRIES - 1:
                 delay = 5 * (2**attempt)  # 5s, 10s, 20s
                 logger.warning(
-                    f"LLM transient error, retrying in {delay}s ({attempt + 1}/{MAX_RETRIES}): {error_msg}",
+                    "LLM transient error, retrying in %ss (%s/%s): %s",
+                    delay, attempt + 1, MAX_RETRIES, error_msg,
                 )
                 time.sleep(delay)
                 continue
@@ -376,7 +379,7 @@ OUTPUT JSON:
             break
 
         if last_error:
-            logger.warning(f"LLM analysis failed after {MAX_RETRIES} attempts: {last_error}")
+            logger.warning("LLM analysis failed after %s attempts: %s", MAX_RETRIES, last_error)
 
         return None
 
@@ -384,7 +387,73 @@ OUTPUT JSON:
         """Handle first LLM error with early warning."""
         if attempt == 0 and not self._first_error_shown:
             self._first_error_shown = True
-            logger.warning(f"LLM first error: {error_msg[:100]}")
+            logger.warning("LLM first error: %s", error_msg[:100])
+
+    def _check_llm_cache(
+        self, user_input: str, system_prompt: str,
+    ) -> dict[str, Any] | None:
+        """Check LLM cache for a cached response.
+
+        Returns:
+            Cached response dict or None if not found.
+        """
+        if not self.llm_cache:
+            return None
+
+        cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
+        if not cached_json:
+            return None
+
+        # Cache hit! Parse and return
+        parsed = self._parse_llm_response(cached_json)
+        if parsed:
+            parsed["success"] = True
+            parsed["response"] = parsed.get("response", parsed.get("reasoning", ""))
+            parsed["llm_response"] = cached_json
+            self._add_to_history(parsed)
+            return parsed
+
+        # Cache hit but not JSON - return as chat response
+        return {
+            "success": True,
+            "intent": "chat",
+            "confidence": 0.9,
+            "steps": [{"action": "respond", "type": "chat"}],
+            "reasoning": cached_json,
+            "response": cached_json,
+            "risks": [],
+            "llm_response": cached_json,
+        }
+
+    def _build_llm_result(self, response: str) -> dict[str, Any]:
+        """Build result dict from LLM response.
+
+        Args:
+            response: Raw LLM response string
+
+        Returns:
+            Formatted result dictionary
+        """
+        parsed = self._parse_llm_response(response)
+        if parsed:
+            parsed["success"] = True
+            if "response" not in parsed:
+                parsed["response"] = parsed.get("reasoning", response)
+            parsed["llm_response"] = parsed.get("response", response)
+            self._add_to_history(parsed)
+            return parsed
+
+        # Not JSON - return as chat response
+        return {
+            "success": True,
+            "intent": "chat",
+            "confidence": 0.9,
+            "steps": [{"action": "respond", "type": "chat"}],
+            "reasoning": response,
+            "response": response,
+            "risks": [],
+            "llm_response": response,
+        }
 
     def _analyze_with_llm(
         self,
@@ -398,67 +467,41 @@ OUTPUT JSON:
             context: Execution context with target, language, system info
 
         Returns:
-            Dict with keys:
-                - success: bool - Whether analysis succeeded
-                - intent: str - Detected intent (scan, exploit, etc.)
-                - confidence: float - Confidence score 0.0-1.0
-                - response: str - User-facing response in their language
-                - steps: List[Dict] - Suggested action steps
-                - reasoning: str - Technical explanation
-                - risks: List[str] - Identified risks
-                - command: Optional[str] - Suggested command
-                - error: Optional[str] - Error message if failed
+            Dict with analysis results including intent, confidence, steps, etc.
 
         """
         # LANGUAGE LOGIC: Think in English, speak in user's language
         user_lang: Any | str = getattr(context, "language", "tr")
 
         # Detect if this is a chat/conversation request (not pentest)
-        is_chat: bool = self._is_chat_request(user_input)
-
-        if is_chat:
-            # Direct chat mode - no JSON, just conversation
+        if self._is_chat_request(user_input):
             return self._chat_with_llm(user_input, user_lang, context)
 
-        # Context Construction (auto-selects compact vs full based on model/task)
-        context.system_info["last_input"] = user_input  # For prompt selection
+        # Context Construction
+        context.system_info["last_input"] = user_input
         system_prompt: str = self._construct_system_prompt(user_lang, context)
 
-        try:
-            # 1. Check Cache First
-            if self.llm_cache:
-                cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
-                if cached_json:
-                    # Cache hit! Parse and return directly
-                    parsed: dict[str, Any] | None = self._parse_llm_response(
-                        cached_json,
-                    )  # Helper usage
-                    if parsed:
-                        parsed["success"] = True
-                        parsed["response"] = parsed.get(
-                            "response",
-                            parsed.get("reasoning", ""),
-                        )
-                        parsed["llm_response"] = cached_json  # Raw json
-                        self._add_to_history(parsed)
-                        return parsed
-                    # Cache hit but not JSON - return as chat response
-                    return {
-                        "success": True,
-                        "intent": "chat",
-                        "confidence": 0.9,
-                        "steps": [{"action": "respond", "type": "chat"}],
-                        "reasoning": cached_json,
-                        "response": cached_json,
-                        "risks": [],
-                        "llm_response": cached_json,
-                    }
+        # STANFORD MEMORY: Add cognitive context for token-efficient retrieval
+        if self.cognitive_memory:
+            target = getattr(context, "target", None)
+            cognitive_context = self.cognitive_memory.get_context_for_llm(
+                query=user_input, target=target,
+            )
+            if cognitive_context:
+                system_prompt = f"{system_prompt}\n\n### MEMORY CONTEXT (relevant past findings):\n{cognitive_context}"
+                logger.debug("Added cognitive context: %d chars", len(cognitive_context))
 
-            # Get model-based timeout (dynamic based on model complexity)
+        # 1. Check Cache First
+        cached_result = self._check_llm_cache(user_input, system_prompt)
+        if cached_result:
+            return cached_result
+
+        try:
+            # Get model-based timeout
             model_name = getattr(self.llm_client, "model", "default")
             timeout = get_model_timeout(model_name)
 
-            # Add timeout to prevent hanging on Cloudflare WAF blocking
+            # Query LLM
             response = self.llm_client.query(user_input, system_prompt, timeout=timeout)
 
             # Check for error responses
@@ -467,32 +510,11 @@ OUTPUT JSON:
             ):
                 return {"success": False, "error": response}
 
-            # 2. Save to Cache on Success
+            # Save to Cache on Success
             if self.llm_cache:
                 self.llm_cache.set(user_input + system_prompt, response)
 
-            # Try to parse JSON from response
-            parsed: dict[str, Any] | None = self._parse_llm_response(response)
-            if parsed:
-                parsed["success"] = True
-                # Use "response" field if available, otherwise use raw response
-                if "response" not in parsed:
-                    parsed["response"] = parsed.get("reasoning", response)
-                parsed["llm_response"] = parsed.get("response", response)
-                self._add_to_history(parsed)
-                return parsed
-
-            # If not JSON, use as chat response
-            return {
-                "success": True,
-                "intent": "chat",
-                "confidence": 0.9,
-                "steps": [{"action": "respond", "type": "chat"}],
-                "reasoning": response,
-                "response": response,
-                "risks": [],
-                "llm_response": response,
-            }
+            return self._build_llm_result(response)
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -511,13 +533,13 @@ OUTPUT JSON:
             try:
                 return json.loads(json_match.group(1))
             except json.JSONDecodeError:
-                pass
+                logger.debug("Invalid JSON in code block: %s", json_match.group(1)[:100])
 
         # Try raw JSON
         try:
             return json.loads(response)
         except json.JSONDecodeError:
-            pass
+            logger.debug("Invalid raw JSON: %s", response[:100] if response else "empty")
 
         return None
 
@@ -707,18 +729,38 @@ IMPORTANT RULES:
 
     def _construct_system_prompt(
         self,
-        _user_lang: str,
-        _context: ExecutionContext,
+        user_lang: str,
+        context: ExecutionContext,
         _use_compact: bool | None = None,
     ) -> str:
-        """Return compact system prompt.
+        """Return formatted system prompt with real values.
 
         Args:
-            _user_lang: Unused, kept for API compatibility
-            _context: Unused, kept for API compatibility
+            user_lang: User's language (tr/en)
+            context: Execution context with target, system info
             _use_compact: Unused, kept for API compatibility
+
+        Returns:
+            Formatted system prompt string
         """
-        return self.COMPACT_SYSTEM_PROMPT
+        # Get system context
+        sys_ctx = self.get_system_context()
+
+        # Extract values for formatting
+        target = getattr(context, "target", None) or "Not set"
+        phase = context.system_info.get("phase", "recon") if hasattr(context, "system_info") else "recon"
+        os_name = sys_ctx.get("os", "Unknown")
+        is_kali = "Yes" if sys_ctx.get("is_kali", False) else "No"
+        lang = "Turkish" if user_lang == "tr" else "English"
+
+        # Format the prompt with real values
+        return self.COMPACT_SYSTEM_PROMPT.format(
+            target=target,
+            phase=phase,
+            os_name=os_name,
+            is_kali=is_kali,
+            lang=lang,
+        )
 
     def _analyze_rule_based(self, user_input: str, context: ExecutionContext) -> dict:
         """Rule-based analysis (fallback when LLM unavailable)."""
@@ -963,7 +1005,7 @@ class SelfCorrection:
     """Kendi kendine düzeltme - Hataları tespit edip düzeltir."""
 
     def __init__(self) -> None:
-        self.correction_history = []
+        self.correction_history: list[dict[str, str]] = []
 
     def review(self, decision: dict) -> dict:
         """Review a decision and correct if needed.
@@ -1166,7 +1208,7 @@ class DrakbenBrain:
     Gerçek LLM entegrasyonu ile.
     """
 
-    def __init__(self, llm_client=None) -> None:
+    def __init__(self, llm_client=None, use_cognitive_memory: bool = True) -> None:
         # Auto-initialize LLM client if not provided
         if llm_client is None and LLM_AVAILABLE:
             try:
@@ -1177,9 +1219,19 @@ class DrakbenBrain:
 
         self.llm_client = llm_client
 
-        # Initialize modules
+        # Initialize Stanford-style Cognitive Memory System FIRST
+        self.cognitive_memory: CognitiveMemoryManager | None = None
+        if use_cognitive_memory:
+            try:
+                self.cognitive_memory = CognitiveMemoryManager(llm_client=llm_client)
+                logger.info("Cognitive Memory System initialized (Stanford-style)")
+            except Exception as e:
+                logger.warning("Could not initialize Cognitive Memory: %s", e)
+                self.cognitive_memory = None
+
+        # Initialize modules (pass cognitive_memory to reasoning)
         self.orchestrator = MasterOrchestrator()
-        self.reasoning = ContinuousReasoning(llm_client)
+        self.reasoning = ContinuousReasoning(llm_client, self.cognitive_memory)
         self.context_mgr = ContextManager()
         self.self_correction = SelfCorrection()
         self.decision_engine = DecisionEngine()
@@ -1326,14 +1378,55 @@ class DrakbenBrain:
 
             self.context_mgr.update(current_update)
 
+        # Cognitive Memory: Perceive tool output (Stanford-style)
+        if self.cognitive_memory:
+            target = self.context_mgr.get("target") if self.context_mgr else None
+            self.cognitive_memory.perceive_tool_output(
+                tool_name=tool,
+                tool_output=output,
+                target=target,
+                success=success,
+            )
+
+    def get_cognitive_context(
+        self,
+        query: str,
+        target: str | None = None,
+    ) -> str:
+        """Get token-efficient context from Cognitive Memory.
+
+        This is the KEY FUNCTION for token efficiency.
+        Instead of passing entire history, we retrieve relevant memories.
+
+        Args:
+            query: Current query/focal point
+            target: Target IP/domain
+
+        Returns:
+            Formatted context string for LLM
+        """
+        if not self.cognitive_memory:
+            return ""
+
+        return self.cognitive_memory.get_context_for_llm(
+            query=query,
+            target=target,
+        )
+
     def get_stats(self) -> dict:
         """Get brain statistics."""
-        return {
+        stats = {
             "reasoning_history": len(self.reasoning.reasoning_history),
             "corrections_made": len(self.self_correction.correction_history),
             "decisions_made": len(self.decision_engine.decision_history),
             "llm_available": self.llm_client is not None,
         }
+
+        # Add cognitive memory stats if available
+        if self.cognitive_memory:
+            stats["cognitive_memory"] = self.cognitive_memory.get_stats()
+
+        return stats
 
     def test_llm(self) -> dict:
         """Test LLM connection."""
@@ -1419,7 +1512,8 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             # Fallback to rule-based
             return None
 
-        except Exception:
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.debug("Tool response parsing failed: %s", e)
             return None
 
     def ask_coder(self, instruction: str, context: dict | None = None) -> dict:
@@ -1439,3 +1533,219 @@ Select ONE tool to execute next. Respond ONLY in JSON format:
             self.coder: AICoder = AICoder(self)
 
         return self.coder.create_tool("dynamic_tool", instruction, context or "")
+
+
+# ============================================================================
+# CognitiveMemoryManager - Stanford Generative Agents Memory Integration
+# ============================================================================
+
+
+class CognitiveMemoryManager:
+    """Stanford-style Cognitive Memory System manager.
+
+    Integrates:
+    - MemoryStream: Persistent storage with importance scoring
+    - RetrievalEngine: 4-factor retrieval (recency, importance, relevance, context)
+    - PerceiveModule: Tool output → ConceptNode conversion
+    - RetrieveModule: Token-efficient context retrieval
+    - ReflectModule: Insight generation from patterns
+
+    Reference: Park et al. "Generative Agents" (2023)
+    """
+
+    def __init__(self, llm_client: Any = None, db_path: str | None = None) -> None:
+        """Initialize the Cognitive Memory System.
+
+        Args:
+            llm_client: LLM client for importance scoring and reflection
+            db_path: Optional path for SQLite persistence
+
+        """
+        self.llm_client = llm_client
+        self._initialized = False
+        self._memory_stream: Any = None
+        self._retrieval_engine: Any = None
+        self._perceive: Any = None
+        self._retrieve: Any = None
+        self._reflect: Any = None
+
+        try:
+            # Import memory modules
+            from core.agent.cognitive import PerceiveModule, ReflectModule, RetrieveModule
+            from core.agent.memory import MemoryStream, RetrievalEngine
+
+            # Initialize core components
+            self._memory_stream = MemoryStream(persist_path=db_path)
+            self._retrieval_engine = RetrievalEngine(memory_stream=self._memory_stream)
+
+            # Initialize cognitive modules
+            self._perceive = PerceiveModule(memory_stream=self._memory_stream)
+            self._retrieve = RetrieveModule(memory_stream=self._memory_stream)
+            self._reflect = ReflectModule(
+                memory_stream=self._memory_stream,
+                llm_client=llm_client,
+            )
+
+            self._initialized = True
+            logger.debug("CognitiveMemoryManager initialized successfully")
+
+        except ImportError as e:
+            logger.warning("Memory modules not available: %s", e)
+        except Exception as e:
+            logger.warning("Failed to initialize CognitiveMemoryManager: %s", e)
+
+    @property
+    def is_initialized(self) -> bool:
+        """Check if the memory system is properly initialized."""
+        return self._initialized
+
+    def perceive_tool_output(
+        self,
+        tool_name: str,
+        tool_output: str,
+        target: str | None = None,
+        success: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> list[Any]:
+        """Convert tool output to ConceptNodes and store in memory.
+
+        Args:
+            tool_name: Name of the tool that produced output
+            tool_output: Raw output string from the tool
+            target: Target IP/domain being tested
+            success: Whether the tool execution was successful
+            metadata: Additional metadata to attach
+
+        Returns:
+            List of created ConceptNode objects
+
+        """
+        if not self._initialized or not self._perceive:
+            return []
+
+        try:
+            # PerceiveModule.perceive(tool_name, tool_output, target, metadata)
+            meta = metadata or {}
+            meta["success"] = success
+            nodes = self._perceive.perceive(
+                tool_name=tool_name,
+                tool_output=tool_output,
+                target=target,
+                metadata=meta,
+            )
+            return nodes
+        except Exception as e:
+            logger.debug("Failed to perceive tool output: %s", e)
+            return []
+
+    def get_context_for_llm(
+        self,
+        query: str,
+        target: str | None = None,
+        _max_tokens: int = 2000,
+        phase: str | None = None,
+    ) -> str:
+        """Retrieve relevant context for LLM prompt (token-efficient).
+
+        Uses Stanford-style 4-factor retrieval:
+        - Recency: Recent observations weighted higher
+        - Importance: High-impact findings prioritized
+        - Relevance: Semantic similarity to query
+        - Context: Current phase/target relevance
+
+        Args:
+            query: Current task/question
+            target: Target being tested
+            _max_tokens: Token budget for context (managed by RetrieveModule)
+            phase: Current pentest phase (recon, exploit, etc.)
+
+        Returns:
+            Formatted context string within token budget
+
+        """
+        if not self._initialized or not self._retrieve:
+            return ""
+
+        try:
+            # RetrieveModule.retrieve_for_decision returns RetrievedContext
+            retrieved_ctx = self._retrieve.retrieve_for_decision(
+                focal_point=query,
+                target=target,
+                phase=phase,
+            )
+            return retrieved_ctx.context_string
+        except Exception as e:
+            logger.debug("Failed to retrieve context: %s", e)
+            return ""
+
+    def generate_reflections(
+        self,
+        target: str | None = None,
+        _min_observations: int = 5,
+        force: bool = False,
+    ) -> list[Any]:
+        """Generate high-level insights from accumulated observations.
+
+        Follows Stanford pattern: After sufficient observations,
+        synthesize patterns into higher-level "reflection" nodes.
+
+        Args:
+            target: Target to focus reflections on
+            _min_observations: Reserved for future threshold configuration
+            force: Force reflection even if threshold not met
+
+        Returns:
+            List of reflection ConceptNodes
+
+        """
+        if not self._initialized or not self._reflect:
+            return []
+
+        try:
+            # ReflectModule.reflect(target, force)
+            reflections = self._reflect.reflect(target=target, force=force)
+            return reflections
+        except Exception as e:
+            logger.debug("Failed to generate reflections: %s", e)
+            return []
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get statistics about the memory system.
+
+        Returns:
+            Dictionary with memory statistics
+
+        """
+        if not self._initialized:
+            return {"initialized": False}
+
+        stats: dict[str, Any] = {
+            "initialized": True,
+            "total_nodes": 0,
+            "observations": 0,
+            "reflections": 0,
+            "avg_importance": 0.0,
+        }
+
+        try:
+            if self._memory_stream:
+                stream_stats = self._memory_stream.get_stats()
+                stats.update({
+                    "total_nodes": stream_stats.get("total_nodes", 0),
+                    "observations": stream_stats.get("observations", 0),
+                    "reflections": stream_stats.get("reflections", 0),
+                    "avg_importance": stream_stats.get("avg_importance", 0.0),
+                })
+        except Exception as e:
+            logger.debug("Failed to get memory stats: %s", e)
+
+        return stats
+
+    def clear_memory(self) -> None:
+        """Clear all memory (useful for testing or reset)."""
+        if self._initialized and self._memory_stream:
+            try:
+                self._memory_stream.clear()
+                logger.info("Cognitive memory cleared")
+            except Exception as e:
+                logger.warning("Failed to clear memory: %s", e)

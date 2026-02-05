@@ -82,15 +82,17 @@ class VectorStore:
             results = self.collection.query(query_texts=[query], n_results=n_results)
 
             output = []
-            if results["documents"]:
-                for i in range(len(results["documents"][0])):
+            documents = results.get("documents")
+            metadatas = results.get("metadatas")
+            distances = results.get("distances")
+
+            if documents and documents[0]:
+                for i in range(len(documents[0])):
                     output.append(
                         {
-                            "text": results["documents"][0][i],
-                            "metadata": results["metadatas"][0][i],
-                            "distance": results["distances"][0][i]
-                            if results["distances"]
-                            else 0.0,
+                            "text": documents[0][i],
+                            "metadata": metadatas[0][i] if metadatas else {},
+                            "distance": distances[0][i] if distances else 0.0,
                         },
                     )
             return output

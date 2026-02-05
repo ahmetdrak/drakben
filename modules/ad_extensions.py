@@ -310,7 +310,7 @@ class BloodHoundAnalyzer:
         # BFS
         from collections import deque
 
-        queue = deque([(source_id, [])])
+        queue: deque[tuple[str, list]] = deque([(source_id, [])])
         visited = {source_id}
 
         while queue:
@@ -429,11 +429,11 @@ class BloodHoundAnalyzer:
 
     def get_statistics(self) -> dict[str, Any]:
         """Get graph statistics."""
-        node_types = {}
+        node_types: dict[str, int] = {}
         for node in self.nodes.values():
             node_types[node.node_type] = node_types.get(node.node_type, 0) + 1
 
-        relationship_types = {}
+        relationship_types: dict[str, int] = {}
         for edge in self.edges:
             rel = edge.relationship.value
             relationship_types[rel] = relationship_types.get(rel, 0) + 1
@@ -509,6 +509,8 @@ class ImpacketWrapper:
 
     def _check_available_tools(self) -> None:
         """Check which Impacket tools are available."""
+        if self.impacket_path is None:
+            return
         for tool in ImpacketTool:
             tool_path = os.path.join(self.impacket_path, tool.value)
             if os.path.exists(tool_path):
@@ -545,10 +547,10 @@ class ImpacketWrapper:
             Command string
 
         """
-        cmd_parts = []
+        cmd_parts: list[str] = []
 
         # Tool path
-        if self.impacket_path:
+        if self.impacket_path is not None:
             tool_path = os.path.join(self.impacket_path, tool.value)
         else:
             tool_path = tool.value
@@ -812,7 +814,7 @@ class TokenImpersonator:
         """Generate PsExec command to get SYSTEM."""
         return f"psexec.exe -i -s {command}"
 
-    def get_impersonation_techniques(self) -> list[dict[str, str]]:
+    def get_impersonation_techniques(self) -> list[dict[str, str | list[str]]]:
         """Get list of available impersonation techniques."""
         return [
             {
@@ -888,7 +890,7 @@ def get_token_impersonator() -> TokenImpersonator:
 
 def find_path_to_domain_admin(
     source_sid: str,
-    analyzer: BloodHoundAnalyzer = None,
+    analyzer: BloodHoundAnalyzer | None = None,
 ) -> AttackChain | None:
     """Convenience function to find path to Domain Admin.
 

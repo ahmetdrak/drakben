@@ -18,6 +18,7 @@ import os
 import random
 import secrets
 import string
+import threading
 import time
 from typing import Any
 
@@ -289,7 +290,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
         return self.name_mapping[original]
 
-    def visit_Name(self, node: ast.Name) -> ast.Name:  # pylint: disable=invalid-name
+    def visit_Name(self, node: ast.Name) -> ast.AST:  # pylint: disable=invalid-name
         """Transform variable names."""
         if self.obfuscate_names and node.id in self.defined_names:
             node.id = self._get_obfuscated_name(node.id)
@@ -322,7 +323,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
                     arg.arg = self._get_obfuscated_name(arg.arg)
 
         # Visit children
-        return self.generic_visit(node)
+        return self.generic_visit(node)  # type: ignore[return-value]
 
     def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:  # pylint: disable=invalid-name
         """Transform class definitions."""
@@ -330,7 +331,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         if self.obfuscate_names and not node.name.startswith("_"):
             node.name = self._get_obfuscated_name(node.name)
 
-        return self.generic_visit(node)
+        return self.generic_visit(node)  # type: ignore[return-value]
 
     def visit_Constant(self, node: ast.Constant) -> ast.AST:  # pylint: disable=invalid-name
         """Transform string constants (encryption) - Python 3.8+."""
@@ -417,32 +418,46 @@ class PolymorphicTransformer(ast.NodeTransformer):
 class StringEncryptor:
     """Utility class for string encryption/decryption.
 
-    Provides multiple encryption methods for evading string-based signatures.
+    Provides multiple encoding methods for evading string-based signatures.
+    WARNING: These are ENCODING methods, not cryptographically secure encryption.
+    Use AES-GCM from CredentialStore for real encryption needs.
     """
 
     @staticmethod
-    def xor_encrypt(text: str, key: str = "drakben") -> str:
-        """XOR encrypt a string."""
+    def xor_encode(text: str, key: str = "drakben") -> str:
+        """XOR encode a string for obfuscation (NOT cryptographically secure).
+
+        WARNING: This is simple obfuscation, not encryption.
+        Do NOT use for protecting sensitive data.
+        For real encryption, use CredentialStore with AES-GCM.
+        """
         result = []
         for i, char in enumerate(text):
             result.append(chr(ord(char) ^ ord(key[i % len(key)])))
         return base64.b64encode("".join(result).encode("latin-1")).decode()
 
+    # Alias for backward compatibility
+    xor_encrypt = xor_encode
+
     @staticmethod
-    def xor_decrypt(encrypted: str, key: str = "drakben") -> str:
-        """XOR decrypt a string."""
+    def xor_decode(encoded: str, key: str = "drakben") -> str:
+        """XOR decode a string (NOT cryptographically secure)."""
         try:
-            decoded = base64.b64decode(encrypted).decode("latin-1")
+            decoded = base64.b64decode(encoded).decode("latin-1")
             result = []
             for i, char in enumerate(decoded):
                 result.append(chr(ord(char) ^ ord(key[i % len(key)])))
             return "".join(result)
-        except Exception:
-            return encrypted
+        except ValueError as e:
+            logger.debug("XOR decode failed: %s", e)
+            return encoded
+
+    # Alias for backward compatibility
+    xor_decrypt = xor_decode
 
     @staticmethod
     def rot13(text: str) -> str:
-        """Apply ROT13 encoding."""
+        """Apply ROT13 encoding (simple obfuscation, NOT encryption)."""
         return text.translate(
             str.maketrans(
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
@@ -511,7 +526,7 @@ class SecureCleanup:
             return True
 
         except Exception as e:
-            logger.exception("Secure delete failed for {filepath}: %s", e)
+            logger.exception(f"Secure delete failed for {filepath}: %s", e)
             return False
 
     @staticmethod
@@ -598,7 +613,7 @@ class SecureCleanup:
             return True
 
         except Exception as e:
-            logger.exception("Timestomp failed for {filepath}: %s", e)
+            logger.exception(f"Timestomp failed for {filepath}: %s", e)
             return False
 
 
@@ -690,7 +705,7 @@ class GhostProtocol:
         if method == "base64":
             try:
                 return base64.b64decode(text).decode()
-            except Exception:
+            except ValueError:
                 return text
         elif method == "rot13":
             return self.encryptor.rot13(text)  # ROT13 is self-inverse
@@ -741,12 +756,13 @@ def obfuscate(code: str) -> str:
     return transformer.transform(code)
 
 
-# Singleton
+# Singleton with thread safety
 _ghost_protocol = None  # pylint: disable=invalid-name
+_ghost_protocol_lock = threading.Lock()
 
 
 def get_ghost_protocol() -> GhostProtocol:
-    """Get singleton GhostProtocol instance.
+    """Get singleton GhostProtocol instance (thread-safe).
 
     Returns:
         GhostProtocol instance
@@ -754,7 +770,9 @@ def get_ghost_protocol() -> GhostProtocol:
     """
     global _ghost_protocol  # pylint: disable=global-statement
     if _ghost_protocol is None:
-        _ghost_protocol = GhostProtocol()
+        with _ghost_protocol_lock:
+            if _ghost_protocol is None:
+                _ghost_protocol = GhostProtocol()
     return _ghost_protocol
 
 
@@ -877,7 +895,7 @@ class MemoryOnlyExecutor:
         try:
             # Compile and execute to define function
             compiled = compile(code, "<memory>", "exec")
-            namespace = {}
+            namespace: dict[str, object] = {}
             exec(compiled, namespace)
 
             # Get function
@@ -972,7 +990,8 @@ class SecureMemory:
             # String object header is typically 48 bytes in CPython
             ctypes.memset(buffer_id + 48, 0, length)
             return True
-        except Exception:
+        except (OSError, ValueError, TypeError) as e:
+            logger.debug("Memory wipe failed: %s", e)
             return False
 
     @staticmethod
@@ -1187,7 +1206,7 @@ class LinuxFilelessExecutor:
 
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
             return hasattr(libc, "memfd_create")
-        except Exception:
+        except (OSError, AttributeError):
             return False
 
     def execute_binary_in_memory(
@@ -1315,7 +1334,7 @@ class RAMCleaner:
     """
 
     def __init__(self) -> None:
-        self._sensitive_refs = []
+        self._sensitive_refs: list[bytearray] = []
         logger.info("RAMCleaner initialized")
 
     def store_sensitive(self, data: str) -> int:

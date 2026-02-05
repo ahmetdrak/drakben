@@ -37,6 +37,9 @@ DEFAULT_CPU_LIMIT = "1.0"
 # Timeout for container operations (seconds)
 CONTAINER_TIMEOUT = 300
 
+# Singleton instance
+_sandbox_manager: "SandboxManager | None" = None
+
 
 # =============================================================================
 # DATA CLASSES
@@ -412,7 +415,8 @@ class SandboxManager:
             }
             return status_map.get(container.status, ContainerStatus.ERROR)
 
-        except Exception:
+        except (AttributeError, KeyError, OSError):
+            # docker.errors.* are caught here when docker module is loaded
             return ContainerStatus.ERROR
 
     def list_active_containers(self) -> list[ContainerInfo]:
@@ -438,7 +442,7 @@ def get_sandbox_manager() -> SandboxManager:
 
     """
     global _sandbox_manager
-    if "_sandbox_manager" not in globals() or _sandbox_manager is None:
+    if _sandbox_manager is None:
         _sandbox_manager = SandboxManager()
     return _sandbox_manager
 

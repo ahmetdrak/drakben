@@ -2,15 +2,20 @@
 # DRAKBEN Interactive Shell - REPL-like interface
 # Similar to Open Interpreter's interactive mode
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import os
 import shlex
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from core.ui.unified_display import RiskLevel
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -200,7 +205,9 @@ class InteractiveShell:
             try:
                 line = input(prompt)
             except EOFError:
-                self.console.print("\nGoodbye!", style="bold green")
+                lang = self._get_language()
+                bye = "Hoşçakalın!" if lang == "tr" else "Goodbye!"
+                self.console.print(f"\n{bye}", style="bold green")
                 self.running = False
                 return
             except KeyboardInterrupt:
@@ -244,9 +251,29 @@ class InteractiveShell:
             with contextlib.suppress(Exception):
                 readline_mod.write_history_file(self.history_file)
 
+    def _get_language(self) -> str:
+        """Get current language from config."""
+        if self.config and hasattr(self.config, "config"):
+            return getattr(self.config.config, "language", "en")
+        return "en"
+
     def _show_banner(self) -> None:
         """Show welcome banner."""
-        banner = """
+        lang = self._get_language()
+
+        if lang == "tr":
+            banner = """
+╔═══════════════════════════════════════════════════════════╗
+║     DRAKBEN Etkileşimli Kabuk                              ║
+║     Yapay Zeka Destekli Sızma Testi Çerçevesi              ║
+╠═══════════════════════════════════════════════════════════╣
+║  Komutlar için /help yazın                                 ║
+║  Otomatik tamamlama için Tab kullanın                      ║
+║  Çıkmak için /exit veya Ctrl+D yazın                       ║
+╚═══════════════════════════════════════════════════════════╝
+"""
+        else:
+            banner = """
 ╔═══════════════════════════════════════════════════════════╗
 ║     DRAKBEN Interactive Shell                              ║
 ║     AI-Powered Penetration Testing Framework               ║
@@ -303,15 +330,37 @@ class InteractiveShell:
                     self.console.print(f"[red]{result.error}[/red]")
             except Exception as e:
                 logger.exception("Command error: %s", e)
-                self.console.print(f"[red]Command failed: {e}[/red]")
+                lang = self._get_language()
+                err = "Komut hatası" if lang == "tr" else "Command failed"
+                self.console.print(f"[red]{err}: {e}[/red]")
         else:
-            self.console.print(f"[yellow]Unknown command: {cmd}[/yellow]")
-            self.console.print("Type /help for available commands")
+            lang = self._get_language()
+            unknown = "Bilinmeyen komut" if lang == "tr" else "Unknown command"
+            hint = "Komutlar için /help yazın" if lang == "tr" else "Type /help for available commands"
+            self.console.print(f"[yellow]{unknown}: {cmd}[/yellow]")
+            self.console.print(hint)
 
     def _process_natural_language(self, text: str) -> None:
         """Process natural language input through the agent."""
+        from core.ui.unified_display import (
+            ConfirmationRequest,
+            RiskLevel,
+            ThinkingDisplay,
+            UnifiedConfirmation,
+        )
+
+        thinking_display = ThinkingDisplay(console=self.console, language="en")
+
         try:
+            thinking_display.start_thinking(
+                target=self.current_target or "",
+                phase="",
+                model="",
+            )
+
             result = self.agent.brain.think(text, target=self.current_target)
+
+            thinking_display.finish_thinking(success=True)
 
             # Show response
             if result.get("reply"):
@@ -319,16 +368,24 @@ class InteractiveShell:
                     Panel(result["reply"], title="DRAKBEN", border_style="green"),
                 )
 
-            # Show command if generated
+            # Show command if generated with unified confirmation
             if result.get("command"):
+                command = result["command"]
                 self.console.print(
-                    f"[cyan]Suggested command:[/cyan] {result['command']}",
+                    f"[cyan]Suggested command:[/cyan] {command}",
                 )
 
-                # Ask for confirmation
-                confirm = input("Execute? (y/n): ").strip().lower()
-                if confirm == "y":
-                    self._cmd_shell([result["command"]])
+                # Use unified confirmation
+                confirmation = UnifiedConfirmation(console=self.console, language="en")
+                request = ConfirmationRequest(
+                    command=command,
+                    risk_level=RiskLevel.MEDIUM,
+                    reason="AI suggested command",
+                    allow_auto=False,
+                )
+
+                if confirmation.ask(request):
+                    self._cmd_shell([command])
 
             # Show steps if multi-step plan
             if result.get("steps") and len(result["steps"]) > 1:
@@ -337,6 +394,7 @@ class InteractiveShell:
                     self.console.print(f"  {i}. {step.get('action', 'unknown')}")
 
         except Exception as e:
+            thinking_display.finish_thinking(success=False)
             logger.exception("NLP processing error: %s", e)
             self.console.print(f"[red]Could not process: {e}[/red]")
 
@@ -344,22 +402,27 @@ class InteractiveShell:
 
     def _cmd_help(self, args: list[str]) -> CommandResult:
         """Show help message."""
-        table = Table(title="Available Commands")
-        table.add_column("Command", style="cyan")
-        table.add_column("Description")
+        lang = self._get_language()
+        title = "Mevcut Komutlar" if lang == "tr" else "Available Commands"
+        table = Table(title=title)
+        table.add_column("Komut" if lang == "tr" else "Command", style="cyan")
+        table.add_column("Açıklama" if lang == "tr" else "Description")
 
         for cmd, desc in sorted(self.BUILTIN_COMMANDS.items()):
             table.add_row(f"/{cmd}", desc)
 
         self.console.print(table)
-        self.console.print("\n[dim]You can also type natural language commands.[/dim]")
+        hint = "Doğal dilde de komut yazabilirsiniz." if lang == "tr" else "You can also type natural language commands."
+        self.console.print(f"\n[dim]{hint}[/dim]")
 
         return CommandResult(success=True, output="")
 
     def _cmd_exit(self, args: list[str]) -> CommandResult:
         """Exit the shell."""
         self.running = False
-        self.console.print("Goodbye!", style="bold green")
+        lang = self._get_language()
+        bye = "Hoşçakalın!" if lang == "tr" else "Goodbye!"
+        self.console.print(bye, style="bold green")
         return CommandResult(success=True, output="")
 
     def _cmd_clear(self, args: list[str]) -> CommandResult:
@@ -479,38 +542,35 @@ class InteractiveShell:
 
     def _cmd_shell(self, args: list[str]) -> CommandResult:
         """Execute a system shell command."""
+        from core.ui.unified_display import (
+            ConfirmationRequest,
+            RiskLevel,
+            UnifiedConfirmation,
+        )
+
         if not args:
             self.console.print("[yellow]Usage: /shell <command>[/yellow]")
             return CommandResult(success=False, error="No command specified")
 
         command = " ".join(args)
 
-        # --- RISK WARNING SYSTEM ---
-        risk_commands = [
-            "rm ",
-            "mkfs",
-            "dd ",
-            "> /dev/sda",
-            "shutdown",
-            "reboot",
-            ":(){ :|:& };:",
-        ]
-        if any(rc in command for rc in risk_commands):
-            self.console.print(
-                Panel(
-                    f"[bold red]⚠ TEHLİKELİ KOMUT TESPİT EDİLDİ / DANGEROUS COMMAND DETECTED[/]\n\n"
-                    f"Komut: [yellow]{command}[/]\n\n"
-                    f"Bu komut sistemi bozabilir veya veri kaybına yol açabilir.",
-                    title="[bold red]!!! SECURITY ALERT !!![/]",
-                    border_style="red",
-                ),
+        # --- UNIFIED RISK WARNING SYSTEM ---
+        risk_level = self._assess_shell_risk(command)
+
+        if risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
+            confirmation = UnifiedConfirmation(console=self.console, language="en")
+            request = ConfirmationRequest(
+                command=command,
+                risk_level=risk_level,
+                reason="Dangerous command detected - may cause system damage or data loss",
+                details=[
+                    "This command may modify or delete system files",
+                    "Consider running in a sandbox environment",
+                ],
+                allow_auto=False,
             )
-            confirm = (
-                input("Yine de devam etmek istiyor musunuz? / Continue anyway? (y/N): ")
-                .strip()
-                .lower()
-            )
-            if confirm != "y":
+
+            if not confirmation.ask(request):
                 return CommandResult(
                     success=False,
                     error="Aborted by user safety check",
@@ -551,6 +611,45 @@ class InteractiveShell:
             return CommandResult(success=result.returncode == 0, output="")
         except Exception as e:
             return CommandResult(success=False, error=str(e))
+
+    def _assess_shell_risk(self, command: str) -> RiskLevel:
+        """Assess risk level of a shell command."""
+        from core.ui.unified_display import RiskLevel
+
+        command_lower = command.lower()
+
+        # Critical risk patterns
+        critical_patterns = [
+            "rm -rf",
+            "mkfs",
+            "dd if=",
+            "> /dev/sda",
+            "shutdown",
+            "reboot",
+            ":(){ :|:& };:",  # Fork bomb
+        ]
+        if any(rc in command_lower for rc in critical_patterns):
+            return RiskLevel.CRITICAL
+
+        # High risk patterns
+        high_patterns = [
+            "sudo",
+            "su ",
+            "chmod 777",
+            "chown",
+            "> /etc/",
+            "| sh",
+            "| bash",
+        ]
+        if any(rc in command_lower for rc in high_patterns):
+            return RiskLevel.HIGH
+
+        # Medium risk patterns
+        medium_patterns = ["curl", "wget", "nc ", "netcat", "python -c"]
+        if any(rc in command_lower for rc in medium_patterns):
+            return RiskLevel.MEDIUM
+
+        return RiskLevel.LOW
 
     def _cmd_python(self, args: list[str]) -> CommandResult:
         """Execute Python code."""

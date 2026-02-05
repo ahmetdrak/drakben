@@ -142,7 +142,7 @@ class StopController:
             try:
                 if hasattr(proc, "poll") and proc.poll() is None:
                     # Process is still running
-                    logger.info(f"Terminating process PID={proc.pid}")
+                    logger.info("Terminating process PID=%s", proc.pid)
 
                     # Try graceful termination first
                     proc.terminate()
@@ -152,13 +152,13 @@ class StopController:
                         proc.wait(timeout=2)
                     except subprocess.TimeoutExpired:
                         # Force kill
-                        logger.warning(f"Force killing process PID={proc.pid}")
+                        logger.warning("Force killing process PID=%s", proc.pid)
                         proc.kill()
 
             except OSError as e:
-                logger.debug(f"Process already terminated: {e}")
+                logger.debug("Process already terminated: %s", e)
             except Exception as e:
-                logger.warning(f"Error terminating process: {e}")
+                logger.warning("Error terminating process: %s", e)
 
     def _run_cleanup_callbacks(self) -> None:
         """Run all registered cleanup callbacks."""
@@ -169,7 +169,7 @@ class StopController:
             try:
                 callback()
             except Exception as e:
-                logger.warning(f"Cleanup callback error: {e}")
+                logger.warning("Cleanup callback error: %s", e)
 
 
 # Global singleton instance

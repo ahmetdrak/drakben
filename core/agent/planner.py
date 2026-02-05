@@ -2,17 +2,30 @@
 # REAL PERSISTENT PLANNER WITH REPLANNING
 # Plans are DATA STRUCTURES, not LLM-only
 
+from __future__ import annotations
+
 import json
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.intelligence.evolution_memory import get_evolution_memory
 
+if TYPE_CHECKING:
+    from core.intelligence.evolution_memory import EvolutionMemory
+
 
 class StepStatus(Enum):
-    """Auto-generated docstring for StepStatus class."""
+    """Execution status of a plan step.
+
+    States:
+    - PENDING: Step waiting to be executed
+    - EXECUTING: Step currently running
+    - SUCCESS: Step completed successfully
+    - FAILED: Step failed (may retry)
+    - SKIPPED: Step skipped due to dependency failure
+    """
 
     PENDING = "pending"
     EXECUTING = "executing"
@@ -73,6 +86,7 @@ class Planner:
     }
 
     def __init__(self) -> None:
+        self.memory: EvolutionMemory | None = None
         try:
             self.memory = get_evolution_memory()
         except Exception as e:
@@ -80,7 +94,7 @@ class Planner:
             logging.getLogger(__name__).error(
                 "Failed to initialize evolution memory: %s - Using null memory", e,
             )
-            self.memory = None  # Graceful degradation
+            # self.memory already None - Graceful degradation
         self.current_plan_id: str | None = None
         self.steps: list[PlanStep] = []
         self.current_step_index: int = 0
@@ -506,11 +520,11 @@ class Planner:
 
         return True
 
-    def _is_step_completed(self, step: "PlanStep") -> bool:
+    def _is_step_completed(self, step: PlanStep) -> bool:
         """Check if step is already completed/failed/skipped."""
         return step.status in [StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED]
 
-    def _is_tool_blocked(self, step: "PlanStep") -> bool:
+    def _is_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked and skip if so."""
         if not self.memory.is_tool_blocked(step.tool, step.target):
             return False
@@ -519,7 +533,7 @@ class Planner:
         self._persist_steps()
         return True
 
-    def _check_dependencies(self, step: "PlanStep") -> bool:
+    def _check_dependencies(self, step: PlanStep) -> bool:
         """Check if all dependencies are satisfied. Returns True if satisfied."""
         for dep_id in step.depends_on:
             dep_step = self._find_step(dep_id)
@@ -527,7 +541,7 @@ class Planner:
                 return False
         return True
 
-    def _handle_failed_dependencies(self, step: "PlanStep") -> bool:
+    def _handle_failed_dependencies(self, step: PlanStep) -> bool:
         """Skip step if any dependency failed. Returns True if step was skipped."""
         for dep_id in step.depends_on:
             dep_step = self._find_step(dep_id)

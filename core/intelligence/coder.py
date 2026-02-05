@@ -300,15 +300,15 @@ class ASTSecurityChecker(ast.NodeVisitor):
                 cmd: str = str(first_element.value).lower()
                 return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
             if isinstance(first_element, ast.Str):
-                cmd: str = str(first_element.s).lower()
+                cmd = str(first_element.s).lower()
                 return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
 
         # Check if it's a string like "nmap -p ..."
         if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-            cmd: str = first_arg.value.lower()
+            cmd = first_arg.value.lower()
             return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
         if isinstance(first_arg, ast.Str):
-            cmd: str = str(getattr(first_arg, "s", "")).lower()
+            cmd = str(getattr(first_arg, "s", "")).lower()
             return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
 
         return False
@@ -565,8 +565,8 @@ def run(target, args=None) -> Any:
             end: int = response.find("```", start)
             return response[start:end].strip()
         if "```" in response:
-            start: int = response.find("```") + 3
-            end: int = response.find("```", start)
+            start = response.find("```") + 3
+            end = response.find("```", start)
             return response[start:end].strip()
         return response.strip()
 
@@ -606,9 +606,9 @@ def run(target, args=None) -> Any:
             # modules.dynamic.tool_name -> modules/dynamic/tool_name.py
             parts: list[str] = module_name.split(".")
             if len(parts) >= 3:
-                file_path: Path = DYNAMIC_MODULES_PATH / f"{parts[-1]}.py"
+                file_path = DYNAMIC_MODULES_PATH / f"{parts[-1]}.py"
             else:
-                file_path: Path = DYNAMIC_MODULES_PATH / f"{module_name}.py"
+                file_path = DYNAMIC_MODULES_PATH / f"{module_name}.py"
 
             if not file_path.exists():
                 logger.warning("Dynamic module not found: %s", file_path)

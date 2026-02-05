@@ -12,7 +12,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CodeHotspot:
-    """Auto-generated docstring for CodeHotspot class."""
+    """A potential vulnerability location in source code.
+
+    Attributes:
+        file_path: Path to the source file
+        line_number: Line where the hotspot was found
+        function_name: Name of the function containing the hotspot
+        risk_score: Severity rating (1-10, 10 being most critical)
+        reason: Explanation of why this is flagged
+    """
 
     file_path: str
     line_number: int
@@ -61,7 +69,7 @@ class TargetAnalyzer:
                         )
 
         except Exception as e:
-            logger.exception("Analysis failed for {file_path}: %s", e)
+            logger.exception(f"Analysis failed for {file_path}: %s", e)
 
         return sorted(hotspots, key=lambda x: x.risk_score, reverse=True)
 
@@ -71,11 +79,9 @@ class TargetAnalyzer:
             return node.func.id
         if isinstance(node.func, ast.Attribute):
             # Try to get module.function
-            try:
-                base = node.func.value.id
-                return f"{base}.{node.func.attr}"
-            except Exception:
-                return node.func.attr
+            if isinstance(node.func.value, ast.Name):
+                return f"{node.func.value.id}.{node.func.attr}"
+            return node.func.attr
         return ""
 
     def suggest_fuzz_vectors(self, hotspot: CodeHotspot) -> list[str]:
@@ -85,6 +91,6 @@ class TargetAnalyzer:
         if "system" in hotspot.function_name:
             return ["; id", "| id", "`id`", "$(id)"]
         if "pickle" in hotspot.function_name:
-            # Dangerous pickle payload placeholder
-            return [b"\x80\x03cposix\nsystem\n..."]
+            # Dangerous pickle payload placeholder (hex representation for type safety)
+            return ["\\x80\\x03cposix\\nsystem\\n..."]
         return ["A" * 500]

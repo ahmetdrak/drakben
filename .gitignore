@@ -74,12 +74,19 @@ sessions/*
 # Cache directories
 .ruff_cache/
 .pytest_cache/
+.mypy_cache/
+
+# History files
+.drakben_history
 
 # Test reports
 TEST_REPORT.md
 test_output.txt
 *_REPORT.md
 *_SUMMARY.md
+
+# Vector database (generated at runtime)
+drakben_vectors/
 
 # Private documentation (local only)
 ÖNEMLİ.md

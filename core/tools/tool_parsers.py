@@ -98,8 +98,8 @@ def _has_sqlmap_vulnerability(output: str) -> bool:
 
 def _parse_sqlmap_vulnerabilities(output: str) -> list[dict]:
     """Parse vulnerability blocks from sqlmap output."""
-    results = []
-    current_vuln = {}
+    results: list[dict[str, str]] = []
+    current_vuln: dict[str, str] = {}
 
     for line in output.split("\n"):
         line = line.strip()

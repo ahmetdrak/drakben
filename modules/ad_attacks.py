@@ -9,6 +9,7 @@ import logging
 import re
 import secrets
 import socket
+import struct
 from typing import Any
 
 # Impacket imports (Must be present in env)
@@ -164,7 +165,8 @@ class ActiveDirectoryAttacker:
                 if "STATUS_ACCOUNT_LOCKED_OUT" in str(e):
                     logger.warning("Account Locked: %s", user)
                 return None
-            except Exception:
+            except OSError as e:
+                logger.debug("AD login error: %s", e)
                 return None
 
         # Run blocking code in thread pool
@@ -319,7 +321,7 @@ class ActiveDirectoryAttacker:
             def receive() -> Any:
                 try:
                     return sock.recvfrom(4096)
-                except Exception:
+                except OSError:
                     return None
 
             data_tuple = await loop.run_in_executor(None, receive)
@@ -331,7 +333,8 @@ class ActiveDirectoryAttacker:
 
             return self._parse_asrep_hash(data_tuple[0], user, domain)
 
-        except Exception:
+        except (OSError, struct.error) as e:
+            logger.debug("AS-REP request failed: %s", e)
             return None
 
     def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> str | None:

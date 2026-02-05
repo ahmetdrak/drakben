@@ -7,7 +7,7 @@ import logging
 import sqlite3
 import threading
 from contextlib import contextmanager, suppress
-from typing import Any, NoReturn
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 class DatabaseProvider:
     """Abstract Base Class for Database Providers (Future-proofing)."""
 
-    def connect(self) -> NoReturn:
+    def connect(self) -> None:
         raise NotImplementedError
 
-    def close(self) -> NoReturn:
+    def close(self) -> None:
         raise NotImplementedError
 
-    def execute(self, query: str, params: tuple = ()) -> NoReturn:
+    def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         raise NotImplementedError
 
 

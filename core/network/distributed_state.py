@@ -28,6 +28,8 @@ class DistributedStateManager:
         self.password = password
         self.redis_client = None
         self.connected = False
+        # In-memory fallback when Redis is unavailable
+        self._local_state: dict[str, dict[str, Any]] = {}
 
         # Try to connect
         self._connect()
@@ -45,7 +47,8 @@ class DistributedStateManager:
                 socket_connect_timeout=2,
             )
             # Test connection
-            self.redis_client.ping()
+            if self.redis_client is not None:
+                self.redis_client.ping()
             self.connected = True
             logger.info(
                 f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})",
@@ -71,7 +74,9 @@ class DistributedStateManager:
 
         """
         if not self.connected or not self.redis_client:
-            return False
+            # Fallback to local memory
+            self._local_state[agent_id] = state_data
+            return True
 
         try:
             key = f"drakben:agent:{agent_id}:state"
@@ -105,7 +110,8 @@ class DistributedStateManager:
 
         """
         if not self.connected or not self.redis_client:
-            return {}
+            # Return local fallback state
+            return dict(self._local_state)
 
         swarm_data = {}
         try:

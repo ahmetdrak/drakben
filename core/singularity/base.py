@@ -25,6 +25,8 @@ class MutationResult:
     new_hash: str
     success: bool
     bypassed_engines: list[str]
+    mutated_code: str = ""  # Actual mutated code
+    applied_strategies: list[str] | None = None  # Strategies that were applied
 
 
 class ISynthesizer(ABC):

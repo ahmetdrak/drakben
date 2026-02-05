@@ -36,7 +36,7 @@ class ProxyManager:
 
     def __init__(self, proxies: list[str] | None = None) -> None:
         self.proxies = proxies or []
-        self.bad_proxies = set()
+        self.bad_proxies: set[str] = set()
 
     def get_proxy(self) -> str | None:
         """Get a random working proxy."""
@@ -80,6 +80,7 @@ class StealthSession(Session):
         self.proxy_manager = ProxyManager(proxies)
         self.randomize_behavior = randomize_behavior
         self.current_proxy = self.proxy_manager.get_proxy()
+        self._last_url: str = ""
 
         # Init parent with proxy if available
         super().__init__(

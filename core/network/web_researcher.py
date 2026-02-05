@@ -3,21 +3,20 @@ import sys
 import urllib.parse
 from typing import Any
 
-import requests
+import requests  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 
 try:
     from modules.stealth_client import StealthSession
 except ImportError:
-    StealthSession = requests.Session
+    StealthSession = requests.Session  # type: ignore[misc, assignment]
 
 try:
     from rich.console import Console
 
-    console = Console()
+    console: Console | None = Console()
 except ImportError:
     console = None
-    Console = None
 
 logger = logging.getLogger("drakben.researcher")
 
@@ -143,9 +142,9 @@ class WebResearcher:
             logger.exception("Extract failed: %s", e)
             return ""
 
-    def _search_bing_fallback(self, query, max_results) -> Any:
+    def _search_bing_fallback(self, query: str, max_results: int) -> Any:
         """Bing scraping fallback with Stealth Headers."""
-        results = []
+        results: list[dict[str, str]] = []
         try:
             url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}"
             resp = self.session.get(url, timeout=15)

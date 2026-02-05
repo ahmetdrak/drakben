@@ -4,6 +4,7 @@
 import logging
 import logging.handlers
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -207,15 +208,16 @@ class LogContext:
 
     """
 
-    def __init__(self, logger: logging.Logger, **context) -> None:
+    def __init__(self, logger: logging.Logger, **context: Any) -> None:
         self.logger = logger
         self.context = context
-        self.old_factory = None
+        self.old_factory: Callable[..., logging.LogRecord] | None = None
 
     def __enter__(self) -> Any:
         self.old_factory = logging.getLogRecordFactory()
 
-        def record_factory(*args, **kwargs) -> Any:
+        def record_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
+            assert self.old_factory is not None  # guaranteed in __enter__
             record = self.old_factory(*args, **kwargs)
             for key, value in self.context.items():
                 setattr(record, key, value)
@@ -224,9 +226,9 @@ class LogContext:
         logging.setLogRecordFactory(record_factory)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
-        logging.setLogRecordFactory(self.old_factory)
-        return False
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
+        if self.old_factory is not None:
+            logging.setLogRecordFactory(self.old_factory)
 
 
 # Module-level convenience functions

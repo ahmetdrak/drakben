@@ -23,7 +23,7 @@ class KaliDetector:
             "gobuster": {"cmd": "gobuster", "desc": "Brute force scanning"},
             "burp": {"cmd": "burp", "desc": "Web proxy"},
         }
-        self.available_tools = {}
+        self.available_tools: dict[str, dict[str, str]] = {}
         self._detect_tools()
 
     def _detect_tools(self) -> None:
@@ -44,7 +44,7 @@ class KaliDetector:
                 check=False,  # We check returncode manually
             )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     def is_kali(self) -> bool:
@@ -53,7 +53,7 @@ class KaliDetector:
             with open("/etc/os-release") as f:
                 content = f.read().lower()
                 return "kali" in content
-        except Exception:
+        except OSError:
             return False
 
     def get_available_tools(self) -> dict:

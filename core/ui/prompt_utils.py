@@ -52,11 +52,11 @@ except ImportError:
     if not TYPE_CHECKING:
 
         class Completer:
-            """Auto-generated docstring for Completer class."""
+            """Stub class when prompt_toolkit is not installed."""
 
 
         class Completion:
-            """Auto-generated docstring for Completion class."""
+            """Stub class when prompt_toolkit is not installed."""
 
 
 
@@ -72,43 +72,25 @@ else:
 
 
 class DrakbenCompleter(BaseCompleter):  # type: ignore
-    """Custom completer for DRAKBEN commands."""
+    """Custom completer for DRAKBEN commands.
+
+    Uses centralized command registry from core.ui.commands.
+    """
 
     def __init__(self) -> None:
-        self.commands = {
-            "/help": "Show help menu",
-            "/target": "Set target - /target <ip/domain>",
-            "/scan": "Start autonomous scan",
-            "/shell": "Interactive shell",
-            "/status": "Show system status",
-            "/clear": "Clear screen",
-            "/tr": "Switch to Turkish",
-            "/en": "Switch to English",
-            EXIT_COMMAND: "Exit DRAKBEN",
-            "/report": "Generate report",
-            "/nuclei": "Run Nuclei scan",
-            "/subdomain": "Enumerate subdomains",
-            "/exploit": "Run exploit",
-            "/payload": "Generate payload",
-        }
+        # Import from centralized command registry
+        from core.ui.commands import TOOL_COMMANDS, get_command_list
 
-        self.tool_commands = [
-            "nmap",
-            "nikto",
-            "gobuster",
-            "sqlmap",
-            "hydra",
-            "nuclei",
-            "subfinder",
-            "amass",
-            "dirb",
-            "wfuzz",
-        ]
+        # Get commands from central registry
+        self.commands = get_command_list(lang="en")
 
-        self.targets_history = []
+        # Tool commands from central registry
+        self.tool_commands = list(TOOL_COMMANDS)
+
+        self.targets_history: list[str] = []
 
     def get_completions(
-        self, document: "Document", complete_event: "CompleteEvent",
+        self, document: "Document", _complete_event: "CompleteEvent",
     ) -> Generator["Completion", None, None]:
         """Generate completions."""
         if not PROMPT_TOOLKIT_AVAILABLE:
@@ -444,7 +426,7 @@ class StatusDisplay:
         self.start()
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
         self.stop()
 
 

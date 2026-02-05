@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 TOOLS_DIR = Path("tools")
 CACHE_DIR = Path(".cache/drakben")
 
+# Singleton instance
+_universal_adapter: "UniversalAdapter | None" = None
+
 
 class PackageManager(Enum):
     """Supported package managers."""
@@ -359,7 +362,7 @@ class DependencyResolver:
                 timeout=10, check=False,
             )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     def get_tool_version(self, tool_name: str) -> str | None:
@@ -510,7 +513,7 @@ class DependencyResolver:
         tool_def = TOOL_REGISTRY.get(tool_name)
 
         if not tool_def:
-            logger.info(f"Tool '{tool_name}' not in registry. Initiating dynamic search...")
+            logger.info("Tool '%s' not in registry. Initiating dynamic search...", tool_name)
             return self._handle_dynamic_discovery(tool_name, force, result) or result
 
         if not force and self.is_tool_installed(tool_name):
@@ -863,7 +866,7 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     adapter = get_universal_adapter()
                     status = adapter.get_status()
-                except Exception:
+                except (AttributeError, ImportError):
                     status = {"status": "running", "agent": "Drakben"}
 
                 self.wfile.write(json.dumps(status).encode())
@@ -872,7 +875,7 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     adapter = get_universal_adapter()
                     tools = adapter.list_tools()
-                except Exception:
+                except (AttributeError, ImportError):
                     tools = []
                 self._set_headers()
                 self.wfile.write(json.dumps(tools).encode())
@@ -920,8 +923,8 @@ class APIServer:
         self.port = port
         self.api_keys: dict[str, str] = {}
         self.running = False
-        self.server = None
-        self.thread = None
+        self.server: socketserver.TCPServer | None = None
+        self.thread: threading.Thread | None = None
 
         # Generate default API key
         self.default_key = hashlib.sha256(os.urandom(32)).hexdigest()[:32]
@@ -1133,7 +1136,7 @@ def get_universal_adapter() -> UniversalAdapter:
 
     """
     global _universal_adapter
-    if "_universal_adapter" not in globals() or _universal_adapter is None:
+    if _universal_adapter is None:
         _universal_adapter = UniversalAdapter()
     return _universal_adapter
 

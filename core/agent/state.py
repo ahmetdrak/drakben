@@ -197,8 +197,8 @@ class AgentState:
                     try:
                         from core.security.ghost_protocol import get_ram_cleaner
                         get_ram_cleaner().register_sensitive(cred.password)
-                    except Exception:
-                        pass  # RAMCleaner optional, continue cleanup regardless
+                    except Exception as e:
+                        logger.debug("RAMCleaner unavailable: %s", e)  # Optional, continue cleanup
             self.credentials.clear()
 
             # Foothold state

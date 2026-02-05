@@ -107,7 +107,14 @@ BLOCKED_MODULES = {
 
 
 class InterpreterResult:
-    """Auto-generated docstring for InterpreterResult class."""
+    """Result of code execution in the sandbox interpreter.
+
+    Attributes:
+        output: Standard output from execution
+        error: Error message if execution failed
+        files: List of files created during execution
+        success: True if no errors occurred
+    """
 
     def __init__(self, output: str, error: str, files: list[str] | None = None) -> None:
         self.output = output

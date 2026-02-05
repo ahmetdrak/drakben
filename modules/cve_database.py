@@ -249,7 +249,8 @@ class CVEDatabase:
                     "SELECT value FROM meta_info WHERE key='last_sync'",
                 ).fetchone()
                 return row[0] if row else None
-        except Exception:
+        except (sqlite3.Error, OSError) as e:
+            logger.debug("Failed to get last sync time: %s", e)
             return None
 
     def update_last_sync_time(self) -> None:

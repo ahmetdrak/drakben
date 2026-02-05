@@ -103,7 +103,7 @@ def global_exception_handler(exc_type, exc_value, exc_traceback) -> None:
 sys.excepthook = global_exception_handler
 
 
-def cleanup_resources(signum=None, frame=None) -> None:
+def cleanup_resources(_signum: int | None = None, _frame: object = None) -> None:
     """Gracefully cleanup resources on shutdown.
     Closes DB connections and active threads.
     """
@@ -130,13 +130,14 @@ def cleanup_resources(signum=None, frame=None) -> None:
         # Flush logs
         logging.shutdown()
 
-        if signum:
+        if _signum:
             from rich.console import Console
 
             Console().print("\n[yellow]Graceful Shutdown Complete. Goodbye![/yellow]")
             sys.exit(0)
 
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Cleanup error (non-critical): {e}")
         sys.exit(1)
 
 

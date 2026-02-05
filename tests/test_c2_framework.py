@@ -17,6 +17,7 @@ from modules.c2_framework import (
     C2Config,
     C2Protocol,
     DNSTunneler,
+    DoHTransport,
     DomainFronter,
     HeartbeatManager,
     JitterEngine,
@@ -159,6 +160,64 @@ class TestDNSTunneler(unittest.TestCase):
 
         for label in labels:
             assert len(label) <= 63
+
+
+class TestDoHTransport(unittest.TestCase):
+    """Test DNS over HTTPS transport functionality."""
+
+    def test_initialization_cloudflare(self) -> None:
+        """Test DoH transport initialization with Cloudflare."""
+        doh = DoHTransport(c2_domain="c2.example.com", provider="cloudflare")
+        assert doh.c2_domain == "c2.example.com"
+        assert doh.provider == "cloudflare"
+        assert "cloudflare-dns.com" in doh.endpoint
+
+    def test_initialization_google(self) -> None:
+        """Test DoH transport initialization with Google."""
+        doh = DoHTransport(c2_domain="c2.example.com", provider="google")
+        assert "dns.google" in doh.endpoint
+
+    def test_initialization_custom(self) -> None:
+        """Test DoH transport with custom endpoint."""
+        custom_url = "https://custom-doh.example.com/dns-query"
+        doh = DoHTransport(
+            c2_domain="c2.example.com",
+            provider="custom",
+            custom_endpoint=custom_url,
+        )
+        assert doh.endpoint == custom_url
+
+    def test_build_dns_query(self) -> None:
+        """Test DNS wire format query building."""
+        doh = DoHTransport(c2_domain="test.example.com")
+        query = doh._build_dns_query("test.example.com", qtype=16)
+
+        # Should be valid DNS query bytes
+        assert isinstance(query, bytes)
+        assert len(query) > 12  # At least header + question
+
+        # Should contain domain name
+        assert b"test" in query
+        assert b"example" in query
+
+    def test_parse_empty_response(self) -> None:
+        """Test parsing empty/short response."""
+        doh = DoHTransport(c2_domain="test.example.com")
+
+        # Too short
+        result = doh._parse_dns_response(b"short")
+        assert result == []
+
+        # Empty
+        result = doh._parse_dns_response(b"")
+        assert result == []
+
+    def test_providers_dict(self) -> None:
+        """Test that all expected providers exist."""
+        assert "cloudflare" in DoHTransport.DOH_PROVIDERS
+        assert "google" in DoHTransport.DOH_PROVIDERS
+        assert "quad9" in DoHTransport.DOH_PROVIDERS
+        assert "custom" in DoHTransport.DOH_PROVIDERS
 
 
 class TestHeartbeatManager(unittest.TestCase):

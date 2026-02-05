@@ -171,7 +171,7 @@ class MetasploitRPC:
         """Connect to Metasploit RPC server."""
         self.host = host
         self.port = port
-        logger.info("Connecting to Metasploit RPC at {host}:%s", port)
+        logger.info(f"Connecting to Metasploit RPC at {host}:%s", port)
 
         try:
             protocol = "https" if self.use_ssl else "http"
@@ -381,7 +381,7 @@ class MetasploitRPC:
         options = options or {}
         timeout_seconds = 120  # Fixed timeout value
 
-        logger.info("Running exploit: {exploit_name} against %s", target_host)
+        logger.info(f"Running exploit: {exploit_name} against %s", target_host)
 
         try:
             # Set exploit options
@@ -606,7 +606,7 @@ class MetasploitRPC:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except Exception:
+        except OSError:
             return "127.0.0.1"
 
 
@@ -710,7 +710,7 @@ async def auto_exploit(
         if not exploit:
             continue
 
-        logger.info("Attempting {exploit} for %s", vuln.vuln_id)
+        logger.info(f"Attempting {exploit} for %s", vuln.vuln_id)
 
         result = await msf.run_exploit(
             exploit_name=exploit,

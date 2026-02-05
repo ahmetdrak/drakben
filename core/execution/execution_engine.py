@@ -747,7 +747,7 @@ class SmartTerminal:
         # Security Policy: Shell is allowed ONLY if explicitly requested and sanitized above
         process: subprocess.Popen = subprocess.Popen(
             cmd_args,
-            shell=shell,
+            shell=shell,  # nosec B602 - Controlled by shell parameter, sanitized above
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -1032,7 +1032,7 @@ class StreamingMonitor:
     """Monitors command execution in real-time."""
 
     def __init__(self) -> None:
-        self.output_queue = queue.Queue()
+        self.output_queue: queue.Queue[str] = queue.Queue()
         self.monitoring = False
 
     def monitor_process(

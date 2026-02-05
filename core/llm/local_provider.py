@@ -5,7 +5,7 @@ Description: Interface for Local LLMs (Ollama, LM Studio, etc.).
 
 import logging
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class LocalLLMProvider:
         try:
             resp = requests.get(f"{self.base_url}/api/tags", timeout=1)
             return resp.status_code == 200
-        except Exception:
+        except (requests.RequestException, OSError):
             return False
 
     def chat_completion(
@@ -70,5 +70,5 @@ class LocalLLMProvider:
             resp = requests.get(f"{self.base_url}/api/tags", timeout=10)
             data = resp.json()
             return [m["name"] for m in data.get("models", [])]
-        except Exception:
+        except (requests.RequestException, KeyError, ValueError):
             return []

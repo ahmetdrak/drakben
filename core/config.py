@@ -33,6 +33,8 @@ class TimeoutConfig:
     # Network timeouts
     HTTP_REQUEST_TIMEOUT = 30  # seconds
     SOCKET_TIMEOUT = 10  # seconds
+    DNS_RESOLVER_TIMEOUT = 5  # seconds
+    SMB_TIMEOUT = 2  # seconds
 
     # LLM timeouts
     LLM_QUERY_TIMEOUT = 30  # seconds
@@ -43,6 +45,7 @@ class TimeoutConfig:
     TOOL_DEFAULT_TIMEOUT = 300  # 5 minutes
     TOOL_FAST_TIMEOUT = 60  # 1 minute for fast tools
     TOOL_SLOW_TIMEOUT = 600  # 10 minutes for slow tools
+    SUBPROCESS_TIMEOUT = 120  # 2 minutes for subprocesses
 
     # Thread timeouts
     THREAD_JOIN_TIMEOUT = 5.0  # seconds
@@ -52,9 +55,74 @@ class TimeoutConfig:
     PROCESS_TERMINATE_TIMEOUT = 5  # seconds before kill
     PROCESS_CLEANUP_TIMEOUT = 2  # seconds for cleanup
 
+    # Shell/Connection timeouts
+    SSH_COMMAND_TIMEOUT = 30  # seconds
+    REVERSE_SHELL_TIMEOUT = 60  # seconds
+    SHELL_READ_TIMEOUT = 10  # seconds
+
 
 # Export for easy import
 TIMEOUTS = TimeoutConfig()
+
+
+# ===========================================
+# C2 BEACON CONFIGURATION
+# ===========================================
+class C2BeaconConfig:
+    """Centralized C2 beacon settings for consistency."""
+
+    # Sleep intervals
+    DEFAULT_SLEEP_INTERVAL = 60  # seconds between check-ins
+    MIN_SLEEP_INTERVAL = 10  # minimum sleep time
+    MAX_SLEEP_INTERVAL = 3600  # 1 hour max
+
+    # Jitter (randomization)
+    JITTER_MIN = 10  # minimum jitter percentage
+    JITTER_MAX = 30  # maximum jitter percentage
+
+    # Protocol defaults
+    DEFAULT_PORT_HTTPS = 443
+    DEFAULT_PORT_HTTP = 80
+    DEFAULT_PORT_DNS = 53
+
+    # Retry settings
+    MAX_RETRY_ATTEMPTS = 3
+    RETRY_BACKOFF_MULTIPLIER = 2  # exponential backoff
+
+    # Steganography
+    STEGO_IMAGE_WIDTH = 800
+    STEGO_IMAGE_HEIGHT = 600
+
+
+# Export for easy import
+C2_CONFIG = C2BeaconConfig()
+
+
+# ===========================================
+# NETWORK SCANNING CONFIGURATION
+# ===========================================
+class NetworkConfig:
+    """Centralized network scanning settings."""
+
+    # Common ports for quick scans
+    COMMON_PORTS = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445,
+                   993, 995, 1723, 3306, 3389, 5900, 8080, 8443]
+
+    # Port scan settings
+    MAX_CONCURRENT_SCANS = 100
+    PORT_SCAN_TIMEOUT = 2.0  # seconds per port
+    PING_TIMEOUT = 1.0  # seconds
+
+    # Stealth mode delays
+    STEALTH_DELAY_MIN = 0.5  # seconds
+    STEALTH_DELAY_MAX = 2.0  # seconds
+
+    # DNS settings
+    DNS_NAMESERVERS = ["1.1.1.1", "8.8.8.8", "1.0.0.1", "8.8.4.4"]
+
+
+# Export for easy import
+NETWORK_CONFIG = NetworkConfig()
 
 
 @dataclass
@@ -81,6 +149,8 @@ class DrakbenConfig:
     # Security
     auto_approve: bool = False  # First command needs approval
     approved_once: bool = False
+    ssl_verify: bool = True  # SSL certificate verification
+    allow_self_signed_certs: bool = False  # Allow self-signed certificates
 
     # Session
     target: str | None = None
@@ -321,6 +391,13 @@ class ConfigManager:
                 try:
                     with open(self.config_file, encoding="utf-8") as f:
                         data = json.load(f)
+                        # Flatten nested security section
+                        if "security" in data and isinstance(data["security"], dict):
+                            security = data.pop("security")
+                            data["ssl_verify"] = security.get("ssl_verify", True)
+                            data["allow_self_signed_certs"] = security.get(
+                                "allow_self_signed_certs", False
+                            )
                         return DrakbenConfig(**data)
                 except Exception as e:
                     logger.exception("Config load error: %s", e)

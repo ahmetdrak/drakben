@@ -98,13 +98,18 @@ class SymbolicExecutor:
 
         # Recursive visitor
         class PathVisitor(ast.NodeVisitor):
-            """Auto-generated docstring for PathVisitor class."""
+            """AST visitor for symbolic execution path exploration.
 
-            def __init__(self, parent_constraints=None) -> None:
-                self.current_constraints = parent_constraints or []
-                self.found_paths = []
+            Traverses if/else branches to find all possible execution
+            paths and their constraints, detecting potentially dangerous
+            function calls (system, pickle, etc.).
+            """
 
-            def visit_If(self, node) -> None:
+            def __init__(self, parent_constraints: list[PathConstraint] | None = None) -> None:
+                self.current_constraints: list[PathConstraint] = parent_constraints or []
+                self.found_paths: list[ExecutionPath] = []
+
+            def visit_If(self, node: ast.If) -> None:
                 # Branch TRUE
                 constraint_true = SymbolicExecutor._extract_constraint(node.test)
                 if constraint_true:
@@ -126,7 +131,7 @@ class SymbolicExecutor:
                             visitor_false.visit(child)
                         self.found_paths.extend(visitor_false.found_paths)
 
-            def visit_Call(self, node) -> None:
+            def visit_Call(self, node: ast.Call) -> None:
                 func_name = ""
                 if isinstance(node.func, ast.Name):
                     func_name = node.func.id

@@ -7,9 +7,10 @@
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-228%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-527%20passed-brightgreen.svg)]()
 [![Ruff](https://img.shields.io/badge/ruff-0%20errors-brightgreen.svg)]()
-[![SonarQube](https://img.shields.io/badge/SonarQube-0%20issues-brightgreen.svg)]()
+[![Mypy](https://img.shields.io/badge/mypy-0%20errors-brightgreen.svg)]()
+[![SonarQube](https://img.shields.io/badge/SonarQube-0%20critical-brightgreen.svg)]()
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
@@ -44,7 +45,8 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Natural Language Interface** - Talk to DRAKBEN like a colleague
 - **Context-Aware Tool Selection** - Automatically picks the right tool
 - **Multi-LLM Support** - OpenRouter, Ollama, OpenAI, Custom APIs
-- **Bilingual** - Full Turkish and English support
+- **Bilingual UI** - Full Turkish and English support with `/tr` and `/en`
+- **Stanford Memory System** - Graph-based memory with semantic search
 - **Anti-Hallucination Protocol** - Validates AI outputs against reality
 
 ### 🔄 Self-Evolution Engine (Singularity)
@@ -58,6 +60,13 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Tool Penalty System** - Deprioritizes failing tools automatically
 - **Strategy Profiles** - Multiple behavioral variants per attack type
 - **Pattern Recognition** - Learns from failure contexts
+
+### 🖥️ Modern UI System
+- **Unified Display** - Consistent, minimalist interface
+- **Dracula Theme** - Cyan/Green color scheme
+- **Interactive Shell** - Full Turkish/English support
+- **Real-time Scanning** - Live progress indicators
+- **Smart Confirmations** - Context-aware prompts
 
 ### 🛡️ Self-Refining Engine
 - **Policy Engine** - Learned behavioral constraints
@@ -217,10 +226,11 @@ python drakben.py
 | `/scan` | Start autonomous scan |
 | `/tools` | List available tools |
 | `/status` | Show current state |
-| `/shell` | Interactive shell mode |
+| `/shell` | Interactive shell mode (bilingual) |
 | `/report` | Generate report |
 | `/llm` | Configure LLM provider |
 | `/config` | View/edit configuration |
+| `/memory` | View memory system status |
 | `/tr` | Switch to Turkish |
 | `/en` | Switch to English |
 | `/exit` | Exit DRAKBEN |
@@ -335,25 +345,35 @@ drakben/
 ├── drakben.py              # Main entry point
 ├── core/                   # Core engine components
 │   ├── agent/              # Agent & Brain modules
-│   │   ├── brain.py        # AI reasoning engine
+│   │   ├── brain.py        # AI reasoning engine with memory integration
 │   │   ├── state.py        # Global state management
 │   │   ├── planner.py      # Attack planning
-│   │   ├── pentest_orchestrator.py # NEW: State machine + LLM coordinator
-│   │   └── refactored_agent.py    # Self-refining agent
+│   │   ├── pentest_orchestrator.py # State machine + LLM coordinator
+│   │   ├── error_diagnostics.py    # Error analysis and recovery
+│   │   └── refactored_agent.py     # Self-refining agent
+│   │   ├── cognitive/      # Cognitive subsystem
+│   │   ├── memory/         # Stanford Memory System integration
+│   │   └── recovery/       # Error recovery mechanisms
 │   ├── execution/          # Execution engine
 │   │   ├── execution_engine.py
+│   │   ├── sandbox_manager.py      # Docker sandbox
 │   │   └── tool_selector.py
 │   ├── intelligence/       # AI modules
 │   │   ├── evolution_memory.py
 │   │   ├── self_refining_engine.py
 │   │   └── coder.py
 │   ├── singularity/        # Code generation engine
-│   ├── tools/              # NEW: Tool registry system
-│   │   ├── tool_registry.py # Central tool hub (17 tools registered)
+│   │   ├── mutation.py     # Code mutation
+│   │   └── synthesizer.py  # Code synthesis
+│   ├── tools/              # Tool registry system
+│   │   ├── tool_registry.py # Central tool hub (20+ tools)
 │   │   ├── tool_parsers.py
 │   │   └── computer.py
+│   ├── security/           # Security modules
 │   └── ui/                 # User interface
-│       └── menu.py
+│       ├── menu.py         # Main menu (bilingual)
+│       ├── interactive_shell.py # Shell mode (TR/EN)
+│       └── unified_display.py   # Modern display system
 ├── modules/                # Attack modules
 │   ├── recon.py            # Reconnaissance
 │   ├── exploit.py          # Exploitation
@@ -363,11 +383,12 @@ drakben/
 │   ├── waf_evasion.py      # WAF bypass
 │   ├── post_exploit.py     # Post-exploitation
 │   ├── ad_attacks.py       # Active Directory
+│   ├── ad_extensions.py    # AD advanced attacks
 │   ├── native/             # Low-level syscalls
 │   └── report_generator.py
 ├── llm/                    # LLM integration
 │   └── openrouter_client.py
-├── tests/                  # Test suite (228 tests)
+├── tests/                  # Test suite (527 tests)
 ├── config/                 # Configuration files
 └── plugins/                # External plugins
 ```
@@ -382,9 +403,12 @@ python -m pytest --disable-warnings
 
 # Run with coverage
 python -m pytest --cov=core --cov=modules --cov-report=html
+
+# Run quick tests (fail fast)
+python -m pytest --maxfail=10 --disable-warnings --tb=short
 ```
 
-**Current Status:** 228 tests passing ✅
+**Current Status:** 527 tests passing ✅
 
 ---
 

@@ -158,6 +158,109 @@ class ToolRegistry:
             timeout=1800,
         ))
 
+        # Additional RECON Tools
+        self.register(Tool(
+            name="whatweb",
+            type=ToolType.SHELL,
+            description="Web fingerprinting and technology detection",
+            phase=PentestPhase.RECON,
+            command_template="whatweb -v {target}",
+            timeout=120,
+        ))
+
+        self.register(Tool(
+            name="amass",
+            type=ToolType.SHELL,
+            description="Subdomain enumeration and OSINT",
+            phase=PentestPhase.RECON,
+            command_template="amass enum -passive -d {target}",
+            timeout=600,
+        ))
+
+        self.register(Tool(
+            name="subfinder",
+            type=ToolType.SHELL,
+            description="Fast subdomain discovery",
+            phase=PentestPhase.RECON,
+            command_template="subfinder -d {target} -silent",
+            timeout=300,
+        ))
+
+        self.register(Tool(
+            name="feroxbuster",
+            type=ToolType.SHELL,
+            description="Fast content discovery tool",
+            phase=PentestPhase.RECON,
+            command_template="feroxbuster -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
+            timeout=600,
+        ))
+
+        # Additional AD/Lateral Tools
+        self.register(Tool(
+            name="enum4linux",
+            type=ToolType.SHELL,
+            description="Windows/Samba enumeration",
+            phase=PentestPhase.RECON,
+            command_template="enum4linux -a {target}",
+            timeout=300,
+        ))
+
+        self.register(Tool(
+            name="crackmapexec",
+            type=ToolType.SHELL,
+            description="Swiss army knife for pentesting networks",
+            phase=PentestPhase.EXPLOIT,
+            command_template="crackmapexec smb {target}",
+            timeout=300,
+        ))
+
+        self.register(Tool(
+            name="impacket_secretsdump",
+            type=ToolType.SHELL,
+            description="Credential dumping via Impacket",
+            phase=PentestPhase.POST_EXPLOIT,
+            command_template="impacket-secretsdump {target}",
+            timeout=300,
+        ))
+
+        self.register(Tool(
+            name="bloodhound",
+            type=ToolType.SHELL,
+            description="Active Directory attack path mapping",
+            phase=PentestPhase.RECON,
+            command_template="bloodhound-python -d {target} -c All",
+            timeout=600,
+        ))
+
+        self.register(Tool(
+            name="responder",
+            type=ToolType.SHELL,
+            description="LLMNR/NBT-NS/MDNS poisoner",
+            phase=PentestPhase.EXPLOIT,
+            command_template="responder -I eth0 -wrf -v 2>&1 | tee responder_{target}.log",
+            requires_root=True,
+            timeout=3600,
+        ))
+
+        # Web Security Tools
+        self.register(Tool(
+            name="wpscan",
+            type=ToolType.SHELL,
+            description="WordPress security scanner",
+            phase=PentestPhase.VULN_SCAN,
+            command_template="wpscan --url http://{target} --enumerate vp,vt,u",
+            timeout=600,
+        ))
+
+        self.register(Tool(
+            name="testssl",
+            type=ToolType.SHELL,
+            description="SSL/TLS configuration testing",
+            phase=PentestPhase.VULN_SCAN,
+            command_template="testssl.sh {target}",
+            timeout=300,
+        ))
+
         # =================================================================
         # PYTHON TOOLS (Module functions)
         # =================================================================
@@ -257,10 +360,20 @@ class ToolRegistry:
             timeout=60,
         ))
 
+        # Reporting
+        self.register(Tool(
+            name="report",
+            type=ToolType.PYTHON,
+            description="Generate professional pentest report",
+            phase=PentestPhase.REPORTING,
+            python_func=self._run_report,
+            timeout=120,
+        ))
+
     def register(self, tool: Tool) -> None:
         """Register a tool."""
         self._tools[tool.name] = tool
-        logger.debug(f"Registered tool: {tool.name}")
+        logger.debug("Registered tool: %s", tool.name)
 
     def get(self, name: str) -> Tool | None:
         """Get tool by name."""
@@ -275,6 +388,82 @@ class ToolRegistry:
     def list_names(self) -> list[str]:
         """List all tool names."""
         return list(self._tools.keys())
+
+    def list_by_phase(self, phase: PentestPhase) -> list[Tool]:
+        """List tools by pentest phase."""
+        return [t for t in self._tools.values() if t.phase == phase]
+
+    def list_by_type(self, tool_type: ToolType) -> list[Tool]:
+        """List tools by type (SHELL, PYTHON, HYBRID)."""
+        return [t for t in self._tools.values() if t.type == tool_type]
+
+    def format_tool_info(self, name: str) -> str | None:
+        """Format tool info for display."""
+        tool = self.get(name)
+        if not tool:
+            return None
+        return (
+            f"[{tool.name}]\n"
+            f"  Type: {tool.type.value}\n"
+            f"  Phase: {tool.phase.value}\n"
+            f"  Description: {tool.description}\n"
+            f"  Timeout: {tool.timeout}s\n"
+            f"  Root Required: {tool.requires_root}"
+        )
+
+    def format_all_tools(self) -> str:
+        """Format all tools for display."""
+        lines = ["=" * 60, "DRAKBEN Tool Registry", "=" * 60]
+        for phase in PentestPhase:
+            tools = self.list_by_phase(phase)
+            if tools:
+                lines.append(f"\n[{phase.value.upper()}]")
+                for tool in tools:
+                    root_flag = " [ROOT]" if tool.requires_root else ""
+                    lines.append(f"  • {tool.name}{root_flag}: {tool.description}")
+        lines.append("\n" + "=" * 60)
+        return "\n".join(lines)
+
+    async def run(self, tool_name: str, **kwargs: Any) -> dict:
+        """Async wrapper for tool execution."""
+        tool = self.get(tool_name)
+        if not tool:
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+
+        target = kwargs.pop("target", "")
+
+        if tool.type == ToolType.SHELL:
+            return await self._async_execute_shell(tool, target=target, **kwargs)
+        elif tool.type == ToolType.PYTHON:
+            return await self._async_execute_python(tool, target, **kwargs)
+        else:
+            return {"success": False, "error": f"Unknown tool type: {tool.type}"}
+
+    async def _async_execute_shell(self, tool: Tool, target: str = "", **kwargs: Any) -> dict:
+        """Execute shell tool asynchronously."""
+        command = tool.command_template.format(target=target, **kwargs)
+
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=tool.timeout
+            )
+            return {
+                "success": proc.returncode == 0,
+                "output": stdout.decode("utf-8", errors="replace"),
+                "error": stderr.decode("utf-8", errors="replace") if stderr else "",
+                "returncode": proc.returncode,
+                "tool": tool.name,
+                "command": command,
+            }
+        except TimeoutError:
+            return {"success": False, "error": "Timeout", "tool": tool.name}
+        except Exception as e:
+            return {"success": False, "error": str(e), "tool": tool.name}
 
     # =========================================================================
     # EXECUTION METHODS
@@ -306,14 +495,14 @@ class ToolRegistry:
         """Execute a shell tool."""
         command = tool.command_template.format(target=target, **kwargs)
 
-        logger.info(f"Executing: {command}")
+        logger.info("Executing: %s", command)
 
         try:
             if live_output:
                 # Live output mode
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=True,  # nosec B602 - Tool execution requires shell
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -332,7 +521,7 @@ class ToolRegistry:
                 # Silent mode
                 result = subprocess.run(
                     command,
-                    shell=True,
+                    shell=True,  # nosec B602 - Tool execution requires shell
                     capture_output=True,
                     text=True,
                     timeout=tool.timeout,
@@ -353,7 +542,7 @@ class ToolRegistry:
             return {"success": False, "error": str(e), "tool": tool.name}
 
     def _execute_python(self, tool: Tool, target: str, **kwargs: Any) -> dict:
-        """Execute a Python tool."""
+        """Execute a Python tool (sync version for sync callers)."""
         if not tool.python_func:
             return {"success": False, "error": "No Python function defined"}
 
@@ -368,14 +557,34 @@ class ToolRegistry:
             logger.exception(f"Python tool {tool.name} failed: {e}")
             return {"success": False, "error": str(e), "tool": tool.name}
 
+    async def _async_execute_python(self, tool: Tool, target: str, **kwargs: Any) -> dict:
+        """Execute a Python tool (async version for async callers)."""
+        if not tool.python_func:
+            return {"success": False, "error": "No Python function defined"}
+
+        try:
+            result = tool.python_func(target, **kwargs)
+            # If the result is a coroutine, await it
+            if asyncio.iscoroutine(result):
+                result = await result
+            return {
+                "success": True,
+                "output": result,
+                "tool": tool.name,
+            }
+        except Exception as e:
+            logger.exception(f"Python tool {tool.name} failed: {e}")
+            return {"success": False, "error": str(e), "tool": tool.name}
+
     # =========================================================================
     # PYTHON TOOL IMPLEMENTATIONS (Wrappers)
     # =========================================================================
 
     def _run_passive_recon(self, target: str, **kwargs: Any) -> dict:
-        """Run passive_recon from modules/recon.py"""
+        """Run passive_recon from modules/recon.py - returns coroutine."""
         from modules.recon import passive_recon
-        return asyncio.run(passive_recon(target))
+        # Return the coroutine directly, let _async_execute_python await it
+        return passive_recon(target)
 
     def _run_sqli_test(self, target: str, **kwargs: Any) -> dict:
         """Run SQL injection test from modules/exploit.py"""
@@ -489,6 +698,20 @@ class ToolRegistry:
                 "target": target,
                 "generated_code": code[:2000] if code else None,
                 "status": "Code generated" if code else "Generation failed",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _run_report(self, target: str, **kwargs: Any) -> dict:
+        """Generate pentest report from modules/report_generator.py"""
+        try:
+            from modules.report_generator import ReportFormat, ReportGenerator
+            ReportGenerator()  # Validate module loads
+            return {
+                "target": target,
+                "formats": [f.value for f in ReportFormat],
+                "status": "Report generator ready",
+                "note": "Use generator.generate() with findings",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
