@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-02-05
+
+### Added
+- **Advanced WAF Bypass Engine** - Complete rewrite with intelligent WAF fingerprinting
+  - WAF detection: Cloudflare, AWS WAF, ModSecurity, Imperva, Akamai, F5, and more
+  - PayloadType enum for SQLI, XSS, RCE, LFI, SSTI, XXE, SSRF classification
+  - Adaptive mutation memory with SQLite backend
+  - Multi-layer encoding: Unicode, UTF-8, double URL, hex encoding
+  - SQL injection bypass: inline comments, CONCAT, CHAR functions
+  - XSS bypass: SVG payloads, event handlers, protocol wrappers
+  - Command injection: string concatenation, wildcard injection
+  - HTTP smuggling & chunked encoding techniques
+- Full module integration in `modules/__init__.py` with 70+ exported classes
+- Comprehensive type annotations for all modules
+- test_waf_bypass_engine.py with 50+ tests for WAF bypass validation
+
+### Changed
+- WAFEvasion now wraps WAFBypassEngine for backward compatibility
+- Test count increased from 527 to 583
+- Improved Mypy strict mode compliance
+- All truthy-function checks converted to explicit `is not None`
+
+### Fixed
+- `fingerprint_waf` method call error in waf_evasion.py wrapper
+- Missing PayloadType export in modules/__init__.py
+- Type annotation errors in test files
+- Float equality comparison issues in test_memory_system.py
+- Conditional expression bug in menu.py returning same value
+
 ## [3.1.0] - 2026-02-05
 
 ### Added

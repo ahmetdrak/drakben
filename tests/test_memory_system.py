@@ -104,7 +104,7 @@ class TestConceptNode:
         node = ConceptNode(description="Test node")
 
         assert node.description == "Test node"
-        assert node.poignancy == 5.0  # Default
+        assert abs(node.poignancy - 5.0) < 0.01  # Default
         assert node.node_type == NodeType.EVENT  # Default
         assert node.node_id  # UUID generated
 
@@ -131,7 +131,7 @@ class TestConceptNode:
         )
 
         assert node.node_type == NodeType.EVENT
-        assert node.poignancy == 7.0
+        assert abs(node.poignancy - 7.0) < 0.01
         assert node.target == "10.0.0.1"
         assert node.spo_triple is not None
 
@@ -153,9 +153,9 @@ class TestConceptNode:
             severity="low",
         )
 
-        assert critical.poignancy == 10.0
-        assert high.poignancy == 8.0
-        assert low.poignancy == 4.0
+        assert abs(critical.poignancy - 10.0) < 0.01
+        assert abs(high.poignancy - 8.0) < 0.01
+        assert abs(low.poignancy - 4.0) < 0.01
 
     def test_credential_finding_high_poignancy(self):
         """Test credential findings get high poignancy."""
@@ -165,7 +165,7 @@ class TestConceptNode:
             severity="low",  # Even low severity
         )
 
-        assert cred.poignancy == 9.0  # Credentials are always high
+        assert abs(cred.poignancy - 9.0) < 0.01  # Credentials are always high
         assert cred.pentest_relevance == PentestRelevance.CREDENTIAL
 
     def test_node_touch_updates_access(self):
@@ -220,9 +220,9 @@ class TestConceptNode:
             pentest_relevance=PentestRelevance.GENERIC,
         )
 
-        assert critical.get_pentest_boost() == 3.0
-        assert credential.get_pentest_boost() == 2.5
-        assert generic.get_pentest_boost() == 1.0
+        assert abs(critical.get_pentest_boost() - 3.0) < 0.01
+        assert abs(credential.get_pentest_boost() - 2.5) < 0.01
+        assert abs(generic.get_pentest_boost() - 1.0) < 0.01
 
 
 # =============================================================================
@@ -619,8 +619,8 @@ class TestReflectModule:
         reflect = ReflectModule(memory_stream, reflection_threshold=1)
         insights = reflect.reflect(target="192.168.1.100", force=True)
 
-        # Should generate some insights
-        assert len(insights) >= 0  # May or may not based on patterns
+        # Should return a list (may be empty depending on patterns)
+        assert isinstance(insights, list)
 
     def test_reflection_trigger(self, memory_stream):
         """Test reflection trigger conditions."""

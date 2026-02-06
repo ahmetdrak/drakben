@@ -175,9 +175,11 @@ class RetrieveModule:
     def _categorize_and_budget(
         self,
         result: RetrievalResult,
-        focal_point: str,
+        focal_point: str,  # noqa: ARG002 - kept for future use/API consistency
     ) -> RetrievedContext:
         """Categorize nodes and apply budget constraints."""
+        # Note: focal_point kept for future weighting/prioritization
+        _ = focal_point  # Acknowledge parameter for SonarQube
         context = RetrievedContext()
 
         # Separate by node type

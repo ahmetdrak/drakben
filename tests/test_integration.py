@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-errors = []
-passed = []
+errors: list[str] = []
+passed: list[str] = []
 
 
 def test_full_integration() -> None:

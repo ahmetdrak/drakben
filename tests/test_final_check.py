@@ -41,35 +41,35 @@ except ImportError:
 def test_final_check() -> None:
     """Verify all critical modules can be instantiated."""
     # 1. Agent
-    if RefactoredDrakbenAgent and ConfigManager:
+    if RefactoredDrakbenAgent is not None and ConfigManager is not None:
         _ = RefactoredDrakbenAgent(ConfigManager())
     else:
         msg = "RefactoredDrakbenAgent or ConfigManager missing"
         raise AssertionError(msg)
 
     # 2. Universal Adapter
-    if UniversalAdapter:
+    if UniversalAdapter is not None:
         _ = UniversalAdapter()
     else:
         msg = "UniversalAdapter missing"
         raise AssertionError(msg)
 
     # 3. Weapon Foundry
-    if WeaponFoundry:
+    if WeaponFoundry is not None:
         _ = WeaponFoundry()
     else:
         msg = "WeaponFoundry missing"
         raise AssertionError(msg)
 
     # 4. Hive Mind
-    if CredentialHarvester:
+    if CredentialHarvester is not None:
         _ = CredentialHarvester()
     else:
         msg = "CredentialHarvester (HiveMind) missing"
         raise AssertionError(msg)
 
     # 5. Report Generator
-    if ReportGenerator and ReportConfig:
+    if ReportGenerator is not None and ReportConfig is not None:
         _ = ReportGenerator(ReportConfig(title="Test Report"))
     else:
         msg = "ReportGenerator missing"

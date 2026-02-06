@@ -63,7 +63,9 @@ class DrakbenMenu:
     STYLE_BOLD_GREEN = "bold green"
     STYLE_BOLD_CYAN = "bold cyan"
     STYLE_BOLD_YELLOW = "bold yellow"
+    STYLE_BOLD_RED = "bold red"
     STYLE_DIM_CYAN = "dim cyan"
+    STYLE_DIM_RED = "dim red"
     MSG_AGENT_NOT_NONE = "self.agent is not None"
 
     # Command constants (SonarCloud: avoid duplicate literals)
@@ -189,7 +191,7 @@ class DrakbenMenu:
         os_name = "Kali" if self.system_info.get("is_kali") else self.system_info.get("os", "Unknown")
 
         info_line = Text()
-        info_line.append(" DRAKBEN", style="bold white")
+        info_line.append(" DRAKBEN", style=self.STYLE_BOLD_WHITE)
         info_line.append(f" v{self.VERSION}", style="dim")
         info_line.append(" │ ", style="dim")
         if is_tr:
@@ -216,10 +218,10 @@ class DrakbenMenu:
         is_stealth = getattr(self.config, "stealth_mode", False)
         # Avoid nested ternary for SonarQube compliance
         if is_stealth:
-            status = "STEALTH" if not is_tr else "GİZLİ"
+            status = "GİZLİ" if is_tr else "STEALTH"
             color = self.STYLE_BOLD_GREEN
         else:
-            status = "NORMAL" if not is_tr else "NORMAL"
+            status = "NORMAL"  # Same in both languages
             color = "dim"
         return status, color
 
@@ -236,7 +238,7 @@ class DrakbenMenu:
         target = self.config.target
         if target:
             status.append(" TARGET ", style="black on green")
-            status.append(f" {target} ", style="bold white")
+            status.append(f" {target} ", style=self.STYLE_BOLD_WHITE)
         else:
             no_target = "Hedef yok" if is_tr else "No target"
             status.append(" TARGET ", style="black on red")
@@ -260,7 +262,7 @@ class DrakbenMenu:
             status.append(short_model, style="green")
         else:
             llm_off = "LLM kapalı" if is_tr else "LLM off"
-            status.append(llm_off, style="dim red")
+            status.append(llm_off, style=self.STYLE_DIM_RED)
 
         self.console.print(status)
 
@@ -372,7 +374,7 @@ class DrakbenMenu:
                 ToolSelector.register_global_plugins(plugins)
 
         except Exception as e:
-            self.console.print(f"[dim red]Plugin Load Error: {e}[/dim]")
+            self.console.print(f"[{self.STYLE_DIM_RED}]Plugin Load Error: {e}[/]")
 
     def _get_input(self) -> str:
         """Get user input with protected prompt that can't be deleted."""
@@ -1488,7 +1490,7 @@ class DrakbenMenu:
 
         # Target
         target = self.config.target or ("Belirlenmedi" if is_tr else "Not set")
-        target_style = "bold green" if self.config.target else "dim red"
+        target_style = self.STYLE_BOLD_GREEN if self.config.target else self.STYLE_DIM_RED
         status_table.add_row("Target" if not is_tr else "Hedef", f"[{target_style}]{target}[/]")
 
         # Mode
@@ -1537,7 +1539,7 @@ class DrakbenMenu:
         phase_colors = {
             "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
             "exploit": "red", "foothold": "green", "post_exploit": "magenta",
-            "complete": "bold green", "failed": "bold red",
+            "complete": self.STYLE_BOLD_GREEN, "failed": self.STYLE_BOLD_RED,
         }
         phase_color = phase_colors.get(state.phase.value, "white")
         phase_name = self._get_phase_display_name(state.phase.value, is_tr)
@@ -1768,7 +1770,7 @@ class DrakbenMenu:
         labels = self._get_localized_labels(is_tr)
 
         target_val = self.config.target or ("HEDEF YOK" if is_tr else "NO TARGET")
-        target_style = "bold white" if self.config.target else "dim red"
+        target_style = self.STYLE_BOLD_WHITE if self.config.target else self.STYLE_DIM_RED
 
         os_info = self.system_info.get("os", "Unknown")
         is_kali = self.system_info.get("is_kali", False)

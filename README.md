@@ -7,7 +7,7 @@
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-527%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-583%20passed-brightgreen.svg)]()
 [![Ruff](https://img.shields.io/badge/ruff-0%20errors-brightgreen.svg)]()
 [![Mypy](https://img.shields.io/badge/mypy-0%20errors-brightgreen.svg)]()
 [![SonarQube](https://img.shields.io/badge/SonarQube-0%20critical-brightgreen.svg)]()
@@ -113,7 +113,14 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Steganography** - Hide data in images
 
 ### 🛡️ Evasion & Stealth
-- **WAF Bypass Engine** - SQL/XSS/RCE payload mutation
+- **Advanced WAF Bypass Engine** - Intelligent WAF fingerprinting & evasion
+  - WAF Fingerprinting: Cloudflare, AWS WAF, ModSecurity, Imperva, Akamai, F5, and more
+  - Multi-layer encoding: Unicode, UTF-8, double URL, hex encoding
+  - Adaptive mutation with pattern learning (SQLite-backed memory)
+  - SQL injection bypass: inline comments, case variation, encoding chains
+  - XSS bypass: SVG payloads, event handlers, protocol wrappers
+  - Command injection: string concatenation, wildcard injection
+  - HTTP smuggling & chunked encoding techniques
 - **Ghost Protocol** - AST-based code transformation
 - **Variable Obfuscation** - Random name generation
 - **Dead Code Injection** - Anti-signature techniques

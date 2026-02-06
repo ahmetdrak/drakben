@@ -44,7 +44,7 @@ async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally 
     # -------------------------------------------------------------
     # TEST 1: STEALTH & TLS FINGERPRINTING
     # -------------------------------------------------------------
-    if StealthSession:
+    if StealthSession is not None:
         session = StealthSession(impersonate="chrome120")
         headers = session.headers
         assert "Chrome" in headers.get("User-Agent", ""), (
@@ -55,7 +55,7 @@ async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally 
     # -------------------------------------------------------------
     # TEST 2: WAF EVASION POLYMORPHISM
     # -------------------------------------------------------------
-    if WAFEvasion:
+    if WAFEvasion is not None:
         evader = WAFEvasion()
         payload = "<script>alert(1)</script>"
         obfuscated = evader.obfuscate_xss(payload)
@@ -65,7 +65,7 @@ async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally 
     # -------------------------------------------------------------
     # TEST 3: DATABASE CONCURRENCY (ASYNC STRESS)
     # -------------------------------------------------------------
-    if SQLiteProvider:
+    if SQLiteProvider is not None:
         db_path = "tests/gauntlet_test.db"
         db = SQLiteProvider(db_path)
         tasks = []
@@ -87,7 +87,7 @@ async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally 
     # -------------------------------------------------------------
     # TEST 4: POST-EXPLOITATION AI (SIMULATION)
     # -------------------------------------------------------------
-    if PostExploitEngine:
+    if PostExploitEngine is not None:
 
         class MockHackedShell(ShellInterface):
             async def execute(self, cmd: str) -> str:
