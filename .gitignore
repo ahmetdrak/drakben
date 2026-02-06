@@ -69,13 +69,8 @@ llm_cache.db
 waf_evolution.db
 audit.db
 
-# SonarQube (local analysis config)
-sonar-project.properties
+# SonarQube work directory
 .scannerwork/
-
-# Linter/formatter config (local)
-ruff.toml
-mypy.ini
 
 # Windows launcher (local only)
 start.bat

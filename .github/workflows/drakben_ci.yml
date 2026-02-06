@@ -13,6 +13,7 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -32,13 +33,13 @@ jobs:
         pip install pytest pytest-asyncio pytest-cov ruff bandit mypy
         
     - name: Static Analysis (Ruff)
-      run: python -m ruff check . --output-format=text
+      run: python -m ruff check . --config ruff.toml --output-format=text
       
     - name: Security Deep Scan (Bandit)
       run: python -m bandit -r core/ modules/ -ll -f txt
 
     - name: Type Integrity Check (MyPy)
-      run: python -m mypy core/ --ignore-missing-imports
+      run: python -m mypy core/ --config-file mypy.ini
 
     - name: Run All Tests with Coverage
       run: |

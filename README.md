@@ -4,13 +4,12 @@
 
 *Let AI handle the methodology. You focus on the results.*
 
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml/badge.svg)](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-1330%20passed-brightgreen.svg)]()
-[![Ruff](https://img.shields.io/badge/ruff-0%20errors-brightgreen.svg)]()
-[![Mypy](https://img.shields.io/badge/mypy-0%20errors-brightgreen.svg)]()
-[![SonarQube](https://img.shields.io/badge/SonarQube-0%20critical-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-1330%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
+[![CodeQL](https://github.com/ahmetdrak/drakben/actions/workflows/codeql/badge.svg)](https://github.com/ahmetdrak/drakben/actions/workflows/codeql)
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 

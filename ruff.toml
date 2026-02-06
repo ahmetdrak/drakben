@@ -1,0 +1,194 @@
+# DRAKBEN Ruff Configuration
+# Author: @drak_ben
+
+# Target Python version
+target-version = "py312"
+
+# Line length
+line-length = 120
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*.pyc",
+    "tests_backup",
+    "modules/dynamic_exploits",
+]
+
+[lint]
+# Enable comprehensive rules — ALL meaningful categories
+select = [
+    "F",      # Pyflakes
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "UP",     # pyupgrade
+    "S",      # flake8-bandit (security)
+    "C90",    # mccabe complexity
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "PTH",    # flake8-use-pathlib
+    "PERF",   # perflint
+    "RUF",    # ruff-specific rules
+    "G",      # flake8-logging-format
+    "T201",   # print statements
+    "N",      # pep8-naming
+    "FBT",    # flake8-boolean-trap
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "DTZ",    # flake8-datetimez
+    "EM",     # flake8-errmsg
+    "Q",      # flake8-quotes
+    "TRY",    # tryceratops (exception handling)
+    "PLR",    # pylint refactor
+    "PLW",    # pylint warnings
+    "PLC",    # pylint conventions
+    "ERA",    # eradicate (commented-out code)
+    "ARG",    # flake8-unused-arguments
+    "PT",     # flake8-pytest-style
+    "TC",     # flake8-type-checking
+    "SLF",    # flake8-self
+    "PGH",    # pygrep-hooks
+    "FURB",   # refurb
+    "PIE",    # flake8-pie
+    "INP",    # flake8-no-pep420
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",    # Line too long - handled by line-length setting
+    "B008",    # Do not perform function call in argument defaults
+    "B905",    # zip without strict
+    "UP007",   # Use X | Y for Union types (FA102 equivalent)
+    "S101",    # assert in tests — completely valid
+    "S311",    # random — needed in pentest context
+    "S603",    # subprocess without shell — needed for tool execution
+    "S607",    # start-process-with-partial-path — needed for tool calls
+    "S110",    # try-except-pass — sometimes intentional
+    "S310",    # suspicious-url-open — needed for recon
+    "S102",    # exec-builtin — needed in singularity engine
+    "S108",    # hardcoded-temp-file — acceptable in pentest
+    "S105",    # hardcoded-password — false positives from test mocks
+    "RUF001",  # Türkçe unicode characters in strings — intentional
+    "RUF002",  # Türkçe unicode in docstrings — intentional
+    "RUF003",  # Türkçe unicode in comments — intentional
+    "RUF012",  # mutable-class-default — many dataclasses use this pattern
+    "SIM102",  # collapsible-if — sometimes clearer separate
+    "SIM108",  # if-else-block-instead-of-if-exp — readability preference
+    "SIM117",  # multiple-with-statements — sometimes clearer separate
+    "RET504",  # unnecessary-assign — readability preference
+    "RET505",  # superfluous-else-return — readability preference
+    "PTH123",  # builtin-open — acceptable in many cases
+    "PTH100",  # os-path-abspath — pathlib migration is large refactor
+    "PTH103",  # os-makedirs — pathlib migration
+    "PTH107",  # os-remove — pathlib migration
+    "PTH108",  # os-unlink — pathlib migration
+    "PTH109",  # os-getcwd — pathlib migration
+    "PTH110",  # os-path-exists — pathlib migration
+    "PTH111",  # os-path-expanduser — pathlib migration
+    "PTH116",  # os-stat — pathlib migration
+    "PTH118",  # os-path-join — pathlib migration
+    "PTH119",  # os-path-basename — pathlib migration
+    "PTH120",  # os-path-dirname — pathlib migration
+    "PTH101",  # os-chmod — pathlib migration
+    "PTH202",  # os-path-getsize — pathlib migration
+    "G004",    # logging-f-string — gradual migration
+    "PERF401", # manual-list-comprehension — sometimes clearer
+    "PERF403", # manual-dict-comprehension — sometimes clearer
+    "C901",    # complex-structure — needs major refactoring, tracked separately
+    "SIM105",  # suppressible-exception — contextlib.suppress not always clearer
+    "SIM115",  # open-file-with-context-handler — sometimes not applicable
+    # New expanded rule ignores
+    "FBT001",  # boolean-type-hint-positional — common pattern in pentest code
+    "FBT002",  # boolean-default-value — common in config flags
+    "FBT003",  # boolean-positional-value — common in simple calls
+    "PLR2004", # magic-value-comparison — many legitimate constants in pentest
+    "PLR0913", # too-many-arguments — complex APIs need many params
+    "PLR0911", # too-many-return-statements — complex decision logic
+    "PLR0912", # too-many-branches — complex decision logic
+    "PLR5501", # collapsible-else-if — readability preference
+    "PLW0603", # global-statement — needed for singletons/caches
+    "PLW2901", # redefined-loop-name — common in data processing
+    "PLW1510", # subprocess-run-without-check — intentional in pentest
+    "PLC0414", # useless-import-alias — used for re-exports
+    "BLE001",  # blind-except — pentest code needs broad catch
+    "TRY401",  # verbose-log-message — informative logging is good
+    "TRY300",  # try-consider-else — style preference
+    "TRY301",  # raise-within-try — sometimes necessary
+    "TRY003",  # raise-vanilla-args — acceptable pattern
+    "TRY004",  # type-check-without-type-error — acceptable in dynamic code
+    "TRY400",  # error-instead-of-exception — gradual fix
+    "N806",    # non-lowercase-variable-in-function — constants in functions
+    "N802",    # invalid-function-name — some callback/API names
+    "N803",    # invalid-argument-name — some API conformance
+    "N814",    # camelcase-imported-as-constant — library conventions
+    "N818",    # error-suffix-on-exception-name — existing codebase
+    "A002",    # builtin-argument-shadowing — common `type`, `id` params
+    "ARG001",  # unused-function-argument — callbacks/protocols need them
+    "ARG002",  # unused-method-argument — callback/protocol methods
+    "ARG003",  # unused-class-method-argument — protocol methods
+    "ARG004",  # unused-static-method-argument — protocol methods
+    "DTZ005",  # call-datetime-now-without-tzinfo — acceptable for local timestamps
+    "DTZ006",  # call-datetime-fromtimestamp — acceptable
+    "DTZ001",  # call-datetime-without-tzinfo — acceptable
+    "SLF001",  # private-member-access — common in internal modules
+    "PGH003",  # blanket-type-ignore — gradual typing improvement
+    "INP001",  # implicit-namespace-package — project structure choice
+    "PT019",   # pytest-fixture-param-without-value — style preference
+    "PT001",   # pytest-fixture-incorrect-parentheses — autofix
+    "PT017",   # pytest-assert-in-except — acceptable pattern
+    "PT018",   # pytest-composite-assertion — acceptable pattern
+    "PYI036",  # bad-exit-annotation — gradual typing fix
+    "PYI034",  # non-self-return-type — gradual typing fix
+    "ERA001",  # commented-out-code — some comments are explanatory pseudo-code
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+[lint.per-file-ignores]
+# Test files can access private members, use broad exceptions, print, etc.
+"tests/*.py" = ["SLF001", "BLE001", "ARG", "PLW", "T201", "S", "PERF", "RUF015", "G", "ERA", "N", "FBT", "TRY", "PLR", "EM", "PT", "COM", "DTZ", "Q"]
+"tests_backup/*.py" = ["ALL"]
+# Scripts are utility files
+"scripts/*.py" = ["BLE001", "PTH", "PERF", "T201", "S", "ERA", "TRY"]
+# Main entry point uses print and shell clear for UI
+"drakben.py" = ["T201", "S605"]
+# Core agent orchestrator uses print and subprocess for tool execution
+"core/agent/pentest_orchestrator.py" = ["T201", "S602"]
+# Tool registry uses print and subprocess for tool execution
+"core/tools/tool_registry.py" = ["T201", "S602"]
+# Network researcher uses print
+"core/network/web_researcher.py" = ["T201"]
+# Interactive shell uses print, subprocess, eval for REPL
+"core/ui/interactive_shell.py" = ["T201", "S602", "S605", "S307"]
+# Menu uses shell clear
+"core/ui/menu.py" = ["T201", "S605"]
+# Modules may need subprocess/exec for pentest tooling
+"modules/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
+"modules/**/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
+# Core execution needs subprocess
+"core/execution/*.py" = ["S602", "S603", "S604", "S605", "S607"]
+# Core agent/network may use insecure hashing for pentest
+"core/network/*.py" = ["S324", "S507"]
+"core/security/*.py" = ["S324"]
+# UI modules use print
+"core/ui/*.py" = ["T201"]
+# Singularity needs exec/eval
+"core/singularity/*.py" = ["S102", "S307", "S603"]
+# Recovery healer needs subprocess
+"core/agent/recovery/*.py" = ["S602", "S603", "S604", "S605", "S607"]
+
+[lint.isort]
+# Sort imports
+known-first-party = ["core", "modules", "llm"]
+
+[format]
+# Use double quotes
+quote-style = "double"
+# Indent with spaces
+indent-style = "space"
