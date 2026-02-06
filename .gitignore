@@ -75,6 +75,10 @@ sonar-project.properties
 
 # Linter/formatter config (local)
 ruff.toml
+mypy.ini
+
+# Windows launcher (local only)
+start.bat
 
 # Logs (generated at runtime, keep .gitkeep)
 logs/*
