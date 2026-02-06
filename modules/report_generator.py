@@ -60,6 +60,7 @@ class Finding:
     cve_id: str | None = None
     cvss_score: float | None = None
     references: list[str] = field(default_factory=list)
+    screenshots: list[str] = field(default_factory=list)  # Paths to screenshot files
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +73,7 @@ class Finding:
             "cve_id": self.cve_id,
             "cvss_score": self.cvss_score,
             "references": self.references,
+            "screenshots": self.screenshots,
         }
 
 
@@ -244,50 +246,7 @@ class ReportGenerator:
     def _generate_html(self) -> str:
         """Generate HTML report with Chart.js visualization."""
         stats = self.get_statistics()
-
-        # Sort findings by severity
-        sorted_findings = sorted(
-            self.findings,
-            key=lambda f: ["critical", "high", "medium", "low", "info"].index(
-                f.severity.value,
-            ),
-        )
-
-        findings_html = ""
-        for i, finding in enumerate(sorted_findings, 1):
-            severity_class = f"severity-{finding.severity.value}"
-
-            finding_body = (
-                f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
-            )
-            finding_body += (
-                f"<p><strong>Description:</strong> {finding.description}</p>"
-            )
-
-            if finding.cve_id:
-                finding_body += f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>"
-
-            if finding.evidence:
-                finding_body += f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>'
-
-            if finding.remediation:
-                finding_body += (
-                    f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
-                )
-
-            findings_html += f"""
-            <div class="finding {severity_class}">
-                <div class="finding-header" onclick="this.parentElement.classList.toggle('active')">
-                    <span class="finding-number">#{i}</span>
-                    <span class="finding-title">{finding.title}</span>
-                    <span class="severity-badge {severity_class}">{finding.severity.value.upper()}</span>
-                    <span class="toggle-icon">&#9660;</span>
-                </div>
-                <div class="finding-body">
-                    {finding_body}
-                </div>
-            </div>
-            """
+        findings_html = self._build_findings_list_html()
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -632,6 +591,68 @@ class ReportGenerator:
 </body>
 </html>"""
 
+    def _build_finding_body_html(self, finding: "Finding") -> str:
+        """Build the HTML body content for a single finding."""
+        body = (
+            f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
+            f"<p><strong>Description:</strong> {finding.description}</p>"
+        )
+        if finding.cve_id:
+            body += f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>"
+        if finding.evidence:
+            body += f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>'
+        if finding.screenshots:
+            body += self._build_screenshots_html(finding.screenshots)
+        if finding.remediation:
+            body += f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
+        return body
+
+    def _build_screenshots_html(self, screenshots: list[str]) -> str:
+        """Build HTML for embedded screenshot images."""
+        import base64
+
+        html = '<div class="screenshots"><strong>Screenshots:</strong><br>'
+        for ss_path in screenshots:
+            try:
+                ss_file = Path(ss_path)
+                if ss_file.exists():
+                    data = base64.b64encode(ss_file.read_bytes()).decode()
+                    ext = ss_file.suffix.lower().lstrip(".")
+                    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif"}.get(ext, "image/png")
+                    html += f'<img src="data:{mime};base64,{data}" style="max-width:100%;margin:8px 0;border:1px solid #444;border-radius:4px;" alt="{ss_file.name}"><br>'
+            except Exception:
+                html += f'<p style="color:#666;">[Screenshot: {ss_path}]</p>'
+        html += "</div>"
+        return html
+
+    def _build_findings_list_html(self) -> str:
+        """Build HTML for all findings sorted by severity."""
+        sorted_findings = sorted(
+            self.findings,
+            key=lambda f: ["critical", "high", "medium", "low", "info"].index(
+                f.severity.value,
+            ),
+        )
+
+        findings_html = ""
+        for i, finding in enumerate(sorted_findings, 1):
+            severity_class = f"severity-{finding.severity.value}"
+            finding_body = self._build_finding_body_html(finding)
+            findings_html += f"""
+            <div class="finding {severity_class}">
+                <div class="finding-header" onclick="this.parentElement.classList.toggle('active')">
+                    <span class="finding-number">#{i}</span>
+                    <span class="finding-title">{finding.title}</span>
+                    <span class="severity-badge {severity_class}">{finding.severity.value.upper()}</span>
+                    <span class="toggle-icon">&#9660;</span>
+                </div>
+                <div class="finding-body">
+                    {finding_body}
+                </div>
+            </div>
+            """
+        return findings_html
+
     def _generate_executive_summary_html(self, stats: dict[str, Any]) -> str:
         """Generate executive summary section with Optional AI Insight."""
         total = stats["total_findings"]
@@ -677,23 +698,66 @@ class ReportGenerator:
         </div>
         """
 
-    def _generate_ai_insight(self, _critical: int, _high: int, risk: int) -> str:
-        """Generate C-Level insight using simulated LLM logic."""
-        # In a real scenario, this communicates with UniversalAdapter's LLM
-        insight = "<div style='margin-top: 15px; padding: 10px; background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
-        insight += "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
+    def _generate_ai_insight(self, critical: int, high: int, risk: int) -> str:
+        """Generate C-Level insight via LLM with rule-based fallback.
+
+        Attempts to use the configured LLM (OpenRouter/Ollama) for a real
+        strategic analysis.  Falls back to template text when the LLM is
+        unavailable or the call fails.
+        """
+        # --- Try real LLM first ---
+        try:
+            from llm.openrouter_client import OpenRouterClient
+
+            client = OpenRouterClient()
+            prompt = (
+                f"You are a senior cybersecurity consultant writing a 3-sentence "
+                f"executive summary for a penetration test report.\n\n"
+                f"Stats: {critical} critical, {high} high-severity findings.  "
+                f"Overall risk score: {risk}/100.\n\n"
+                f"Provide a concise, C-Level friendly strategic recommendation. "
+                f"Do NOT use markdown. Plain text only."
+            )
+            llm_text = client.query(
+                prompt=prompt,
+                system_prompt="You are a concise security analyst.",
+                timeout=15,
+            )
+            if llm_text and len(llm_text.strip()) > 20:
+                insight = (
+                    "<div style='margin-top: 15px; padding: 10px; "
+                    "background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
+                    "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
+                    f"{llm_text.strip()}</div>"
+                )
+                return insight
+        except Exception:
+            logger.debug("LLM insight unavailable, using rule-based fallback")
+
+        # --- Rule-based fallback ---
+        insight = (
+            "<div style='margin-top: 15px; padding: 10px; "
+            "background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
+            "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
+        )
 
         if risk > 80:
-            insight += "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
-            insight += "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
-            insight += "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+            insight += (
+                "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
+                "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
+                "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+            )
         elif risk > 50:
-            insight += "Security posture is compromised with significant risks reachable from external networks. "
-            insight += "Potential for lateral movement is high. "
-            insight += "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
+            insight += (
+                "Security posture is compromised with significant risks reachable from external networks. "
+                "Potential for lateral movement is high. "
+                "<strong>Recommendation:</strong> Schedule emergency maintenance window within 48 hours."
+            )
         else:
-            insight += "Security posture is generally robust, though some hygiene issues remain. "
-            insight += "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
+            insight += (
+                "Security posture is generally robust, though some hygiene issues remain. "
+                "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
+            )
 
         insight += "</div>"
         return insight
@@ -897,6 +961,84 @@ def generate_report_from_state(
                 logger.debug("Skipping invalid finding: %s", e)
 
     return generator.generate(format, output_path)
+
+
+def capture_screenshot(url: str, output_dir: str = "logs/screenshots") -> str | None:
+    """Capture a screenshot of a web page.
+
+    Tries multiple approaches:
+    1. Playwright (headless Chromium)
+    2. Selenium (headless Chrome)
+    3. External cutycapt/wkhtmltoimage tool
+
+    Args:
+        url: URL to capture
+        output_dir: Directory to save screenshots
+
+    Returns:
+        Path to saved screenshot file, or None on failure
+    """
+    import os
+    import time
+    from pathlib import Path
+
+    os.makedirs(output_dir, exist_ok=True)
+    timestamp = int(time.time())
+    safe_name = url.replace("://", "_").replace("/", "_").replace(":", "_")[:60]
+    filename = f"{safe_name}_{timestamp}.png"
+    filepath = str(Path(output_dir) / filename)
+
+    # Attempt 1: Playwright
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, timeout=15000, wait_until="networkidle")
+            page.screenshot(path=filepath, full_page=True)
+            browser.close()
+            logger.info("Screenshot captured (playwright): %s", filepath)
+            return filepath
+    except Exception:
+        pass
+
+    # Attempt 2: Selenium
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        driver = webdriver.Chrome(options=opts)
+        driver.set_page_load_timeout(15)
+        driver.get(url)
+        driver.save_screenshot(filepath)
+        driver.quit()
+        logger.info("Screenshot captured (selenium): %s", filepath)
+        return filepath
+    except Exception:
+        pass
+
+    # Attempt 3: External tool
+    try:
+        import subprocess
+        for tool_cmd in [
+            ["cutycapt", f"--url={url}", f"--out={filepath}"],
+            ["wkhtmltoimage", "--quiet", url, filepath],
+        ]:
+            try:
+                subprocess.run(tool_cmd, timeout=15, capture_output=True, check=True)
+                if Path(filepath).exists():
+                    logger.info("Screenshot captured (%s): %s", tool_cmd[0], filepath)
+                    return filepath
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+    except Exception:
+        pass
+
+    logger.debug("Screenshot capture failed for %s (no available backend)", url)
+    return None
 
 
 def create_report_from_state(state: AgentState, output_dir: str = "reports") -> str:

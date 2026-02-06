@@ -3,6 +3,7 @@ Author: @drak_ben
 Description: AI-guided mutation fuzzer for vulnerability discovery.
 """
 
+import asyncio
 import logging
 import secrets
 import time
@@ -248,7 +249,7 @@ class SmartFuzzer:
         seed_payloads: list[str] | None = None,
         iterations: int = DEFAULT_ENDPOINT_ITERATIONS,
         headers: dict[str, str] | None = None,
-        timeout: float = 10.0,
+        request_timeout: float = 10.0,
     ) -> list[FuzzResult]:
         """Fuzz an HTTP endpoint with mutated payloads.
 
@@ -258,7 +259,7 @@ class SmartFuzzer:
             seed_payloads: Seed payloads to mutate
             iterations: Number of fuzzing iterations
             headers: Custom HTTP headers
-            timeout: Request timeout in seconds
+            request_timeout: Request timeout in seconds
 
         Returns:
             List of FuzzResult for interesting responses
@@ -269,10 +270,10 @@ class SmartFuzzer:
         results = []
         default_seeds = [
             '{"test": "value"}',
-            '<xml>test</xml>',
-            'param=value&other=test',
-            'A' * 1000,
-            '../../../etc/passwd',
+            "<xml>test</xml>",
+            "param=value&other=test",
+            "A" * 1000,
+            "../../../etc/passwd",
             "' OR '1'='1",
         ]
         payloads = seed_payloads or default_seeds
@@ -289,13 +290,12 @@ class SmartFuzzer:
 
                 start_time = time.time()
                 try:
-                    async with session.request(
+                    async with asyncio.timeout(request_timeout), session.request(
                         method,
                         url,
                         data=fuzz_payload,
                         headers=req_headers,
-                        timeout=aiohttp.ClientTimeout(total=timeout),
-                        ssl=False,  # noqa: S501 - Security tool testing self-signed certs
+                        ssl=False,  # NOSONAR — SSL verification intentionally disabled for pentesting fuzzer
                     ) as response:
                         exec_time = time.time() - start_time
                         status = response.status

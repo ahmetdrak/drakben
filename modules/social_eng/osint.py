@@ -137,21 +137,21 @@ class OSINTSpider:
 
             # MX Records
             try:
-                mx_answers = resolver.resolve(domain, 'MX')
-                intel.mx_records = [str(r.exchange).rstrip('.') for r in mx_answers]
+                mx_answers = resolver.resolve(domain, "MX")
+                intel.mx_records = [str(r.exchange).rstrip(".") for r in mx_answers]
             except Exception:
                 pass
 
             # NS Records
             try:
-                ns_answers = resolver.resolve(domain, 'NS')
-                intel.name_servers = [str(r).rstrip('.') for r in ns_answers]
+                ns_answers = resolver.resolve(domain, "NS")
+                intel.name_servers = [str(r).rstrip(".") for r in ns_answers]
             except Exception:
                 pass
 
             # TXT Records (SPF, DKIM, etc.)
             try:
-                txt_answers = resolver.resolve(domain, 'TXT')
+                txt_answers = resolver.resolve(domain, "TXT")
                 intel.txt_records = [str(r) for r in txt_answers]
             except Exception:
                 pass
@@ -236,11 +236,11 @@ class OSINTSpider:
 
         try:
             from bs4 import BeautifulSoup
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
             # Look for common patterns
             # Pattern 1: Name in heading with role in nearby text
-            for tag in soup.find_all(['h2', 'h3', 'h4', 'strong', 'b']):
+            for tag in soup.find_all(["h2", "h3", "h4", "strong", "b"]):
                 text = tag.get_text(strip=True)
                 if self._looks_like_name(text):
                     # Try to find role nearby
@@ -248,9 +248,9 @@ class OSINTSpider:
                     results.append((text, role))
 
             # Pattern 2: Structured team sections
-            for card in soup.find_all(class_=re.compile(r'team|member|staff|employee', re.I)):
-                name_elem = card.find(['h2', 'h3', 'h4', 'strong'])
-                role_elem = card.find(class_=re.compile(r'role|title|position', re.I))
+            for card in soup.find_all(class_=re.compile(r"team|member|staff|employee", re.IGNORECASE)):
+                name_elem = card.find(["h2", "h3", "h4", "strong"])
+                role_elem = card.find(class_=re.compile(r"role|title|position", re.IGNORECASE))
 
                 if name_elem:
                     name = name_elem.get_text(strip=True)
@@ -278,21 +278,18 @@ class OSINTSpider:
 
         # Each word should be capitalized and alphabetic
         for word in words:
-            if not word[0].isupper() or not word.replace('-', '').replace("'", '').isalpha():
+            if not word[0].isupper() or not word.replace("-", "").replace("'", "").isalpha():
                 return False
 
         # Filter out common false positives
-        false_positives = {'About Us', 'Contact Us', 'Our Team', 'Learn More', 'Read More'}
-        if text in false_positives:
-            return False
-
-        return True
+        false_positives = {"About Us", "Contact Us", "Our Team", "Learn More", "Read More"}
+        return text not in false_positives
 
     def _find_nearby_role(self, element: Any) -> str:
         """Find role/title near a name element."""
-        role_keywords = {'ceo', 'cto', 'cfo', 'coo', 'director', 'manager',
-                        'engineer', 'developer', 'analyst', 'administrator',
-                        'president', 'founder', 'head', 'lead', 'senior', 'chief'}
+        role_keywords = {"ceo", "cto", "cfo", "coo", "director", "manager",
+                        "engineer", "developer", "analyst", "administrator",
+                        "president", "founder", "head", "lead", "senior", "chief"}
 
         # Check next sibling
         next_elem = element.find_next_sibling()
@@ -312,16 +309,16 @@ class OSINTSpider:
 
     def _extract_role_from_element(self, elem: Any, keywords: set[str]) -> str | None:
         """Extract role text from element if it contains role keywords."""
-        text = elem.get_text(strip=True).lower() if hasattr(elem, 'get_text') else str(elem).lower()
+        text = elem.get_text(strip=True).lower() if hasattr(elem, "get_text") else str(elem).lower()
         for keyword in keywords:
             if keyword in text:
-                return elem.get_text(strip=True) if hasattr(elem, 'get_text') else str(elem)
+                return elem.get_text(strip=True) if hasattr(elem, "get_text") else str(elem)
         return None
 
     def _search_parent_for_role(self, parent: Any, exclude: Any, keywords: set[str]) -> str | None:
         """Search parent's children for role information."""
         for child in parent.children:
-            if child != exclude and hasattr(child, 'get_text'):
+            if child != exclude and hasattr(child, "get_text"):
                 text = child.get_text(strip=True).lower()
                 for keyword in keywords:
                     if keyword in text:
@@ -331,7 +328,7 @@ class OSINTSpider:
     def _find_social_profiles(self, name: str) -> list[str]:
         """Find potential social profiles for a person."""
         profiles = []
-        name_slug = name.lower().replace(' ', '')
+        name_slug = name.lower().replace(" ", "")
 
         profiles.append(f"linkedin.com/in/{name_slug}")
         profiles.append(f"twitter.com/{name_slug}")
@@ -349,8 +346,8 @@ class OSINTSpider:
 
         # DuckDuckGo HTML search (no API key needed)
         dorks = [
-            f"site:linkedin.com/in \"{domain}\"",
-            f"site:{domain} \"team\" OR \"about\" OR \"staff\"",
+            f'site:linkedin.com/in "{domain}"',
+            f'site:{domain} "team" OR "about" OR "staff"',
         ]
 
         try:
@@ -380,7 +377,7 @@ class OSINTSpider:
         names = []
 
         # LinkedIn pattern: "FirstName LastName - Title | LinkedIn"
-        linkedin_pattern = r'([A-Z][a-z]+ [A-Z][a-z]+)\s*[-–]\s*[^|]+\|\s*LinkedIn'
+        linkedin_pattern = r"([A-Z][a-z]+ [A-Z][a-z]+)\s*[-–]\s*[^|]+\|\s*LinkedIn"
         matches = re.findall(linkedin_pattern, html)
         names.extend(matches)
 
@@ -437,25 +434,25 @@ class OSINTSpider:
 
     def _verify_email_syntax(self, email: str) -> bool:
         """Verify email syntax is valid."""
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
 
     def verify_email_exists(self, email: str) -> bool:
         """Verify if email exists using SMTP check (passive)."""
         try:
-            domain = email.split('@')[1]
+            domain = email.split("@")[1]
 
             # Get MX record
             import dns.resolver
-            mx_records = dns.resolver.resolve(domain, 'MX')
-            mx_host = str(mx_records[0].exchange).rstrip('.')
+            mx_records = dns.resolver.resolve(domain, "MX")
+            mx_host = str(mx_records[0].exchange).rstrip(".")
 
             # Connect and check (RCPT TO verification)
             import smtplib
             server = smtplib.SMTP(timeout=10)
             server.connect(mx_host)
-            server.helo('verify.local')
-            server.mail('test@verify.local')
+            server.helo("verify.local")
+            server.mail("test@verify.local")
             code, _ = server.rcpt(email)
             server.quit()
 

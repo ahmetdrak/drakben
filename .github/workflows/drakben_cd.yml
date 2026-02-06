@@ -1,0 +1,125 @@
+name: DRAKBEN CD — Release & Docker
+
+on:
+  push:
+    tags:
+      - "v*"          # Trigger on version tags (v1.0.0, v2.3.1, etc.)
+
+permissions:
+  contents: write    # For creating GitHub Releases
+
+jobs:
+  # ---- Step 1: Run full CI checks first ----
+  ci-gate:
+    name: CI Gate (Tests + Lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-mock ruff
+
+      - name: Ruff Check
+        run: python -m ruff check . --output-format=text
+
+      - name: Run All Tests
+        run: |
+          python -m pytest tests/ --tb=short --disable-warnings \
+            --cov=core --cov=modules --cov-report=xml
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # ---- Step 2: Create GitHub Release ----
+  release:
+    name: Create GitHub Release
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Full history for changelog
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Changelog (last tag..HEAD)
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --oneline --no-merges | head -50)
+          else
+            CHANGELOG=$(git log "$PREV_TAG"..HEAD --oneline --no-merges)
+          fi
+          # Write multiline output
+          {
+            echo "BODY<<EOF"
+            echo "## What's Changed"
+            echo ""
+            echo "$CHANGELOG"
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...${{ steps.version.outputs.VERSION }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: "DRAKBEN ${{ steps.version.outputs.VERSION }}"
+          body: ${{ steps.changelog.outputs.BODY }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-rc') || contains(steps.version.outputs.VERSION, '-beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---- Step 3: Build & Push Docker Image ----
+  docker:
+    name: Docker Build & Push
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/drakben:${{ steps.version.outputs.VERSION }}
+            ${{ env.DOCKERHUB_USERNAME }}/drakben:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

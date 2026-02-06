@@ -209,11 +209,7 @@ def is_valid_command(cmd: str) -> bool:
         return True
 
     # Check aliases
-    for cmd_info in COMMANDS.values():
-        if cmd_clean in cmd_info.aliases:
-            return True
-
-    return False
+    return any(cmd_clean in cmd_info.aliases for cmd_info in COMMANDS.values())
 
 
 def resolve_alias(cmd: str) -> str:

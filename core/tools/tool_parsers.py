@@ -378,7 +378,7 @@ def parse_tool_output(tool_name: str, output: str, llm_client=None) -> list[dict
                 return parser_func(output, llm_client)
             return parser_func(output)
         except Exception as e:
-            logger.exception("Parser error for {tool_name}: %s", e)
+            logger.exception("Parser error for %s: %s", tool_name, e)
             return []
 
     # Default/Fallback parser for unknown tools - return empty list

@@ -94,7 +94,7 @@ class WebResearcher:
     def download_file(self, url: str, output_path: str) -> bool | None:
         """Downloads a file using Stealth Session (Bypasses firewall blocks)."""
         try:
-            logger.info("Stealth Downloading from {url} to %s", output_path)
+            logger.info("Stealth Downloading from %s to %s", url, output_path)
 
             # Note: curl_cffi doesn't support stream=True in the same way requests does for file iteration
             # We download in memory then write for now (assuming files < 50MB)

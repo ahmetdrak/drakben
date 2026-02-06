@@ -28,7 +28,6 @@ if env_file.exists():
     load_dotenv(env_file)
 
 # Initialize logging
-# Initialize logging
 setup_logging(
     level="INFO",
     log_dir="logs",

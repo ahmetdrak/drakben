@@ -1,4 +1,4 @@
-# core/execution/tool_selector.py
+﻿# core/execution/tool_selector.py
 # DRAKBEN Tool Selector - DETERMINISTIC TOOL SELECTION
 # REQUIRED: LLM tool selection limited to state.remaining_attack_surface
 # NEW: KaliDetector integration - only available tools
@@ -184,7 +184,7 @@ class ToolSelector:
                 command_template="",  # No command - Python module call
                 phase_allowed=[AttackPhase.INIT, AttackPhase.RECON],
                 risk_level="low",
-                system_tool=False,  # Built-in Python module
+                system_tool="",  # Built-in Python module
             ),
             # VULN SCAN tools
             "nmap_vuln_scan": ToolSpec(
@@ -264,7 +264,7 @@ class ToolSelector:
                 command_template="INTERNAL_MODULE",
                 phase_allowed=[AttackPhase.RECON, AttackPhase.POST_EXPLOIT],
                 risk_level="medium",
-                system_tool=False,
+                system_tool="",
                 description="Swarm intelligence network scan for lateral movement targets",
             ),
             "hive_mind_attack": ToolSpec(
@@ -274,7 +274,7 @@ class ToolSelector:
                 phase_allowed=[AttackPhase.POST_EXPLOIT],
                 requires_foothold=True,
                 risk_level="critical",
-                system_tool=False,
+                system_tool="",
                 description="Perform lateral movement attacks (SSH/Pass-the-Hash)",
             ),
             # WEAPON FOUNDRY (CUSTOM PAYLOADS)
@@ -284,7 +284,7 @@ class ToolSelector:
                 command_template="INTERNAL_MODULE",
                 phase_allowed=[AttackPhase.EXPLOIT, AttackPhase.FOOTHOLD],
                 risk_level="medium",
-                system_tool=False,
+                system_tool="",
                 description="Generate FUD payloads using WeaponFoundry (Anti-Debug/Encryption)",
             ),
             # SINGULARITY (CODE SYNTHESIS)
@@ -298,7 +298,7 @@ class ToolSelector:
                     AttackPhase.POST_EXPLOIT,
                 ],
                 risk_level="high",
-                system_tool=False,
+                system_tool="",
                 description="Generate custom Python/Go scripts for unique attack vectors",
             ),
             # SOCIAL ENGINEERING (OSINT)
@@ -308,7 +308,7 @@ class ToolSelector:
                 command_template="INTERNAL_MODULE",
                 phase_allowed=[AttackPhase.RECON],
                 risk_level="low",
-                system_tool=False,
+                system_tool="",
                 description="Perform OSINT and profile target",
             ),
             # ADVANCED / CREATIVE tools
@@ -379,7 +379,7 @@ class ToolSelector:
 
             allowed.append(tool_name)
 
-        # 🧠 DECISION LOGIC: Sort by priority (Evolutionary outcome)
+        # ğŸ§  DECISION LOGIC: Sort by priority (Evolutionary outcome)
         # Higher priority tools appear first in the list
         allowed.sort(key=lambda t: self.tools[t].priority, reverse=True)
 

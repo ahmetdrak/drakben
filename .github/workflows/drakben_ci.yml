@@ -10,9 +10,11 @@ jobs:
   ultimate-audit:
     name: Comprehensive Security & Integrity Audit
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -21,27 +23,30 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        cache: pip
         
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-asyncio pytest-cov weasyprint ruff bandit mypy
+        pip install pytest pytest-asyncio pytest-cov ruff bandit mypy
         
-    - name: 🔍 Static Analysis (Ruff)
-      run: python -m ruff check . --output-format=text > ruff_report.txt 2>&1 || true
+    - name: Static Analysis (Ruff)
+      run: python -m ruff check . --output-format=text
       
-    - name: 🛡️ Security Deep Scan (Bandit)
-      run: python -m bandit -r core/ modules/ -ll -f txt > bandit_report.txt 2>&1 || true
-      
-    - name: ⚙️ Type Integrity Check (MyPy)
-      run: python -m mypy core/ --ignore-missing-imports 2>&1 || true
+    - name: Security Deep Scan (Bandit)
+      run: python -m bandit -r core/ modules/ -ll -f txt
 
-    - name: 🧪 Run All Tests
+    - name: Type Integrity Check (MyPy)
+      run: python -m mypy core/ --ignore-missing-imports
+
+    - name: Run All Tests with Coverage
       run: |
-        python -m pytest tests/ -v --tb=short --disable-warnings -x 2>&1 || true
+        python -m pytest tests/ -v --tb=short --disable-warnings \
+          --cov=core --cov=modules --cov-report=xml --cov-report=term-missing
 
-    - name: Code Coverage
+    - name: Upload Coverage to Codecov
+      if: matrix.python-version == '3.13'
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
@@ -49,15 +54,15 @@ jobs:
         fail_ci_if_error: false
 
     - name: Upload Audit Reports
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: drakben-audit-reports
+        name: drakben-audit-reports-${{ matrix.python-version }}
         path: |
-          ruff_report.txt
-          bandit_report.txt
           coverage.xml
 
     - name: SonarCloud Scan
+      if: env.SONAR_TOKEN != ''
       uses: SonarSource/sonarcloud-github-action@master
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

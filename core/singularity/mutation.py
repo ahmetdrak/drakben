@@ -143,11 +143,11 @@ class MutationEngine(IMutationEngine):
         )
 
         # Insert at random line
-        lines = code.split('\n')
+        lines = code.split("\n")
         if len(lines) > 1:
             insert_pos = secrets.randbelow(len(lines) - 1) + 1
             lines.insert(insert_pos, dead_code)
-            return '\n'.join(lines)
+            return "\n".join(lines)
         return code + dead_code
 
     def _inject_junk_loops(self, code: str) -> str:
@@ -158,16 +158,16 @@ for _i_{secrets.token_hex(2)} in range(0):
     _junk_{secrets.token_hex(4)} += 1
 """
         # Insert after imports
-        lines = code.split('\n')
+        lines = code.split("\n")
         insert_pos = 0
         for i, line in enumerate(lines):
-            if not line.startswith(('import ', 'from ', '#', '"""', "'''")):
+            if not line.startswith(("import ", "from ", "#", '"""', "'''")):
                 if line.strip():
                     insert_pos = i
                     break
 
         lines.insert(insert_pos, junk_loop)
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _encrypt_strings(self, code: str) -> str:
         """Replace string literals with XOR-encoded versions.
@@ -195,12 +195,12 @@ def _xd(s, k):
         """Replace operations with equivalent alternatives."""
         substitutions = [
             # a + b -> a - (-b)
-            (' + ', ' - (-'),
+            (" + ", " - (-"),
             # a == b -> not (a != b)
-            (' == ', ' != '),
+            (" == ", " != "),
             # True -> (1 == 1)
-            ('True', '(1 == 1)'),
-            ('False', '(1 == 0)'),
+            ("True", "(1 == 1)"),
+            ("False", "(1 == 0)"),
         ]
 
         # Apply one random substitution
@@ -260,7 +260,7 @@ class VariableRenamer(ast.NodeTransformer):
         self.var_map: dict[str, str] = {}
         self.counter = 0
         # Don't rename these
-        self.preserved = {'self', 'cls', 'args', 'kwargs', 'True', 'False', 'None'}
+        self.preserved = {"self", "cls", "args", "kwargs", "True", "False", "None"}
 
     def _get_new_name(self, old_name: str) -> str:
         """Generate a new random variable name."""
@@ -300,7 +300,7 @@ class StringEncryptor(ast.NodeTransformer):
             encoded = "".join(chr(ord(c) ^ self.key) for c in node.value)
             # Return call to decoder: _xd("encoded", key)
             return ast.Call(
-                func=ast.Name(id='_xd', ctx=ast.Load()),
+                func=ast.Name(id="_xd", ctx=ast.Load()),
                 args=[
                     ast.Constant(value=encoded),
                     ast.Constant(value=self.key),

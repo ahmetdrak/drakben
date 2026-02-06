@@ -168,7 +168,8 @@ class Planner:
 
     def _save_and_load_plan(self, plan_id: str, goal: str, steps: list[dict]) -> None:
         """Persist plan to memory and load into local state."""
-        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        if self.memory:
+            self.memory.create_plan(goal, steps, plan_id=plan_id)
         self.current_plan_id = plan_id
         self.steps = [self._dict_to_step(s) for s in steps]
         self.current_step_index = 0
@@ -257,6 +258,8 @@ class Planner:
 
     def _apply_adaptive_learning(self, step: PlanStep, context: dict) -> None:
         """Adjust system heuristics based on failure context."""
+        if not self.memory:
+            return
         if context["is_timeout"]:
             # Backend learning: Increase timeout tolerance
             self.memory.update_heuristic("default_timeout", lambda x: min(x * 1.5, 300))
@@ -302,6 +305,8 @@ class Planner:
 
     def _penalize_tool(self) -> None:
         """Increase penalty for a failed tool."""
+        if not self.memory:
+            return
         current = self.memory.get_heuristic("penalty_increment")
         self.memory.set_heuristic("penalty_increment", min(20.0, current + 1.0))
 
@@ -455,7 +460,8 @@ class Planner:
         ]
 
         # Store in persistent memory
-        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        if self.memory:
+            self.memory.create_plan(goal, steps, plan_id=plan_id)
 
         # Load into local state
         self.current_plan_id = plan_id
@@ -493,7 +499,8 @@ class Planner:
             return self.create_plan_for_target(target, goal)
 
         # Store in persistent memory
-        self.memory.create_plan(goal, steps, plan_id=plan_id)
+        if self.memory:
+            self.memory.create_plan(goal, steps, plan_id=plan_id)
 
         # Load into local state
         self.current_plan_id = plan_id
@@ -504,6 +511,8 @@ class Planner:
 
     def load_plan(self, plan_id: str) -> bool:
         """Load existing plan from memory."""
+        if not self.memory:
+            return False
         plan_record = self.memory.get_plan(plan_id)
         if plan_record is None:
             return False
@@ -526,7 +535,7 @@ class Planner:
 
     def _is_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked and skip if so."""
-        if not self.memory.is_tool_blocked(step.tool, step.target):
+        if not self.memory or not self.memory.is_tool_blocked(step.tool, step.target):
             return False
         step.status = StepStatus.SKIPPED
         step.error = f"Tool {step.tool} blocked for target {step.target} due to high penalty"
@@ -663,14 +672,14 @@ class Planner:
 
         for tool in candidates:
             # LOGIC FIX: Target-aware alternative tool selection
-            if tool != failed_tool and not self.memory.is_tool_blocked(tool, target):
+            if tool != failed_tool and (not self.memory or not self.memory.is_tool_blocked(tool, target)):
                 return tool
 
         return None
 
     def _persist_steps(self) -> None:
         """Save current steps to memory."""
-        if self.current_plan_id:
+        if self.current_plan_id and self.memory:
             steps_data = [self._step_to_dict(s) for s in self.steps]
             self.memory.update_plan_steps(self.current_plan_id, steps_data)
 
@@ -690,7 +699,8 @@ class Planner:
         required_fields = ["step_id", "action", "tool", "target"]
         missing = [f for f in required_fields if f not in d]
         if missing:
-            raise ValueError(f"Missing required fields in step dict: {missing}")
+            msg = f"Missing required fields in step dict: {missing}"
+            raise ValueError(msg)
 
         return PlanStep(
             step_id=d["step_id"],

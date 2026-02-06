@@ -171,10 +171,10 @@ WantedBy=multi-user.target
 
             if not has_win32service or not has_win32serviceutil:
                 logger.warning(
-                    "pywin32 not installed. Install with: pip install pywin32"
+                    "pywin32 not installed. Install with: pip install pywin32",
                 )
                 logger.info(
-                    "Alternative: Use NSSM (Non-Sucking Service Manager) or Task Scheduler"
+                    "Alternative: Use NSSM (Non-Sucking Service Manager) or Task Scheduler",
                 )
                 return self._install_via_nssm()
 
@@ -203,18 +203,18 @@ WantedBy=multi-user.target
         nssm_path = shutil.which("nssm")
         if not nssm_path:
             logger.warning(
-                "NSSM not found. Download from https://nssm.cc/ and add to PATH"
+                "NSSM not found. Download from https://nssm.cc/ and add to PATH",
             )
             logger.info("Alternative methods:")
             logger.info("  1. Use Task Scheduler for periodic execution")
             logger.info("  2. Install pywin32: pip install pywin32")
-            logger.info("  3. Use sc.exe: sc create drakben binPath= \"python.exe drakben.py\"")
+            logger.info('  3. Use sc.exe: sc create drakben binPath= "python.exe drakben.py"')
             return False
 
         try:
             python_exe = sys.executable
             script_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "drakben.py")
+                os.path.join(os.path.dirname(__file__), "..", "..", "drakben.py"),
             )
 
             # Install service
@@ -246,7 +246,7 @@ WantedBy=multi-user.target
         try:
             python_exe = sys.executable
             script_path = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "drakben.py")
+                os.path.join(os.path.dirname(__file__), "..", "..", "drakben.py"),
             )
 
             # Start detached process

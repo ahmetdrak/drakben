@@ -728,7 +728,7 @@ class PowerShellObfuscator:
     def environment_variable(payload: str, var_name: str = "x") -> str:
         """Store in environment variable."""
         encoded = PayloadObfuscator.base64_encode(payload)
-        return f'$env:{var_name}="{encoded}";iex([System.Text.Encoding]:UTF8.GetString([System.Convert]:FromBase64String($env:{var_name})))'
+        return f'$env:{var_name}="{encoded}";iex([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:{var_name})))'
 
     @staticmethod
     def tick_obfuscation(payload: str) -> str:

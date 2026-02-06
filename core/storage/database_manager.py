@@ -98,7 +98,8 @@ class SQLiteProvider(DatabaseProvider):
                 raise
         # This part should theoretically not be reached if continue/raise logic is correct
         if last_error is None:
-            raise sqlite3.OperationalError("Database operation failed without an error instance")
+            msg = "Database operation failed without an error instance"
+            raise sqlite3.OperationalError(msg)
         raise last_error
 
     def fetch_all(self, query: str, params: tuple = ()) -> list[dict]:

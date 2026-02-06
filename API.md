@@ -528,17 +528,19 @@ dns_info = recon.dns_lookup("example.com")
 whois_info = recon.whois_lookup("example.com")
 ```
 
-### Exploit Module (`modules/exploit.py`)
+### Exploit Module (`modules/exploit/`)
 
 ```python
-from modules.exploit import PolyglotEngine, ExploitRunner
+from modules.exploit import PolyglotEngine, run_sqlmap, test_xss
 
 # Get polyglot payloads
 payloads = PolyglotEngine.get_chimera_payloads()
 
-# Run exploit
-runner = ExploitRunner()
-result = runner.run_sqli_test("http://target.com/page?id=1")
+# Run SQL injection test
+result = run_sqlmap("http://target.com/page?id=1")
+
+# Run XSS test
+xss_result = test_xss("http://target.com/search?q=test")
 ```
 
 ### C2 Framework (`modules/c2_framework.py`)

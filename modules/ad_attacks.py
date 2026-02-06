@@ -6,11 +6,13 @@ Author: @ahmetdrak.
 
 import asyncio
 import logging
-import re
 import secrets
 import socket
 import struct
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import re
 
 # Impacket imports (Must be present in env)
 try:

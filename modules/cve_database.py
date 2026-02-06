@@ -90,21 +90,33 @@ class AutoUpdater:
         """Starts the update loop in a separate thread."""
         import threading
 
+        self.running = True
         t = threading.Thread(target=self._update_loop, daemon=True)
         t.start()
 
+    def stop(self) -> None:
+        """Stop the update loop gracefully."""
+        self.running = False
+
     def _update_loop(self) -> None:
-        """Infinite loop to keep DB fresh."""
+        """Loop to keep DB fresh. Checks self.running for graceful shutdown."""
         import time
 
-        while True:
+        while self.running:
             try:
                 self._perform_incremental_update()
-                # Sleep 6 hours (NVD limits)
-                time.sleep(6 * 3600)
+                # Sleep 6 hours (NVD limits) - check running every 60s
+                for _ in range(360):
+                    if not self.running:
+                        return
+                    time.sleep(60)
             except Exception as e:
                 logger.exception("Auto-Update failed: %s", e)
-                time.sleep(3600)  # Retry in 1 hour
+                # Retry in 1 hour - check running every 60s
+                for _ in range(60):
+                    if not self.running:
+                        return
+                    time.sleep(60)
 
     def _perform_incremental_update(self) -> None:
         """Fetch only CVEs modified since last sync."""
@@ -181,12 +193,14 @@ class CVEDatabase:
 
     def __init__(
         self, db_path: str = "nvd_cache.db", api_key: str | None = None,
+        *, auto_update: bool = True,
     ) -> None:
         """Initialize CVE Database.
 
         Args:
             db_path: Path to SQLite cache database
             api_key: Optional NVD API key for higher rate limits
+            auto_update: Whether to start background update thread (disable in tests)
 
         """
         self.db_path = Path(db_path)
@@ -195,7 +209,8 @@ class CVEDatabase:
 
         # 2026 Auto-Update Mechanism
         self.auto_updater = AutoUpdater(self)
-        self.auto_updater.start_background_update()
+        if auto_update:
+            self.auto_updater.start_background_update()
 
         logger.info("CVE Database initialized: %s (Real-Time Updates Active)", db_path)
 

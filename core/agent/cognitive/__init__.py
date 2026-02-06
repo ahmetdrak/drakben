@@ -60,16 +60,16 @@ from core.agent.cognitive.retrieve import (
 )
 
 __all__ = [
-    # Core modules
-    "PerceiveModule",
-    "RetrieveModule",
-    "ReflectModule",
     # Data classes
     "ContextBudget",
+    # Core modules
+    "PerceiveModule",
+    "ReflectModule",
+    "RetrieveModule",
     "RetrievedContext",
+    "create_reflect_module",
     # Factory functions
     "create_retrieve_module",
-    "create_reflect_module",
     # Convenience functions
     "perceive_tool_output",
 ]

@@ -274,7 +274,7 @@ class TestSQLBypassEngine:
     def test_char_bypass(self) -> None:
         """Test CHAR() bypass."""
         result = SQLBypassEngine.char_bypass("AB")
-        assert "CHAR(65,66)" == result
+        assert result == "CHAR(65,66)"
 
     def test_nested_comments(self) -> None:
         """Test nested comments."""

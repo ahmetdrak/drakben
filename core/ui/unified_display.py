@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress
 from rich.table import Table
 from rich.text import Text
 
 if TYPE_CHECKING:
     from rich.console import RenderableType
+    from rich.progress import Progress
 
 # ==============================================================================
 # ENUMS & DATA CLASSES

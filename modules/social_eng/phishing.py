@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 import string
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
@@ -189,7 +190,7 @@ class PhishingGenerator:
             return ""
 
     def _fix_asset_links(
-        self, soup: BeautifulSoup, base_url: str  # noqa: ARG002
+        self, soup: BeautifulSoup, base_url: str,
     ) -> None:
         """Fix asset links in cloned page.
 
@@ -212,6 +213,77 @@ class PhishingGenerator:
             stacklevel=2,
         )
 
-    def generate_campaign(self, _target_list: list[str], template_name: str) -> None:
-        """Launch a mass mailing campaign."""
-        # Placeholder for SMTP integration
+    def generate_campaign(self, _target_list: list[str], template_name: str) -> dict[str, Any]:
+        """Launch a mass mailing campaign.
+
+        Sends phishing emails to a list of targets using a weaponized template.
+        Requires SMTP configuration via environment variables:
+        - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+
+        Args:
+            _target_list: List of target email addresses
+            template_name: Name of the HTML template file in output_dir
+
+        Returns:
+            Campaign result dict with sent/failed counts
+        """
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        smtp_host = os.environ.get("SMTP_HOST", "")
+        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        smtp_user = os.environ.get("SMTP_USER", "")
+        smtp_pass = os.environ.get("SMTP_PASS", "")
+        smtp_from = os.environ.get("SMTP_FROM", smtp_user)
+
+        if not smtp_host or not smtp_user:
+            logger.error("SMTP not configured — set SMTP_HOST and SMTP_USER env vars")
+            return {"success": False, "error": "SMTP not configured", "sent": 0, "failed": 0}
+
+        # Load HTML template
+        template_path = os.path.join(self.output_dir, template_name, "index.html")
+        if not os.path.exists(template_path):
+            logger.error("Template not found: %s", template_path)
+            return {"success": False, "error": f"Template not found: {template_path}", "sent": 0, "failed": 0}
+
+        with open(template_path, encoding="utf-8") as f:
+            html_body = f.read()
+
+        sent = 0
+        failed = 0
+
+        try:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_pass)
+
+            for target_email in _target_list:
+                try:
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = "Action Required: Verify Your Account"
+                    msg["From"] = smtp_from
+                    msg["To"] = target_email
+
+                    # Plain-text fallback
+                    text_part = MIMEText("Please enable HTML to view this message.", "plain")
+                    html_part = MIMEText(html_body, "html")
+                    msg.attach(text_part)
+                    msg.attach(html_part)
+
+                    server.sendmail(smtp_from, target_email, msg.as_string())
+                    sent += 1
+                    logger.info("Sent to %s", target_email)
+                except smtplib.SMTPException as mail_err:
+                    failed += 1
+                    logger.warning("Failed to send to %s: %s", target_email, mail_err)
+
+            server.quit()
+        except smtplib.SMTPException as e:
+            logger.exception("SMTP connection failed: %s", e)
+            return {"success": False, "error": str(e), "sent": sent, "failed": failed}
+
+        logger.info("Campaign complete: %d sent, %d failed", sent, failed)
+        return {"success": True, "sent": sent, "failed": failed}

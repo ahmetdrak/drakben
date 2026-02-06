@@ -78,6 +78,7 @@ class DrakbenMenu:
     CMD_CONFIG = "/config"
     CMD_UNTARGET = "/untarget"
     CMD_TOOLS = "/tools"
+    CMD_MEMORY = "/memory"
 
     # Modern minimal banner - inspired by professional tools like sqlmap, sherlock
     BANNER = r"""
@@ -116,6 +117,7 @@ class DrakbenMenu:
             self.CMD_CONFIG: self._cmd_config,
             self.CMD_UNTARGET: self._cmd_untarget,
             self.CMD_TOOLS: self._cmd_tools,
+            self.CMD_MEMORY: self._cmd_memory,
         }
 
         # System detection
@@ -702,7 +704,7 @@ class DrakbenMenu:
             command=command,
             risk_level=risk_level,
             reason=description or (f"Step {index} of {total}"),
-            details=[f"Tool: {step.get('tool', 'shell')}" if step.get('tool') else ""],
+            details=[f"Tool: {step.get('tool', 'shell')}" if step.get("tool") else ""],
             allow_auto=risk_level == RiskLevel.LOW,
         )
 
@@ -1040,32 +1042,34 @@ class DrakbenMenu:
         if is_tr:
             commands: list[tuple[str, str]] = [
                 ("/target <IP>", "Hedef belirle"),
-                ("/untarget", "Hedefi temizle"),
-                ("/scan", "Tarama başlat"),
-                ("/status", "Durum göster"),
-                ("/tools", "Araçları listele"),
-                ("/report", "Rapor oluştur"),
-                ("/shell", "Terminal erişimi"),
-                ("/config", "Ayarlar"),
+                (self.CMD_UNTARGET, "Hedefi temizle"),
+                (self.CMD_SCAN, "Tarama başlat"),
+                (self.CMD_STATUS, "Durum göster"),
+                (self.CMD_TOOLS, "Araçları listele"),
+                (self.CMD_REPORT, "Rapor oluştur"),
+                (self.CMD_SHELL, "Terminal erişimi"),
+                (self.CMD_CONFIG, "Ayarlar"),
+                (self.CMD_MEMORY, "Hafıza durumu"),
                 ("/llm", "LLM ayarları"),
                 ("/tr /en", "Dil değiştir"),
-                ("/clear", "Ekranı temizle"),
-                ("/exit", "Çıkış"),
+                (self.CMD_CLEAR, "Ekranı temizle"),
+                (self.CMD_EXIT, "Çıkış"),
             ]
         else:
             commands: list[tuple[str, str]] = [
                 ("/target <IP>", "Set target"),
-                ("/untarget", "Clear target"),
-                ("/scan", "Start scan"),
-                ("/status", "Show status"),
-                ("/tools", "List tools"),
-                ("/report", "Generate report"),
-                ("/shell", "Terminal access"),
-                ("/config", "Settings"),
+                (self.CMD_UNTARGET, "Clear target"),
+                (self.CMD_SCAN, "Start scan"),
+                (self.CMD_STATUS, "Show status"),
+                (self.CMD_TOOLS, "List tools"),
+                (self.CMD_REPORT, "Generate report"),
+                (self.CMD_SHELL, "Terminal access"),
+                (self.CMD_CONFIG, "Settings"),
+                (self.CMD_MEMORY, "Memory status"),
                 ("/llm", "LLM settings"),
                 ("/tr /en", "Change language"),
-                ("/clear", "Clear screen"),
-                ("/exit", "Exit"),
+                (self.CMD_CLEAR, "Clear screen"),
+                (self.CMD_EXIT, "Exit"),
             ]
 
         for cmd, desc in commands:
@@ -1077,7 +1081,7 @@ class DrakbenMenu:
 
         # Natural language tip
         if is_tr:
-            self.console.print("[dim]Doğal dilde de yazabilirsiniz: \"10.0.0.1 tara\"[/]")
+            self.console.print('[dim]Doğal dilde de yazabilirsiniz: "10.0.0.1 tara"[/]')
         else:
             self.console.print('[dim]Or type naturally: "scan 10.0.0.1"[/]')
         self.console.print()
@@ -1488,35 +1492,10 @@ class DrakbenMenu:
         status_table.add_column("Key", style="dim", width=15)
         status_table.add_column("Value", style="white")
 
-        # Target
-        target = self.config.target or ("Belirlenmedi" if is_tr else "Not set")
-        target_style = self.STYLE_BOLD_GREEN if self.config.target else self.STYLE_DIM_RED
-        status_table.add_row("Target" if not is_tr else "Hedef", f"[{target_style}]{target}[/]")
+        self._populate_status_rows(status_table, is_tr)
+        self._add_llm_status_row(status_table, is_tr)
 
-        # Mode
-        mode = "Stealth" if self.config.stealth_mode else "Normal"
-        mode_style = "green" if self.config.stealth_mode else "dim"
-        status_table.add_row("Mode" if not is_tr else "Mod", f"[{mode_style}]{mode}[/]")
-
-        # Threads
-        status_table.add_row("Threads", f"{self.config.max_threads}")
-
-        # Tools
-        tools = self.system_info.get("available_tools", {})
-        tool_count = len(tools)
-        status_table.add_row("Tools" if not is_tr else "Araçlar", f"{tool_count}")
-
-        # LLM
-        if self.brain and self.brain.llm_client:
-            info = self.brain.llm_client.get_provider_info()
-            model = info.get("model", "N/A")
-            short_model = model.split("/")[-1][:25] if "/" in model else model[:25]
-            status_table.add_row("LLM", f"[green]{short_model}[/]")
-        else:
-            off_text = "Kapalı" if is_tr else "Off"
-            status_table.add_row("LLM", f"[dim]{off_text}[/]")
-
-        title = "DRAKBEN Status" if not is_tr else "DRAKBEN Durumu"
+        title = "DRAKBEN Durumu" if is_tr else "DRAKBEN Status"
         self.console.print(Panel(
             status_table,
             title=f"[bold cyan]{title}[/]",
@@ -1529,6 +1508,32 @@ class DrakbenMenu:
             self._show_agent_status_compact(is_tr)
 
         self.console.print()
+
+    def _populate_status_rows(self, status_table: "Table", is_tr: bool) -> None:
+        """Populate basic status table rows (target, mode, threads, tools)."""
+        target = self.config.target or ("Belirlenmedi" if is_tr else "Not set")
+        target_style = self.STYLE_BOLD_GREEN if self.config.target else self.STYLE_DIM_RED
+        status_table.add_row("Hedef" if is_tr else "Target", f"[{target_style}]{target}[/]")
+
+        mode = "Stealth" if self.config.stealth_mode else "Normal"
+        mode_style = "green" if self.config.stealth_mode else "dim"
+        status_table.add_row("Mod" if is_tr else "Mode", f"[{mode_style}]{mode}[/]")
+
+        status_table.add_row("Threads", f"{self.config.max_threads}")
+
+        tools = self.system_info.get("available_tools", {})
+        status_table.add_row("Araçlar" if is_tr else "Tools", f"{len(tools)}")
+
+    def _add_llm_status_row(self, status_table: "Table", is_tr: bool) -> None:
+        """Add LLM status row to the status table."""
+        if self.brain and self.brain.llm_client:
+            info = self.brain.llm_client.get_provider_info()
+            model = info.get("model", "N/A")
+            short_model = model.split("/")[-1][:25] if "/" in model else model[:25]
+            status_table.add_row("LLM", f"[green]{short_model}[/]")
+        else:
+            off_text = "Kapalı" if is_tr else "Off"
+            status_table.add_row("LLM", f"[dim]{off_text}[/]")
 
     def _show_agent_status_compact(self, is_tr: bool) -> None:
         """Show compact agent status."""
@@ -1552,7 +1557,7 @@ class DrakbenMenu:
         agent_table.add_row("Services" if not is_tr else "Servisler", f"{len(state.open_services)}")
 
         vuln_count = len(state.vulnerabilities)
-        vuln_style = "bold red" if vuln_count > 0 else "dim"
+        vuln_style = self.STYLE_BOLD_RED if vuln_count > 0 else "dim"
         agent_table.add_row("Vulns" if not is_tr else "Zafiyetler", f"[{vuln_style}]{vuln_count}[/]")
 
         foothold_text = "Yes" if state.has_foothold else "No"
@@ -1579,6 +1584,107 @@ class DrakbenMenu:
             return f"[bold red]⚠ {vuln_text}[/]"
         open_text = "Açık" if is_tr else "Open"
         return f"[green]{open_text}[/]"
+
+    def _cmd_memory(self, args: str = "") -> None:
+        """Show memory system status - Stanford Memory + Evolution Memory."""
+        from rich.panel import Panel
+        from rich.table import Table
+
+        lang: str = self.config.language
+        is_tr = lang == "tr"
+        self.console.print()
+
+        mem_table = Table(box=None, padding=(0, 2), expand=True, show_header=False)
+        mem_table.add_column("Key", style="dim", width=22)
+        mem_table.add_column("Value", style="white")
+
+        self._populate_stanford_memory_rows(mem_table, is_tr)
+        mem_table.add_row("", "")  # Spacer
+        self._populate_evolution_memory_rows(mem_table, is_tr)
+
+        title = "Hafıza Sistemi" if is_tr else "Memory System"
+        self.console.print(Panel(
+            mem_table,
+            title=f"[bold cyan]{title}[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        ))
+        self.console.print()
+
+    def _populate_stanford_memory_rows(self, mem_table: "Table", is_tr: bool) -> None:
+        """Populate Stanford Memory Stream rows."""
+        try:
+            from core.agent.memory.memory_stream import get_memory_stream
+            ms = get_memory_stream()
+            stats = ms.get_stats()
+            mem_table.add_row(
+                "[bold cyan]Stanford Hafıza[/]" if is_tr else "[bold cyan]Stanford Memory[/]",
+                "",
+            )
+            mem_table.add_row(
+                "  Toplam Düğüm" if is_tr else "  Total Nodes",
+                str(stats.get("total_nodes", 0)),
+            )
+            by_type = stats.get("by_type", {})
+            if by_type:
+                type_str = ", ".join(f"{k}: {v}" for k, v in by_type.items() if v > 0)
+                mem_table.add_row(
+                    "  Türe Göre" if is_tr else "  By Type",
+                    type_str or "—",
+                )
+            targets = stats.get("targets", [])
+            mem_table.add_row(
+                "  Hedefler" if is_tr else "  Targets",
+                ", ".join(targets[:5]) if targets else "—",
+            )
+            mem_table.add_row(
+                "  Kalıcılık" if is_tr else "  Persistence",
+                self._format_feature_flags(stats),
+            )
+        except Exception:
+            mem_table.add_row(
+                "Stanford Hafıza" if is_tr else "Stanford Memory",
+                "[dim]Başlatılmadı[/]" if is_tr else "[dim]Not initialized[/]",
+            )
+
+    @staticmethod
+    def _format_feature_flags(stats: dict) -> str:
+        """Format persistence/embeddings feature flags."""
+        persistence = "✓" if stats.get("persistence_enabled") else "✗"
+        embeddings = "✓" if stats.get("embeddings_enabled") else "✗"
+        return f"SQLite {persistence} | Embeddings {embeddings}"
+
+    def _populate_evolution_memory_rows(self, mem_table: "Table", is_tr: bool) -> None:
+        """Populate Evolution Memory rows."""
+        try:
+            from core.intelligence.evolution_memory import get_evolution_memory
+            evo = get_evolution_memory()
+            mem_table.add_row(
+                "[bold yellow]Evrim Hafızası[/]" if is_tr else "[bold yellow]Evolution Memory[/]",
+                "",
+            )
+            recent = evo.get_recent_actions(count=3)
+            mem_table.add_row(
+                "  Son Eylemler" if is_tr else "  Recent Actions",
+                str(len(recent)),
+            )
+            penalties = evo.get_all_penalties()
+            blocked = sum(1 for p in penalties.values() if p.get("blocked"))
+            mem_table.add_row(
+                "  Araç Cezaları" if is_tr else "  Tool Penalties",
+                f"{len(penalties)} ({blocked} engellenmiş)" if is_tr
+                else f"{len(penalties)} ({blocked} blocked)",
+            )
+            heuristics = evo.get_all_heuristics()
+            mem_table.add_row(
+                "  Sezgisel Kurallar" if is_tr else "  Heuristics",
+                str(len(heuristics)),
+            )
+        except Exception:
+            mem_table.add_row(
+                "Evrim Hafızası" if is_tr else "Evolution Memory",
+                "[dim]Başlatılmadı[/]" if is_tr else "[dim]Not initialized[/]",
+            )
 
     def _create_findings_table_base(self, is_tr: bool) -> "Table":
         """Create base findings table with columns."""
@@ -1642,7 +1748,7 @@ class DrakbenMenu:
             StepStatus.PENDING: "dim",
             StepStatus.EXECUTING: self.STYLE_BOLD_YELLOW,
             StepStatus.SUCCESS: self.STYLE_BOLD_GREEN,
-            StepStatus.FAILED: "bold red",
+            StepStatus.FAILED: self.STYLE_BOLD_RED,
             StepStatus.SKIPPED: "dim yellow",
         }
 
@@ -1672,7 +1778,7 @@ class DrakbenMenu:
         from rich.table import Table
 
         summary_table = Table(show_header=False, box=None, padding=(0, 1))
-        summary_table.add_column("K", style="bold cyan")
+        summary_table.add_column("K", style=self.STYLE_BOLD_CYAN)
         summary_table.add_column("V")
 
         s = self.agent.state  # type: ignore[union-attr]
@@ -1835,7 +1941,7 @@ class DrakbenMenu:
         phase_colors: dict[str, str] = {
             "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
             "exploit": "red", "foothold": "green", "post_exploit": "magenta",
-            "complete": "bold green", "failed": "bold red",
+            "complete": self.STYLE_BOLD_GREEN, "failed": self.STYLE_BOLD_RED,
         }
         phase_color: str = phase_colors.get(state.phase.value, "white")
         phase_name = self._get_phase_display_name(state.phase.value, is_tr)
@@ -2232,7 +2338,7 @@ class DrakbenMenu:
 
         # Menu Table - clean
         table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("Option", style="bold cyan", width=6)
+        table.add_column("Option", style=self.STYLE_BOLD_CYAN, width=6)
         table.add_column("Desc", style="white")
 
         if lang == "tr":

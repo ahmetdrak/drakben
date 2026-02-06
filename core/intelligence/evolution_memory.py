@@ -6,6 +6,7 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -233,13 +234,29 @@ class EvolutionMemory:
         if not self._is_memory:
             conn.close()
 
+    @contextmanager
+    def _safe_conn(self):
+        """Context manager for safe database connection handling.
+
+        Ensures connections are always properly closed, even on exceptions.
+        Usage:
+            with self._safe_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute(...)
+                conn.commit()
+        """
+        conn = self._get_conn()
+        try:
+            yield conn
+        finally:
+            self._close_conn(conn)
+
     # ==================== ACTION RECORDING ====================
 
     def record_action(self, record: ActionRecord) -> None:
         """Record action outcome - PERSISTENT."""
         import json
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -261,7 +278,6 @@ class EvolutionMemory:
                 ),
             )
             conn.commit()
-            self._close_conn(conn)
 
     # ==================== PENALTY SYSTEM ====================
     def _run_with_retry(self, func, *args, **kwargs) -> Any:
@@ -281,8 +297,7 @@ class EvolutionMemory:
         Called AFTER every tool execution.
         """
         target = target or "global"
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
 
             # Get current state
@@ -342,20 +357,17 @@ class EvolutionMemory:
                 )
 
             conn.commit()
-            self._close_conn(conn)
 
     def get_tool_penalty(self, tool: str, target: str = "global") -> float:
         """Get current penalty for tool/target combo."""
         target = target or "global"
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT penalty_score FROM tool_penalties WHERE tool = ? AND target = ?",
                 (tool, target),
             )
             row = cursor.fetchone()
-            self._close_conn(conn)
             return row["penalty_score"] if row else 0.0
 
     def get_penalty(self, tool: str, target: str = "global") -> float:
@@ -367,15 +379,13 @@ class EvolutionMemory:
         MUST be called BEFORE tool selection.
         """
         target = target or "global"
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT blocked, penalty_score FROM tool_penalties WHERE tool = ? AND target = ?",
                 (tool, target),
             )
             row = cursor.fetchone()
-            self._close_conn(conn)
             if row is None:
                 return False
             return row["blocked"] == 1 or row["penalty_score"] >= self.BLOCK_THRESHOLD
@@ -398,12 +408,10 @@ class EvolutionMemory:
 
     def get_all_penalties(self) -> dict[str, dict]:
         """Get all tool penalties for debugging."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM tool_penalties")
             rows = cursor.fetchall()
-            self._close_conn(conn)
             return {row["tool"]: dict(row) for row in rows}
 
     # ==================== PLAN MANAGEMENT ====================
@@ -418,8 +426,7 @@ class EvolutionMemory:
         plan_id = plan_id or f"plan_{int(time.time() * 1000)}"
         now = time.time()
 
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -429,18 +436,15 @@ class EvolutionMemory:
                 (plan_id, goal, json.dumps(steps), "pending", now, now, 1),
             )
             conn.commit()
-            self._close_conn(conn)
 
         return plan_id
 
     def get_plan(self, plan_id: str) -> PlanRecord | None:
         """Get plan by ID."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM plans WHERE plan_id = ?", (plan_id,))
             row = cursor.fetchone()
-            self._close_conn(conn)
 
             if row is None:
                 return None
@@ -457,8 +461,7 @@ class EvolutionMemory:
 
     def update_plan_status(self, plan_id: str, status: str) -> None:
         """Update plan status."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -467,12 +470,10 @@ class EvolutionMemory:
                 (status, time.time(), plan_id),
             )
             conn.commit()
-            self._close_conn(conn)
 
     def update_plan_steps(self, plan_id: str, steps: list[dict]) -> None:
         """Update plan steps (for replanning)."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -482,12 +483,10 @@ class EvolutionMemory:
                 (json.dumps(steps), time.time(), plan_id),
             )
             conn.commit()
-            self._close_conn(conn)
 
     def get_active_plan(self, goal: str) -> PlanRecord | None:
         """Get most recent non-completed plan for goal."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -498,7 +497,6 @@ class EvolutionMemory:
                 (goal,),
             )
             row = cursor.fetchone()
-            self._close_conn(conn)
 
             if row is None:
                 return None
@@ -517,18 +515,15 @@ class EvolutionMemory:
 
     def get_heuristic(self, key: str) -> float:
         """Get heuristic value."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM heuristics WHERE key = ?", (key,))
             row = cursor.fetchone()
-            self._close_conn(conn)
             return row["value"] if row else 0.0
 
     def set_heuristic(self, key: str, value: float) -> None:
         """Set heuristic value - THIS IS SELF-MODIFICATION."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -538,7 +533,6 @@ class EvolutionMemory:
                 (key, value, time.time()),
             )
             conn.commit()
-            self._close_conn(conn)
 
     def adjust_heuristic(self, key: str, delta: float) -> None:
         """Adjust heuristic by delta - SELF-MODIFICATION."""
@@ -553,20 +547,17 @@ class EvolutionMemory:
 
     def get_all_heuristics(self) -> dict[str, float]:
         """Get all heuristics."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT key, value FROM heuristics")
             rows = cursor.fetchall()
-            self._close_conn(conn)
             return {row["key"]: row["value"] for row in rows}
 
     # ==================== STAGNATION DETECTION ====================
 
     def get_recent_actions(self, count: int = 5) -> list[ActionRecord]:
         """Get last N actions."""
-        with self._lock:
-            conn = self._get_conn()
+        with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -575,7 +566,6 @@ class EvolutionMemory:
                 (count,),
             )
             rows = cursor.fetchall()
-            self._close_conn(conn)
 
             return [
                 ActionRecord(

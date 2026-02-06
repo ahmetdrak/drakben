@@ -7,7 +7,7 @@ import json
 import logging
 import secrets
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -16,8 +16,11 @@ from rich.text import Text
 from core.agent.brain import DrakbenBrain
 from core.agent.error_diagnostics import ErrorDiagnosticsMixin
 from core.agent.planner import Planner, PlanStep, StepStatus
+from core.agent.ra_state_updates import RAStateUpdatesMixin
+from core.agent.ra_tool_executors import RAToolExecutorsMixin
+from core.agent.ra_tool_recovery import RAToolRecoveryMixin
 from core.agent.recovery.healer import SelfHealer
-from core.agent.state import AgentState, AttackPhase, ServiceInfo, reset_state
+from core.agent.state import AgentState, AttackPhase, reset_state
 from core.config import ConfigManager
 from core.execution.execution_engine import ExecutionEngine, ExecutionResult
 from core.execution.tool_selector import ToolSelector, ToolSpec
@@ -38,16 +41,7 @@ from core.intelligence.self_refining_engine import (
 from core.security.security_utils import audit_command
 from core.storage.structured_logger import DrakbenLogger
 from core.tools.tool_parsers import normalize_error_message
-from modules.research.exploit_crafter import ExploitCrafter
-from modules.research.fuzzer import FuzzResult
 from modules.stealth_client import BROWSER_IMPERSONATIONS
-
-if TYPE_CHECKING:
-    from re import Match
-
-    from core.singularity.base import CodeSnippet
-    from modules.hive_mind import AttackPath, NetworkHost
-    from modules.weapon_foundry import GeneratedPayload
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -56,7 +50,12 @@ logger: logging.Logger = logging.getLogger(__name__)
 _ERR_UNKNOWN = "Unknown error"
 
 
-class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
+class RefactoredDrakbenAgent(
+    ErrorDiagnosticsMixin,
+    RAToolExecutorsMixin,
+    RAToolRecoveryMixin,
+    RAStateUpdatesMixin,
+):
     """SELF-REFINING EVOLVING AGENT.
 
     EVOLUTION LAYERS:
@@ -106,6 +105,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         self.current_strategy: Strategy | None = None
         self.current_profile: StrategyProfile | None = None  # NEW: Track profile
         self.target_signature: str = ""
+        self._self_heal_attempts: dict[str, int] = {}  # Instance-level heal tracking
 
     # Style constants
     STYLE_GREEN = "bold green"
@@ -615,7 +615,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 return True
 
             if install_result.get("requires_approval"):
-                logger.warning("Tool %s requires manual approval: %s", tool_name, install_result['message'])
+                logger.warning("Tool %s requires manual approval: %s", tool_name, install_result["message"])
 
             self.console.print(f"❌ Recovery failed: {install_result['message']}", style="red")
             return False
@@ -855,7 +855,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
             "🔄 Deterministik karar mekanizmasına geçiliyor...",
             style="dim",
         )
-        logger.warning("LLM decision failed after {max_retries} attempts: %s", llm_error)
+        logger.warning("LLM decision failed after %s attempts: %s", _max_retries, llm_error)
 
     def _get_deterministic_fallback(self) -> dict | None:
         """Get deterministic decision as fallback."""
@@ -1029,9 +1029,22 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
                 "error": "Missing or invalid 'target' (file path)",
             }
 
+        # Security: Validate path is within project directory
+        from pathlib import Path
+        try:
+            target_path = Path(target).resolve()
+            project_root = Path.cwd().resolve()
+            if not target_path.is_relative_to(project_root):
+                return {
+                    "success": False,
+                    "error": "Security: File path outside project directory",
+                }
+        except (ValueError, OSError):
+            return {"success": False, "error": "Invalid file path"}
+
         # Read file first
         try:
-            with open(target) as f:
+            with open(target_path) as f:
                 content: str = f.read()
         except Exception as e:
             return {"success": False, "error": f"Read failed: {e}"}
@@ -1051,7 +1064,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
 
             try:
                 ast.parse(new_content)
-                with open(target, "w") as f:
+                with open(target_path, "w") as f:
                     f.write(new_content)
                 return {
                     "success": True,
@@ -1127,196 +1140,7 @@ class RefactoredDrakbenAgent(ErrorDiagnosticsMixin):
         return self._format_tool_result(result, args)
 
     # Track self-healing attempts to prevent infinite loops
-    _self_heal_attempts: dict[str, int] = {}
     MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
-
-    def _handle_tool_failure(
-        self,
-        tool_name: str,
-        command: str,
-        result: "ExecutionResult",
-        args: dict,
-    ) -> dict:
-        """Handle tool failure with comprehensive self-healing.
-
-        Error Types Handled:
-        1. Missing tool → Auto-install
-        2. Permission denied → Suggest sudo / elevate
-        3. Connection refused → Network check / retry
-        4. Timeout → Increase timeout / retry
-        5. Python module missing → pip install
-        6. Unknown → LLM-assisted diagnosis
-
-        LOOP PROTECTION:
-        - Maximum 2 self-heal attempts per tool per session
-        - Prevents infinite retry loops
-        """
-        # Initialize tracking dict if needed
-        if not hasattr(self, "_self_heal_attempts") or self._self_heal_attempts is None:
-            self._self_heal_attempts = {}
-
-        # Check if we've exceeded self-heal limit for this tool
-        heal_key: str = f"{tool_name}:{command[:50]}"
-        current_attempts: int = self._self_heal_attempts.get(heal_key, 0)
-
-        if current_attempts >= self.MAX_SELF_HEAL_PER_TOOL:
-            self.console.print(
-                f"⚠️ {tool_name} için self-heal limiti aşıldı ({current_attempts}/{self.MAX_SELF_HEAL_PER_TOOL})",
-                style="yellow",
-            )
-            self.tool_selector.record_tool_failure(tool_name)
-            return self._format_tool_result(result, args)
-
-        stdout_str = result.stdout or ""
-        stderr_str = result.stderr or ""
-        combined_output: str = f"{stdout_str}\n{stderr_str}".lower()
-
-        # Diagnose error type
-        error_diagnosis = self._diagnose_error(combined_output, result.exit_code)
-
-        if error_diagnosis["type"] != "unknown":
-            self.console.print(
-                f"🔍 Hata teşhisi: {error_diagnosis['type_tr']}",
-                style="yellow",
-            )
-
-        # Increment self-heal attempt counter
-        self._self_heal_attempts[heal_key] = current_attempts + 1
-        self.console.print(
-            f"🔧 Self-heal denemesi: {current_attempts + 1}/{self.MAX_SELF_HEAL_PER_TOOL}",
-            style="dim",
-        )
-
-        # Apply self-healing based on error type
-        healed, retry_result = self._apply_error_specific_healing(
-            error_diagnosis,
-            tool_name,
-            command,
-            combined_output,
-        )
-
-        return self._finalize_healing_result(
-            healed,
-            retry_result,
-            result,
-            tool_name,
-            args,
-        )
-
-    def _apply_error_specific_healing(
-        self,
-        error_diagnosis: dict[str, Any],
-        tool_name: str,
-        command: str,
-        combined_output: str,
-    ) -> tuple[bool, Any | None]:
-        """Apply error-specific healing strategies using SelfHealer."""
-        # Delegate to SelfHealer for known error types
-        healed, result = self.healer.apply_healing(error_diagnosis, tool_name, command)
-        if healed:
-            return healed, result
-
-        # For unknown errors, try LLM-assisted fix
-        error_type = error_diagnosis.get("type", "unknown")
-        if error_type == "unknown" and self.brain:
-            return self._llm_assisted_error_fix(tool_name, command, combined_output)
-
-        return False, None
-
-    def _finalize_healing_result(
-        self,
-        healed: bool,
-        retry_result: Any | None,
-        result: Any,
-        tool_name: str,
-        args: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Finalize healing result and return formatted output."""
-        if healed and retry_result:
-            self.console.print("✅ Hata otomatik olarak düzeltildi!", style="green")
-            return self._format_tool_result(retry_result, args)
-
-        if result.exit_code != 0:
-            self.tool_selector.record_tool_failure(tool_name)
-
-        # FIX: Return formatted result instead of recursive call
-        return self._format_tool_result(result, args)
-
-    # Error diagnosis methods are inherited from ErrorDiagnosticsMixin
-    # See: core/agent/error_diagnostics.py
-
-    def _llm_assisted_error_fix(
-        self,
-        tool_name: str,
-        command: str,
-        error_output: str,
-    ) -> tuple:
-        """Use LLM to diagnose unknown errors and suggest fixes.
-        Returns (healed: bool, retry_result).
-        """
-        try:
-            self.console.print("🤖 LLM ile hata analizi yapılıyor...", style="dim")
-
-            prompt: str = f"""Analyze this command execution error and suggest a fix:
-
-Command: {command}
-Tool: {tool_name}
-Error Output: {error_output[:1000]}
-
-Respond in JSON:
-{{
-    "error_type": "brief error classification",
-    "root_cause": "what caused this error",
-    "fix_command": "shell command to fix (or null if not fixable)":
-        raise AssertionError('should_retry') true/false,
-    "explanation": "brief explanation in Turkish"
-}}"""
-
-            result = self.brain.llm_client.query(prompt, timeout=15)
-
-            # Try to parse JSON response
-            import json
-            import re
-
-            json_match: Match[str] | None = re.search(r"\{.*\}", result, re.DOTALL)
-            if json_match:
-                fix_data = json.loads(json_match.group())
-
-                self.console.print(
-                    f"🔍 LLM Analizi: {fix_data.get('explanation', 'Analiz tamamlandı')}",
-                    style="dim",
-                )
-
-                # Apply fix command if provided
-                fix_cmd = fix_data.get("fix_command")
-                if fix_cmd and fix_cmd != "null":
-                    self.console.print(
-                        f"🔧 Düzeltme uygulanıyor: {fix_cmd}",
-                        style="yellow",
-                    )
-                    fix_result: ExecutionResult = self.executor.terminal.execute(
-                        fix_cmd,
-                        timeout=120,
-                    )
-
-                    if fix_result.exit_code == 0 and fix_data.get(
-                        "should_retry",
-                        False,
-                    ):
-                        self.console.print(
-                            "🔄 Düzeltme başarılı, orijinal komut yeniden deneniyor...",
-                            style="cyan",
-                        )
-                        retry_result: ExecutionResult = self.executor.terminal.execute(
-                            command,
-                            timeout=300,
-                        )
-                        return (retry_result.exit_code == 0, retry_result)
-
-        except Exception as e:
-            logger.warning("LLM-assisted error fix failed: %s", e)
-
-        return (False, None)
 
     def _format_tool_result(self, result: Any, args: dict) -> dict:
         """Format execution result dictionary with standardized errors."""
@@ -1406,237 +1230,6 @@ Respond in JSON:
             self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
             return {"success": False, "error": f"Async execution failed: {e!s}"}
 
-    def _create_observation(self, tool_name: str, result: dict) -> str:
-        """Tool sonucundan ÖZET observation oluştur.
-
-        YASAK: Raw log, tool output spam
-        SADECE: Anlamlı özet
-        """
-        if not result.get("success"):
-            error_msg = result.get("error") or result.get("stderr", _ERR_UNKNOWN)
-            return f"Tool {tool_name} failed: {error_msg[:100]}"
-
-        # Success - create meaningful observation
-        if "nmap" in tool_name:
-            # Parse nmap output (simplified)
-            stdout = result.get("stdout", "")
-            if "open" in stdout.lower():
-                # Count open ports
-                open_count = stdout.lower().count(" open ")
-                return f"Port scan found {open_count} open ports"
-            return "Port scan completed, no open ports"
-
-        if "nikto" in tool_name:
-            return "Web vulnerability scan completed"
-
-        if "sqlmap" in tool_name:
-            stdout = result.get("stdout", "")
-            if "vulnerable" in stdout.lower():
-                return "SQL injection vulnerability found"
-            return "SQL injection scan completed, no vulnerabilities"
-
-        # Generic
-        return f"Tool {tool_name} completed successfully"
-
-    def _update_state_from_result(
-        self,
-        tool_name: str,
-        result: dict,
-        observation: str,
-    ) -> None:
-        """Update state based on tool result."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        # Set observation
-        self.state.set_observation(observation)
-
-        # 1. Record Result Execution (Success/Failure)
-        self._record_execution_outcome(tool_name, result)
-
-        if not result.get("success"):
-            return
-
-        # 2. Update State Specifics based on Tool
-        self._dispatch_state_update(tool_name, result)
-
-    def _record_execution_outcome(self, tool_name: str, result: dict) -> None:
-        """Record success or failure to brain and tool selector."""
-        output = result.get("stdout", "") + "\n" + result.get("stderr", "")
-        success = result.get("success", False)
-
-        if not success:
-            self.tool_selector.record_tool_failure(tool_name)
-
-        self.brain.observe(tool=tool_name, output=output, success=success)
-
-    def _dispatch_state_update(self, tool_name: str, result: dict) -> None:
-        """Dispatch state update based on tool type."""
-        if "nmap_port_scan" in tool_name:
-            self._update_state_nmap_port_scan(result)
-        elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
-            self._update_state_service_completion(result)
-        elif "vuln" in tool_name or "sqlmap" in tool_name:
-            observation = result.get("stdout", "")
-            self._process_vulnerability_result(tool_name, result, observation)
-        elif "exploit" in tool_name:
-            self._process_exploit_result(tool_name, result)
-
-    def _process_exploit_result(self, tool_name: str, result: dict) -> None:
-        """Helper to process exploit results."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
-        # Check if exploit succeeded
-        if (
-            "success" in observation.lower()
-            or "shell" in observation.lower()
-            or result.get("success")
-        ):
-            self.state.set_foothold(tool_name)
-        else:
-            self.state.set_observation("Exploit did not succeed; foothold not set")
-
-    def _update_state_nmap_port_scan(self, result: dict) -> None:
-        """Update state from Nmap port scan results."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        from core.tools.tool_parsers import parse_nmap_output
-
-        stdout = result.get("stdout", "")
-        # Hybrid parsing with LLM fallback
-        parsed_services = parse_nmap_output(stdout, llm_client=self.brain.llm_client)
-
-        if parsed_services:
-            services = []
-            for svc_dict in parsed_services:
-                services.append(
-                    ServiceInfo(
-                        port=svc_dict["port"],
-                        protocol=svc_dict["proto"],
-                        service=svc_dict["service"],
-                    ),
-                )
-            self.state.update_services(services)
-        else:
-            # Fallback to mock if parsing failed (for testing)
-            self._apply_mock_services()
-
-    def _apply_mock_services(self) -> None:
-        """Apply mock services for testing or fallback."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        services: list[ServiceInfo] = [
-            ServiceInfo(port=80, protocol="tcp", service="http"),
-            ServiceInfo(port=443, protocol="tcp", service="https"),
-            ServiceInfo(port=22, protocol="tcp", service="ssh"),
-        ]
-        self.state.update_services(services)
-
-    def _update_state_service_completion(self, result: dict) -> None:
-        """Mark service as tested."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        args_port = result.get("args", {}).get("port")
-        if not args_port:
-            self.state.set_observation("Missing port in tool args; state not updated")
-            return
-
-        if args_port in self.state.open_services:
-            service_info: ServiceInfo = self.state.open_services[args_port]
-            self.state.mark_surface_tested(args_port, service_info.service)
-
-    def _process_vulnerability_result(
-        self,
-        tool_name: str,
-        result: dict,
-        observation: str,
-    ) -> None:
-        """Helper to process vulnerability scan results."""
-        if ("vuln" in tool_name or "sqlmap" in tool_name) and (
-            "vulnerable" in observation.lower() or "injection" in observation.lower()
-        ):
-            self._handle_sqlmap_vulnerabilities(result)
-
-            # AUTO-POC: Reanimate ExploitCrafter to generate reproduction scripts
-            try:
-                target_name: str = self.state.target or "target"
-                crafter = ExploitCrafter()
-                # Create a mock FuzzResult from the tool findings
-                mock_crash = FuzzResult(
-                    input_data=result.get("stdout", "Vulnerability payload"),
-                    crash_detected=True,
-                    error_message=f"Vulnerability found via {tool_name}: {observation}",
-                )
-                poc_path: str = crafter.generate_poc(
-                    target_name.replace(".", "_"),
-                    mock_crash,
-                )
-                self.console.print(
-                    f"🚀 [bold green]Autonomous PoC Generated:[/] {poc_path}",
-                )
-            except Exception as e:
-                logger.debug("PoC generation failed: %s", e)
-
-    def _handle_sqlmap_vulnerabilities(self, result: dict) -> None:
-        """Process SQLMap results and update state."""
-        import time
-
-        from core.tools.tool_parsers import parse_sqlmap_output
-
-        stdout = result.get("stdout", "")
-        # Hybrid parsing with LLM fallback
-        _ = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
-
-        # 3. Process findings (if any)
-        if result.get("success") and "findings" in result:
-            for finding in result["findings"]:
-                if self.state:
-                    from core.agent.state import VulnerabilityInfo
-
-                    # Adapt finding dict to VulnerabilityInfo dataclass
-                    severity_str: str = str(finding.get("severity", "medium")).lower()
-
-                    vuln = VulnerabilityInfo(
-                        vuln_id=f"VULN-{int(time.time())}-{secrets.randbelow(9000) + 1000}",
-                        service=finding.get("service", "unknown"),
-                        port=int(finding.get("port", 0)),
-                        severity=severity_str,
-                        exploitable=True,  # Assessing as exploitable by default when found
-                        exploit_attempted=False,
-                        exploit_success=False,
-                    )
-                    # self.state.add_vulnerability(vuln) # Assuming method exists or append directly
-                    # Since add_vulnerability might not be on AgentState (Mypy complained), let's check
-                    # how to add vulnerability. For now we will assume the method exists or we skip adding if not.
-                    # Looking at state.py, we don't see add_vulnerability in the snippet.
-                    # If it doesn't exist, we should likely append to self.state.vulnerabilities list if accessible.
-                    # But to be safe and fix the Mypy error about "None" attribute, we ensure self.state is checked.
-
-                    if hasattr(self.state, "add_vulnerability"):
-                        self.state.add_vulnerability(vuln)
-                    elif hasattr(self.state, "vulnerabilities") and isinstance(
-                        self.state.vulnerabilities,
-                        list,
-                    ):
-                        self.state.vulnerabilities.append(vuln)
-
-    def _extract_port_from_result(self, result: dict) -> int:
-        """Extract port number from tool result arguments."""
-        args_port = result.get("args", {}).get("port")
-        if args_port:
-            return args_port
-
-        args_url = result.get("args", {}).get("url", "")
-        if args_url:
-            from urllib.parse import urlparse
-
-            parsed_url = urlparse(args_url)
-            if parsed_url.port:
-                return parsed_url.port
-            return 443 if parsed_url.scheme == "https" else 80
-
-        return 80  # Default fallback
-
     def _check_phase_transition(self) -> None:
         """Phase transition kontrolü - DETERMİNİSTİK."""
         # INIT -> RECON (target set)
@@ -1688,6 +1281,7 @@ Respond in JSON:
             )
 
         elif self.state.phase == AttackPhase.EXPLOIT and self.state.has_foothold:
+            self.state.phase = AttackPhase.POST_EXPLOIT
             self.impersonate_target = secrets.choice(BROWSER_IMPERSONATIONS)
             self.console.print(
                 "📈 Phase transition: EXPLOIT -> POST_EXPLOIT",
@@ -1723,255 +1317,4 @@ Respond in JSON:
     def stop(self) -> None:
         """Stop the agent."""
         self.running = False
-
-    def _execute_weapon_foundry(self, args: dict) -> dict:
-        """Execute Weapon Foundry to generate payloads."""
-        try:
-            from modules.weapon_foundry import WeaponFoundry
-
-            foundry = WeaponFoundry()
-
-            payload_type = args.get("format", "python")
-            lhost = args.get("lhost")
-            lport = args.get("lport", 4444)
-            # Args from Agent LLM might call it 'type' instead of 'format'
-            if not payload_type and "type" in args:
-                payload_type = args["type"]
-
-            if not lhost:
-                lhost = "127.0.0.1"
-                self.console.print("⚠️ LHOST missing, using localhost.", style="yellow")
-
-            self.console.print(f"🔨 Forging Payload ({payload_type})...", style="cyan")
-
-            artifact: GeneratedPayload = foundry.forge(
-                lhost=lhost,
-                lport=int(lport),
-                format=payload_type,
-                encryption="aes",
-                iterations=5,
-            )
-
-            if artifact:
-                filename = artifact.metadata.get("filename", "payload.bin")
-                return {
-                    "success": True,
-                    "output": f"Payload SUCCESS: {filename}",
-                    "artifact": filename,
-                }
-            return {"success": False, "error": "Payload generation failed"}
-        except Exception as e:
-            logger.exception("WeaponFoundry error: %s", e)
-            return {"success": False, "error": f"WeaponFoundry error: {e}"}
-
-    def _execute_singularity(self, args: dict) -> dict:
-        """Execute Singularity to write custom code."""
-        try:
-            from core.singularity.synthesizer import CodeSynthesizer
-
-            # Initialize with existing Brain/Coder components if available
-            synth = CodeSynthesizer()
-
-            instruction = args.get("description") or args.get("instruction")
-            lang = args.get("language", "python")
-
-            if not instruction:
-                return {
-                    "success": False,
-                    "error": "No instruction provided for code synthesis",
-                }
-
-            self.console.print(
-                f"🔮 Singularity: Synthesizing {lang} code...",
-                style="magenta",
-            )
-
-            # Use generate_tool (which returns artifact)
-            # Args might differ, check CodeSynthesizer definition.
-            # Assuming generate_tool is the main entry point from context step 1960.
-            result: CodeSnippet = synth.generate_tool(
-                description=instruction,
-                language=lang,
-            )
-
-            if getattr(result, "success", False):
-                return {
-                    "success": True,
-                    "output": f"Code Synthesized: {result.file_path}\nContent Preview:\n{result.content[:300] if result.content else ''}",
-                }
-            return {
-                "success": False,
-                "error": f"Synthesis failed: {getattr(result, 'error', 'Unknown Error')}",
-            }
-
-        except Exception as e:
-            logger.exception("Singularity error: %s", e)
-            return {"success": False, "error": f"Singularity error: {e}"}
-
-    def _execute_osint(self, _tool_name: str, args: dict) -> dict:
-        """Execute OSINT tools."""
-        try:
-            from modules.social_eng.osint import OSINTSpider
-
-            recon = OSINTSpider()
-
-            target = args.get("target") or self.state.target
-            if not target:
-                return {"success": False, "error": "Target required"}
-
-            self.console.print(f"🕵️ OSINT Scanning: {target}", style="blue")
-            results = recon.harvest_domain(target)
-            return {"success": True, "output": str(results)[:2000]}
-        except Exception as e:
-            return {"success": False, "error": f"OSINT error: {e}"}
-
-    def _execute_hive_mind(self, tool_name: str, args: dict) -> dict:
-        """Execute Hive Mind internal module."""
-        try:
-            from modules.hive_mind import HiveMind
-
-            hive = HiveMind()
-
-            self.console.print("🐝 Waking up HIVE MIND...", style="magenta")
-
-            if tool_name == "hive_mind_scan":
-                init_res: dict[str, Any] = hive.initialize()
-                # If target is IP/subnet, use it. Otherwise auto-detect.
-                subnet = (
-                    args.get("target")
-                    if args.get("target") and "/" in str(args.get("target"))
-                    else None
-                )
-
-                hosts: list[NetworkHost] = hive.scan_network(subnet)
-                hosts_data: list[str] = [str(h) for h in hosts]
-
-                observation: str = f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
-                self.console.print(observation, style="cyan")
-
-                return {
-                    "success": True,
-                    "init": init_res,
-                    "hosts_discovered": len(hosts),
-                    "hosts": hosts_data,
-                    "output": observation,
-                }
-
-            if tool_name == "hive_mind_attack":
-                self.console.print("🐝 Calculating Attack Paths...", style="magenta")
-                target = args.get("target", "Domain Admin")
-                paths: list[AttackPath] = hive.find_attack_paths(target)
-
-                if not paths:
-                    return {"success": False, "error": "No viable attack paths found"}
-
-                # Execute best path
-                best_path: AttackPath = paths[0]
-                self.console.print(f"🚀 Executing Path: {best_path}", style="red")
-
-                result: dict[str, Any] = hive.execute_movement(best_path)
-                return {
-                    "success": result["success"],
-                    "hops": result["hops_completed"],
-                    "output": f"Movement result: {'Success' if result['success'] else 'Failed'}. Final Position: {result['final_position']}",
-                }
-
-            return {"success": False, "error": "Unknown Hive Mind tool"}
-
-        except Exception as e:
-            return {"success": False, "error": f"Hive Mind Error: {e!s}"}
-
-    def _execute_metasploit(self, args: dict) -> dict:
-        """Execute Metasploit module via wrapper."""
-        try:
-            from modules.metasploit import MetasploitBridge
-
-            # Initialize if needed (singleton pattern preferred in real usage, but instantiating for now)
-            msf = MetasploitBridge()
-
-            # 'module' and 'options' are expected in args
-            module = args.get("module")
-            options = args.get("options", {})
-
-            if not module:
-                return {"success": False, "error": "Metasploit module name required"}
-
-            self.console.print(f"🔥 Launching Metasploit: {module}", style="red")
-            result = msf.execute_module(module, options)
-
-            return {
-                "success": result.get("success", False),
-                "output": result.get("output", ""),
-                "session_id": result.get("session_id"),
-            }
-        except ImportError:
-            return {"success": False, "error": "modules.metasploit not found"}
-        except Exception as e:
-            logger.exception("Metasploit error")
-            return {"success": False, "error": f"Metasploit execution failed: {e}"}
-
-    def _execute_ad_attacks(self, tool_name: str, args: dict) -> dict:
-        """Execute Active Directory attacks (Native)."""
-        try:
-            from modules.ad_attacks import ActiveDirectoryAttacker
-
-            attacker = ActiveDirectoryAttacker()
-
-            domain = args.get("domain")
-            target_ip = args.get("target_ip")
-
-            if not domain or not target_ip:
-                return {
-                    "success": False,
-                    "error": "Domain and Target IP required for AD attacks",
-                }
-
-            result = {}
-            if tool_name == "ad_asreproast":
-                # Async shim
-                import asyncio
-
-                user_file = args.get("user_file")
-                result = asyncio.run(
-                    attacker.run_asreproast(domain, target_ip, user_file),
-                )
-
-            elif tool_name == "ad_smb_spray":
-                # Async shim
-                import asyncio
-
-                user_file = args.get("user_file")
-                password = args.get("password")
-                if not user_file or not password:
-                    return {
-                        "success": False,
-                        "error": "User file and password required for spray",
-                    }
-
-                # Check concurrency arg
-                concurrency = args.get("concurrency", 10)
-                result = asyncio.run(
-                    attacker.run_smb_spray(
-                        domain,
-                        target_ip,
-                        user_file,
-                        password,
-                        concurrency,
-                    ),
-                )
-
-            else:
-                return {"success": False, "error": f"Unknown AD tool: {tool_name}"}
-
-            return {
-                "success": result.get("success", False),
-                "output": json.dumps(result, indent=2),
-                "data": result,
-            }
-
-        except ImportError:
-            return {"success": False, "error": "modules.ad_attacks not found"}
-        except Exception as e:
-            logger.exception("AD Attack error")
-            return {"success": False, "error": f"AD Attack failed: {e}"}
 

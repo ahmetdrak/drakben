@@ -6,13 +6,14 @@ This module handles automatic error recovery including:
 - Permission fixes
 - Connection retries
 - Resource cleanup
+- Healing success rate tracking
 """
 
-import glob
 import logging
 import os
 import platform
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
@@ -21,6 +22,47 @@ if TYPE_CHECKING:
     from core.execution.execution_engine import ExecutionEngine
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class HealingStats:
+    """Tracks healing attempt outcomes for success rate measurement."""
+
+    total_attempts: int = 0
+    successful_heals: int = 0
+    failed_heals: int = 0
+    by_error_type: dict[str, dict[str, int]] = field(default_factory=dict)
+
+    def record(self, error_type: str, success: bool) -> None:
+        """Record a healing attempt outcome."""
+        self.total_attempts += 1
+        if success:
+            self.successful_heals += 1
+        else:
+            self.failed_heals += 1
+
+        if error_type not in self.by_error_type:
+            self.by_error_type[error_type] = {"attempts": 0, "successes": 0}
+        self.by_error_type[error_type]["attempts"] += 1
+        if success:
+            self.by_error_type[error_type]["successes"] += 1
+
+    @property
+    def success_rate(self) -> float:
+        """Return overall success rate as a percentage (0.0–100.0)."""
+        if self.total_attempts == 0:
+            return 0.0
+        return (self.successful_heals / self.total_attempts) * 100.0
+
+    def get_report(self) -> dict[str, Any]:
+        """Return a summary report dict."""
+        return {
+            "total_attempts": self.total_attempts,
+            "successful_heals": self.successful_heals,
+            "failed_heals": self.failed_heals,
+            "success_rate": round(self.success_rate, 1),
+            "by_error_type": dict(self.by_error_type),
+        }
 
 
 class SelfHealer:
@@ -40,6 +82,7 @@ class SelfHealer:
         """
         self.executor = executor
         self.console = console or Console()
+        self.stats = HealingStats()
         self._healing_map = {
             "missing_tool": self._heal_missing_tool,
             "permission_denied": self._heal_permission_denied,
@@ -75,9 +118,21 @@ class SelfHealer:
         healing_func = self._healing_map.get(error_type)
 
         if healing_func:
-            return healing_func(tool_name, command, error_diagnosis)
+            healed, result = healing_func(tool_name, command, error_diagnosis)
+            self.stats.record(error_type, healed)
+            logger.info(
+                "Healing %s for %s: %s",
+                error_type,
+                tool_name,
+                "SUCCESS" if healed else "FAILED",
+            )
+            return healed, result
 
         return False, None
+
+    def get_healing_stats(self) -> dict[str, Any]:
+        """Return healing success statistics report."""
+        return self.stats.get_report()
 
     def _heal_missing_tool(
         self,
@@ -119,9 +174,39 @@ class SelfHealer:
         command: str,
         error_diagnosis: dict[str, Any],
     ) -> tuple[bool, Any]:
-        """Heal missing Python module by pip install."""
+        """Heal missing Python module by pip install.
+
+        Security:
+        - Module name regex sanitization
+        - Whitelist of known-safe packages
+        - Rejects suspicious module names
+        """
         module_name = error_diagnosis.get("module")
         if not module_name:
+            return False, None
+
+        # Security: Sanitize module name to prevent command injection
+        import re
+        if not re.match(r"^[a-zA-Z0-9_\-\.]+$", module_name):
+            logger.warning("Suspicious module name rejected: %s", module_name)
+            return False, None
+
+        # Security: Whitelist of known-safe pentest-related packages
+        _SAFE_PACKAGES = frozenset({
+            "requests", "beautifulsoup4", "bs4", "lxml", "paramiko",
+            "scapy", "impacket", "pycryptodome", "cryptography",
+            "dnspython", "python-nmap", "shodan", "censys",
+            "rich", "colorama", "tqdm", "tabulate",
+            "aiohttp", "httpx", "urllib3", "certifi",
+            "pyyaml", "toml", "jinja2", "markdown",
+            "pillow", "python-whois", "netaddr", "ipaddress",
+        })
+
+        if module_name.lower() not in _SAFE_PACKAGES:
+            logger.warning(
+                "Module '%s' not in safe whitelist, skipping auto-install",
+                module_name,
+            )
             return False, None
 
         self.console.print(
@@ -320,14 +405,20 @@ class SelfHealer:
 
     def _cleanup_db_locks(self) -> None:
         """Remove database lock files."""
+        from pathlib import Path
+        # Search in project directory and common data directories
+        search_dirs = [Path.cwd(), Path.cwd() / "sessions", Path.cwd() / "drakben_vectors"]
         patterns = ["*.db-journal", "*.db-wal", "*.db-shm"]
-        for pattern in patterns:
-            for lock_file in glob.glob(pattern):
-                try:
-                    os.remove(lock_file)
-                    self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
-                except OSError as e:
-                    logger.debug("Could not remove %s: %s", lock_file, e)
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+            for pattern in patterns:
+                for lock_file in search_dir.glob(pattern):
+                    try:
+                        os.remove(lock_file)
+                        self.console.print(f"  🗑️ {lock_file} silindi", style="dim")
+                    except OSError as e:
+                        logger.debug("Could not remove %s: %s", lock_file, e)
 
     def _install_tool(self, tool_name: str) -> bool:
         """Attempt to install a missing tool.

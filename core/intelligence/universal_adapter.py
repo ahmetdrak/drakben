@@ -40,6 +40,7 @@ CACHE_DIR = Path(".cache/drakben")
 
 # Singleton instance
 _universal_adapter: "UniversalAdapter | None" = None
+_universal_adapter_lock = threading.Lock()
 
 
 class PackageManager(Enum):
@@ -411,7 +412,7 @@ class DependencyResolver:
             result["method"] = self.package_manager.value
 
             try:
-                logger.info("Installing {tool_name} via %s", self.package_manager.value)
+                logger.info("Installing %s via %s", tool_name, self.package_manager.value)
                 proc = subprocess.run(
                     shlex.split(cmd),
                     shell=False,
@@ -930,7 +931,7 @@ class APIServer:
         self.default_key = hashlib.sha256(os.urandom(32)).hexdigest()[:32]
         self.api_keys[self.default_key] = "admin"  # Default key has admin permissions
 
-        logger.info("API Server initialized (bind: {host}:%s)", port)
+        logger.info("API Server initialized (bind: %s:%s)", host, port)
 
     def add_api_key(self, permissions: str = "read") -> str:
         """Add a new API key."""
@@ -983,7 +984,7 @@ class APIServer:
             self.thread.start()
 
             self.running = True
-            logger.info("API Server started on http://{self.host}:%s", self.port)
+            logger.info("API Server started on http://%s:%s", self.host, self.port)
 
         except OSError as e:
             logger.exception(
@@ -1137,7 +1138,9 @@ def get_universal_adapter() -> UniversalAdapter:
     """
     global _universal_adapter
     if _universal_adapter is None:
-        _universal_adapter = UniversalAdapter()
+        with _universal_adapter_lock:
+            if _universal_adapter is None:
+                _universal_adapter = UniversalAdapter()
     return _universal_adapter
 
 

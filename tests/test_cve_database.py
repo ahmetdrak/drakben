@@ -126,19 +126,19 @@ class TestCVEDatabase:
     def test_database_initialization(self, tmp_path):
         """Test database initialization."""
         db_path = tmp_path / "test_cve.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
         assert str(db.db_path) == str(db_path)
         assert db_path.exists()
 
     def test_database_default_path(self):
         """Test database uses default path."""
-        db = CVEDatabase()
+        db = CVEDatabase(auto_update=False)
         assert "nvd_cache.db" in str(db.db_path)
 
     def test_get_last_sync_time(self, tmp_path):
         """Test getting last sync time."""
         db_path = tmp_path / "test_sync.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
         result = db.get_last_sync_time()
         # May be None if never synced
         assert result is None or isinstance(result, str)
@@ -150,7 +150,7 @@ class TestAutoUpdater:
     def test_auto_updater_initialization(self, tmp_path):
         """Test auto updater initialization."""
         db_path = tmp_path / "test_auto.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
         updater = AutoUpdater(db)
         assert updater.db == db
         assert updater.running is False
@@ -158,7 +158,7 @@ class TestAutoUpdater:
     def test_start_background_update(self, tmp_path):
         """Test starting background update thread."""
         db_path = tmp_path / "test_bg.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
         updater = AutoUpdater(db)
 
         # Should not raise
@@ -172,9 +172,9 @@ class TestEnrichedVulnerability:
     def test_vulnerability_matcher_creation(self, tmp_path):
         """Test vulnerability matcher creation."""
         db_path = tmp_path / "test_matcher.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
         matcher = VulnerabilityMatcher(db)
-        assert matcher is not None
+        assert isinstance(matcher, VulnerabilityMatcher)
 
 
 # Integration tests
@@ -184,11 +184,11 @@ class TestCVEDatabaseIntegration:
     def test_full_workflow(self, tmp_path):
         """Test complete workflow."""
         db_path = tmp_path / "test_workflow.db"
-        cve_db = CVEDatabase(db_path=str(db_path))
+        cve_db = CVEDatabase(db_path=str(db_path), auto_update=False)
 
         # Verify database created
         assert db_path.exists()
-        assert cve_db is not None  # Use the variable
+        assert isinstance(cve_db, CVEDatabase)
 
         # Check tables exist
         import sqlite3
@@ -204,7 +204,7 @@ class TestCVEDatabaseIntegration:
     async def test_cpe_matching_async(self, tmp_path):
         """Test CPE-based matching (async)."""
         db_path = tmp_path / "test_cpe.db"
-        db = CVEDatabase(db_path=str(db_path))
+        db = CVEDatabase(db_path=str(db_path), auto_update=False)
 
         # CPE format: cpe:2.3:a:vendor:product:version
         cpe = "cpe:2.3:a:apache:tomcat:9.0.0"

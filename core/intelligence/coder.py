@@ -628,7 +628,7 @@ def run(target, args=None) -> Any:
             return module
 
         except Exception as e:
-            logger.exception("Error loading dynamic module {module_name}: %s", e)
+            logger.exception("Error loading dynamic module %s: %s", module_name, e)
             return None
 
     def execute_dynamic_tool(
@@ -638,7 +638,7 @@ def run(target, args=None) -> Any:
         args: dict[Any, Any] | None = None,
     ) -> dict:
         """Dinamik tool'u çalıştır."""
-        logger.info("Executing dynamic tool: {tool_name} on %s", target)
+        logger.info("Executing dynamic tool: %s on %s", tool_name, target)
 
         module_name: str = f"modules.dynamic.{tool_name}"
         module: Any | None = self.load_dynamic_tool(module_name)
@@ -705,4 +705,4 @@ def run(target, args=None) -> Any:
                         self.created_tools.remove(f.stem)
                     logger.info("Deleted old tool: %s", f.name)
                 except Exception as e:
-                    logger.warning("Could not delete {f.name}: %s", e)
+                    logger.warning("Could not delete %s: %s", f.name, e)

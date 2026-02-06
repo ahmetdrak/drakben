@@ -7,7 +7,7 @@
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-583%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-1330%20passed-brightgreen.svg)]()
 [![Ruff](https://img.shields.io/badge/ruff-0%20errors-brightgreen.svg)]()
 [![Mypy](https://img.shields.io/badge/mypy-0%20errors-brightgreen.svg)]()
 [![SonarQube](https://img.shields.io/badge/SonarQube-0%20critical-brightgreen.svg)]()
@@ -47,10 +47,12 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Multi-LLM Support** - OpenRouter, Ollama, OpenAI, Custom APIs
 - **Bilingual UI** - Full Turkish and English support with `/tr` and `/en`
 - **Stanford Memory System** - Graph-based memory with semantic search
+- **ChromaDB Vector Store** - Persistent embedding-based knowledge retrieval
 - **Anti-Hallucination Protocol** - Validates AI outputs against reality
 
 ### 🔄 Self-Evolution Engine (Singularity)
-- **Code Synthesis** - Generates new tools from descriptions
+- **Code Synthesis** - Generates new tools from descriptions (7 real templates)
+- **AST-Based Refactoring** - Real code improvement via Abstract Syntax Trees
 - **Polymorphic Mutation** - Transforms code to evade detection
 - **Strategy Mutation** - Adapts attack strategies based on failures
 - **Dynamic Tool Registration** - Creates and registers tools at runtime
@@ -88,7 +90,8 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Web Application Testing** - XSS, CSRF, LFI/RFI, SSTI
 - **Polyglot Payloads** - Context-agnostic exploit strings
 - **AI Evasion** - Semantic mutation for WAF bypass
-- **CVE Database Integration** - Automatic exploit matching
+- **CVE Database Integration** - NVD-backed automatic exploit matching
+- **Symbolic Execution** - Boundary-aware constraint solving for vulnerability discovery
 
 ### 🏢 Active Directory Attacks
 - **Domain Enumeration** - Users, groups, computers, trusts
@@ -129,7 +132,7 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 
 ### 🔧 Weapon Foundry (Payload Generation)
 - **Multi-Format Output** - Python, PowerShell, VBS, HTA, Bash, C#
-- **Multi-Layer Encryption** - XOR, AES, RC4, ChaCha20
+- **Multi-Layer Encryption** - XOR, AES, RC4, ChaCha20-Poly1305
 - **Shellcode Generation** - Pure Python/ASM (Keystone)
 - **Anti-Debug Techniques** - Evade debuggers
 - **Staged Payloads** - Multi-stage delivery
@@ -144,7 +147,7 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Multiple Formats** - HTML, Markdown, JSON, PDF
 - **Executive Summary** - AI-generated overview
 - **Risk Scoring** - CVSS-based severity
-- **Evidence Documentation** - Screenshots and logs
+- **Evidence Documentation** - Screenshots (Playwright/Selenium/CLI) and logs
 - **Remediation Guidance** - Actionable fixes
 
 ### 🔒 Security Features
@@ -234,10 +237,10 @@ python drakben.py
 | `/tools` | List available tools |
 | `/status` | Show current state |
 | `/shell` | Interactive shell mode (bilingual) |
+| `/memory` | View memory system status |
 | `/report` | Generate report |
 | `/llm` | Configure LLM provider |
 | `/config` | View/edit configuration |
-| `/memory` | View memory system status |
 | `/tr` | Switch to Turkish |
 | `/en` | Switch to English |
 | `/exit` | Exit DRAKBEN |
@@ -349,55 +352,81 @@ Advanced evasion through code transformation:
 
 ```
 drakben/
-├── drakben.py              # Main entry point
-├── core/                   # Core engine components
-│   ├── agent/              # Agent & Brain modules
-│   │   ├── brain.py        # AI reasoning engine with memory integration
-│   │   ├── state.py        # Global state management
-│   │   ├── planner.py      # Attack planning
-│   │   ├── pentest_orchestrator.py # State machine + LLM coordinator
-│   │   ├── error_diagnostics.py    # Error analysis and recovery
-│   │   └── refactored_agent.py     # Self-refining agent
-│   │   ├── cognitive/      # Cognitive subsystem
-│   │   ├── memory/         # Stanford Memory System integration
-│   │   └── recovery/       # Error recovery mechanisms
-│   ├── execution/          # Execution engine
-│   │   ├── execution_engine.py
-│   │   ├── sandbox_manager.py      # Docker sandbox
-│   │   └── tool_selector.py
-│   ├── intelligence/       # AI modules
-│   │   ├── evolution_memory.py
-│   │   ├── self_refining_engine.py
-│   │   └── coder.py
-│   ├── singularity/        # Code generation engine
-│   │   ├── mutation.py     # Code mutation
-│   │   └── synthesizer.py  # Code synthesis
-│   ├── tools/              # Tool registry system
-│   │   ├── tool_registry.py # Central tool hub (20+ tools)
-│   │   ├── tool_parsers.py
-│   │   └── computer.py
-│   ├── security/           # Security modules
-│   └── ui/                 # User interface
-│       ├── menu.py         # Main menu (bilingual)
-│       ├── interactive_shell.py # Shell mode (TR/EN)
-│       └── unified_display.py   # Modern display system
-├── modules/                # Attack modules
-│   ├── recon.py            # Reconnaissance
-│   ├── exploit.py          # Exploitation
-│   ├── c2_framework.py     # Command & Control
-│   ├── hive_mind.py        # Lateral movement
-│   ├── weapon_foundry.py   # Payload generation
-│   ├── waf_evasion.py      # WAF bypass
-│   ├── post_exploit.py     # Post-exploitation
-│   ├── ad_attacks.py       # Active Directory
-│   ├── ad_extensions.py    # AD advanced attacks
-│   ├── native/             # Low-level syscalls
-│   └── report_generator.py
-├── llm/                    # LLM integration
-│   └── openrouter_client.py
-├── tests/                  # Test suite (527 tests)
-├── config/                 # Configuration files
-└── plugins/                # External plugins
+├── drakben.py                  # Main entry point
+├── core/                       # Core engine
+│   ├── agent/                  # Agent subsystem
+│   │   ├── brain.py            # AI reasoning engine with memory integration
+│   │   ├── state.py            # Global state management (singleton)
+│   │   ├── planner.py          # Attack phase planning
+│   │   ├── pentest_orchestrator.py  # State machine + LLM coordinator
+│   │   ├── error_diagnostics.py     # Error analysis and recovery
+│   │   ├── refactored_agent.py      # Self-refining agent loop
+│   │   ├── cognitive/          # Cognitive subsystem
+│   │   ├── memory/             # Stanford Memory System (graph + semantic)
+│   │   └── recovery/           # Error recovery mechanisms
+│   ├── execution/              # Execution layer
+│   │   ├── execution_engine.py # Command runner
+│   │   ├── sandbox_manager.py  # Docker sandbox isolation
+│   │   └── tool_selector.py    # AI-driven tool selection
+│   ├── intelligence/           # AI modules
+│   │   ├── evolution_memory.py # Persistent learning (SQLite)
+│   │   ├── self_refining_engine.py  # Policy engine + strategy mutation
+│   │   └── coder.py            # Code generation assistant
+│   ├── llm/                    # LLM abstraction layer
+│   ├── network/                # Network utilities
+│   ├── security/               # Security modules (sanitization, blocking)
+│   ├── singularity/            # Code generation engine
+│   │   ├── synthesizer.py      # AST-based code synthesis + refactoring
+│   │   └── mutation.py         # Polymorphic code mutation
+│   ├── storage/                # Persistence layer
+│   ├── tools/                  # Tool registry system
+│   │   ├── tool_registry.py    # Central tool hub (20+ tools)
+│   │   ├── tool_parsers.py     # Output parsers
+│   │   └── computer.py         # Computer interaction
+│   └── ui/                     # User interface
+│       ├── menu.py             # Main menu (bilingual TR/EN)
+│       ├── interactive_shell.py # Interactive shell mode
+│       └── unified_display.py  # Modern Dracula-themed display
+├── modules/                    # Attack modules
+│   ├── recon.py                # Reconnaissance (port scan, DNS, WHOIS)
+│   ├── exploit/                # Exploitation package
+│   │   ├── common.py           # SQLi, XSS, CSRF, SSTI, LFI, SSRF, etc.
+│   │   └── __init__.py         # Public API re-exports
+│   ├── c2_framework.py         # Command & Control (DNS tunneling, domain fronting)
+│   ├── hive_mind.py            # Distributed operations & lateral movement
+│   ├── weapon_foundry.py       # Payload generation (multi-format, multi-layer)
+│   ├── waf_bypass_engine.py    # WAF fingerprinting & intelligent evasion
+│   ├── waf_evasion.py          # WAF evasion utilities
+│   ├── post_exploit.py         # Post-exploitation & persistence
+│   ├── ad_attacks.py           # Active Directory attacks
+│   ├── ad_extensions.py        # AD advanced attacks
+│   ├── cve_database.py         # NVD CVE database integration
+│   ├── nuclei.py               # Nuclei scanner integration
+│   ├── metasploit.py           # Metasploit framework integration
+│   ├── stealth_client.py       # Stealth communication client
+│   ├── subdomain.py            # Subdomain enumeration
+│   ├── payload.py              # Payload utilities
+│   ├── report_generator.py     # Professional report generation
+│   ├── native/                 # Low-level syscalls (Rust FFI)
+│   ├── research/               # Research modules (symbolic execution)
+│   └── social_eng/             # Social engineering modules
+├── llm/                        # LLM integration
+│   └── openrouter_client.py    # OpenRouter API client
+├── tests/                      # Test suite (1330+ tests)
+├── config/                     # Configuration files
+│   ├── settings.json           # Application settings
+│   ├── plugins.json            # Plugin configuration
+│   └── api.env                 # API keys (gitignored)
+├── plugins/                    # External plugins directory
+├── .github/workflows/          # CI/CD pipelines
+│   ├── drakben_ci.yml          # Continuous integration
+│   └── drakben_cd.yml          # Continuous deployment
+├── docker-compose.yml          # Docker orchestration
+├── Dockerfile                  # Container image
+├── requirements.txt            # Python dependencies
+├── ruff.toml                   # Ruff linter config (36 rule groups)
+├── mypy.ini                    # Mypy type checking config
+└── sonar-project.properties    # SonarQube analysis config
 ```
 
 ---
@@ -415,7 +444,7 @@ python -m pytest --cov=core --cov=modules --cov-report=html
 python -m pytest --maxfail=10 --disable-warnings --tb=short
 ```
 
-**Current Status:** 527 tests passing ✅
+**Current Status:** 1330+ tests passing | Ruff (36 rule groups) clean | Mypy strict | SonarQube compliant
 
 ---
 

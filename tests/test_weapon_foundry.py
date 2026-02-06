@@ -58,7 +58,8 @@ class TestEncryptionEngine(unittest.TestCase):
     def test_encrypt_method_xor(self) -> None:
         """Test encrypt() with XOR method."""
         data = b"test"
-        encrypted, key, iv = self.engine.encrypt(data, EncryptionMethod.XOR)
+        # Use explicit non-zero key to avoid flaky \x00 XOR identity
+        encrypted, key, iv = self.engine.encrypt(data, EncryptionMethod.XOR, key=b"\xAB")
         assert encrypted != data
         assert len(key) == 1  # Single byte XOR
         assert iv is None

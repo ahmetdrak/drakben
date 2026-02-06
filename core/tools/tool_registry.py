@@ -6,7 +6,7 @@ Tool Registry: Maps tool names to their implementations.
 
 This is the "nervous system" that connects:
 - Shell commands (nmap, nikto, sqlmap)
-- Python modules (modules/recon.py, modules/exploit.py)
+- Python modules (modules/recon.py, modules/exploit/)
 - Singularity (code generation)
 - Hive Mind (AD attacks, lateral movement)
 
@@ -450,7 +450,7 @@ class ToolRegistry:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=tool.timeout
+                proc.communicate(), timeout=tool.timeout,
             )
             return {
                 "success": proc.returncode == 0,
@@ -511,7 +511,7 @@ class ToolRegistry:
 
                 output_lines = []
                 for line in process.stdout:
-                    print(line, end='', flush=True)
+                    print(line, end="", flush=True)
                     output_lines.append(line)
                 process.wait(timeout=tool.timeout)
 
@@ -587,7 +587,7 @@ class ToolRegistry:
         return passive_recon(target)
 
     def _run_sqli_test(self, target: str, **kwargs: Any) -> dict:
-        """Run SQL injection test from modules/exploit.py"""
+        """Run SQL injection test from modules/exploit"""
         from modules.exploit import PolyglotEngine
 
         # Get polyglot payloads
@@ -604,7 +604,7 @@ class ToolRegistry:
         return results
 
     def _run_xss_test(self, target: str, **kwargs: Any) -> dict:
-        """Run XSS test from modules/exploit.py"""
+        """Run XSS test from modules/exploit"""
         from modules.exploit import AIEvasion
 
         # XSS payloads
@@ -664,7 +664,7 @@ class ToolRegistry:
         try:
             from modules.weapon_foundry import WeaponFoundry
             foundry = WeaponFoundry()
-            templates = foundry.list_templates() if hasattr(foundry, 'list_templates') else []
+            templates = foundry.list_templates() if hasattr(foundry, "list_templates") else []
             return {
                 "target": target,
                 "templates": templates[:10] if templates else ["reverse_shell", "bind_shell", "meterpreter"],
@@ -688,16 +688,18 @@ class ToolRegistry:
             return {"success": False, "error": str(e)}
 
     def _run_evolve(self, target: str, **kwargs: Any) -> dict:
-        """Generate new capability via Singularity engine."""
+        """Generate new capability via Singularity engine and auto-register."""
         try:
             from core.singularity import SingularityEngine
             engine = SingularityEngine()
             description = kwargs.get("description", f"Tool to analyze {target}")
-            code = engine.create_capability(description, language="python")
+            tool_name = kwargs.get("tool_name")
+            code = engine.create_and_register(description, tool_name=tool_name)
             return {
                 "target": target,
                 "generated_code": code[:2000] if code else None,
-                "status": "Code generated" if code else "Generation failed",
+                "registered": code is not None,
+                "status": "Tool generated and registered" if code else "Generation failed",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

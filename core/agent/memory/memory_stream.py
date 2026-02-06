@@ -138,16 +138,16 @@ class MemoryStream:
 
             # Create indexes for fast retrieval
             self._db_conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_node_type ON memory_nodes(node_type)"
+                "CREATE INDEX IF NOT EXISTS idx_node_type ON memory_nodes(node_type)",
             )
             self._db_conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_target ON memory_nodes(target)"
+                "CREATE INDEX IF NOT EXISTS idx_target ON memory_nodes(target)",
             )
             self._db_conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_created_at ON memory_nodes(created_at)"
+                "CREATE INDEX IF NOT EXISTS idx_created_at ON memory_nodes(created_at)",
             )
             self._db_conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_poignancy ON memory_nodes(poignancy)"
+                "CREATE INDEX IF NOT EXISTS idx_poignancy ON memory_nodes(poignancy)",
             )
 
             self._db_conn.commit()
@@ -167,7 +167,7 @@ class MemoryStream:
 
         try:
             cursor = self._db_conn.execute(
-                "SELECT * FROM memory_nodes ORDER BY created_at"
+                "SELECT * FROM memory_nodes ORDER BY created_at",
             )
             for row in cursor:
                 node = self._row_to_node(row)
@@ -356,7 +356,7 @@ class MemoryStream:
             if self._db_conn:
                 try:
                     self._db_conn.execute(
-                        "DELETE FROM memory_nodes WHERE node_id = ?", (node_id,)
+                        "DELETE FROM memory_nodes WHERE node_id = ?", (node_id,),
                     )
                 except Exception:
                     pass
@@ -617,6 +617,49 @@ class MemoryStream:
                 "embeddings_enabled": self._use_embeddings,
             }
 
+    @staticmethod
+    def _collect_section(
+        header: str,
+        nodes: list[Any],
+        limit: int,
+        current_chars: int,
+        max_chars: int,
+    ) -> tuple[str, int]:
+        """Build one context section from *nodes*, respecting char budget.
+
+        Returns:
+            (section_text, updated_current_chars)
+        """
+        section = header
+        for node in nodes[:limit]:
+            line = node.to_context_string() + "\n"
+            if current_chars + len(line) > max_chars:
+                break
+            section += line
+            current_chars += len(line)
+        return section, current_chars
+
+    def _build_typed_section(
+        self,
+        node_type: NodeType,
+        header: str,
+        n: int,
+        target: str | None,
+        include_types: list[NodeType] | None,
+        current_chars: int,
+        max_chars: int,
+    ) -> tuple[str | None, int]:
+        """Build a section for a specific NodeType if it is included."""
+        if include_types and node_type not in include_types:
+            return None, current_chars
+        nodes = self.get_by_type(node_type, n=n, target=target)
+        if not nodes:
+            return None, current_chars
+        section, current_chars = self._collect_section(
+            header, nodes, n, current_chars, max_chars,
+        )
+        return section, current_chars
+
     def build_context(
         self,
         target: str | None = None,
@@ -637,65 +680,67 @@ class MemoryStream:
             Formatted context string for LLM
         """
         with self._lock:
-            # Estimated chars per token
             chars_per_token = 4
             max_chars = max_tokens * chars_per_token
 
-            sections = []
+            sections: list[str] = []
             current_chars = 0
 
             # 1. Critical findings first (always include)
             critical = self.get_critical_findings(target=target)
             if critical:
-                section = "=== CRITICAL FINDINGS ===\n"
-                for node in critical[:5]:  # Top 5 critical
-                    line = node.to_context_string() + "\n"
-                    if current_chars + len(line) > max_chars:
-                        break
-                    section += line
-                    current_chars += len(line)
-                sections.append(section)
+                sec, current_chars = self._collect_section(
+                    "=== CRITICAL FINDINGS ===\n", critical, 5,
+                    current_chars, max_chars,
+                )
+                sections.append(sec)
 
-            # 2. Recent events (last 10)
-            if not include_types or NodeType.EVENT in include_types:
-                events = self.get_by_type(NodeType.EVENT, n=10, target=target)
-                if events:
-                    section = "\n=== RECENT ACTIONS ===\n"
-                    for node in events[:10]:
-                        line = node.to_context_string() + "\n"
-                        if current_chars + len(line) > max_chars:
-                            break
-                        section += line
-                        current_chars += len(line)
-                    sections.append(section)
-
-            # 3. Current thoughts/reasoning (last 5)
-            if not include_types or NodeType.THOUGHT in include_types:
-                thoughts = self.get_by_type(NodeType.THOUGHT, n=5, target=target)
-                if thoughts:
-                    section = "\n=== CURRENT REASONING ===\n"
-                    for node in thoughts[:5]:
-                        line = node.to_context_string() + "\n"
-                        if current_chars + len(line) > max_chars:
-                            break
-                        section += line
-                        current_chars += len(line)
-                    sections.append(section)
-
-            # 4. Reflections/insights (last 3)
-            if not include_types or NodeType.REFLECTION in include_types:
-                reflections = self.get_by_type(NodeType.REFLECTION, n=3, target=target)
-                if reflections:
-                    section = "\n=== INSIGHTS ===\n"
-                    for node in reflections[:3]:
-                        line = node.to_context_string() + "\n"
-                        if current_chars + len(line) > max_chars:
-                            break
-                        section += line
-                        current_chars += len(line)
-                    sections.append(section)
+            # 2-4. Typed sections
+            typed_specs: list[tuple[NodeType, str, int]] = [
+                (NodeType.EVENT, "\n=== RECENT ACTIONS ===\n", 10),
+                (NodeType.THOUGHT, "\n=== CURRENT REASONING ===\n", 5),
+                (NodeType.REFLECTION, "\n=== INSIGHTS ===\n", 3),
+            ]
+            for node_type, header, n in typed_specs:
+                sec, current_chars = self._build_typed_section(
+                    node_type, header, n, target,
+                    include_types, current_chars, max_chars,
+                )
+                if sec is not None:
+                    sections.append(sec)
 
             return "".join(sections)
+
+    def _clear_target(self, target: str) -> None:
+        """Remove all nodes belonging to *target* from indexes and DB."""
+        node_ids = list(self._by_target.get(target, []))
+        for node_id in node_ids:
+            self._remove_from_indexes(node_id)
+            if node_id in self._nodes:
+                del self._nodes[node_id]
+        if self._db_conn:
+            try:
+                self._db_conn.execute(
+                    "DELETE FROM memory_nodes WHERE target = ?", (target,),
+                )
+                self._db_conn.commit()
+            except Exception:
+                pass
+
+    def _clear_all(self) -> None:
+        """Remove every node from indexes and DB."""
+        self._nodes.clear()
+        self._by_type.clear()
+        self._by_target.clear()
+        self._by_time.clear()
+        self._by_relevance.clear()
+        self._spo_index.clear()
+        if self._db_conn:
+            try:
+                self._db_conn.execute("DELETE FROM memory_nodes")
+                self._db_conn.commit()
+            except Exception:
+                pass
 
     def clear(self, target: str | None = None) -> None:
         """Clear memory stream.
@@ -705,34 +750,9 @@ class MemoryStream:
         """
         with self._lock:
             if target:
-                # Clear only target-specific nodes
-                node_ids = list(self._by_target.get(target, []))
-                for node_id in node_ids:
-                    self._remove_from_indexes(node_id)
-                    if node_id in self._nodes:
-                        del self._nodes[node_id]
-                if self._db_conn:
-                    try:
-                        self._db_conn.execute(
-                            "DELETE FROM memory_nodes WHERE target = ?", (target,)
-                        )
-                        self._db_conn.commit()
-                    except Exception:
-                        pass
+                self._clear_target(target)
             else:
-                # Clear everything
-                self._nodes.clear()
-                self._by_type.clear()
-                self._by_target.clear()
-                self._by_time.clear()
-                self._by_relevance.clear()
-                self._spo_index.clear()
-                if self._db_conn:
-                    try:
-                        self._db_conn.execute("DELETE FROM memory_nodes")
-                        self._db_conn.commit()
-                    except Exception:
-                        pass
+                self._clear_all()
 
             logger.info("Memory stream cleared (target=%s)", target)
 
@@ -749,6 +769,7 @@ class MemoryStream:
 
 # Global singleton instance
 _memory_stream: MemoryStream | None = None
+_memory_stream_lock = threading.Lock()
 
 
 def get_memory_stream(
@@ -766,10 +787,12 @@ def get_memory_stream(
     """
     global _memory_stream
     if _memory_stream is None:
-        _memory_stream = MemoryStream(
-            persist_path=persist_path,
-            vector_store=vector_store,
-        )
+        with _memory_stream_lock:
+            if _memory_stream is None:
+                _memory_stream = MemoryStream(
+                    persist_path=persist_path,
+                    vector_store=vector_store,
+                )
     return _memory_stream
 
 

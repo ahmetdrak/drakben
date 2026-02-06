@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-02-07
+
+### Added
+- **Real DNS Resolution** - `socket.getaddrinfo()` fallback replacing simulated DNS responses
+- **7 Real Code Templates** - Singularity synthesizer: port scanner, subdomain enumerator, header analyzer, dir brute-forcer, DNS resolver, banner grabber, generic tool
+- **AST-Based Refactoring** - `refactor_code()` now performs real unused import removal and auto-docstring insertion
+- **Boundary-Aware Symbolic Executor** - Heuristic constraint solver with per-operator dispatch
+- **Real SMTP Phishing** - `smtplib.SMTP` + STARTTLS + MIME multipart message construction
+- **NVD CVE Integration** - `fetch_and_prepare_exploit()` connects to CVEDatabase for 5-CVE deep analysis
+- **Systemd Persistence** - Real user-level systemd service unit installation
+- **C2 Base64 Transfer** - `C2ShellWrapper.upload/download` with chunked base64 encoding
+- **32 Roundtrip Integration Tests** - End-to-end tests for all major module chains
+- **SonarQube Compliance** - Reduced from 384 → 0 critical issues
+- test_roundtrip_integration.py with 32 integration tests
+
+### Changed
+- `modules/exploit/` refactored from single file to package (`common.py` + `__init__.py`)
+- Ruff expanded to 36 rule groups (all passing)
+- Cognitive complexity reduced in `refactor_code()` and `_heuristic_solve()`
+- Extracted `_NO_SUCH_FILE` constant in `post_exploit.py` (S1192 compliance)
+- Total test count: 1298 → 1330
+
+### Removed
+- Dead `modules/exploit.py` file (superseded by `modules/exploit/` package)
+- `coverage_output.txt` and other generated artifacts from tracking
+- Stream cipher fallback reference (removed in prior release)
+
+### Fixed
+- Stale `ExploitRunner` reference in API.md documentation
+- Duplicate `/memory` command entry in README command table
+- All SonarQube cognitive complexity violations in synthesizer and symbolic modules
+
 ## [3.2.0] - 2026-02-05
 
 ### Added

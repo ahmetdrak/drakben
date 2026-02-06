@@ -236,15 +236,69 @@ class SymbolicExecutor:
         return None
 
     def _heuristic_solve(self, path: ExecutionPath) -> dict[str, Any]:
-        """Fallback solver without Z3."""
-        result = {}
+        """Fallback solver without Z3 — boundary-aware analysis.
+
+        For each constraint, generates meaningful boundary candidates
+        that would be useful for fuzzing and vulnerability discovery.
+        """
+        result: dict[str, list[Any]] = {}
+
         for c in path.constraints:
-            if c.operator == "==":
-                result[c.variable] = c.value
-            elif c.operator == ">":
-                result[c.variable] = c.value + 1
-            elif c.operator == "<":
-                result[c.variable] = c.value - 1
-            else:
-                result[c.variable] = 0
+            candidates = self._candidates_for_constraint(c)
+            result[c.variable] = candidates[0] if candidates else 0
+
         return result
+
+    @staticmethod
+    def _candidates_for_constraint(c: PathConstraint) -> list[Any]:
+        """Return boundary-value candidates for a single constraint."""
+        val = c.value
+        handler = _HEURISTIC_HANDLERS.get(c.operator)
+        if handler is not None:
+            return handler(val)
+        # Unknown operator — provide common boundary values
+        return [0, -1, 1, 2**31 - 1, 2**32 - 1]
+
+
+def _heur_eq(val: Any) -> list[Any]:
+    return [val]
+
+
+def _heur_ne(val: Any) -> list[Any]:
+    if isinstance(val, int):
+        return [val + 1, val - 1, 0, -1, 2**31 - 1]
+    return [0]
+
+
+def _heur_gt(val: Any) -> list[Any]:
+    if isinstance(val, int):
+        return [val + 1, val + 2, 2**31 - 1]
+    return [1]
+
+
+def _heur_lt(val: Any) -> list[Any]:
+    if isinstance(val, int):
+        return [val - 1, val - 2, 0, -1]
+    return [0]
+
+
+def _heur_ge(val: Any) -> list[Any]:
+    if isinstance(val, int):
+        return [val, val + 1, 2**31 - 1]
+    return [0]
+
+
+def _heur_le(val: Any) -> list[Any]:
+    if isinstance(val, int):
+        return [val, val - 1, 0, -1]
+    return [0]
+
+
+_HEURISTIC_HANDLERS: dict[str, Any] = {
+    "==": _heur_eq,
+    "!=": _heur_ne,
+    ">": _heur_gt,
+    "<": _heur_lt,
+    ">=": _heur_ge,
+    "<=": _heur_le,
+}

@@ -67,7 +67,7 @@ class PluginLoader:
                     continue
 
                 loaded_tools[tool.name] = tool
-                logger.info("Plugin loaded: {tool.name} from %s", file_path.name)
+                logger.info("Plugin loaded: %s from %s", tool.name, file_path.name)
 
         return loaded_tools
 
@@ -108,5 +108,5 @@ class PluginLoader:
 
         except Exception as e:
             # Catch ALL errors (Syntax, Import, Runtime) so the main execution doesn't stop
-            logger.exception("Failed to load plugin {file_path.name}: %s", e)
+            logger.exception("Failed to load plugin %s: %s", file_path.name, e)
             return None

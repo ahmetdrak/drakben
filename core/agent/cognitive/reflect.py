@@ -101,15 +101,12 @@ class ReflectModule:
 
         # Finding count trigger
         recent_findings = self._memory_stream.get_by_type(
-            NodeType.FINDING, n=10
+            NodeType.FINDING, n=10,
         )
         high_poignancy_findings = [
             f for f in recent_findings if f.poignancy >= 7.0
         ]
-        if len(high_poignancy_findings) >= REFLECTION_TRIGGERS["finding_count"]:
-            return True
-
-        return False
+        return len(high_poignancy_findings) >= REFLECTION_TRIGGERS["finding_count"]
 
     def reflect(
         self,
@@ -234,10 +231,10 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Correlate related vulnerabilities."""
         vulns = self._memory_stream.get_by_relevance(
-            PentestRelevance.CRITICAL_VULN, n=10, target=target
+            PentestRelevance.CRITICAL_VULN, n=10, target=target,
         )
         vulns += self._memory_stream.get_by_relevance(
-            PentestRelevance.HIGH_VULN, n=10, target=target
+            PentestRelevance.HIGH_VULN, n=10, target=target,
         )
 
         if len(vulns) < 2:
@@ -273,7 +270,7 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Identify credential chains and reuse opportunities."""
         creds = self._memory_stream.get_by_relevance(
-            PentestRelevance.CREDENTIAL, n=10, target=target
+            PentestRelevance.CREDENTIAL, n=10, target=target,
         )
 
         if len(creds) < 1:
@@ -281,7 +278,7 @@ class ReflectModule:
 
         # Look for reuse opportunities
         services = self._memory_stream.get_by_relevance(
-            PentestRelevance.SERVICE_INFO, n=20, target=target
+            PentestRelevance.SERVICE_INFO, n=20, target=target,
         )
 
         auth_services = [
@@ -311,7 +308,7 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Learn from failed attempts."""
         events = self._memory_stream.get_by_type(
-            NodeType.EVENT, n=30, target=target
+            NodeType.EVENT, n=30, target=target,
         )
 
         # Find failures
@@ -376,12 +373,13 @@ Target: {target or 'unknown'}
 Respond with a single actionable strategic recommendation."""
 
         try:
-            response = self._llm_client.chat(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=150,
+            response = self._llm_client.query(
+                prompt,
+                system_prompt="You are a strategic pentest advisor. Provide concise actionable insights.",
+                timeout=15,
             )
 
-            insight_text = response.get("content", "").strip()
+            insight_text = response.strip() if isinstance(response, str) else ""
             if not insight_text:
                 return None
 

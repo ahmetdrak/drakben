@@ -106,14 +106,12 @@ class WAFEvasion:
         # Try new engine first
         if self._engine is not None and PayloadType is not None:
             try:
-                result = self._engine.generate_bypass(
+                results = self._engine.bypass_sql(
                     payload=payload,
-                    payload_type=PayloadType.SQLI,
-                    techniques=["all"],
-                    count=1
+                    aggressiveness=aggressiveness,
                 )
-                if result.variants:
-                    return result.variants[0]
+                if results:
+                    return results[0]
             except Exception:
                 pass  # Fall back to legacy
 
@@ -139,14 +137,11 @@ class WAFEvasion:
         # Try new engine first
         if self._engine is not None and PayloadType is not None:
             try:
-                result = self._engine.generate_bypass(
+                results = self._engine.bypass_xss(
                     payload=payload,
-                    payload_type=PayloadType.XSS,
-                    techniques=["all"],
-                    count=1
                 )
-                if result.variants:
-                    return result.variants[0]
+                if results:
+                    return results[0]
             except Exception:
                 pass  # Fall back to legacy
 
@@ -176,6 +171,30 @@ class WAFEvasion:
 
         return mutated
 
+    def _shell_concat_obfuscate(self, payload: str) -> str:
+        """Obfuscate using string concatenation: cat -> c'a't."""
+        new_payload = ""
+        for char in payload:
+            if char.isalnum():
+                new_payload += f"'{char}'"
+            else:
+                new_payload += char
+        return new_payload.replace("''", "")  # Cleanup
+
+    def _shell_wildcard_obfuscate(self, payload: str) -> str:
+        """Obfuscate using wildcard injection: /etc/passwd -> /e??/p??swd."""
+        parts = payload.split("/")
+        new_parts = []
+        for part in parts:
+            if len(part) > 2:
+                chars = list(part)
+                idx = secrets.randbelow(len(chars) - 1) + 1
+                chars[idx] = "?"
+                new_parts.append("".join(chars))
+            else:
+                new_parts.append(part)
+        return "/".join(new_parts)
+
     def obfuscate_shell(self, payload: str) -> str:
         """Obfuscate OS Command Injection (Bash/Linux).
 
@@ -185,42 +204,21 @@ class WAFEvasion:
         # Try new engine first
         if self._engine is not None and PayloadType is not None:
             try:
-                result = self._engine.generate_bypass(
+                results = self._engine.bypass_rce(
                     payload=payload,
-                    payload_type=PayloadType.RCE,
-                    techniques=["all"],
-                    count=1
                 )
-                if result.variants:
-                    return result.variants[0]
+                if results:
+                    return results[0]
             except Exception:
                 pass  # Fall back to legacy
 
-        # Legacy implementation
-        # 1. String Concatenation: cat -> c'a't
-        if secrets.choice([True, False]):  # 50% chance
-            new_payload = ""
-            for char in payload:
-                if char.isalnum():
-                    new_payload += f"'{char}'"
-                else:
-                    new_payload += char
-            return new_payload.replace("''", "")  # Cleanup
+        # Legacy: String Concatenation (50% chance)
+        if secrets.choice([True, False]):
+            return self._shell_concat_obfuscate(payload)
 
-        # 2. Wildcard Injection: /etc/passwd -> /e??/p??swd
+        # Legacy: Wildcard Injection
         if "/" in payload:
-            parts = payload.split("/")
-            new_parts = []
-            for part in parts:
-                if len(part) > 2:
-                    # Randomly replace chars with ?
-                    chars = list(part)
-                    idx = secrets.randbelow(len(chars) - 1) + 1  # 1 to len-1
-                    chars[idx] = "?"
-                    new_parts.append("".join(chars))
-                else:
-                    new_parts.append(part)
-            return "/".join(new_parts)
+            return self._shell_wildcard_obfuscate(payload)
 
         return payload
 
@@ -235,16 +233,19 @@ class WAFEvasion:
         return self._engine
 
     def fingerprint_waf(self, target: str) -> dict | None:
-        """Fingerprint WAF on target (requires new engine)."""
-        if self._engine:
-            return self._engine.fingerprint(target)
+        """Fingerprint WAF on target (requires new engine).
+        Note: WAFBypassEngine.fingerprint_waf needs response data, not URL.
+        This is a convenience wrapper that returns None if no response data available.
+        """
+        # WAFBypassEngine.fingerprint_waf requires (headers, body, status_code, cookies)
+        # Without actual HTTP response data, we cannot fingerprint
         return None
 
     def generate_advanced_bypass(
         self,
         payload: str,
         payload_type: str = "sqli",
-        count: int = 10
+        count: int = 10,
     ) -> list[str]:
         """Generate multiple bypass variants using new engine.
 
@@ -276,13 +277,15 @@ class WAFEvasion:
         }
         ptype = type_map.get(payload_type.lower(), PayloadType.SQLI)
 
-        result = self._engine.generate_bypass(
-            payload=payload,
-            payload_type=ptype,
-            techniques=["all"],
-            count=count
-        )
-        return result.variants if result.variants else [payload]
+        # Use the correct bypass method based on type
+        bypass_methods = {
+            PayloadType.SQLI: lambda: self._engine.bypass_sql(payload=payload, aggressiveness=min(count, 3)),
+            PayloadType.XSS: lambda: self._engine.bypass_xss(payload=payload, aggressiveness=min(count, 3)),
+            PayloadType.RCE: lambda: self._engine.bypass_rce(payload=payload, aggressiveness=min(count, 3)),
+        }
+        method = bypass_methods.get(ptype, bypass_methods[PayloadType.SQLI])
+        results = method()
+        return results[:count] if results else [payload]
 
 
 # Convenience function for quick access

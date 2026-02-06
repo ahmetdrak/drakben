@@ -369,7 +369,7 @@ class SandboxManager:
             return True
 
         except Exception as e:
-            logger.exception("Failed to cleanup sandbox {container_id[:12]}: %s", e)
+            logger.exception("Failed to cleanup sandbox %s: %s", container_id[:12], e)
             return False
 
     def cleanup_all(self) -> int:

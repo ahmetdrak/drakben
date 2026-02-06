@@ -7,9 +7,9 @@ import hashlib
 import logging
 import threading
 import time
-from _thread import RLock
 from dataclasses import asdict, dataclass
 from enum import Enum
+from threading import RLock
 from typing import Optional, Self
 
 # Setup logger
@@ -123,51 +123,60 @@ class AgentState:
             return
 
         # Thread safety lock - create ONCE per instance
-        self._lock: RLock = threading.RLock()
+        # Use _state_lock during init to prevent concurrent __init__ access
+        with _state_lock:
+            # Double-check after acquiring lock
+            if getattr(self, "_initialized", False):
+                if target is not None:
+                    with self._lock:
+                        self.target = target
+                return
 
-        # Core state
-        self.target: str | None = target
-        self.phase: AttackPhase = AttackPhase.INIT
-        self.iteration_count: int = 0
-        self.max_iterations: int = MAX_ITERATIONS
+            self._lock: RLock = threading.RLock()
 
-        # Mark as initialized BEFORE populating state
-        self._initialized = True
+            # Core state
+            self.target: str | None = target
+            self.phase: AttackPhase = AttackPhase.INIT
+            self.iteration_count: int = 0
+            self.max_iterations: int = MAX_ITERATIONS
 
-        # Attack surface tracking
-        self.open_services: dict[int, ServiceInfo] = {}  # port -> ServiceInfo
-        self.tested_attack_surface: set[str] = set()  # "port:service" tuples
-        self.remaining_attack_surface: set[str] = set()  # "port:service" tuples
+            # Mark as initialized BEFORE populating state
+            self._initialized = True
 
-        # Vulnerability tracking
-        self.vulnerabilities: list[VulnerabilityInfo] = []
+            # Attack surface tracking
+            self.open_services: dict[int, ServiceInfo] = {}  # port -> ServiceInfo
+            self.tested_attack_surface: set[str] = set()  # "port:service" tuples
+            self.remaining_attack_surface: set[str] = set()  # "port:service" tuples
 
-        # Credentials
-        self.credentials: list[CredentialInfo] = []
+            # Vulnerability tracking
+            self.vulnerabilities: list[VulnerabilityInfo] = []
 
-        # Foothold state
-        self.has_foothold: bool = False
-        self.foothold_method: str | None = None
-        self.foothold_timestamp: float | None = None
+            # Credentials
+            self.credentials: list[CredentialInfo] = []
 
-        # Post-exploit state
-        self.post_exploit_completed: set[str] = set()
+            # Foothold state
+            self.has_foothold: bool = False
+            self.foothold_method: str | None = None
+            self.foothold_timestamp: float | None = None
 
-        # Execution tracking
-        self.last_observation: str = ""  # Last tool observation (summary, not raw)
-        self.state_changes_history: list[dict] = []  # Last state changes
+            # Post-exploit state
+            self.post_exploit_completed: set[str] = set()
 
-        # Invariant violation tracking
-        self.invariant_violations: list[str] = []
-        self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
+            # Execution tracking
+            self.last_observation: str = ""  # Last tool observation (summary, not raw)
+            self.state_changes_history: list[dict] = []  # Last state changes
 
-        # Agentic loop protection
-        self.tool_call_history: list[str] = []  # Last tool calls
-        self.last_state_hash: str = ""  # Last state hash
-        self.consecutive_same_tool: int = 0  # Consecutive same tool count
-        self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
-        self.hallucination_flags: list[str] = []  # Hallucination warnings
-        self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
+            # Invariant violation tracking
+            self.invariant_violations: list[str] = []
+            self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
+
+            # Agentic loop protection
+            self.tool_call_history: list[str] = []  # Last tool calls
+            self.last_state_hash: str = ""  # Last state hash
+            self.consecutive_same_tool: int = 0  # Consecutive same tool count
+            self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
+            self.hallucination_flags: list[str] = []  # Hallucination warnings
+            self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
 
     def clear(self, new_target: str | None = None) -> None:
         """Clear state for new run - preserves singleton reference.
@@ -227,14 +236,15 @@ class AgentState:
         try:
             if hasattr(self, "credentials"):
                 for cred in self.credentials:
-                    # Overwrite sensitive fields
                     if cred.password:
-                        # Attempt to replace string content in memory (limitations apply in Python)
-                        # Best effort: remove ref and hint GC
-                        pass
+                        try:
+                            # Best effort: overwrite reference
+                            cred.password = "*" * len(cred.password)
+                        except (TypeError, AttributeError):
+                            pass
                 self.credentials.clear()
-        except Exception as e:
-            logger.debug("Failed to clear credentials: %s", e)
+        except Exception:
+            pass  # During shutdown, logger may not be available
 
     def snapshot(self) -> dict:
         """Get state snapshot for LLM context.
@@ -590,7 +600,6 @@ class AgentState:
         """Check if tool is allowed in current phase.
 
         Args:
-            tool_name: Name of the tool
             tool_phase: Phase the tool belongs to
 
         Returns:

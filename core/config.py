@@ -396,7 +396,7 @@ class ConfigManager:
                             security = data.pop("security")
                             data["ssl_verify"] = security.get("ssl_verify", True)
                             data["allow_self_signed_certs"] = security.get(
-                                "allow_self_signed_certs", False
+                                "allow_self_signed_certs", False,
                             )
                         return DrakbenConfig(**data)
                 except Exception as e:

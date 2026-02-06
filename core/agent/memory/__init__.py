@@ -64,27 +64,27 @@ from core.agent.memory.retrieval import (
 )
 
 __all__ = [
+    # Constants
+    "PENTEST_BOOST_FACTORS",
     # Core classes
     "ConceptNode",
     "MemoryStream",
-    "RetrievalEngine",
     # Enums
     "NodeType",
     "PentestRelevance",
-    # Data classes
-    "SPOTriple",
+    "RetrievalEngine",
     "RetrievalResult",
     "RetrievalWeights",
+    # Data classes
+    "SPOTriple",
     "ScoredNode",
     # Factory functions
     "create_event_node",
     "create_finding_node",
-    "create_thought_node",
     "create_reflection_node",
     "create_retrieval_engine",
+    "create_thought_node",
     # Singleton accessors
     "get_memory_stream",
     "reset_memory_stream",
-    # Constants
-    "PENTEST_BOOST_FACTORS",
 ]

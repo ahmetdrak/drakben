@@ -480,8 +480,8 @@ class CodeReview:
                     backup_content = f.read()
 
                 # Find the original file path from stored metadata or changelog
-                # For now, restore to the same directory as the backup
-                original_path = self.backup_dir.parent / original_name
+                # Restore to project root with matching name (not backup_dir.parent)
+                original_path = Path.cwd() / original_name
 
                 # Write backup content to restore the file
                 with open(original_path, "w", encoding="utf-8") as f:

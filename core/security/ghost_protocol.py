@@ -197,7 +197,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
         # Seed for reproducible obfuscation (optional)
         self._seed = int(time.time())
-        random.seed(self._seed)
+        self._rng = random.Random(self._seed)  # Use local RNG to avoid global state pollution
 
     def transform(self, code: str) -> str:
         """Transform Python code with polymorphic obfuscation.
@@ -239,7 +239,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         for alias in node.names:
             name_to_protect = alias.asname or alias.name
             self.defined_names.add(name_to_protect)
-            BUILTIN_NAMES.add(name_to_protect)
+            # Note: Do NOT add to global BUILTIN_NAMES to avoid cross-call pollution
 
     def _collect_function_names(self, node: ast.FunctionDef) -> None:
         """Collect function and argument names."""
@@ -536,14 +536,11 @@ class SecureCleanup:
         Note: Strings in Python are immutable. We cannot safely overwrite them in place
         without risking a segmentation fault in modern Python versions (3.12+).
 
-        Best effort: Remove reference and suggest GC.
+        Best effort: Delete reference. Caller should `del` the variable after calling this.
         """
-        try:
-            # We explicitly do NOT use ctypes.memset here anymore as it is unstable.
-            # Instead, we rely on removing references where this is called.
-            pass
-        except Exception as e:
-            logger.debug("Memory scrubbing error: %s", e)
+        # We explicitly do NOT use ctypes.memset here anymore as it is unstable.
+        # Caller should do: wipe_string(secret); del secret
+        del s  # Remove local reference to hint GC
 
     @staticmethod
     def timestomp(filepath: str, reference_file: str | None = None) -> bool:
@@ -1269,8 +1266,7 @@ class LinuxFilelessExecutor:
 
     def is_available(self) -> bool:
         """Check if this executor is available."""
-        # Checks if necessary syscalls or libraries are present
-        return True
+        return getattr(self, "_available", False)
 
 
 # =============================================================================

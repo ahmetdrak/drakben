@@ -298,14 +298,16 @@ class ErrorDiagnosticsMixin:
     def _check_database_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for database errors."""
         patterns = [
-            "database",
-            "sqlite",
-            "mysql",
-            "postgresql",
+            "database error",
+            "database is locked",
+            "sqlite error",
+            "sqlite3.operationalerror",
+            "mysql error",
+            "postgresql error",
             "db error",
             "veritabanı hatası",
-            "locked",
-            "deadlock",
+            "database is locked",
+            "deadlock detected",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "database_error", "type_tr": "Veritabanı hatası"}
@@ -314,12 +316,15 @@ class ErrorDiagnosticsMixin:
     def _check_parse_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for JSON/XML parsing errors."""
         patterns = [
-            "json",
-            "xml",
+            "json.decoder.jsondecodeerror",
+            "json decode error",
+            "invalid json",
+            "xml parsing error",
+            "xml.parsers.expat",
             "parsing error",
             "decode error",
-            "invalid json",
-            "malformed",
+            "malformed json",
+            "malformed xml",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "parse_error", "type_tr": "Ayrıştırma hatası"}
@@ -328,12 +333,13 @@ class ErrorDiagnosticsMixin:
     def _check_version_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for version/compatibility errors."""
         patterns = [
-            "version",
-            "incompatible",
+            "version mismatch",
+            "incompatible version",
             "requires python",
-            "unsupported",
-            "deprecated",
+            "unsupported version",
+            "deprecated and removed",
             "sürüm uyumsuz",
+            "version conflict",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}

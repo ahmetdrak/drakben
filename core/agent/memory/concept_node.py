@@ -85,9 +85,7 @@ class SPOTriple:
             return False
         if query_predicate and query_predicate.lower() not in self.predicate.lower():
             return False
-        if query_obj and query_obj.lower() not in self.obj.lower():
-            return False
-        return True
+        return not (query_obj and query_obj.lower() not in self.obj.lower())
 
 
 @dataclass
@@ -240,7 +238,7 @@ class ConceptNode:
             access_count=data.get("access_count", 0),
             node_type=NodeType(data.get("node_type", "event")),
             pentest_relevance=PentestRelevance(
-                data.get("pentest_relevance", "generic")
+                data.get("pentest_relevance", "generic"),
             ),
             spo_triple=spo_triple,
             embedding=data.get("embedding"),

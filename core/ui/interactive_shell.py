@@ -8,13 +8,14 @@ import contextlib
 import logging
 import os
 import shlex
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from core.ui.unified_display import RiskLevel
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -322,23 +323,31 @@ class InteractiveShell:
 
         handler = self.command_handlers.get(cmd)
         if handler:
-            try:
-                result = handler(args)
-                if result and result.output:
-                    self.console.print(result.output)
-                if result and result.error:
-                    self.console.print(f"[red]{result.error}[/red]")
-            except Exception as e:
-                logger.exception("Command error: %s", e)
-                lang = self._get_language()
-                err = "Komut hatası" if lang == "tr" else "Command failed"
-                self.console.print(f"[red]{err}: {e}[/red]")
+            self._run_handler(handler, args)
         else:
+            self._show_unknown_command(cmd)
+
+    def _run_handler(self, handler: Callable, args: list[str]) -> None:
+        """Run a resolved command handler and display its results."""
+        try:
+            result = handler(args)
+            if result and result.output:
+                self.console.print(result.output)
+            if result and result.error:
+                self.console.print(f"[red]{result.error}[/red]")
+        except Exception as e:
+            logger.exception("Command error: %s", e)
             lang = self._get_language()
-            unknown = "Bilinmeyen komut" if lang == "tr" else "Unknown command"
-            hint = "Komutlar için /help yazın" if lang == "tr" else "Type /help for available commands"
-            self.console.print(f"[yellow]{unknown}: {cmd}[/yellow]")
-            self.console.print(hint)
+            err = "Komut hatası" if lang == "tr" else "Command failed"
+            self.console.print(f"[red]{err}: {e}[/red]")
+
+    def _show_unknown_command(self, cmd: str) -> None:
+        """Display unknown command message with help hint."""
+        lang = self._get_language()
+        unknown = "Bilinmeyen komut" if lang == "tr" else "Unknown command"
+        hint = "Komutlar için /help yazın" if lang == "tr" else "Type /help for available commands"
+        self.console.print(f"[yellow]{unknown}: {cmd}[/yellow]")
+        self.console.print(hint)
 
     def _process_natural_language(self, text: str) -> None:
         """Process natural language input through the agent."""

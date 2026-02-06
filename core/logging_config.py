@@ -4,10 +4,12 @@
 import logging
 import logging.handlers
 import sys
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class DrakbenFormatter(logging.Formatter):

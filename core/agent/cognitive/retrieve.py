@@ -175,7 +175,7 @@ class RetrieveModule:
     def _categorize_and_budget(
         self,
         result: RetrievalResult,
-        focal_point: str,  # noqa: ARG002 - kept for future use/API consistency
+        focal_point: str,
     ) -> RetrievedContext:
         """Categorize nodes and apply budget constraints."""
         # Note: focal_point kept for future weighting/prioritization

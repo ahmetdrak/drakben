@@ -1674,7 +1674,7 @@ class HiveMind:
             # Get proxy config for first tunnel
             if tunnels:
                 result["proxy_config"] = self.auto_pivot.tunnel_manager.get_proxy_config(
-                    tunnels[0].local_port
+                    tunnels[0].local_port,
                 )
 
         return result

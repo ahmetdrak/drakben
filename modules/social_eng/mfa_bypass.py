@@ -218,7 +218,7 @@ class ModlishkaProxy:
         self.process: subprocess.Popen[bytes] | None = None
 
         logger.info(
-            f"Modlishka initialized ({'Available' if self.available else 'Not Found'})"
+            f"Modlishka initialized ({'Available' if self.available else 'Not Found'})",
         )
 
     def create_config(
@@ -391,7 +391,7 @@ class SimpleReverseProxy:
                     target,
                     headers=headers,
                     data=body,
-                    ssl=False,  # noqa: S501 - Required for MITM proxy to intercept self-signed certs
+                    ssl=False,  # NOSONAR — SSL verification intentionally disabled for pentesting MFA bypass proxy
                 ) as response:
                     resp_body = await response.read()
                     resp_headers = dict(response.headers)

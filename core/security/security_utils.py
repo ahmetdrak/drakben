@@ -579,7 +579,7 @@ class ProxyManager:
     def add_proxy(self, proxy: ProxyConfig) -> None:
         """Add proxy to pool."""
         self.proxies.append(proxy)
-        logger.info("Proxy added: {proxy.host}:%s", proxy.port)
+        logger.info("Proxy added: %s:%s", proxy.host, proxy.port)
 
     def add_tor(self, host: str = "127.0.0.1", port: int = 9050) -> None:
         """Add Tor as proxy."""
@@ -637,7 +637,7 @@ class ProxyManager:
             )
 
             if response.status_code == 200:
-                logger.info("Proxy working: {proxy.host}:%s", proxy.port)
+                logger.info("Proxy working: %s:%s", proxy.host, proxy.port)
                 return True
         except Exception as e:
             logger.warning("Proxy test failed: %s", e)
