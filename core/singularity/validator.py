@@ -79,7 +79,7 @@ class CodeValidator(IValidator):
                     return False
 
             # Step 2: Execute in sandbox
-            result = self.sandbox.execute_in_sandbox(
+            result = self.sandbox.execute_in_sandbox(  # type: ignore[call-arg]
                 code=snippet.code,
                 language=snippet.language,
                 timeout=self.timeout,

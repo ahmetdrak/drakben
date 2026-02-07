@@ -53,7 +53,7 @@ class RAToolRecoveryMixin:
         """
         # Initialize tracking dict if needed
         if not hasattr(self, "_self_heal_attempts") or self._self_heal_attempts is None:
-            self._self_heal_attempts = {}
+            self._self_heal_attempts: dict[str, int] = {}
 
         # Check if we've exceeded self-heal limit for this tool
         heal_key: str = f"{tool_name}:{command[:50]}"

@@ -29,7 +29,7 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov pytest-mock ruff
 
       - name: Ruff Check
-        run: python -m ruff check . --output-format=text
+        run: python -m ruff check . --config ruff.toml --output-format=concise
 
       - name: Run All Tests
         run: |

@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
 [![Tests](https://img.shields.io/badge/tests-1330%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
-[![CodeQL](https://github.com/ahmetdrak/drakben/actions/workflows/codeql/badge.svg)](https://github.com/ahmetdrak/drakben/actions/workflows/codeql)
+[![Ruff](https://img.shields.io/badge/linting-ruff-brightgreen.svg)](https://github.com/astral-sh/ruff)
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
