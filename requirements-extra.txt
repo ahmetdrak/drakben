@@ -1,0 +1,20 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║             DRAKBEN - Extra/Optional Dependencies                        ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Bu paketler OPSİYONELDİR. Drakben bunlar olmadan da çalışır.
+# Yalnızca belirli özellikleri kullanmak istiyorsanız yükleyin:
+#
+#   pip install -r requirements-extra.txt
+#
+# UYARI: ChromaDB tek başına ~500MB+ bağımlılık indirir
+#        (onnxruntime, huggingface_hub, tokenizers, sympy vs.)
+
+# ========== VECTOR MEMORY (Semantic Search) ==========
+# ChromaDB olmadan exact-match fallback kullanılır
+chromadb>=0.5.0           # Vector database for memory (~500MB deps)
+
+# ========== NETWORK VISUALIZATION ==========
+# Bunlar olmadan tüm pentest özellikleri çalışır, sadece graf görseli devre dışı
+networkx>=3.2.0           # Graph analysis
+pyvis>=0.3.2              # Interactive network visualization
