@@ -114,6 +114,7 @@ ignore = [
     "PLW2901", # redefined-loop-name — common in data processing
     "PLW1510", # subprocess-run-without-check — intentional in pentest
     "PLC0414", # useless-import-alias — used for re-exports
+    "PLC0415", # import-outside-top-level — lazy imports are intentional
     "BLE001",  # blind-except — pentest code needs broad catch
     "TRY401",  # verbose-log-message — informative logging is good
     "TRY300",  # try-consider-else — style preference
@@ -152,7 +153,7 @@ unfixable = []
 
 [lint.per-file-ignores]
 # Test files can access private members, use broad exceptions, print, etc.
-"tests/*.py" = ["SLF001", "BLE001", "ARG", "PLW", "T201", "S", "PERF", "RUF015", "G", "ERA", "N", "FBT", "TRY", "PLR", "EM", "PT", "COM", "DTZ", "Q"]
+"tests/*.py" = ["SLF001", "BLE001", "ARG", "PLW", "PLC", "T201", "S", "PERF", "RUF015", "G", "ERA", "N", "FBT", "TRY", "PLR", "EM", "PT", "COM", "DTZ", "Q"]
 "tests_backup/*.py" = ["ALL"]
 # Scripts are utility files
 "scripts/*.py" = ["BLE001", "PTH", "PERF", "T201", "S", "ERA", "TRY"]
