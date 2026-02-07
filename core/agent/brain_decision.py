@@ -91,11 +91,6 @@ class DecisionEngine:
         # First-time execution: ask once
         return bool(not context.history)
 
-    def _select_action(self, steps: list[dict], context: ExecutionContext) -> str:
-        """Select the next action to take (compatibility wrapper)."""
-        action, _score = self._select_action_scored(steps, context)
-        return action
-
     def _select_action_scored(
         self, steps: list[dict], context: ExecutionContext,
     ) -> tuple[str, float]:

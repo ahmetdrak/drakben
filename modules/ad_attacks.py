@@ -132,9 +132,7 @@ class ActiveDirectoryAttacker:
         tasks = [check_login(u) for u in users]
         results = await asyncio.gather(*tasks)
 
-        for res in results:
-            if res:
-                success_logins.append(res)
+        success_logins = [res for res in results if res]
 
         return {
             "tool": "native_smb",
@@ -231,9 +229,7 @@ class ActiveDirectoryAttacker:
 
         results = await asyncio.gather(*[roast_user(u) for u in users])
 
-        for h in results:
-            if h:
-                hashes.append(h)
+        hashes = [h for h in results if h]
 
         return {
             "tool": "native_asreproast",
@@ -377,14 +373,3 @@ class ActiveDirectoryAttacker:
             if "KDC_ERR_PREAUTH_REQUIRED" in str(e):
                 return None
             return None
-
-    # Integration Helper
-    def get_attack_plan(self, domain: str, dc_ip: str) -> list[dict]:
-        return [
-            {
-                "action": "ad_smb_spray",
-                "tool": "native_smb",
-                "target": domain,
-                "params": {"dc_ip": dc_ip},
-            },
-        ]

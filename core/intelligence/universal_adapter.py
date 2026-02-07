@@ -565,24 +565,6 @@ class DependencyResolver:
         """
         return [t for t in required if not self.is_tool_installed(t)]
 
-    def install_missing(self, required: list[str]) -> dict[str, Any]:
-        """Install all missing required tools.
-
-        Args:
-            required: List of required tool names
-
-        Returns:
-            Results for each tool
-
-        """
-        missing = self.check_missing_tools(required)
-        results = {}
-
-        for tool in missing:
-            results[tool] = self.install_tool(tool)
-
-        return results
-
 
 # =============================================================================
 # MCP CLIENT
@@ -1022,8 +1004,7 @@ class UniversalAdapter:
 
     Usage:
         adapter = UniversalAdapter()
-        adapter.ensure_tools(["nmap", "nikto"])
-        adapter.start_api_server()
+        status = adapter.check_tools(["nmap", "nikto"])
     """
 
     def __init__(self, api_host: str = "127.0.0.1", api_port: int = 8080) -> None:
@@ -1039,18 +1020,6 @@ class UniversalAdapter:
         self.api_server = APIServer(host=api_host, port=api_port)
 
         logger.info("Universal Adapter initialized")
-
-    def ensure_tools(self, tools: list[str]) -> dict[str, Any]:
-        """Ensure required tools are installed.
-
-        Args:
-            tools: List of required tool names
-
-        Returns:
-            Installation results
-
-        """
-        return self.resolver.install_missing(tools)
 
     def check_tools(self, tools: list[str]) -> dict[str, bool]:
         """Check if tools are installed.
@@ -1095,14 +1064,6 @@ class UniversalAdapter:
         """
         return self.mcp.call_tool(tool_name, arguments)
 
-    def start_api_server(self) -> None:
-        """Start the REST API server."""
-        self.api_server.start()
-
-    def stop_api_server(self) -> None:
-        """Stop the REST API server."""
-        self.api_server.stop()
-
     def get_api_key(self) -> str:
         """Get the default API key."""
         return self.api_server.default_key
@@ -1142,21 +1103,6 @@ def get_universal_adapter() -> UniversalAdapter:
             if _universal_adapter is None:
                 _universal_adapter = UniversalAdapter()
     return _universal_adapter
-
-
-def ensure_tool(tool_name: str) -> bool:
-    """Quick function to ensure a tool is installed.
-
-    Args:
-        tool_name: Name of the tool
-
-    Returns:
-        True if tool is now available
-
-    """
-    adapter = get_universal_adapter()
-    result = adapter.resolver.install_tool(tool_name)
-    return result["success"]
 
 
 def is_tool_available(tool_name: str) -> bool:

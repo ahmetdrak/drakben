@@ -290,49 +290,6 @@ class RetrieveModule:
 
         return "".join(sections)
 
-    def retrieve_attack_summary(
-        self,
-        target: str,
-    ) -> str:
-        """Retrieve a summary of the attack progress.
-
-        Useful for status updates or reporting.
-
-        Args:
-            target: Target IP/domain
-
-        Returns:
-            Formatted attack summary
-        """
-        # Get critical findings
-        findings = self._memory_stream.get_critical_findings(target=target)
-
-        # Get attack path nodes
-        attack_path = self._retrieval_engine.get_attack_path_context(
-            target=target,
-            n=10,
-        )
-
-        lines = [f"=== Attack Summary for {target} ===\n"]
-
-        # Findings summary
-        if findings:
-            lines.append("Key Findings:")
-            for node in findings[:5]:
-                lines.append(f"  ⚠️ {node.description}")
-
-        # Attack progression
-        if attack_path:
-            lines.append("\nAttack Progression:")
-            for i, node in enumerate(attack_path, 1):
-                lines.append(f"  {i}. {node.to_context_string()}")
-
-        # Stats
-        stats = self._memory_stream.get_stats()
-        lines.append(f"\nTotal memories: {stats['total_nodes']}")
-
-        return "\n".join(lines)
-
     def get_context_for_llm(
         self,
         user_input: str,

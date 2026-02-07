@@ -257,31 +257,6 @@ class TestResetAndEvolveState:
 # 8. LLM Decision / Deterministic Fallback
 # ---------------------------------------------------------------------------
 class TestLLMDecision:
-    def test_valid_llm_result(self):
-        agent = _create_agent()
-        assert agent._is_valid_llm_result({"tool": "nmap", "args": {}}) is True
-
-    def test_invalid_llm_result_no_tool(self):
-        agent = _create_agent()
-        assert agent._is_valid_llm_result({"error": "failed"}) is False
-
-    def test_invalid_llm_result_not_dict(self):
-        agent = _create_agent()
-        assert agent._is_valid_llm_result("string") is False
-        assert agent._is_valid_llm_result(None) is False
-
-    def test_extract_llm_error(self):
-        agent = _create_agent()
-        assert agent._extract_llm_error({"error": "timeout"}) == "timeout"
-        assert agent._extract_llm_error({"success": True}) is None
-        assert agent._extract_llm_error("not a dict") is None
-
-    def test_should_retry(self):
-        agent = _create_agent()
-        assert agent._should_retry(0, 3) is True
-        assert agent._should_retry(1, 3) is True
-        assert agent._should_retry(2, 3) is False
-
     def test_deterministic_fallback_with_state(self):
         agent = _create_agent()
         agent.state = MagicMock()

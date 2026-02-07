@@ -2,28 +2,13 @@
 # DRAKBEN Enhanced Prompt Utilities
 # Auto-complete, history, and progress indicators
 
-import asyncio
 import logging
 import time
-from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from prompt_toolkit.completion import CompleteEvent, Completion
-    from prompt_toolkit.document import Document
-
 from rich.console import Console
 from rich.live import Live
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
 from rich.table import Table
 
 logger = logging.getLogger(__name__)
@@ -36,10 +21,7 @@ PROCESSING_TEXT = "Processing..."
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-    from prompt_toolkit.completion import (
-        Completer,
-        Completion,
-    )
+    from prompt_toolkit.completion import Completer, Completion
     from prompt_toolkit.formatted_text import HTML
     from prompt_toolkit.history import FileHistory, InMemoryHistory
     from prompt_toolkit.styles import Style
@@ -52,10 +34,6 @@ except ImportError:
     if not TYPE_CHECKING:
 
         class Completer:
-            """Stub class when prompt_toolkit is not installed."""
-
-
-        class Completion:
             """Stub class when prompt_toolkit is not installed."""
 
 
@@ -89,50 +67,15 @@ class DrakbenCompleter(BaseCompleter):  # type: ignore
 
         self.targets_history: list[str] = []
 
-    def get_completions(
-        self, document: "Document", _complete_event: "CompleteEvent",
-    ) -> Generator["Completion", None, None]:
-        """Generate completions."""
-        if not PROMPT_TOOLKIT_AVAILABLE:
-            return
-
-        text = document.text_before_cursor
-        word = document.get_word_before_cursor()
-
-        # Command completions
-        if text.startswith("/"):
-            yield from self._get_command_completions(text)
-
-        # Tool completions
-        elif any(text.startswith(t) for t in ["scan", "run", "use"]):
-            yield from self._get_tool_completions(word)
-
-        # Target completions from history
-        elif text.startswith("/target "):
-            yield from self._get_target_completions(word)
-
-    def _get_command_completions(self, text: str) -> Generator["Completion", None, None]:
-        """Get completions for commands."""
-        for cmd, desc in self.commands.items():
+    def get_completions(self, document, complete_event):  # type: ignore[override]
+        """Yield completions for current input."""
+        text = document.text_before_cursor.lstrip()
+        for cmd in self.commands:
             if cmd.startswith(text):
-                yield Completion(cmd, start_position=-len(text), display_meta=desc)
-
-    def _get_tool_completions(self, word: str) -> Generator["Completion", None, None]:
-        """Get completions for tools."""
+                yield Completion(cmd, start_position=-len(text))  # type: ignore[misc]
         for tool in self.tool_commands:
-            if tool.startswith(word):
-                yield Completion(tool, start_position=-len(word))
-
-    def _get_target_completions(self, word: str) -> Generator["Completion", None, None]:
-        """Get completions for targets."""
-        for target in self.targets_history:
-            if target.startswith(word):
-                yield Completion(target, start_position=-len(word))
-
-    def add_target(self, target: str) -> None:
-        """Add target to history for completion."""
-        if target and target not in self.targets_history:
-            self.targets_history.append(target)
+            if tool.startswith(text):
+                yield Completion(tool, start_position=-len(text))  # type: ignore[misc]
 
 
 # =========================================
@@ -219,11 +162,6 @@ class EnhancedPrompt:
             except (EOFError, KeyboardInterrupt):
                 return EXIT_COMMAND
 
-    def add_target_to_history(self, target: str) -> None:
-        """Add target for completion suggestions."""
-        if self.completer:
-            self.completer.add_target(target)
-
 
 # =========================================
 # PROGRESS INDICATORS
@@ -242,129 +180,6 @@ class DrakbenProgress:
 
     def __init__(self, console: Console | None = None) -> None:
         self.console = console or Console()
-
-    def spinner(
-        self, description: str = PROCESSING_TEXT, style: str = "bold cyan",
-    ) -> Progress:
-        """Create a spinner context manager.
-
-        Usage:
-            with progress.spinner("Scanning..."):
-                do_scan()
-        """
-        return Progress(
-            SpinnerColumn(),
-            TextColumn(f"[{style}]{description}"),
-            console=self.console,
-            transient=True,
-        )
-
-    def bar(self) -> Progress:
-        """Create a progress bar context manager.
-
-        Usage:
-            with progress.bar() as p:
-                task = p.add_task("download", total=100)
-                for i in range(100):
-                    p.update(task, advance=1)
-        """
-        return Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(bar_width=40),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
-            console=self.console,
-            transient=True,
-        )
-
-    async def async_spinner(self, coro: Any, description: str = PROCESSING_TEXT) -> Any:
-        """Run async coroutine with spinner.
-
-        Args:
-            coro: Async coroutine to run
-            description: Spinner description
-
-        Returns:
-            Coroutine result
-
-        """
-        async with self.spinner(description) as progress:
-            task = progress.add_task(description, total=None)
-            result = await coro
-            progress.update(task, completed=True)
-        return result
-
-    def scan_progress(
-        self,
-        targets: list[str],
-        scan_func: Callable,
-        description: str = "Scanning",
-    ) -> list[Any]:
-        """Show progress for scanning multiple targets.
-
-        Args:
-            targets: List of targets
-            scan_func: Function to call for each target
-            description: Progress description
-
-        Returns:
-            List of scan results
-
-        """
-        results = []
-
-        with self.bar() as progress:
-            task = progress.add_task(description, total=len(targets))
-
-            for target in targets:
-                progress.update(task, description=f"[cyan]Scanning {target}")
-                result = scan_func(target)
-                results.append(result)
-                progress.update(task, advance=1)
-
-        return results
-
-    async def async_scan_progress(
-        self,
-        targets: list[str],
-        scan_func: Callable,
-        description: str = "Scanning",
-        concurrency: int = 5,
-    ) -> list[Any]:
-        """Show progress for async scanning.
-
-        Args:
-            targets: List of targets
-            scan_func: Async function to call
-            description: Progress description
-            concurrency: Max concurrent scans
-
-        Returns:
-            List of scan results
-
-        """
-        results = []
-        semaphore = asyncio.Semaphore(concurrency)
-
-        async def limited_scan(target: str) -> Any:
-            async with semaphore:
-                return await scan_func(target)
-
-        async with self.bar() as progress:
-            task = progress.add_task(description, total=len(targets))
-
-            tasks = []
-            for target in targets:
-                tasks.append(limited_scan(target))
-
-            for coro in asyncio.as_completed(tasks):
-                result = await coro
-                results.append(result)
-                progress.update(task, advance=1)
-
-        return results
 
 
 class StatusDisplay:
@@ -428,106 +243,3 @@ class StatusDisplay:
 
     def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
         self.stop()
-
-
-# =========================================
-# COMMAND HISTORY
-# =========================================
-
-
-class CommandHistory:
-    """Command history manager with file persistence."""
-
-    def __init__(
-        self, history_file: str = ".drakben_history", max_entries: int = 1000,
-    ) -> None:
-        self.history_file = Path(history_file)
-        self.max_entries = max_entries
-        self.entries: list[dict[str, Any]] = []
-        self._load()
-
-    def _load(self) -> None:
-        """Load history from file."""
-        if self.history_file.exists():
-            try:
-                with open(self.history_file) as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            self.entries.append({"command": line, "timestamp": None})
-            except Exception as e:
-                logger.exception("Failed to load history: %s", e)
-
-    def _save(self) -> None:
-        """Save history to file."""
-        try:
-            with open(self.history_file, "w") as f:
-                f.writelines(
-                    entry["command"] + "\n"
-                    for entry in self.entries[-self.max_entries :]
-                )
-        except Exception as e:
-            logger.exception("Failed to save history: %s", e)
-
-    def add(self, command: str) -> None:
-        """Add command to history."""
-        if command and not command.startswith("#"):
-            # SECURITY: Do not log commands with sensitive keywords
-            command_lower = command.lower()
-            sensitive_keywords = [
-                "password",
-                "key",
-                "token",
-                "secret",
-                "auth",
-                "credential",
-            ]
-            if any(k in command_lower for k in sensitive_keywords):
-                return
-
-            if command.startswith(("/login", "login")):
-                return
-
-            self.entries.append({"command": command, "timestamp": time.time()})
-            self._save()
-
-    def search(self, prefix: str) -> list[str]:
-        """Search history by prefix."""
-        return [e["command"] for e in self.entries if e["command"].startswith(prefix)]
-
-    def get_recent(self, count: int = 10) -> list[str]:
-        """Get recent commands."""
-        return [e["command"] for e in self.entries[-count:]]
-
-    def clear(self) -> None:
-        """Clear history."""
-        self.entries.clear()
-        if self.history_file.exists():
-            self.history_file.unlink()
-
-
-# =========================================
-# CONVENIENCE FUNCTIONS
-# =========================================
-
-
-def create_prompt() -> EnhancedPrompt:
-    """Create enhanced prompt instance."""
-    return EnhancedPrompt()
-
-
-def create_progress(console: Console | None = None) -> DrakbenProgress:
-    """Create progress instance."""
-    return DrakbenProgress(console)
-
-
-def show_spinner(description: str = PROCESSING_TEXT) -> Progress:
-    """Show simple spinner."""
-    progress = DrakbenProgress()
-    return progress.spinner(description)
-
-
-async def run_with_spinner(coro: Any, description: str = PROCESSING_TEXT) -> Any:
-    """Run coroutine with spinner."""
-    progress = DrakbenProgress()
-    return await progress.async_spinner(coro, description)

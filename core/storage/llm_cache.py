@@ -116,14 +116,4 @@ class LLMCache:
         """Sorguyu SHA256 ile hashle."""
         return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
-    def clear_expired(self) -> None:
-        """Süresi dolmuş kayıtları temizle."""
-        expiration_cutoff = time.time() - self.ttl_seconds
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "DELETE FROM llm_cache WHERE timestamp < ?",
-                    (expiration_cutoff,),
-                )
-        except Exception as e:
-            logger.exception("Cache cleanup error: %s", e)
+

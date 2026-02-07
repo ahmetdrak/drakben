@@ -145,40 +145,6 @@ signal.signal(signal.SIGINT, cleanup_resources)
 signal.signal(signal.SIGTERM, cleanup_resources)
 
 
-def clear_screen() -> None:
-    """Clear terminal screen."""
-    os.system("clear" if os.name != "nt" else "cls")
-
-
-def show_banner() -> None:
-    """Show DRAKBEN ASCII banner - Dracula Theme."""
-    clear_screen()
-
-    # Windows UTF-8 support
-    if os.name == "nt":
-        import sys
-
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-    banner = r"""
-    ██████╗ ██████╗  █████╗ ██╗  ██╗██████╗ ███████╗███╗   ██╗
-    ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔════╝████╗  ██║
-    ██║  ██║██████╔╝███████║█████╔╝ ██████╔╝█████╗  ██╔██╗ ██║
-    ██║  ██║██╔══██╗██╔══██║██╔═██╗ ██╔══██╗██╔══╝  ██║╚██╗██║
-    ██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝███████╗██║ ╚████║
-    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝
-    """
-
-    console = Console(force_terminal=True)
-    console.print(banner, style="bold #FF5555")  # Dracula red
-    console.print(
-        "    [*] DRAKBEN - Autonomous Pentest Framework",
-        style="bold #BD93F9",
-    )  # Dracula purple
-    console.print("    [*] Kali Linux | AI-Powered | Auto-Exploit", style="#F8F8F2")
-    console.print()
-
-
 def check_environment() -> None:
     """Check basic environment requirements."""
     Console()
@@ -219,11 +185,6 @@ OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
             f.write(env_template)
 
 
-def show_startup_info() -> None:
-    """Show startup information - Dracula Theme."""
-    # Startup panel removed - now combined in agent.py
-
-
 def main() -> None:
     """Main entry point - Interactive Menu System."""
     # Windows UTF-8 support
@@ -233,18 +194,12 @@ def main() -> None:
     try:
         logger.info("DRAKBEN starting...")
 
-        # Show banner (Handled by Menu now)
-        # show_banner()
-
         # Check environment
         check_environment()
 
         # Initialize configuration
         config_manager = ConfigManager()
         config_manager.prompt_llm_setup_if_needed()
-
-        # Show startup info
-        show_startup_info()
 
         # Boot log
         console = Console()

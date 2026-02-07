@@ -157,22 +157,6 @@ class SREFailureMixin:
             finally:
                 conn.close()
 
-    def has_failed_before(self, target_signature: str, profile_id: str) -> bool:
-        """Check if this exact target+profile combination has failed before."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                cursor = conn.execute(
-                    """
-                    SELECT COUNT(*) FROM failure_contexts
-                    WHERE target_signature = ? AND profile_id = ?
-                """,
-                    (target_signature, profile_id),
-                )
-                return cursor.fetchone()[0] > 0
-            finally:
-                conn.close()
-
     def get_failed_profiles_for_target(self, target_signature: str) -> list[str]:
         """Get all profile IDs that have failed for a target."""
         with self._lock:

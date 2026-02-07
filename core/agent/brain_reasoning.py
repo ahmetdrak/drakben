@@ -114,8 +114,7 @@ OUTPUT JSON:
 
         if discoveries:
             parts.append("Discoveries so far:")
-            for d in discoveries[:15]:
-                parts.append(f"  - {d}")
+            parts.extend(f"  - {d}" for d in discoveries[:15])
         if failed_tools:
             parts.append(f"Failed tools (avoid repeating): {', '.join(failed_tools[-5:])}")
 
@@ -634,19 +633,6 @@ IMPORTANT RULES:
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
-
-    def _should_use_compact_prompt(
-        self,
-        _user_input: str,
-        _context: ExecutionContext,
-    ) -> bool:
-        """Always returns True - compact prompt is the only mode now.
-
-        Args:
-            _user_input: Unused, kept for API compatibility
-            _context: Unused, kept for API compatibility
-        """
-        return True
 
     def _construct_system_prompt(
         self,

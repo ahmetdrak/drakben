@@ -9,12 +9,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import aiohttp
-
-if TYPE_CHECKING:
-    from core.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -353,18 +350,22 @@ class CVEDatabase:
         cpe_matches = []
         for config in cve_data.get("configurations", []):
             for node in config.get("nodes", []):
-                for match in node.get("cpeMatch", []):
-                    if match.get("vulnerable", False):
-                        cpe_matches.append(match.get("criteria", ""))
+                cpe_matches.extend(
+                    match.get("criteria", "")
+                    for match in node.get("cpeMatch", [])
+                    if match.get("vulnerable", False)
+                )
         return cpe_matches
 
     def _extract_cwe_weaknesses(self, cve_data: dict) -> list[str]:
         """Extract CWE weaknesses."""
         weaknesses = []
         for weakness in cve_data.get("weaknesses", []):
-            for desc in weakness.get("description", []):
-                if desc.get("lang") == "en":
-                    weaknesses.append(desc.get("value", ""))
+            weaknesses.extend(
+                desc.get("value", "")
+                for desc in weakness.get("description", [])
+                if desc.get("lang") == "en"
+            )
         return weaknesses
 
     async def fetch_cve(self, cve_id: str) -> CVEEntry | None:
@@ -442,12 +443,8 @@ class CVEDatabase:
 
     def _search_cached_cves(self, keyword: str, min_cvss: float) -> list[CVEEntry]:
         """Search CVEs in local cache."""
-        results = []
         cached_results = self._search_cache(keyword)
-        for entry in cached_results:
-            if entry.cvss_score >= min_cvss:
-                results.append(entry)
-        return results
+        return [entry for entry in cached_results if entry.cvss_score >= min_cvss]
 
     async def _fetch_cves_from_api(
         self,
@@ -701,38 +698,6 @@ class CVEDatabase:
         }
         return [w for w in set(words) if w not in stopwords][:30]
 
-    def get_cache_stats(self) -> dict[str, int]:
-        """Get cache statistics."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cve_count = conn.execute("SELECT COUNT(*) FROM cve_cache").fetchone()[0]
-                keyword_count = conn.execute(
-                    "SELECT COUNT(DISTINCT keyword) FROM keyword_index",
-                ).fetchone()[0]
-                cpe_count = conn.execute(
-                    "SELECT COUNT(DISTINCT cpe) FROM cpe_index",
-                ).fetchone()[0]
-                return {
-                    "cve_entries": cve_count,
-                    "indexed_keywords": keyword_count,
-                    "indexed_cpes": cpe_count,
-                }
-        except Exception as e:
-            logger.exception("Stats error: %s", e)
-            return {"cve_entries": 0, "indexed_keywords": 0, "indexed_cpes": 0}
-
-    def clear_cache(self) -> None:
-        """Clear all cached data."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("DELETE FROM keyword_index")
-                conn.execute("DELETE FROM cpe_index")
-                conn.execute("DELETE FROM cve_cache")
-                conn.commit()
-            logger.info("Cache cleared")
-        except Exception as e:
-            logger.exception("Clear cache error: %s", e)
-
 
 class VulnerabilityMatcher:
     """Match detected vulnerabilities with CVE database.
@@ -773,215 +738,4 @@ class VulnerabilityMatcher:
         self.cve_db = cve_db
         logger.info("VulnerabilityMatcher initialized")
 
-    async def match_vulnerability(
-        self,
-        vuln_type: str,
-        product: str | None = None,
-        version: str | None = None,
-    ) -> list[VulnerabilityMatch]:
-        """Match a detected vulnerability with CVEs.
 
-        Args:
-            vuln_type: Type of vulnerability (e.g., "sql injection")
-            product: Affected product name
-            version: Affected version
-
-        Returns:
-            List of VulnerabilityMatch objects sorted by confidence
-
-        """
-        vuln_lower = vuln_type.lower()
-
-        # Strategy 1: Check if it's already a CVE ID
-        exact_match = await self._try_exact_cve_match(vuln_type, vuln_lower)
-        if exact_match:
-            return exact_match
-
-        matches = []
-        matches.extend(await self._try_cpe_match(vuln_type, product, version))
-        matches.extend(await self._try_keyword_match(vuln_type, vuln_lower))
-
-        return self._deduplicate_and_sort_matches(matches)
-
-    async def _try_exact_cve_match(
-        self,
-        vuln_type: str,
-        vuln_lower: str,
-    ) -> list[VulnerabilityMatch] | None:
-        """Try to match as exact CVE ID."""
-        if not vuln_lower.startswith("cve-"):
-            return None
-
-        entry = await self.cve_db.fetch_cve(vuln_type.upper())
-        if entry:
-            return [
-                VulnerabilityMatch(
-                    detected_vuln=vuln_type,
-                    cve_entry=entry,
-                    confidence=1.0,
-                    match_method="exact",
-                ),
-            ]
-        return None
-
-    async def _try_cpe_match(
-        self,
-        vuln_type: str,
-        product: str | None,
-        version: str | None,
-    ) -> list[VulnerabilityMatch]:
-        """Try CPE-based matching."""
-        matches: list[VulnerabilityMatch] = []
-        if not product:
-            return matches
-
-        cpe_string = self._build_cpe(product, version)
-        if not cpe_string:
-            return matches
-
-        cpe_results = await self.cve_db.search_by_cpe(cpe_string, max_results=10)
-        for entry in cpe_results:
-            matches.append(
-                VulnerabilityMatch(
-                    detected_vuln=vuln_type,
-                    cve_entry=entry,
-                    confidence=0.85,
-                    match_method="cpe",
-                ),
-            )
-        return matches
-
-    async def _try_keyword_match(
-        self,
-        vuln_type: str,
-        vuln_lower: str,
-    ) -> list[VulnerabilityMatch]:
-        """Try keyword-based matching."""
-        matches = []
-        keywords = self._get_search_keywords(vuln_lower)
-        for keyword in keywords:
-            search_results = await self.cve_db.search_cves(keyword, max_results=5)
-            for entry in search_results:
-                confidence = self._calculate_confidence(vuln_lower, entry.description)
-                if confidence > 0.5:
-                    matches.append(
-                        VulnerabilityMatch(
-                            detected_vuln=vuln_type,
-                            cve_entry=entry,
-                            confidence=confidence,
-                            match_method="keyword",
-                        ),
-                    )
-        return matches
-
-    def _deduplicate_and_sort_matches(
-        self,
-        matches: list[VulnerabilityMatch],
-    ) -> list[VulnerabilityMatch]:
-        """Remove duplicates and sort by confidence."""
-        seen_cves = set()
-        unique_matches = []
-        for match in sorted(matches, key=lambda x: x.confidence, reverse=True):
-            if match.cve_entry and match.cve_entry.cve_id not in seen_cves:
-                seen_cves.add(match.cve_entry.cve_id)
-                unique_matches.append(match)
-        return unique_matches[:10]  # Top 10 matches
-
-    def _get_search_keywords(self, vuln_type: str) -> list[str]:
-        """Get search keywords for vulnerability type."""
-        keywords = [vuln_type]
-
-        for pattern, alternatives in self.VULN_PATTERNS.items():
-            if pattern in vuln_type or vuln_type in pattern:
-                keywords.extend(alternatives)
-                break
-
-        return list(set(keywords))
-
-    def _build_cpe(self, product: str, version: str | None) -> str | None:
-        """Build CPE string from product/version."""
-        if not product:
-            return None
-
-        product_clean = product.lower().replace(" ", "_")
-        if version:
-            version_clean = version.replace(" ", "_")
-            return f"cpe:2.3:a:*:{product_clean}:{version_clean}:*:*:*:*:*:*:*"
-        return f"cpe:2.3:a:*:{product_clean}:*:*:*:*:*:*:*:*"
-
-    def _calculate_confidence(self, vuln_type: str, description: str) -> float:
-        """Calculate match confidence based on description."""
-        vuln_words = set(vuln_type.lower().split())
-        desc_words = set(description.lower().split())
-
-        if not vuln_words:
-            return 0.0
-
-        # Calculate Jaccard similarity
-        intersection = len(vuln_words & desc_words)
-        union = len(vuln_words)
-
-        base_confidence = intersection / union if union > 0 else 0.0
-
-        # Boost for exact phrase match
-        if vuln_type.lower() in description.lower():
-            base_confidence = min(1.0, base_confidence + 0.3)
-
-        return round(base_confidence, 2)
-
-
-# Convenience functions for state integration
-async def match_state_vulnerabilities(
-    state: "AgentState",
-    cve_db: CVEDatabase | None = None,
-) -> list[VulnerabilityMatch]:
-    """Match all vulnerabilities in AgentState with CVE database.
-
-    Args:
-        state: AgentState instance
-        cve_db: Optional CVEDatabase instance
-
-    Returns:
-        List of VulnerabilityMatch objects
-
-    """
-    if cve_db is None:
-        cve_db = CVEDatabase()
-
-    matcher = VulnerabilityMatcher(cve_db)
-    all_matches = []
-
-    for vuln in state.vulnerabilities:
-        matches = await matcher.match_vulnerability(
-            vuln_type=vuln.vuln_id,
-            product=getattr(vuln, "product", None),
-            version=getattr(vuln, "version", None),
-        )
-        all_matches.extend(matches)
-
-    return all_matches
-
-
-def get_severity_color(severity: CVSSSeverity) -> str:
-    """Get color for severity level (for rich console)."""
-    colors = {
-        CVSSSeverity.NONE: "dim",
-        CVSSSeverity.LOW: "green",
-        CVSSSeverity.MEDIUM: "yellow",
-        CVSSSeverity.HIGH: "orange1",
-        CVSSSeverity.CRITICAL: "red bold",
-    }
-    return colors.get(severity, "white")
-
-
-def format_cvss_score(score: float) -> str:
-    """Format CVSS score with severity indicator."""
-    if score == 0:
-        return "0.0 (None)"
-    if score < 4.0:
-        return f"{score:.1f} (Low)"
-    if score < 7.0:
-        return f"{score:.1f} (Medium)"
-    if score < 9.0:
-        return f"{score:.1f} (High)"
-    return f"{score:.1f} (Critical)"

@@ -2,10 +2,8 @@
 # DRAKBEN SELF-REFINING EVOLVING AGENT
 # PROFILE-BASED EVOLUTION + POLICY CONFLICT RESOLUTION + META-LEARNING
 
-import asyncio
 import json
 import logging
-import secrets
 import time
 from typing import Any
 
@@ -41,7 +39,6 @@ from core.intelligence.self_refining_engine import (
 from core.security.security_utils import audit_command
 from core.storage.structured_logger import DrakbenLogger
 from core.tools.tool_parsers import normalize_error_message
-from modules.stealth_client import BROWSER_IMPERSONATIONS
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -768,95 +765,6 @@ class RefactoredDrakbenAgent(
 
         return True
 
-    def _get_llm_decision(self, context: dict) -> dict | None:
-        """LLM'den TEK aksiyon al - with retry and fallback mechanism.
-
-        LLM'ye gönderilen:
-        - State snapshot (5 satır özet)
-        - Allowed tools
-        - Remaining attack surfaces
-        - Last observation (max 200 char)
-
-        LLM'den beklenen:
-        {
-            "tool": "tool_name",
-            "args": {"param": "value"}
-        }
-
-        ERROR RECOVERY:
-        1. Try LLM first (with retry)
-        2. Fall back to deterministic decision
-        3. Return None only if all options exhausted
-        """
-        llm_result = self._try_llm_with_retry(context)
-        if llm_result:
-            return llm_result
-
-        return self._get_deterministic_fallback()
-
-    def _try_llm_with_retry(self, context: dict) -> dict | None:
-        """Try LLM decision with retry mechanism."""
-        MAX_LLM_RETRIES = 2
-
-        for attempt in range(MAX_LLM_RETRIES):
-            result = self._attempt_llm_query(context, attempt, MAX_LLM_RETRIES)
-            if result is not None:
-                return result
-        return None
-
-    def _attempt_llm_query(
-        self,
-        context: dict,
-        attempt: int,
-        max_retries: int,
-    ) -> dict | None:
-        """Attempt a single LLM query."""
-        try:
-            result = self.brain.select_next_tool(context)
-            if self._is_valid_llm_result(result):
-                return result
-
-            llm_error: str | None = self._extract_llm_error(result)
-            if llm_error and self._should_retry(attempt, max_retries):
-                self._handle_llm_retry(attempt, max_retries)
-            return None
-        except (KeyError, TypeError, ValueError) as e:
-            logger.debug("LLM result processing error: %s", e)
-            if self._should_retry(attempt, max_retries):
-                self._handle_llm_retry(attempt, max_retries)
-            return None
-
-    def _should_retry(self, attempt: int, max_retries: int) -> bool:
-        """Check if we should retry based on attempt number."""
-        return attempt < max_retries - 1
-
-    def _is_valid_llm_result(self, result: Any) -> bool:
-        """Check if LLM result is valid."""
-        return isinstance(result, dict) and "tool" in result
-
-    def _extract_llm_error(self, result: Any) -> str | None:
-        """Extract error message from LLM result."""
-        if isinstance(result, dict) and result.get("error"):
-            return result.get("error")
-        return None
-
-    def _handle_llm_retry(self, attempt: int, max_retries: int) -> None:
-        """Handle LLM retry with user feedback."""
-        self.console.print(
-            f"⚠️  LLM hatası, yeniden deneniyor... ({attempt + 1}/{max_retries})",
-            style="yellow",
-        )
-        time.sleep(1)
-
-    def _log_llm_failure(self, llm_error: str, _max_retries: int) -> None:
-        """Log LLM failure and switch to fallback."""
-        self.console.print(f"⚠️  LLM kullanılamıyor: {llm_error}", style="yellow")
-        self.console.print(
-            "🔄 Deterministik karar mekanizmasına geçiliyor...",
-            style="dim",
-        )
-        logger.warning("LLM decision failed after %s attempts: %s", _max_retries, llm_error)
-
     def _get_deterministic_fallback(self) -> dict | None:
         """Get deterministic decision as fallback."""
         if not self.state:
@@ -1178,115 +1086,6 @@ class RefactoredDrakbenAgent(
         )
 
         return final_result
-
-    def _run_async(self, coro: Any, timeout: int = 60) -> Any:
-        """Run async coroutine deterministically from sync context.
-        Includes proper timeout and error handling to prevent hangs.
-
-        Args:
-            coro: Async coroutine to run
-            timeout: Max execution time in seconds (default: 60)
-
-        Returns:
-            Coroutine result or error dict
-
-        """
-        try:
-            loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            self.console.print(
-                "⚠️  Cannot run async: event loop already running",
-                style="yellow",
-            )
-            return {
-                "success": False,
-                "error": "Async execution blocked: event loop already running",
-            }
-
-        try:
-            # Use asyncio.timeout context manager (Python 3.11+) for better SonarQube compliance
-            # Falls back to asyncio.wait_for for older Python versions
-            if hasattr(asyncio, "timeout"):
-                # Python 3.11+ - use modern timeout context manager
-                async def _run_with_timeout() -> Any:
-                    async with asyncio.timeout(timeout):
-                        return await coro
-
-                return asyncio.run(_run_with_timeout())
-            # Python < 3.11 - use wait_for for backward compatibility
-            return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
-        except TimeoutError:
-            # Both asyncio.timeout and asyncio.wait_for raise TimeoutError
-            self.console.print(
-                f"⚠️  Async task timeout after {timeout}s",
-                style="yellow",
-            )
-            return {"success": False, "error": f"Async task timed out after {timeout}s"}
-        except Exception as e:
-            logger.exception("Async execution error: %s", e)
-            self.console.print(f"⚠️  Async execution error: {e}", style="yellow")
-            return {"success": False, "error": f"Async execution failed: {e!s}"}
-
-    def _check_phase_transition(self) -> None:
-        """Phase transition kontrolü - DETERMİNİSTİK."""
-        # INIT -> RECON (target set)
-        if self.state.phase == AttackPhase.INIT and self.state.target:
-            self.state.phase = AttackPhase.RECON
-            self.console.print(
-                "📈 Phase transition: INIT -> RECON",
-                style=self.STYLE_BLUE,
-            )
-
-        # RECON -> VULN_SCAN (services discovered, no more remaining)
-        elif (
-            self.state.phase == AttackPhase.RECON
-            and self.state.open_services
-            and len(self.state.remaining_attack_surface) == 0
-        ):
-            self.state.phase = AttackPhase.VULN_SCAN
-            # Re-add services for vuln scanning
-            for port, svc in self.state.open_services.items():
-                surface_key: str = f"{port}:{svc.service}"
-                self.state.remaining_attack_surface.add(surface_key)
-            self.console.print(
-                "📈 Phase transition: RECON -> VULN_SCAN",
-                style=self.STYLE_BLUE,
-            )
-
-        # VULN_SCAN -> EXPLOIT (vulnerabilities found)
-        elif (
-            self.state.phase == AttackPhase.VULN_SCAN
-            and self.state.vulnerabilities
-            and len(self.state.remaining_attack_surface) == 0
-        ):
-            self.state.phase = AttackPhase.EXPLOIT
-            self.console.print(
-                "📈 Phase transition: VULN_SCAN -> EXPLOIT",
-                style=self.STYLE_BLUE,
-            )
-
-        # VULN_SCAN -> COMPLETE (no vulnerabilities found, surfaces exhausted)
-        elif (
-            self.state.phase == AttackPhase.VULN_SCAN
-            and not self.state.vulnerabilities
-            and len(self.state.remaining_attack_surface) == 0
-        ):
-            self.state.phase = AttackPhase.COMPLETE
-            self.console.print(
-                "📈 Phase transition: VULN_SCAN -> COMPLETE (no vulns found)",
-                style=self.STYLE_YELLOW,
-            )
-
-        elif self.state.phase == AttackPhase.EXPLOIT and self.state.has_foothold:
-            self.state.phase = AttackPhase.POST_EXPLOIT
-            self.impersonate_target = secrets.choice(BROWSER_IMPERSONATIONS)
-            self.console.print(
-                "📈 Phase transition: EXPLOIT -> POST_EXPLOIT",
-                style=self.STYLE_BLUE,
-            )
 
     def _show_final_report(self) -> None:
         """Show final execution report."""

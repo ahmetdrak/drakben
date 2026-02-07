@@ -3,7 +3,6 @@
 # Real LLM Integration
 # Modules extracted to brain_*.py for maintainability.
 
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -185,14 +184,6 @@ class DrakbenBrain:
         """Main entry point - Process user request."""
         return self.orchestrator.process_request(user_input, system_context)
 
-    def get_context(self) -> dict:
-        """Get current context."""
-        return self.context_mgr.get_full_context()
-
-    def update_context(self, context_update: dict) -> None:
-        """Update brain context."""
-        self.context_mgr.update(context_update)
-
     def observe(self, tool: str, output: str, success: bool = True) -> None:
         """Observe tool output and update context.
         This allows the Brain to 'see' what happened in the terminal.
@@ -240,31 +231,6 @@ class DrakbenBrain:
                 success=success,
             )
 
-    def get_cognitive_context(
-        self,
-        query: str,
-        target: str | None = None,
-    ) -> str:
-        """Get token-efficient context from Cognitive Memory.
-
-        This is the KEY FUNCTION for token efficiency.
-        Instead of passing entire history, we retrieve relevant memories.
-
-        Args:
-            query: Current query/focal point
-            target: Target IP/domain
-
-        Returns:
-            Formatted context string for LLM
-        """
-        if not self.cognitive_memory:
-            return ""
-
-        return self.cognitive_memory.get_context_for_llm(
-            query=query,
-            target=target,
-        )
-
     def get_stats(self) -> dict:
         """Get brain statistics."""
         stats = {
@@ -298,75 +264,6 @@ class DrakbenBrain:
             }
         except Exception as e:
             return {"connected": False, "error": str(e)}
-
-    def select_next_tool(self, context: dict) -> dict | None:
-        """REFACTORED: Get SINGLE tool selection from LLM.
-
-        Args:
-            context: {
-                "state_snapshot": Dict,  # 5 line summary
-                "allowed_tools": List[str],
-                "remaining_surfaces": List[str],
-                "last_observation": str,
-                "phase": str
-            }
-
-        Returns:
-            {"tool": "tool_name", "args": {...}} or None
-
-        """
-        if not self.llm_client:
-            # Fallback - return first allowed tool with simple args
-            allowed = context.get("allowed_tools", [])
-            if allowed:
-                return {
-                    "tool": allowed[0],
-                    "args": {"target": context.get("state_snapshot", {}).get("target")},
-                }
-            return None
-
-        # Get language from context
-        user_lang = context.get("state_snapshot", {}).get("language", "tr")
-        lang_instruction: str = (
-            "Respond in Turkish (Türkçe)."
-            if user_lang == "tr"
-            else "Respond in English."
-        )
-
-        # Build minimal prompt for LLM
-        prompt: str = f"""You are DRAKBEN penetration testing agent. {lang_instruction}
-Current state:
-- Phase: {context.get("phase")}
-- Iteration: {context.get("state_snapshot", {}).get("iteration")}
-- Open services: {context.get("state_snapshot", {}).get("open_services_count")}
-- Remaining to test: {context.get("state_snapshot", {}).get("remaining_count")}
-- Last observation: {context.get("last_observation", "None")[:100]}
-
-Allowed tools: {", ".join(context.get("allowed_tools", [])[:5])}
-Remaining surfaces: {", ".join(context.get("remaining_surfaces", [])[:3])}
-
-Select ONE tool to execute next. Respond ONLY in JSON format:
-{{"tool": "tool_name", "args": {{"param": "value"}}}}"""
-
-        try:
-            # Add timeout to prevent hanging on API calls
-            response = self.llm_client.query(
-                prompt,
-                system_prompt="You are a penetration testing AI. Respond only in JSON.",
-                timeout=20,
-            )
-
-            # Parse JSON using reasoning module's parser
-            parsed: dict[str, Any] | None = self.reasoning._parse_llm_response(response)
-            if parsed and "tool" in parsed:
-                return parsed
-
-            # Fallback to rule-based
-            return None
-
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.debug("Tool response parsing failed: %s", e)
-            return None
 
     def ask_coder(self, instruction: str, context: dict | None = None) -> dict:
         """Delegate coding task to AICoder.

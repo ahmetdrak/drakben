@@ -2,10 +2,14 @@
 # DRAKBEN Global Stop Controller
 # Ctrl+C ile tüm işlemleri durdurmak için merkezi kontrol
 
+from __future__ import annotations
+
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -81,22 +85,12 @@ class StopController:
         with self._callbacks_lock:
             self._active_processes.clear()
             self._active_threads.clear()
+            self._cleanup_callbacks.clear()
         logger.debug("StopController reset")
 
     def is_stopped(self) -> bool:
         """Check if stop was triggered."""
         return self._stop_event.is_set()
-
-    def wait_for_stop(self, timeout: float | None = None) -> bool:
-        """Wait for stop signal.
-
-        Args:
-            timeout: Max seconds to wait (None = forever)
-
-        Returns:
-            True if stopped, False if timeout
-        """
-        return self._stop_event.wait(timeout=timeout)
 
     def register_process(self, process: Any) -> None:
         """Register an active subprocess for potential termination.
@@ -106,27 +100,6 @@ class StopController:
         """
         with self._callbacks_lock:
             self._active_processes.append(process)
-
-    def unregister_process(self, process: Any) -> None:
-        """Unregister a completed subprocess."""
-        with self._callbacks_lock:
-            if process in self._active_processes:
-                self._active_processes.remove(process)
-
-    def register_cleanup(self, callback: Callable[[], None]) -> None:
-        """Register a cleanup callback to run on stop.
-
-        Args:
-            callback: Function to call on stop (no arguments)
-        """
-        with self._callbacks_lock:
-            self._cleanup_callbacks.append(callback)
-
-    def unregister_cleanup(self, callback: Callable[[], None]) -> None:
-        """Remove a cleanup callback."""
-        with self._callbacks_lock:
-            if callback in self._cleanup_callbacks:
-                self._cleanup_callbacks.remove(callback)
 
     def _terminate_all_processes(self) -> None:
         """Terminate all registered processes."""
@@ -184,8 +157,3 @@ def check_stop() -> bool:
             do_work()
     """
     return stop_controller.is_stopped()
-
-
-def trigger_stop() -> None:
-    """Convenience function to trigger stop."""
-    stop_controller.stop()

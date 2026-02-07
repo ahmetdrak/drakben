@@ -1,7 +1,7 @@
 """Self-Refining Engine — Data Models & Schema.
 
 Contains SCHEMA_SQL constant, PolicyTier enum, and all dataclasses
-(Strategy, StrategyProfile, Policy, FailureContext).
+(Strategy, StrategyProfile, Policy).
 
 Extracted from self_refining_engine.py for maintainability.
 """
@@ -166,19 +166,3 @@ class Policy:
     created_at: str
     expires_at: str | None = None
     is_active: bool = True
-
-
-@dataclass
-class FailureContext:
-    """Detailed failure record."""
-
-    context_id: str
-    target_signature: str
-    strategy_name: str
-    profile_id: str
-    tool_name: str | None
-    error_type: str
-    error_message: str
-    context_data: dict[str, Any]
-    created_at: str
-    policy_generated: bool = False

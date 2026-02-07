@@ -5,7 +5,6 @@ Description: Gathers target intelligence (personnel, emails) from public sources
 
 import logging
 import re
-import secrets
 import socket
 from dataclasses import dataclass, field
 from typing import Any
@@ -437,51 +436,4 @@ class OSINTSpider:
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
 
-    def verify_email_exists(self, email: str) -> bool:
-        """Verify if email exists using SMTP check (passive)."""
-        try:
-            domain = email.split("@")[1]
 
-            # Get MX record
-            import dns.resolver
-            mx_records = dns.resolver.resolve(domain, "MX")
-            mx_host = str(mx_records[0].exchange).rstrip(".")
-
-            # Connect and check (RCPT TO verification)
-            import smtplib
-            server = smtplib.SMTP(timeout=10)
-            server.connect(mx_host)
-            server.helo("verify.local")
-            server.mail("test@verify.local")
-            code, _ = server.rcpt(email)
-            server.quit()
-
-            return code == 250
-
-        except Exception as e:
-            logger.debug("Email verification failed: %s", e)
-            return False  # Can't verify, assume exists
-
-    def search_leaked_credentials(self, email: str) -> dict[str, Any]:
-        """Check if email appears in known breaches.
-
-        Returns breach information if found.
-        Note: In production, use HaveIBeenPwned API with proper licensing.
-        """
-        result = {
-            "email": email,
-            "found_in_breach": False,
-            "breach_count": 0,
-            "breaches": [],
-        }
-
-        # Simulated breach check (placeholder for HIBP API)
-        # In production: requests.get(f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}")
-
-        # Random simulation for demo
-        if secrets.randbelow(100) < 25:  # 25% chance
-            result["found_in_breach"] = True
-            result["breach_count"] = secrets.randbelow(3) + 1
-            result["breaches"] = ["SimulatedBreach2023"]
-
-        return result

@@ -1,5 +1,6 @@
 """Tests for WAF Bypass Engine v2.0"""
 
+import contextlib
 import time
 
 from modules.waf_bypass_engine import (
@@ -601,5 +602,11 @@ class TestIntegration:
 
             assert stats["total_attempts"] >= 1
         finally:
+            # Ensure engines are garbage-collected so SQLite releases the file
+            del engine1, engine2
+            import gc
+
+            gc.collect()
             if os.path.exists(db_path):
-                os.remove(db_path)
+                with contextlib.suppress(PermissionError):
+                    os.remove(db_path)

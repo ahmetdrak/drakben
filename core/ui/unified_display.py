@@ -433,8 +433,7 @@ class UnifiedConfirmation:
             lines.append(Text())
             details_label = "Detaylar" if self.language == "tr" else "Details"
             lines.append(Text(f"{details_label}:", style="bold"))
-            for detail in request.details:
-                lines.append(Text(f"  • {detail}", style="dim"))
+            lines.extend(Text(f"  • {detail}", style="dim") for detail in request.details)
 
         title = "Onay Gerekiyor" if self.language == "tr" else "Confirmation Required"
 
@@ -490,29 +489,6 @@ class UnifiedConfirmation:
             self.console.print(f"\n[yellow]{cancelled_msg}[/]")
             return False
 
-    def ask_simple(
-        self,
-        command: str,
-        risk_level: RiskLevel = RiskLevel.MEDIUM,
-        reason: str = "",
-    ) -> bool:
-        """Simplified confirmation for quick use.
-
-        Args:
-            command: Command to confirm
-            risk_level: Risk level
-            reason: Reason for confirmation
-
-        Returns:
-            True if approved
-        """
-        request = ConfirmationRequest(
-            command=command,
-            risk_level=risk_level,
-            reason=reason or "User confirmation required",
-        )
-        return self.ask(request)
-
 
 # ==============================================================================
 # RESULT DISPLAY
@@ -529,111 +505,6 @@ class ResultDisplay:
     ) -> None:
         self.console = console or Console()
         self.language = language
-
-    def show_success(
-        self,
-        message: str,
-        details: list[str] | None = None,
-        next_action: str | None = None,
-    ) -> None:
-        """Show success result."""
-        lines: list[RenderableType] = []
-
-        # Main message
-        main_text = Text()
-        main_text.append(f"{ICONS['success']} ", style=COLORS["success"])
-        main_text.append(message, style=COLORS["success"])
-        lines.append(main_text)
-
-        # Details
-        if details:
-            lines.append(Text())
-            for detail in details:
-                lines.append(Text(f"  • {detail}", style="dim"))
-
-        # Next action
-        if next_action:
-            lines.append(Text())
-            next_label = "Sonraki" if self.language == "tr" else "Next"
-            lines.append(Text(f"{next_label}: {next_action}", style="cyan"))
-
-        self.console.print(Panel(
-            Group(*lines),
-            border_style=COLORS["success"],
-            padding=(0, 1),
-        ))
-
-    def show_error(
-        self,
-        message: str,
-        details: list[str] | None = None,
-        suggestion: str | None = None,
-    ) -> None:
-        """Show error result."""
-        lines: list[RenderableType] = []
-
-        # Main message
-        main_text = Text()
-        main_text.append(f"{ICONS['error']} ", style=COLORS["error"])
-        main_text.append(message, style=COLORS["error"])
-        lines.append(main_text)
-
-        # Details
-        if details:
-            lines.append(Text())
-            for detail in details:
-                lines.append(Text(f"  • {detail}", style="dim red"))
-
-        # Suggestion
-        if suggestion:
-            lines.append(Text())
-            tip_label = "İpucu" if self.language == "tr" else "Tip"
-            lines.append(Text(f"{tip_label}: {suggestion}", style="yellow"))
-
-        self.console.print(Panel(
-            Group(*lines),
-            border_style=COLORS["error"],
-            padding=(0, 1),
-        ))
-
-    def show_findings(
-        self,
-        title: str,
-        findings: list[dict[str, Any]],
-        severity_key: str = "severity",
-    ) -> None:
-        """Show findings table (vulnerabilities, ports, etc.)."""
-        if not findings:
-            no_findings = "Bulgu yok" if self.language == "tr" else "No findings"
-            self.console.print(f"[dim]{no_findings}[/]")
-            return
-
-        table = Table(title=title, border_style="cyan")
-        table.add_column("#", style="dim", width=4)
-        table.add_column("Finding", style="white")
-        table.add_column("Severity", style="yellow")
-        table.add_column("Details", style="dim")
-
-        severity_colors = {
-            "critical": "bold red",
-            "high": "red",
-            "medium": "yellow",
-            "low": "green",
-            "info": "blue",
-        }
-
-        for i, finding in enumerate(findings[:20], 1):  # Limit to 20
-            severity = finding.get(severity_key, "info").lower()
-            sev_style = severity_colors.get(severity, "white")
-
-            table.add_row(
-                str(i),
-                str(finding.get("name", finding.get("title", "Unknown"))),
-                f"[{sev_style}]{severity.upper()}[/]",
-                str(finding.get("details", finding.get("description", "")))[:50],
-            )
-
-        self.console.print(table)
 
 
 # ==============================================================================
@@ -690,13 +561,6 @@ class ThinkingDisplay(LiveOperationDisplay):
             self.update(details={"Model": model})
 
         return self
-
-    def set_cache_hit(self, hit: bool = True) -> None:
-        """Indicate cache hit."""
-        self._cache_hit = hit
-        if hit:
-            cache_msg = "Önbellekten" if self.language == "tr" else "From cache"
-            self.update(sub_message=f"⚡ {cache_msg}")
 
     def set_analyzing(self, what: str = "") -> None:
         """Switch to analyzing state."""

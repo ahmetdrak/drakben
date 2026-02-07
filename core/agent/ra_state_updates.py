@@ -32,38 +32,6 @@ class RAStateUpdatesMixin:
     - self.MSG_STATE_NOT_NONE (str constant)
     """
 
-    def _create_observation(self, tool_name: str, result: dict) -> str:
-        """Tool sonucundan ÖZET observation oluştur.
-
-        YASAK: Raw log, tool output spam
-        SADECE: Anlamlı özet
-        """
-        if not result.get("success"):
-            error_msg = result.get("error") or result.get("stderr", _ERR_UNKNOWN)
-            return f"Tool {tool_name} failed: {error_msg[:100]}"
-
-        # Success - create meaningful observation
-        if "nmap" in tool_name:
-            # Parse nmap output (simplified)
-            stdout = result.get("stdout", "")
-            if "open" in stdout.lower():
-                # Count open ports
-                open_count = stdout.lower().count(" open ")
-                return f"Port scan found {open_count} open ports"
-            return "Port scan completed, no open ports"
-
-        if "nikto" in tool_name:
-            return "Web vulnerability scan completed"
-
-        if "sqlmap" in tool_name:
-            stdout = result.get("stdout", "")
-            if "vulnerable" in stdout.lower():
-                return "SQL injection vulnerability found"
-            return "SQL injection scan completed, no vulnerabilities"
-
-        # Generic
-        return f"Tool {tool_name} completed successfully"
-
     def _update_state_from_result(
         self,
         tool_name: str,
@@ -112,11 +80,10 @@ class RAStateUpdatesMixin:
         if self.state is None:
             raise AssertionError(self.MSG_STATE_NOT_NONE)
         observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
-        # Check if exploit succeeded
+        # Check if exploit succeeded based on output evidence
         if (
             "success" in observation.lower()
             or "shell" in observation.lower()
-            or result.get("success")
         ):
             self.state.set_foothold(tool_name)
         else:
@@ -135,15 +102,14 @@ class RAStateUpdatesMixin:
         if parsed_services:
             from core.agent.state import ServiceInfo
 
-            services = []
-            for svc_dict in parsed_services:
-                services.append(
-                    ServiceInfo(
-                        port=svc_dict["port"],
-                        protocol=svc_dict["proto"],
-                        service=svc_dict["service"],
-                    ),
+            services = [
+                ServiceInfo(
+                    port=svc_dict["port"],
+                    protocol=svc_dict["proto"],
+                    service=svc_dict["service"],
                 )
+                for svc_dict in parsed_services
+            ]
             self.state.update_services(services)
         else:
             # Fallback to mock if parsing failed (for testing)
@@ -245,20 +211,3 @@ class RAStateUpdatesMixin:
                         list,
                     ):
                         self.state.vulnerabilities.append(vuln)
-
-    def _extract_port_from_result(self, result: dict) -> int:
-        """Extract port number from tool result arguments."""
-        args_port = result.get("args", {}).get("port")
-        if args_port:
-            return args_port
-
-        args_url = result.get("args", {}).get("url", "")
-        if args_url:
-            from urllib.parse import urlparse
-
-            parsed_url = urlparse(args_url)
-            if parsed_url.port:
-                return parsed_url.port
-            return 443 if parsed_url.scheme == "https" else 80
-
-        return 80  # Default fallback

@@ -87,14 +87,14 @@ class VectorStore:
             distances = results.get("distances")
 
             if documents and documents[0]:
-                for i in range(len(documents[0])):
-                    output.append(
-                        {
-                            "text": documents[0][i],
-                            "metadata": metadatas[0][i] if metadatas else {},
-                            "distance": distances[0][i] if distances else 0.0,
-                        },
-                    )
+                output.extend(
+                    {
+                        "text": documents[0][i],
+                        "metadata": metadatas[0][i] if metadatas else {},
+                        "distance": distances[0][i] if distances else 0.0,
+                    }
+                    for i in range(len(documents[0]))
+                )
             return output
         except Exception as e:
             logger.exception("Search failed: %s", e)
@@ -107,12 +107,4 @@ class VectorStore:
         return 0
 
 
-# Global Instance
-_vector_store = None
 
-
-def get_vector_store() -> VectorStore:
-    global _vector_store
-    if _vector_store is None:
-        _vector_store = VectorStore()
-    return _vector_store

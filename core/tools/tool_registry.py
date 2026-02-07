@@ -548,6 +548,14 @@ class ToolRegistry:
 
         try:
             result = tool.python_func(target, **kwargs)
+            # If the result is a coroutine, run it synchronously
+            if asyncio.iscoroutine(result):
+                try:
+                    result = asyncio.run(result)
+                except RuntimeError:
+                    # Already in an async context - get existing loop
+                    loop = asyncio.get_event_loop()
+                    result = loop.run_until_complete(result)
             return {
                 "success": True,
                 "output": result,

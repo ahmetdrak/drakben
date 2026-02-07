@@ -6,10 +6,6 @@ import logging.handlers
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 class DrakbenFormatter(logging.Formatter):
@@ -40,11 +36,14 @@ class DrakbenFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         # Add colors for terminal output
+        original_levelname = record.levelname
         if self.use_colors:
             color = self.COLORS.get(record.levelname, self.COLORS["RESET"])
             record.levelname = f"{color}{record.levelname}{self.COLORS['RESET']}"
 
-        return super().format(record)
+        result = super().format(record)
+        record.levelname = original_levelname
+        return result
 
 
 class JSONFormatter(logging.Formatter):
@@ -200,74 +199,3 @@ def get_logger(name: str) -> logging.Logger:
 
     return logging.getLogger(name)
 
-
-class LogContext:
-    """Context manager for adding extra context to log messages.
-
-    Example:
-        with LogContext(logger, target='192.168.1.1', phase='recon'):
-            logger.info("Starting scan")
-
-    """
-
-    def __init__(self, logger: logging.Logger, **context: Any) -> None:
-        self.logger = logger
-        self.context = context
-        self.old_factory: Callable[..., logging.LogRecord] | None = None
-
-    def __enter__(self) -> Any:
-        self.old_factory = logging.getLogRecordFactory()
-
-        def record_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
-            assert self.old_factory is not None  # guaranteed in __enter__
-            record = self.old_factory(*args, **kwargs)
-            for key, value in self.context.items():
-                setattr(record, key, value)
-            return record
-
-        logging.setLogRecordFactory(record_factory)
-        return self
-
-    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
-        if self.old_factory is not None:
-            logging.setLogRecordFactory(self.old_factory)
-
-
-# Module-level convenience functions
-def log_tool_execution(
-    logger: logging.Logger,
-    tool_name: str,
-    target: str,
-    success: bool,
-    duration: float = 0.0,
-) -> None:
-    """Log tool execution with consistent format."""
-    status = "SUCCESS" if success else "FAILED"
-    logger.info(
-        f"Tool: {tool_name} | Target: {target} | Status: {status} | Duration: {duration:.2f}s",
-    )
-
-
-def log_phase_transition(
-    logger: logging.Logger, from_phase: str, to_phase: str,
-) -> None:
-    """Log phase transition."""
-    logger.info("Phase transition: %s -> %s", from_phase, to_phase)
-
-
-def log_vulnerability_found(
-    logger: logging.Logger,
-    vuln_id: str,
-    service: str,
-    port: int,
-    severity: str,
-) -> None:
-    """Log vulnerability discovery."""
-    logger.warning(
-        f"Vulnerability found: {vuln_id} | Service: {service}:{port} | Severity: {severity}",
-    )
-
-
-def log_security_event(logger: logging.Logger, event_type: str, details: str) -> None:
-    """Log security-related events."""
-    logger.warning("Security Event: %s | %s", event_type, details)

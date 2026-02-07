@@ -480,8 +480,7 @@ if __name__ == "__main__":
             tree = ast.parse(code)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
-                    for n in node.names:
-                        deps.append(n.name.split(".")[0])
+                    deps.extend(n.name.split(".")[0] for n in node.names)
                 elif isinstance(node, ast.ImportFrom) and node.module:
                     deps.append(node.module.split(".")[0])
         except SyntaxError:

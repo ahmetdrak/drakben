@@ -208,12 +208,3 @@ class CognitiveMemoryManager:
             logger.debug("Failed to get memory stats: %s", e)
 
         return stats
-
-    def clear_memory(self) -> None:
-        """Clear all memory (useful for testing or reset)."""
-        if self._initialized and self._memory_stream:
-            try:
-                self._memory_stream.clear()
-                logger.info("Cognitive memory cleared")
-            except Exception as e:
-                logger.warning("Failed to clear memory: %s", e)

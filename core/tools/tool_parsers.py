@@ -3,7 +3,6 @@
 
 import logging
 import re
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -360,93 +359,6 @@ def _normalize_generic_error(combined: str, exit_code: int) -> str | None:
                 return line[:200]
         return f"Command failed with exit code {exit_code}"
     return None
-
-
-def parse_tool_output(tool_name: str, output: str, llm_client=None) -> list[dict]:
-    """Generic entry point for parsing tool output.
-    Selects the correct parser strategy based on tool name.
-    """
-    parser_func = PARSERS.get(tool_name.lower())
-
-    if parser_func:
-        try:
-            # Check if parser accepts llm_client parameter
-            import inspect
-
-            sig = inspect.signature(parser_func)
-            if "llm_client" in sig.parameters:
-                return parser_func(output, llm_client)
-            return parser_func(output)
-        except Exception as e:
-            logger.exception("Parser error for %s: %s", tool_name, e)
-            return []
-
-    # Default/Fallback parser for unknown tools - return empty list
-    return []
-
-
-def _smart_truncate(
-    content: str,
-    keywords_or_len: Any = None,
-    max_length: int = 2000,
-) -> str:
-    """Truncate string intelligently.
-    Supports:
-    - _smart_truncate(text, 100) -> truncates to 100 chars
-    - _smart_truncate(text, ["error", "fail"]) -> keeps lines with keywords.
-    """
-    if not keywords_or_len:
-        return content[:max_length]
-
-    keywords = []
-    limit = max_length
-
-    # Handle polymorphic arguments
-    if isinstance(keywords_or_len, int):
-        limit = keywords_or_len
-    elif isinstance(keywords_or_len, list):
-        keywords = keywords_or_len
-
-    if len(content) <= limit and not keywords:
-        return content
-
-    lines = content.split("\n")
-
-    # Logic for keyword-based filtering
-    if keywords:
-        result = _filter_lines_by_keywords(lines, keywords, limit)
-        if len(result) > limit:
-            return result[:limit] + "\n...[Truncated]"
-        return result
-
-    # Standard length truncation
-    return content[:limit].rsplit(" ", 1)[0] + "..."
-
-
-def _filter_lines_by_keywords(
-    lines: list[str],
-    keywords: list[str],
-    max_lines: int = 50,
-) -> str:
-    """Helper for _smart_truncate to filter lines based on keywords."""
-    kept_lines = []
-    # Keep context header
-    kept_lines.extend(lines[:5])
-
-    # Scan for keywords in middle
-    count = 0
-    for line in lines[5:-5]:
-        if any(k in line for k in keywords):
-            kept_lines.append(line)
-            count += 1
-            if count > max_lines:  # Safety cap
-                break
-
-    # Keep context footer
-    if len(lines) > 10:
-        kept_lines.extend(lines[-5:])
-
-    return "\n".join(kept_lines)
 
 
 # Strategy Pattern for Parsers - MUST be after function definitions

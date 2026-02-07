@@ -112,6 +112,9 @@ drakben_vectors/
 session.json
 *.pid
 
+# Vulture reports (generated locally)
+vulture_*.txt
+
 # Build artifacts
 *.pyc
 *.pyo

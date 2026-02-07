@@ -7,7 +7,6 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
@@ -377,230 +376,6 @@ class OpenRouterClient:
 
         return result
 
-    def query_streaming(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        callback: Callable | None = None,
-        timeout: int = 60,
-    ) -> Generator[str, None, None]:
-        """Query the LLM with streaming response.
-
-        Args:
-            prompt: User prompt
-            system_prompt: System prompt (optional)
-            callback: Callback function for each token/chunk, signature: callback(chunk: str)
-            timeout: Request timeout in seconds (default: 60)
-
-        Yields:
-            String chunks as they arrive from the LLM
-
-        Example:
-            for chunk in client.query_streaming("Hello"):
-                print(chunk, end="", flush=True)
-
-        """
-        if system_prompt is None:
-            system_prompt = "You are a penetration testing assistant. Provide clear, actionable security advice."
-
-        # Acquire rate limit token
-        if not self._rate_limiter.acquire(timeout=timeout):
-            yield "[Rate Limited] Too many requests, please wait."
-            return
-
-        # Route to appropriate provider
-        if self.provider == "ollama":
-            yield from self._query_ollama_streaming(
-                prompt,
-                system_prompt,
-                callback,
-                timeout,
-            )
-        else:
-            yield from self._query_openai_streaming(
-                prompt,
-                system_prompt,
-                callback,
-                timeout,
-            )
-
-    def _query_ollama_streaming(
-        self,
-        prompt: str,
-        system_prompt: str,
-        callback: Callable | None,
-        timeout: int,
-    ) -> Generator[str, None, None]:
-        """Query Ollama with streaming response."""
-        try:
-            response = self._make_ollama_request(prompt, system_prompt, timeout)
-            if not response:
-                return
-
-            yield from self._process_ollama_stream(response, callback)
-
-        except requests.exceptions.Timeout:
-            logger.warning("Ollama request timeout")
-            yield "[Timeout] Ollama streaming timed out."
-        except requests.exceptions.ConnectionError as e:
-            logger.warning("Ollama connection error: %s", e)
-            yield "[Offline] Ollama connection failed."
-        except requests.exceptions.RequestException as e:
-            logger.exception("Ollama request error: %s", e)
-            yield f"[Request Error] {e!s}"
-        except Exception as e:
-            logger.exception("Ollama streaming error: %s", e)
-            yield f"[Error] {e!s}"
-
-    def _query_openai_streaming(
-        self,
-        prompt: str,
-        system_prompt: str,
-        callback: Callable | None,
-        timeout: int,
-    ) -> Generator[str, None, None]:
-        """Query OpenAI-compatible API with streaming response."""
-        if not self.api_key:
-            yield "[Offline Mode] No API key configured."
-            return
-
-        headers = self._build_headers()
-        payload = self._build_payload(prompt, system_prompt, stream=True)
-
-        try:
-            response = self._session.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=timeout,
-                stream=True,
-            )
-
-            if response.status_code != 200:
-                yield from self._handle_error_response(response)
-                return
-
-            yield from self._process_streaming_response(response, callback, timeout)
-
-        except requests.exceptions.Timeout:
-            logger.warning(
-                "OpenAI-compatible API streaming timeout - possible WAF blocking",
-            )
-            yield "[Timeout] API streaming timed out (possible WAF blocking)."
-        except requests.exceptions.ConnectionError as e:
-            logger.warning("OpenAI-compatible API connection error: %s", e)
-            yield "[Offline] No internet connection or connection refused."
-        except requests.exceptions.RequestException as e:
-            logger.exception("OpenAI-compatible API request error: %s", e)
-            yield f"[Request Error] {e!s}"
-        except Exception as e:
-            logger.exception("API streaming error: %s", e)
-            yield f"[Error] {e!s}"
-
-    def _build_headers(self) -> dict[str, str]:
-        """Build API headers."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        if self.provider == "openrouter":
-            headers["HTTP-Referer"] = (
-                "https://github.com/drakben/drakben"  # updated to generic
-            )
-            headers["X-Title"] = "DRAKBEN Pentest AI"
-        return headers
-
-    def _build_payload(
-        self,
-        prompt: str,
-        system_prompt: str,
-        stream: bool = False,
-    ) -> dict:
-        """Build API payload."""
-        return {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": stream,
-        }
-
-    def _handle_error_response(self, response: requests.Response) -> Generator[str, None, None]:
-        """Handle error response codes."""
-        if response.status_code == 401:
-            yield "[Auth Error] Invalid API key."
-        elif response.status_code == 429:
-            retry_after = int(response.headers.get("Retry-After", 5))
-            self._rate_limiter.set_retry_after(retry_after)
-            yield "[Rate Limit] Too many requests."
-        else:
-            yield f"[API Error] {response.status_code}"
-
-    def _process_streaming_response(
-        self,
-        response: requests.Response,
-        callback: Callable | None,
-        timeout: int,
-    ) -> Generator[str, None, None]:
-        """Process streaming response lines."""
-        start_time = time.time()
-        max_stream_time = min(timeout * 2, 300)
-
-        for line in response.iter_lines(decode_unicode=True, chunk_size=8192):
-            if self._check_stream_timeout(start_time, max_stream_time):
-                yield "[Timeout] Streaming response took too long (possible WAF blocking)."
-                break
-
-            if line:
-                processed_line = self._preprocess_stream_line(line)
-                if processed_line == "[DONE]":
-                    break
-
-                chunk = self._extract_chunk_from_line(processed_line, callback)
-                if chunk:
-                    yield chunk
-
-    def _check_stream_timeout(self, start_time: float, max_stream_time: float) -> bool:
-        """Check if streaming has exceeded timeout."""
-        if time.time() - start_time > max_stream_time:
-            logger.warning(
-                f"Streaming timeout after {max_stream_time}s - possible WAF blocking",
-            )
-            return True
-        return False
-
-    def _preprocess_stream_line(self, line: str) -> str:
-        """Preprocess stream line (remove data: prefix, check for DONE)."""
-        return line.removeprefix("data: ")
-
-    def _extract_chunk_from_line(
-        self,
-        line: str,
-        callback: Callable | None,
-    ) -> str | None:
-        """Extract chunk from processed line."""
-        import json
-
-        try:
-            data = json.loads(line)
-            chunk = self._extract_chunk(data)
-            if chunk:
-                if callback:
-                    callback(chunk)
-                return chunk
-        except json.JSONDecodeError:
-            pass
-        return None
-
-    def _extract_chunk(self, data: dict) -> str:
-        """Extract content chunk from response data."""
-        choices = data.get("choices", [])
-        if choices:
-            delta = choices[0].get("delta", {})
-            return delta.get("content", "")
-        return ""
-
     def _query_ollama(self, prompt: str, system_prompt: str, timeout: int) -> str:
         """Query local Ollama instance with retry logic."""
         for attempt in range(self.max_retries):
@@ -684,6 +459,11 @@ class OpenRouterClient:
         if not self.api_key:
             return "[Offline Mode] No API key configured."
 
+        # Validate key format before sending request
+        key_warning = self._validate_api_key_format()
+        if key_warning:
+            logger.warning(key_warning)
+
         headers = self._build_api_headers()
         payload = self._build_api_payload(system_prompt, prompt)
 
@@ -736,20 +516,43 @@ class OpenRouterClient:
     def _handle_api_response(self, response: requests.Response, attempt: int) -> str | None:
         """Handle API response with status code logic."""
         if response.status_code == 200:
-            try:
-                data = response.json()
-                if "choices" in data and len(data["choices"]) > 0:
-                    return data["choices"][0]["message"]["content"]
-                return "[API Error] Unexpected response format"
-            except (KeyError, IndexError, ValueError) as e:
-                return f"[API Error] Failed to parse response: {e}"
+            return self._parse_api_success(response)
         if response.status_code == 401:
-            return "[Auth Error] Invalid API key. Check config/api.env"
+            return self._handle_api_auth_error(response)
         if response.status_code == 429:
             return self._handle_api_rate_limit(response, attempt)
         if response.status_code >= 500:
             return self._handle_api_server_error(response, attempt)
         return f"[API Error] {response.status_code}: {response.text[:100]}"
+
+    def _parse_api_success(self, response: requests.Response) -> str:
+        """Parse successful API response."""
+        try:
+            data = response.json()
+            if "choices" in data and len(data["choices"]) > 0:
+                return data["choices"][0]["message"]["content"]
+            return "[API Error] Unexpected response format"
+        except (KeyError, IndexError, ValueError) as e:
+            return f"[API Error] Failed to parse response: {e}"
+
+    def _handle_api_auth_error(self, response: requests.Response) -> str:
+        """Handle 401 Unauthorized response with detailed logging."""
+        detail = self._extract_error_detail(response)
+        key_hint = self._build_key_hint()
+        logger.error("API 401 Unauthorized%s: %s", key_hint, detail)
+        if detail:
+            return f"[Auth Error] Invalid API key: {detail}. Check config/api.env"
+        return "[Auth Error] Invalid API key. Check config/api.env"
+
+    def _build_key_hint(self) -> str:
+        """Build masked API key hint for logging."""
+        if not self.api_key:
+            return ""
+        if len(self.api_key) > 20:
+            masked = self.api_key[:12] + "..." + self.api_key[-4:]
+        else:
+            masked = "***"
+        return f" (key: {masked}, len={len(self.api_key)})"
 
     def _handle_api_rate_limit(self, response: requests.Response, attempt: int) -> str | None:
         """Handle API rate limiting."""
@@ -822,131 +625,34 @@ class OpenRouterClient:
             logger.debug("Health check failed: %s", e)
             return False
 
-    def clear_cache(self) -> None:
-        """Clear the response cache."""
-        if self._cache:
-            self._cache.clear()
-            logger.info("LLM cache cleared")
-
-    def get_cache_stats(self) -> dict | None:
-        """Get cache statistics."""
-        if self._cache:
-            return self._cache.get_stats()
-        return None
-
-    def _make_ollama_request(
-        self,
-        prompt: str,
-        system_prompt: str,
-        timeout: int,
-    ) -> requests.Response | None:
-        """Make request to Ollama local API."""
-        url = "http://localhost:11434/api/generate"
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "system": system_prompt,
-            "stream": True,
-        }
+    def _extract_error_detail(self, response: requests.Response) -> str:
+        """Extract error detail message from API error response."""
         try:
-            return self._session.post(url, json=payload, timeout=timeout, stream=True)
-        except Exception as e:
-            logger.exception(f"Ollama request failed: {e}")
-            return None
+            data = response.json()
+            error = data.get("error", {})
+            if isinstance(error, dict):
+                return error.get("message", "")
+            return str(error) if error else ""
+        except (ValueError, AttributeError):
+            return ""
 
-    def _process_ollama_stream(
-        self,
-        response: requests.Response,
-        callback: Callable | None,
-    ) -> Iterator[str]:
-        """Process streaming response from Ollama API."""
-        import json
-
-        for line in response.iter_lines(decode_unicode=True):
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                chunk = data.get("response", "")
-                if chunk:
-                    if callback:
-                        callback(chunk)
-                    yield chunk
-                if data.get("done"):
-                    break
-            except json.JSONDecodeError:
-                continue
-
-    def switch_model(self, model: str) -> bool:
-        """Switch to a different LLM model.
-
-        Args:
-            model: Model name/identifier
+    def _validate_api_key_format(self) -> str:
+        """Validate API key format and return warning message if invalid.
 
         Returns:
-            True if switch successful
+            Warning message string if key format is suspicious, empty string if OK.
 
         """
-        old_model = self.model
-        self.model = model
-        logger.info("Switched LLM model: %s -> %s", old_model, model)
-        return True
-
-    def switch_provider(self, provider: str, **kwargs: str) -> bool:
-        """Switch to a different LLM provider.
-
-        Args:
-            provider: Provider name ('openrouter', 'ollama', 'openai', 'custom')
-            **kwargs: Provider-specific settings (api_key, base_url, model)
-
-        Returns:
-            True if switch successful
-
-        """
-        valid_providers = {"openrouter", "ollama", "openai", "custom"}
-        if provider not in valid_providers:
-            logger.error("Invalid provider: %s. Valid: %s", provider, valid_providers)
-            return False
-
-        old_provider = self.provider
-        self.provider = provider
-
-        # Apply kwargs overrides
-        if "api_key" in kwargs:
-            self.api_key = kwargs["api_key"]
-        if "base_url" in kwargs:
-            self.base_url = kwargs["base_url"]
-        if "model" in kwargs:
-            self.model = kwargs["model"]
-        else:
-            # Setup default model for provider
-            self._setup_provider()
-
-        logger.info("Switched LLM provider: %s -> %s", old_provider, provider)
-        return True
-
-    def list_ollama_models(self) -> list[str]:
-        """List available Ollama models (local only).
-
-        Returns:
-            List of model names or empty list if Ollama unavailable
-
-        """
-        if self.provider != "ollama":
-            logger.debug("list_ollama_models only works with Ollama provider")
-            return []
-
-        try:
-            response = self._session.get(
-                "http://localhost:11434/api/tags",
-                timeout=5,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return [m.get("name", "") for m in data.get("models", [])]
-        except (requests.RequestException, ValueError) as e:
-            logger.debug("Failed to list Ollama models: %s", e)
-        return []
+        if not self.api_key:
+            return ""
+        key = self.api_key.strip()
+        if key != self.api_key:
+            return "API key contains leading/trailing whitespace"
+        if self.provider == "openrouter" and key.startswith("sk-or-"):
+            # OpenRouter keys: sk-or-v1-<64 hex chars> = total ~74 chars
+            if len(key) < 70:
+                return f"OpenRouter key looks too short (len={len(key)}, expected ~74)"
+        return ""
 
     def close(self) -> None:
         """Close the session and cleanup resources."""

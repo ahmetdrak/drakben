@@ -3,13 +3,12 @@ Author: @ahmetdrak
 Description: State-of-the-art TLS Fingerprint Impersonation with Proxy Rotation and Human Behavior Simulation.
 """
 
-import asyncio
 import logging
 import secrets
 import time
 from typing import Any
 
-from curl_cffi.requests import AsyncSession, Session
+from curl_cffi.requests import Session
 
 logger = logging.getLogger(__name__)
 
@@ -221,19 +220,3 @@ class StealthSession(Session):
             self.proxy_manager.mark_bad(self.current_proxy)
             raise
 
-
-# Async Version for high-concurrency scans
-class AsyncStealthSession(AsyncSession):
-    """Async version of StealthSession with similar capabilities."""
-
-    def __init__(
-        self, impersonate: str | None = None, proxies: list[str] | None = None, **kwargs,
-    ) -> None:
-        self.impersonate_target = impersonate or secrets.choice(BROWSER_IMPERSONATIONS)
-        self.proxies_list = proxies or []
-        super().__init__(impersonate=self.impersonate_target, **kwargs)
-
-    async def request(self, method: str, url: str, *args, **kwargs) -> Any:
-        # Simple jitter for async
-        await asyncio.sleep(0.1 + (secrets.randbelow(1400) / 1000.0))  # 0.1 - 1.5
-        return await super().request(method, url, *args, **kwargs)

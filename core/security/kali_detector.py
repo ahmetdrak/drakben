@@ -2,7 +2,6 @@
 # Kali Linux Integration - Automatic Tool Detection
 
 import platform
-import shlex
 import subprocess
 
 
@@ -59,55 +58,3 @@ class KaliDetector:
     def get_available_tools(self) -> dict:
         """Mevcut araçları döndür."""
         return self.available_tools
-
-    def suggest_tools_for_target(self, target_type: str) -> list:
-        """Hedef türüne göre uygun araçları öner."""
-        suggestions = []
-
-        # Mapping target types to potential tools
-        tool_mapping = {
-            "web": ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"],
-            "webapp": ["nikto", "sqlmap", "burp", "dirsearch", "gobuster"],
-            "network": ["nmap", "hydra", "metasploit"],
-            "host": ["nmap", "hydra", "metasploit"],
-            "password": ["hashcat", "john", "hydra"],
-        }
-
-        # Get potential tools for the target type
-        potential_tools = tool_mapping.get(target_type, [])
-
-        # Filter by availability
-        for tool in potential_tools:
-            if tool in self.available_tools:
-                suggestions.append(tool)
-
-        return suggestions
-
-    def run_tool(self, tool: str, args: str) -> dict:
-        """Kali aracını çalıştır."""
-        if tool not in self.available_tools:
-            return {"success": False, "error": f"❌ '{tool}' aracı Kali'de bulunamadı"}
-
-        try:
-            # Parse arguments safely using shlex
-            cmd_list = [tool, *shlex.split(args)]
-            cmd_str = f"{tool} {args}"  # For display purposes
-            result = subprocess.run(
-                cmd_list,
-                capture_output=True,
-                text=True,
-                timeout=300,
-                check=False,  # We handle errors via returncode
-            )
-            return {
-                "success": True,
-                "tool": tool,
-                "command": cmd_str,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "returncode": result.returncode,
-            }
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "❌ Zaman aşımı (300s)"}
-        except Exception as e:
-            return {"success": False, "error": f"❌ Hata: {e!s}"}

@@ -5,12 +5,9 @@
 
 import logging
 import os
-import time
 
 try:
-    import mss
     import pyautogui
-    from PIL import Image
 
     COMPUTER_AVAILABLE = True
 except ImportError:
@@ -56,44 +53,6 @@ class Computer:
                 msg,
             )
 
-    # ============ VISION ============
-
-    def screenshot(self, filename: str | None = None) -> str:
-        """Take a screenshot and save it.
-
-        Args:
-            filename: Optional filename. If None, auto-generated timestamp.
-
-        Returns:
-            Absolute path to the saved screenshot.
-
-        """
-        self.check_availability()
-
-        if not filename:
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            filename = f"screenshot_{timestamp}.png"
-
-        filepath = os.path.join(self.screenshot_dir, filename)
-        absolute_path = os.path.abspath(filepath)
-
-        try:
-            with mss.mss() as sct:
-                # Capture the first monitor
-                monitor = sct.monitors[1]
-                sct_img = sct.grab(monitor)
-
-                # Convert to PIL/PNG
-                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                img.save(absolute_path)
-
-            logger.info("Screenshot saved to %s", absolute_path)
-            return absolute_path
-        except Exception as e:
-            logger.exception("Screenshot failed: %s", e)
-            msg = f"Screenshot failed: {e}"
-            raise ComputerError(msg) from e
-
     # ============ MOUSE ============
 
     def click(
@@ -137,15 +96,6 @@ class Computer:
 
         except Exception as e:
             msg = f"Click failed: {e}"
-            raise ComputerError(msg) from e
-
-    def move(self, x: int, y: int) -> None:
-        """Move mouse to coordinates."""
-        self.check_availability()
-        try:
-            pyautogui.moveTo(x, y)
-        except Exception as e:
-            msg = f"Move failed: {e}"
             raise ComputerError(msg) from e
 
     def scroll(self, amount: int) -> None:

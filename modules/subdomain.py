@@ -6,13 +6,10 @@ import asyncio
 import logging
 import shutil
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import urlparse
 
 import aiohttp
-
-if TYPE_CHECKING:
-    from core.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -378,9 +375,10 @@ class SubdomainEnumerator:
 
     def _parse_virustotal_data(self, data: dict) -> list[SubdomainResult]:
         """Parse VirusTotal API response."""
-        results = []
-        for sub in data.get("subdomains", []):
-            results.append(SubdomainResult(subdomain=sub, source="virustotal"))
+        results = [
+            SubdomainResult(subdomain=sub, source="virustotal")
+            for sub in data.get("subdomains", [])
+        ]
         return results
 
     async def _web_archive_enum(self, domain: str) -> list[SubdomainResult]:
@@ -569,8 +567,8 @@ class SubdomainEnumerator:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, resolver.resolve, fqdn, "A")
             return SubdomainResult(subdomain=fqdn, source="bruteforce", resolved=True)
-        except (TimeoutError, aiohttp.ClientError, ValueError) as e:
-            logger.debug("Error in crt.sh query: %s", e)
+        except Exception as e:
+            logger.debug("DNS resolution failed for %s: %s", fqdn, e)
             return None
 
     async def _resolve_subdomains(
@@ -641,7 +639,7 @@ class SubdomainEnumerator:
             )
             result.resolved = True
             result.ip_addresses = [str(r) for r in answers]
-        except (OSError, ValueError) as e:
+        except Exception as e:
             logger.debug("DNS resolution error: %s", e)
             result.resolved = False
 
@@ -656,34 +654,6 @@ class SubdomainEnumerator:
                 "CNAME",
             )
             result.cname = str(answers[0])
-        except (OSError, IndexError) as e:
+        except Exception as e:
             logger.debug("CNAME lookup error: %s", e)
 
-
-async def enumerate_subdomains_for_state(
-    state: "AgentState",
-    enumerator: SubdomainEnumerator | None = None,
-    use_bruteforce: bool = False,
-) -> list[SubdomainResult]:
-    """Enumerate subdomains for state target.
-
-    Args:
-        state: AgentState instance
-        enumerator: Optional SubdomainEnumerator instance
-        use_bruteforce: Whether to use brute force
-
-    Returns:
-        List of SubdomainResult objects
-
-    """
-    if not state.target:
-        logger.warning("No target set in state")
-        return []
-
-    enumerator = enumerator or SubdomainEnumerator()
-
-    return await enumerator.enumerate(
-        domain=state.target,
-        use_bruteforce=use_bruteforce,
-        resolve=True,
-    )

@@ -141,4 +141,11 @@ class MasterOrchestrator:
         if decision.get("has_risks") and self.self_correction:
             decision = self.self_correction.review(decision)
 
+        # Record decision in history for infinite loop detection
+        self.context.history.append({
+            "action": decision.get("action") or decision.get("next_action", {}),
+            "command": decision.get("command"),
+            "success": not decision.get("error"),
+        })
+
         return decision

@@ -146,10 +146,6 @@ class ConceptNode:
         self.last_accessed = time.time()
         self.access_count += 1
 
-    def age_hours(self) -> float:
-        """Calculate age of node in hours."""
-        return (time.time() - self.created_at) / 3600.0
-
     def recency_score(self, decay_factor: float = 0.99) -> float:
         """Calculate recency score with exponential decay.
 

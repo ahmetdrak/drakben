@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
     from core.agent.brain import DrakbenBrain
     from core.agent.refactored_agent import RefactoredDrakbenAgent
-    from core.agent.state import AgentState
     from core.execution.execution_engine import ExecutionResult
     from core.execution.tool_selector import ToolSpec
 
@@ -35,14 +34,23 @@ from core.security.kali_detector import KaliDetector
 class DrakbenMenu:
     """DRAKBEN Minimal Menu System.
 
-    COMMANDS (Only 7):
-    - /help     : Help
-    - /target   : Set target
-    - /scan     : Scan
-    - /clear    : Clear screen (menu remains)
-    - /tr       : Turkish
-    - /en       : English
-    - /exit     : Exit
+    COMMANDS (16):
+    - /help      : Help
+    - /target    : Set target
+    - /untarget  : Clear target
+    - /scan      : Scan
+    - /shell     : Terminal access
+    - /status    : Show status
+    - /llm       : LLM settings
+    - /clear     : Clear screen
+    - /tr        : Turkish
+    - /en        : English
+    - /research  : Research mode
+    - /report    : Generate report
+    - /config    : Settings
+    - /tools     : List tools
+    - /memory    : Memory status
+    - /exit      : Exit
 
     Everything else goes to AI.
     """
@@ -205,15 +213,6 @@ class DrakbenMenu:
 
         self.console.print(info_line)
         self.console.print()
-
-    def _get_status_labels(self, is_tr: bool) -> tuple[str, str, str, str]:
-        """Get localized status labels."""
-        return (
-            "HEDEF" if is_tr else "TARGET",
-            "SİSTEM" if is_tr else "SYSTEM",
-            "MOD" if is_tr else "MODE",
-            "KOMUTLAR" if is_tr else "COMMANDS",
-        )
 
     def _get_mode_info(self, is_tr: bool) -> tuple[str, str]:
         """Get stealth mode display info."""
@@ -872,23 +871,6 @@ class DrakbenMenu:
                 Panel(step_text, title=title, border_style=self.STYLE_DIM_CYAN, padding=(0, 1)),
             )
 
-    def _show_confidence(self, result: Any) -> None:
-        """Show confidence score with color coding."""
-        confidence = result.get("confidence", 0)
-        if confidence <= 0:
-            return
-
-        conf_color = self._get_confidence_color(confidence)
-        self.console.print(f"   [dim]Güven: [{conf_color}]{confidence:.0%}[/][/dim]")
-
-    def _get_confidence_color(self, confidence: float) -> str:
-        """Get color for confidence level."""
-        if confidence > 0.7:
-            return "green"
-        if confidence > 0.4:
-            return "yellow"
-        return "red"
-
     def _show_offline_message(self, lang: str) -> None:
         """Show offline/no connection message."""
         offline_msg = (
@@ -1285,51 +1267,6 @@ class DrakbenMenu:
 
         return False
 
-    def _display_scan_panel(self, scan_mode: str) -> None:
-        """Display scan initialization panel."""
-
-        lang: str = self.config.language
-        mode_info: dict[str, tuple[str, str]] = {
-            "stealth": (
-                "STEALTH",
-                "Silent mode - Slow but stealthy"
-                if lang != "tr"
-                else "Sessiz mod - Yavas ama gizli",
-            ),
-            "aggressive": (
-                "AGGRESSIVE",
-                "Fast mode - Aggressive scan"
-                if lang != "tr"
-                else "Hizli mod - Agresif tarama",
-            ),
-            "auto": ("AUTO", "Auto mode" if lang != "tr" else "Otomatik mod"),
-        }
-        mode_label, mode_desc = mode_info.get(scan_mode, mode_info["auto"])
-
-        # Simple professional output
-        self.console.print()
-        self.console.print("[bold cyan]DRAKBEN Scanner[/]")
-        self.console.print("─" * 40)
-        self.console.print(f"[*] Target: {self.config.target}")
-        self.console.print(f"[*] Mode: {mode_label} - {mode_desc}")
-        self.console.print("─" * 40)
-        self.console.print()
-
-    def _start_scan_with_recovery(self, scan_mode: str) -> None:
-        """Start scan with error recovery (legacy method)."""
-        lang: str = self.config.language
-
-        try:
-            self._ensure_agent_initialized()
-            self._initialize_agent_with_retry(scan_mode, lang)
-            if self.agent is None:
-                raise AssertionError(self.MSG_AGENT_NOT_NONE)
-            self.agent.run_autonomous_loop()
-        except KeyboardInterrupt:
-            self._handle_scan_interrupt(lang)
-        except Exception as e:
-            self._handle_scan_error(e, lang)
-
     def _handle_scan_interrupt(self, lang: str) -> None:
         """Handle scan interruption (Ctrl+C)."""
         try:
@@ -1429,55 +1366,6 @@ class DrakbenMenu:
         self.show_banner()
         self.show_status_line()
 
-    def _show_agent_panels(self, lang: str) -> None:
-        """Show agent-related panels in status view."""
-        from rich.panel import Panel
-
-        if not (self.agent and self.agent.state):
-            return
-
-        agent_title: str = "🤖 Agent State" if lang == "en" else "🤖 Ajan Durumu"
-        self.console.print(
-            Panel(
-                self._create_agent_table(),
-                title=f"[bold {self.COLORS['yellow']}]{agent_title}[/]",
-                border_style=self.COLORS["yellow"],
-                padding=(0, 1),
-            ),
-        )
-
-        findings_title = (
-            "⚔️  War Room: Live Findings"
-            if lang == "en"
-            else "⚔️  Savaş Odası: Canlı Bulgular"
-        )
-        self.console.print(
-            Panel(
-                self._create_live_findings_table(),
-                title=f"[bold red]{findings_title}[/]",
-                border_style="red",
-                padding=(0, 1),
-            ),
-        )
-
-        if self.agent.planner and self.agent.planner.steps:
-            plan_title = "Mission Plan" if lang == "en" else "Görev Planı"
-            self.console.print(
-                Panel(
-                    self._create_plan_table(),
-                    title=f"[bold cyan]{plan_title}[/]",
-                    border_style="cyan",
-                    padding=(0, 1),
-                ),
-            )
-
-    def _show_idle_panel(self, lang: str) -> None:
-        """Show idle message when agent is not active."""
-        if lang == "tr":
-            self.console.print("[dim]Ajan aktif değil. Başlatmak için: /target <IP> sonra /scan[/]")
-        else:
-            self.console.print("[dim]Agent idle. To start: /target <IP> then /scan[/]")
-
     def _cmd_status(self, args: str = "") -> None:
         """Show current status - Clean, professional dashboard."""
         from rich.panel import Panel
@@ -1573,17 +1461,6 @@ class DrakbenMenu:
             border_style="yellow",
             padding=(0, 1),
         ))
-
-    def _get_service_status(self, svc: Any, vuln_map: dict, is_tr: bool) -> str:
-        """Get status text for a service row."""
-        if svc.port in vuln_map:
-            v = vuln_map[svc.port]
-            return f"[bold red]⚠ {v.vuln_id} ({v.severity})[/]"
-        if svc.vulnerable:
-            vuln_text = "Potansiyel Zafiyet" if is_tr else "Potentially Vulnerable"
-            return f"[bold red]⚠ {vuln_text}[/]"
-        open_text = "Açık" if is_tr else "Open"
-        return f"[green]{open_text}[/]"
 
     def _cmd_memory(self, args: str = "") -> None:
         """Show memory system status - Stanford Memory + Evolution Memory."""
@@ -1686,93 +1563,6 @@ class DrakbenMenu:
                 "[dim]Başlatılmadı[/]" if is_tr else "[dim]Not initialized[/]",
             )
 
-    def _create_findings_table_base(self, is_tr: bool) -> "Table":
-        """Create base findings table with columns."""
-        from rich.table import Table
-
-        svc_col = "SERVİS" if is_tr else "SERVICE"
-        status_col = "DURUM/ZAFİYET" if is_tr else "STATUS/VULN"
-        table = Table(box=None, padding=(0, 1), expand=True)
-        table.add_column("PORT", style=self.STYLE_BOLD_CYAN, width=10)
-        table.add_column(svc_col, style="white", width=20)
-        table.add_column(status_col, style="yellow")
-        return table
-
-    def _create_live_findings_table(self) -> "Table":
-        """Create a table showing live ports and vulns."""
-        is_tr = self.config.language == "tr"
-        table = self._create_findings_table_base(is_tr)
-
-        if not self.agent or not self.agent.state:
-            no_agent = "Aktif ajan yok" if is_tr else "No active agent"
-            table.add_row("-", no_agent, "[dim]N/A[/]")
-            return table
-
-        state: AgentState = self.agent.state
-        if not state.open_services and not state.vulnerabilities:
-            self._add_scanning_row(table, is_tr)
-            return table
-
-        vuln_map = {v.port: v for v in state.vulnerabilities}
-        for svc in state.open_services:
-            table.add_row(
-                f"{svc.port}/{svc.protocol}",
-                f"{svc.service} {svc.version or ''}",
-                self._get_service_status(svc, vuln_map, is_tr),
-            )
-        return table
-
-    def _add_scanning_row(self, table: Any, is_tr: bool) -> None:
-        """Add scanning placeholder row to table."""
-        wait = "Bekle" if is_tr else "Wait"
-        scanning = "Tarama yapılıyor..." if is_tr else "Scanning..."
-        no_findings = "Henüz bulgu yok" if is_tr else "No findings yet"
-        table.add_row(f"[dim]{wait}[/]", f"[dim]{scanning}[/]", f"[dim]{no_findings}[/]")
-
-    def _create_plan_table(self) -> "Table":
-        """Create a table showing current plan steps."""
-        from rich.table import Table
-
-        from core.agent.planner import StepStatus
-
-        lang = self.config.language
-        is_tr = lang == "tr"
-
-        table = Table(box=None, padding=(0, 1))
-        table.add_column("Step" if not is_tr else "Adım", style="dim")
-        table.add_column("Action" if not is_tr else "Eylem", style="bold")
-        table.add_column("Tool" if not is_tr else "Araç", style="cyan")
-        table.add_column("Status" if not is_tr else "Durum", style="bold")
-
-        status_colors = {
-            StepStatus.PENDING: "dim",
-            StepStatus.EXECUTING: self.STYLE_BOLD_YELLOW,
-            StepStatus.SUCCESS: self.STYLE_BOLD_GREEN,
-            StepStatus.FAILED: self.STYLE_BOLD_RED,
-            StepStatus.SKIPPED: "dim yellow",
-        }
-
-        for i, step in enumerate(self.agent.planner.steps, 1):
-            color = status_colors.get(step.status, "white")
-            status_text = step.status.value.upper()
-            if is_tr:
-                status_map = {
-                    "pending": "BEKLİYOR",
-                    "executing": "YÜRÜTÜLÜYOR",
-                    "success": "BAŞARILI",
-                    "failed": "BAŞARISIZ",
-                    "skipped": "ATLANDI",
-                }
-                status_text = status_map.get(step.status.value, status_text)
-
-            table.add_row(
-                f"#{i}",
-                step.action.replace("_", " ").title(),
-                step.tool,
-                f"[{color}]{status_text}[/]",
-            )
-        return table
-
     def _build_report_summary_table(self, lang: str, final_path: str) -> "Table":
         """Build summary table for report output."""
         from rich.table import Table
@@ -1846,75 +1636,6 @@ class DrakbenMenu:
             err_msg = f"Rapor hatası: {e}" if lang == "tr" else f"Report error: {e}"
             self.console.print(f"[red]{err_msg}[/]")
 
-    def _get_localized_labels(self, is_tr: bool) -> dict[str, str]:
-        """Get localized labels for system table."""
-        return {
-            "header_id": "DİJİTAL KİMLİK" if is_tr else "OPERATIONAL IDENTITY",
-            "header_perf": "SİSTEM METRİKLERİ" if is_tr else "SYSTEM METRICS",
-            "lbl_status": "DURUM" if is_tr else "STATUS",
-            "lbl_value": "DEĞER" if is_tr else "VALUE",
-            "lbl_scope": "Aktif Kapsam" if is_tr else "Active Scope",
-            "lbl_lang": "Nöral Dil" if is_tr else "Neural Link",
-            "lbl_os": "Ana Bilgisayar" if is_tr else "Host Machine",
-            "lbl_tools": "Aktif Modüller" if is_tr else "Active Modules",
-            "lbl_stealth": "Görünürlük" if is_tr else "Visibility",
-            "lbl_threads": "İşlem Gücü" if is_tr else "Compute Power",
-            "unit_str": "Modül" if is_tr else "Modules",
-            "active_str": "GİZLİ (Korumalı)" if is_tr else "STEALTH (Secure)",
-            "inactive_str": "İZLENEBİLİR (Riskli)" if is_tr else "VISIBLE (High Risk)",
-            "core_str": "Çekirdek" if is_tr else "Cores",
-        }
-
-    def _create_system_table(self, lang: str) -> "Table":
-        from rich.table import Table
-
-        outer_table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
-        outer_table.add_column("Left", ratio=1)
-        outer_table.add_column("Right", ratio=1)
-
-        is_tr = lang == "tr"
-        labels = self._get_localized_labels(is_tr)
-
-        target_val = self.config.target or ("HEDEF YOK" if is_tr else "NO TARGET")
-        target_style = self.STYLE_BOLD_WHITE if self.config.target else self.STYLE_DIM_RED
-
-        os_info = self.system_info.get("os", "Unknown")
-        is_kali = self.system_info.get("is_kali", False)
-        os_display = "Kali Linux" if is_kali else os_info
-
-        tools = self.system_info.get("available_tools", {})
-        tool_count = len(tools)
-        tool_color = "green" if tool_count > 10 else "yellow"
-
-        # LEFT COLUMN: IDENTITY
-        left_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
-        left_content.add_column("", width=2)
-        left_content.add_column(labels["header_id"], width=22)
-        left_content.add_column(labels["lbl_status"], justify="right", width=15)
-
-        left_content.add_row("*", f"[dim]{labels['lbl_scope']}[/]", f"[{target_style}]{target_val}[/]")
-        left_content.add_row("*", f"[dim]{labels['lbl_lang']}[/]", "TR" if is_tr else "EN")
-        left_content.add_row("*", f"[dim]{labels['lbl_os']}[/]", os_display)
-
-        # RIGHT COLUMN: PERFORMANCE
-        right_content = Table(show_header=True, box=None, header_style=self.STYLE_BOLD_CYAN, padding=(0, 0))
-        right_content.add_column("", width=2)
-        right_content.add_column(labels["header_perf"], width=22)
-        right_content.add_column(labels["lbl_value"], justify="right", width=15)
-
-        tools_val = f"[{tool_color}]{tool_count} {labels['unit_str']}[/]"
-        right_content.add_row("*", f"[dim]{labels['lbl_tools']}[/]", tools_val)
-        if self.config.stealth_mode:
-            stealth_str = "[green]STEALTH[/]"
-        else:
-            stealth_str = "[yellow]VISIBLE[/]"
-        right_content.add_row("*", f"[dim]{labels['lbl_stealth']}[/]", stealth_str)
-        threads_val = f"[yellow]{self.config.max_threads} {labels['core_str']}[/]"
-        right_content.add_row("*", f"[dim]{labels['lbl_threads']}[/]", threads_val)
-
-        outer_table.add_row(left_content, right_content)
-        return outer_table
-
     def _get_phase_display_name(self, phase_value: str, is_tr: bool) -> str:
         """Get localized phase display name."""
         if not is_tr:
@@ -1930,57 +1651,6 @@ class DrakbenMenu:
             "failed": "başarısız",
         }
         return phase_map.get(phase_value, phase_value)
-
-    def _create_agent_table(self) -> "Table":
-        from rich.table import Table
-
-        lang = self.config.language
-        is_tr = lang == "tr"
-        state: AgentState | None = self.agent.state
-
-        phase_colors: dict[str, str] = {
-            "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
-            "exploit": "red", "foothold": "green", "post_exploit": "magenta",
-            "complete": self.STYLE_BOLD_GREEN, "failed": self.STYLE_BOLD_RED,
-        }
-        phase_color: str = phase_colors.get(state.phase.value, "white")
-        phase_name = self._get_phase_display_name(state.phase.value, is_tr)
-
-        agent_table = Table(show_header=False, box=None, padding=(0, 1))
-        agent_table.add_column("Key", style=f"bold {self.COLORS['purple']}")
-        agent_table.add_column("Value", style=self.COLORS["fg"])
-
-        lbl_phase = "Phase" if not is_tr else "Evre"
-        lbl_svc = "Services" if not is_tr else "Servisler"
-        lbl_vulns = "Vulns" if not is_tr else "Zafiyetler"
-        lbl_foothold = "Foothold" if not is_tr else "Erişim"
-
-        agent_table.add_row(lbl_phase, f"[{phase_color}]{phase_name.replace('_', ' ').title()}[/]")
-        agent_table.add_row(lbl_svc, f"[cyan]{len(state.open_services)}[/]")
-        vuln_color = "red" if state.vulnerabilities else "dim"
-        agent_table.add_row(lbl_vulns, f"[{vuln_color}]{len(state.vulnerabilities)}[/]")
-        agent_table.add_row(lbl_foothold, "[green]YES[/]" if state.has_foothold else "[dim]NO[/]")
-        return agent_table
-
-    def _create_llm_content(self) -> str:
-        lang = self.config.language
-        is_tr = lang == "tr"
-
-        not_init = "Not initialized" if not is_tr else "Başlatılmadı"
-        llm_content = f"[dim]{not_init}[/]"
-
-        if self.brain and self.brain.llm_client:
-            info = self.brain.llm_client.get_provider_info()
-            provider = info.get("provider", "N/A")
-            model = info.get("model", "N/A")
-            llm_content: str = f"[green]●[/] {provider}\n[dim]{model}[/]"
-
-            if info.get("cache_stats"):
-                cache = info["cache_stats"]
-                hit_rate = cache.get("hit_rate", 0) * 100
-                cache_lbl = "Cache" if not is_tr else "Önbellek"
-                llm_content += f"\n[dim]{cache_lbl}: {hit_rate:.0f}%[/]"
-        return llm_content
 
     def _cmd_llm_setup(self, args: str = "") -> None:
         """Interactive LLM/API setup wizard."""

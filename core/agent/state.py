@@ -378,26 +378,6 @@ class AgentState:
 
             self._record_change("vulnerability_found", vuln.vuln_id)
 
-    def mark_exploit_attempted(self, port: int, success: bool) -> None:
-        """Record exploit attempt.
-
-        Args:
-            port: Target port
-            success: Whether exploit succeeded
-
-        """
-        with self._lock:
-            if port in self.open_services:
-                self.open_services[port].exploit_attempted = True
-
-            for vuln in self.vulnerabilities:
-                if vuln.port == port and not vuln.exploit_attempted:
-                    vuln.exploit_attempted = True
-                    vuln.exploit_success = success
-                    break
-
-            self._record_change("exploit_attempted", {"port": port, "success": success})
-
     def set_foothold(self, method: str) -> None:
         """Record foothold achievement.
 
@@ -412,17 +392,6 @@ class AgentState:
             self.phase = AttackPhase.FOOTHOLD
 
             self._record_change("foothold_achieved", method)
-
-    def mark_post_exploit_done(self, action: str) -> None:
-        """Record completed post-exploit action.
-
-        Args:
-            action: Completed action name
-
-        """
-        with self._lock:
-            self.post_exploit_completed.add(action)
-            self._record_change("post_exploit_completed", action)
 
     def set_observation(self, observation: str) -> None:
         """Record last observation (max 500 chars).
@@ -474,69 +443,6 @@ class AgentState:
                 f"{len(self.vulnerabilities)}|{self.has_foothold}"
             )
             return hashlib.sha256(state_str.encode()).hexdigest()[:8]
-
-    def add_credential(
-        self,
-        username: str,
-        password: str | None = None,
-        hash_val: str | None = None,
-        service: str = "",
-    ) -> None:
-        """Add credential securely with RAM cleaning support."""
-        # Local import to avoid circular dependency
-        from core.security.ghost_protocol import get_ram_cleaner
-
-        with self._lock:
-            # Register sensitive data for secure wiping
-            if password:
-                try:
-                    get_ram_cleaner().register_sensitive(password)
-                except Exception as e:
-                    logger.warning(
-                        f"Could not register credential with RAMCleaner: {e}",
-                    )
-
-            # Create credential object
-            cred = CredentialInfo(
-                username=username,
-                password=password,
-                hash=hash_val,
-                service=service,
-            )
-
-            if not self._is_duplicate_credential(cred):
-                self.credentials.append(cred)
-                logger.info("Credential captured: %s (%s)", username, service)
-                self._persist_credential(username, password, hash_val, service)
-
-    def _is_duplicate_credential(self, cred: CredentialInfo) -> bool:
-        """Check if a credential already exists in memory."""
-        for c in self.credentials:
-            if c.username == cred.username and c.service == cred.service:
-                if c.password == cred.password and c.hash == cred.hash:
-                    return True
-        return False
-
-    def _persist_credential(
-        self,
-        username: str,
-        password: str | None,
-        hash_val: str | None,
-        service: str,
-    ) -> None:
-        """Save captured credential to secure store."""
-        try:
-            from core.security.security_utils import CredentialStore, get_credential_store
-
-            store: CredentialStore = get_credential_store()
-
-            # We use service:username as the key
-            cred_key: str = f"{service}:{username}" if service else username
-            cred_value: str = password or hash_val or "unknown"
-
-            store.store(cred_key, cred_value)
-        except Exception as e:
-            logger.debug("Persistence skipped: %s", e)
 
     def check_state_changed(self) -> bool:
         """Check if state has changed.
@@ -861,21 +767,6 @@ class AgentState:
 
 # NOTE: _state_lock and _state_instance are defined at module top (before AgentState class)
 # This ensures they're available when AgentState.__new__ is called
-
-
-def get_state() -> AgentState:
-    """Get global state instance (thread-safe singleton pattern).
-
-    Returns:
-        AgentState singleton instance
-
-    """
-    global _state_instance
-    if _state_instance is None:
-        with _state_lock:
-            if _state_instance is None:
-                _state_instance = AgentState()
-    return _state_instance
 
 
 def reset_state(target: str | None = None) -> AgentState:

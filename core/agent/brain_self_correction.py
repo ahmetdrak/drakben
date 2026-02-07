@@ -130,9 +130,10 @@ class SelfCorrection:
 
         # Check if tools are available
         required_tools = decision.get("required_tools", [])
-        for tool in required_tools:
-            if not decision.get("tools_available", {}).get(tool):
-                prereqs.append(tool)
+        prereqs.extend(
+            tool for tool in required_tools
+            if not decision.get("tools_available", {}).get(tool)
+        )
 
         return prereqs
 

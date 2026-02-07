@@ -176,7 +176,9 @@ class SingularityEngine:
                 PentestPhase,
                 Tool,
                 ToolType,
-                get_tool_registry,
+            )
+            from core.tools.tool_registry import (
+                get_registry as get_tool_registry,
             )
 
             # Generate tool name from description if not provided
@@ -233,20 +235,3 @@ class SingularityEngine:
         except Exception as e:
             logger.exception("Failed to register dynamic tool: %s", e)
             return code  # Return code even if registration fails
-
-    def evolve_existing_module(self, module_code: str) -> str:
-        """Evolve an existing module to bypass new signatures."""
-        # Apply intense mutation
-        return self.mutator.generate_variant(module_code, iterations=3)
-
-
-# Singleton Access
-_singularity_engine = None
-
-
-def get_singularity_engine() -> SingularityEngine:
-    """Get singleton Singularity Engine."""
-    global _singularity_engine
-    if _singularity_engine is None:
-        _singularity_engine = SingularityEngine()
-    return _singularity_engine

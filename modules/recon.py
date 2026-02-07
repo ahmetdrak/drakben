@@ -459,30 +459,6 @@ def get_whois_info(domain: str) -> dict[str, Any]:
         return {"error": str(e)}
 
 
-# Synchronous wrapper for compatibility
-def passive_recon_sync(
-    target: str,
-    state: Optional["AgentState"] = None,
-) -> dict[str, Any]:
-    """Synchronous wrapper for passive_recon.
-
-    Args:
-        target: Target URL
-        state: AgentState instance
-
-    Returns:
-        Recon results
-
-    """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    return loop.run_until_complete(passive_recon(target, state))
-
-
 # =============================================================================
 # Active Port Scanner (native — no nmap dependency)
 # =============================================================================

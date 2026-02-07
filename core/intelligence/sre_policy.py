@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from core.intelligence.sre_models import (
@@ -29,42 +28,6 @@ class SREPolicyMixin:
     # =========================================================================
     # POLICY ENGINE
     # =========================================================================
-
-    def add_policy(
-        self,
-        condition: dict,
-        action: dict,
-        priority_tier: PolicyTier,
-        weight: float = 0.5,
-        source: str = "system",
-    ) -> str:
-        """Add a new policy."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                policy_id = self._generate_id("pol_")
-                now = datetime.now().isoformat()
-
-                conn.execute(
-                    """
-                    INSERT INTO policies
-                    (policy_id, condition, action, weight, priority_tier, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        policy_id,
-                        json.dumps(condition),
-                        json.dumps(action),
-                        weight,
-                        int(priority_tier),
-                        source,
-                        now,
-                    ),
-                )
-                conn.commit()
-                return policy_id
-            finally:
-                conn.close()
 
     def get_applicable_policies(self, context: dict) -> list[Policy]:
         """Get all policies that apply to a given context.
@@ -231,37 +194,5 @@ class SREPolicyMixin:
             elif action["action_type"] == "min_aggressiveness":
                 min_agg = action["action_value"]
                 filtered = [p for p in filtered if p.aggressiveness >= min_agg]
-
-        return filtered
-
-    def apply_policies_to_tools(self, tools: list[str], context: dict) -> list[str]:
-        """Apply policies to filter/reorder tools."""
-        policies = self.get_applicable_policies(context)
-        resolved = self.resolve_policy_conflicts(policies)
-
-        filtered = tools.copy()
-
-        for action in resolved:
-            if action["action_type"] == "avoid_tools":
-                # Can be list or single tool
-                avoid = action["action_value"]
-                if isinstance(avoid, list):
-                    filtered = [t for t in filtered if t not in avoid]
-                else:
-                    filtered = [t for t in filtered if t != avoid]
-
-            elif action["action_type"] == "prefer_tools":
-                prefer = action["action_value"]
-                if isinstance(prefer, str):
-                    prefer = [prefer]
-                # Move preferred to front
-                preferred = [t for t in filtered if t in prefer]
-                others = [t for t in filtered if t not in prefer]
-                filtered = preferred + others
-
-            elif action["action_type"] == "block_tool":
-                if action["tier"] == PolicyTier.HARD_AVOIDANCE:
-                    block = action["action_value"]
-                    filtered = [t for t in filtered if t != block]
 
         return filtered

@@ -280,17 +280,6 @@ class EvolutionMemory:
             conn.commit()
 
     # ==================== PENALTY SYSTEM ====================
-    def _run_with_retry(self, func, *args, **kwargs) -> Any:
-        """Helper to retry DB operations on lock."""
-        for i in range(5):
-            try:
-                return func(*args, **kwargs)
-            except sqlite3.OperationalError as e:
-                if "locked" in str(e).lower() and i < 4:
-                    time.sleep(0.1 * (i + 1))
-                    continue
-                raise
-        return None
 
     def update_penalty(self, tool: str, success: bool, target: str = "global") -> None:
         """Update tool penalty score.
@@ -459,18 +448,6 @@ class EvolutionMemory:
                 attempt_count=row["attempt_count"],
             )
 
-    def update_plan_status(self, plan_id: str, status: str) -> None:
-        """Update plan status."""
-        with self._lock, self._safe_conn() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE plans SET status = ?, updated_at = ? WHERE plan_id = ?
-            """,
-                (status, time.time(), plan_id),
-            )
-            conn.commit()
-
     def update_plan_steps(self, plan_id: str, steps: list[dict]) -> None:
         """Update plan steps (for replanning)."""
         with self._lock, self._safe_conn() as conn:
@@ -534,11 +511,6 @@ class EvolutionMemory:
             )
             conn.commit()
 
-    def adjust_heuristic(self, key: str, delta: float) -> None:
-        """Adjust heuristic by delta - SELF-MODIFICATION."""
-        current = self.get_heuristic(key)
-        self.set_heuristic(key, current + delta)
-
     def update_heuristic(self, key: str, func: Any) -> None:
         """Update heuristic using a lambda function."""
         current = self.get_heuristic(key)
@@ -600,14 +572,6 @@ class EvolutionMemory:
         # Check all failures
         outcomes = [a.outcome for a in recent]
         return bool(all(o == "failure" for o in outcomes))
-
-    def detect_tool_abuse(self, tool: str, threshold: int = 3) -> bool:
-        """Detect if specific tool is being abused."""
-        recent = self.get_recent_actions(threshold)
-        if len(recent) < threshold:
-            return False
-
-        return all(a.tool == tool for a in recent[:threshold])
 
 
 # Global instance

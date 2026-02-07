@@ -51,7 +51,7 @@ class CredentialStore:
             # Test keyring access
             keyring.get_keyring()
             return True
-        except (keyring.errors.KeyringError, Exception):
+        except Exception:
             return False
 
     def _derive_key(self, password: str, salt: bytes) -> bytes:
@@ -185,31 +185,6 @@ class CredentialStore:
         except Exception as e:
             logger.exception("Failed to retrieve credential: %s", e)
             return None
-
-    def delete(self, key: str, master_password: str | None = None) -> bool:
-        """Delete credential."""
-        try:
-            if self._keyring_available:
-                import keyring
-
-                keyring.delete_password(self.SERVICE_NAME, key)
-
-            # File-based storage - REQUIRE explicit password
-            if not master_password:
-                master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
-                if not master_password:
-                    logger.error("Master password required for credential deletion")
-                    return False  # Graceful fail for deletion
-
-            credentials = self._load_file(master_password)
-            if key in credentials:
-                del credentials[key]
-                self._save_file(credentials, master_password)
-
-            return True
-        except Exception as e:
-            logger.exception("Failed to delete credential: %s", e)
-            return False
 
     def _load_file(self, password: str) -> dict[str, str]:
         """Load credentials from encrypted file."""
@@ -473,47 +448,16 @@ class AuditLogger:
         params.append(limit)
 
         results = []
-        with sqlite3.connect(self._db_path_str) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params)
-            for row in cursor:
-                results.append(dict(row))
-
-        return results
-
-    def verify_integrity(self) -> tuple[bool, str]:
-        """Verify audit log integrity using hash chain.
-
-        Returns:
-            Tuple of (is_valid, message)
-
-        """
         conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                "SELECT timestamp, event_type, action, hash, prev_hash FROM audit_log ORDER BY id",
-            )
-
-            prev_hash = "GENESIS"
-            for row in cursor:
-                timestamp, _, _, stored_hash, stored_prev = row
-
-                if stored_prev != prev_hash:
-                    return False, f"Chain broken at {timestamp}: prev_hash mismatch"
-
-                prev_hash = stored_hash
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params)
+            results.extend(dict(row) for row in cursor)
         finally:
             if not self._conn:
                 conn.close()
 
-        return True, "Audit log integrity verified"
-
-    def export_json(self, output_path: str) -> None:
-        """Export audit log to JSON."""
-        events = self.query(limit=10000)
-        with open(output_path, "w") as f:
-            json.dump(events, f, indent=2)
-        logger.info("Audit log exported to %s", output_path)
+        return results
 
 
 # =========================================
@@ -576,46 +520,6 @@ class ProxyManager:
         except (OSError, socks.ProxyConnectionError):
             return False
 
-    def add_proxy(self, proxy: ProxyConfig) -> None:
-        """Add proxy to pool."""
-        self.proxies.append(proxy)
-        logger.info("Proxy added: %s:%s", proxy.host, proxy.port)
-
-    def add_tor(self, host: str = "127.0.0.1", port: int = 9050) -> None:
-        """Add Tor as proxy."""
-        self.add_proxy(ProxyConfig(host=host, port=port, protocol="socks5"))
-
-    def get_next(self) -> ProxyConfig | None:
-        """Get next proxy in rotation."""
-        if not self.proxies:
-            return None
-
-        proxy = self.proxies[self.current_index]
-        self.current_index = (self.current_index + 1) % len(self.proxies)
-        return proxy
-
-    def get_current(self) -> ProxyConfig | None:
-        """Get current proxy without rotation."""
-        if not self.proxies:
-            return None
-        return self.proxies[self.current_index]
-
-    def get_requests_proxy(self) -> dict[str, str] | None:
-        """Get proxy dict for requests library."""
-        proxy = self.get_current()
-        return proxy.get_dict() if proxy else None
-
-    def get_aiohttp_proxy(self) -> str | None:
-        """Get proxy URL for aiohttp."""
-        proxy = self.get_current()
-        return proxy.get_url() if proxy else None
-
-    def configure_requests_session(self, session) -> None:
-        """Configure requests session with proxy."""
-        proxy_dict = self.get_requests_proxy()
-        if proxy_dict:
-            session.proxies.update(proxy_dict)
-
     def test_proxy(self, proxy: ProxyConfig, timeout: int = 10) -> bool:
         """Test proxy connectivity.
 
@@ -644,10 +548,6 @@ class ProxyManager:
 
         return False
 
-    def remove_dead_proxies(self) -> None:
-        """Remove non-working proxies."""
-        self.proxies = [p for p in self.proxies if self.test_proxy(p)]
-
 
 # =========================================
 # CONVENIENCE FUNCTIONS (Thread-Safe Singletons)
@@ -655,23 +555,10 @@ class ProxyManager:
 
 _credential_store: CredentialStore | None = None
 _audit_logger: AuditLogger | None = None
-_proxy_manager: ProxyManager | None = None
 
 # Thread-safe locks for singleton instantiation
 _credential_store_lock = threading.Lock()
 _audit_logger_lock = threading.Lock()
-_proxy_manager_lock = threading.Lock()
-
-
-def get_credential_store() -> CredentialStore:
-    """Get global credential store instance (thread-safe)."""
-    global _credential_store
-    if _credential_store is None:
-        with _credential_store_lock:
-            # Double-check pattern
-            if _credential_store is None:
-                _credential_store = CredentialStore()
-    return _credential_store
 
 
 def get_audit_logger() -> AuditLogger:
@@ -683,17 +570,6 @@ def get_audit_logger() -> AuditLogger:
             if _audit_logger is None:
                 _audit_logger = AuditLogger()
     return _audit_logger
-
-
-def get_proxy_manager() -> ProxyManager:
-    """Get global proxy manager instance (thread-safe)."""
-    global _proxy_manager
-    if _proxy_manager is None:
-        with _proxy_manager_lock:
-            # Double-check pattern
-            if _proxy_manager is None:
-                _proxy_manager = ProxyManager()
-    return _proxy_manager
 
 
 def audit_command(

@@ -525,9 +525,7 @@ class SessionManager:
     def list_sessions(self) -> list:
         """List all sessions (thread-safe)."""
         with self._lock:
-            sessions = []
-            for file in self.session_dir.glob("*.json"):
-                sessions.append(file.name)
+            sessions = [file.name for file in self.session_dir.glob("*.json")]
             return sorted(sessions, reverse=True)
 
     def add_command(self, command: str, output: str) -> None:

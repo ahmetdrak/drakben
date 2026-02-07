@@ -11,18 +11,9 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
-
-if TYPE_CHECKING:
-    from core.agent.state import AgentState
+from typing import Any
 
 logger = logging.getLogger(__name__)
-
-
-def _get_default_port(scheme: str | None) -> int:
-    """Get default port for scheme."""
-    return 443 if scheme == "https" else 80
 
 
 class NucleiSeverity(Enum):
@@ -283,103 +274,3 @@ def _cleanup_nuclei_temp_file(targets_file: str) -> None:
         os.unlink(targets_file)
 
 
-def nuclei_results_to_findings(results: list[NucleiResult]) -> list[dict[str, Any]]:
-    """Convert Nuclei results to finding dictionaries for report generation.
-
-    Args:
-        results: List of NucleiResult objects
-
-    Returns:
-        List of finding dictionaries
-
-    """
-    findings = []
-
-    for result in results:
-        finding = {
-            "title": result.template_name or result.template_id,
-            "severity": result.severity.value,
-            "description": result.description
-            or f"Detected by template: {result.template_id}",
-            "affected_asset": result.host,
-            "evidence": result.matched_at,
-            "references": result.reference,
-            "tags": result.tags,
-        }
-
-        # Add CVE if in template ID
-        if result.template_id.upper().startswith("CVE-"):
-            finding["cve_id"] = result.template_id.upper()
-
-        findings.append(finding)
-
-    return findings
-
-
-# State integration
-async def nuclei_scan_state_target(
-    state: "AgentState",
-    scanner: NucleiScanner | None = None,
-    severity_filter: list[NucleiSeverity] | None = None,
-) -> list[NucleiResult]:
-    """Run Nuclei scan on state target.
-
-    Args:
-        state: AgentState instance
-        scanner: Optional NucleiScanner instance
-        severity_filter: Optional severity filter
-
-    Returns:
-        List of NucleiResult objects
-
-    """
-    if not state.target:
-        logger.warning("No target set in state")
-        return []
-
-    scanner = scanner or NucleiScanner()
-
-    if not scanner.available:
-        logger.warning("Nuclei not available")
-        return []
-
-    config = NucleiScanConfig()
-    if severity_filter:
-        config.severity = severity_filter
-
-    # Add http/https if not present
-    target = state.target
-    if not target.startswith(("http://", "https://")):
-        targets = [f"http://{target}", f"https://{target}"]
-    else:
-        targets = [target]
-
-    results = await scanner.scan(targets, config)
-
-    # Update state with vulnerabilities
-    from core.agent.state import VulnerabilityInfo
-
-    for result in results:
-        if result.severity in [
-            NucleiSeverity.CRITICAL,
-            NucleiSeverity.HIGH,
-            NucleiSeverity.MEDIUM,
-        ]:
-            # Extract port and service from result URL
-            parsed_url = (
-                urlparse(result.url)
-                if hasattr(result, "url") and result.url
-                else urlparse(state.target)
-            )
-            port = parsed_url.port or _get_default_port(parsed_url.scheme)
-            service = parsed_url.scheme or "http"
-            vuln = VulnerabilityInfo(
-                vuln_id=result.template_id,
-                service=service,
-                port=port,
-                severity=result.severity.value,
-                exploitable=True,
-            )
-            state.add_vulnerability(vuln)
-
-    return results

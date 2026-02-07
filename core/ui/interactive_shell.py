@@ -147,9 +147,9 @@ class InteractiveShell:
         # Complete commands
         if not text or text.startswith("/"):
             prefix = text.lstrip("/")
-            for cmd in self.BUILTIN_COMMANDS:
-                if cmd.startswith(prefix):
-                    options.append("/" + cmd)
+            options.extend(
+                "/" + cmd for cmd in self.BUILTIN_COMMANDS if cmd.startswith(prefix)
+            )
 
         # Complete target-related
         if text.startswith("target "):
@@ -179,13 +179,6 @@ class InteractiveShell:
             "export": self._cmd_export,
             "config": self._cmd_config,
         }
-
-    def register_command(
-        self, name: str, handler: Callable, description: str = "",
-    ) -> None:
-        """Register a custom command."""
-        self.command_handlers[name] = handler
-        self.BUILTIN_COMMANDS[name] = description
 
     def start(self) -> None:
         """Start the interactive shell."""

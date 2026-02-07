@@ -6,8 +6,7 @@ Thread-safe singleton pattern.
 import logging
 import sqlite3
 import threading
-from contextlib import contextmanager, suppress
-from typing import Any
+from contextlib import suppress
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +34,6 @@ class SQLiteProvider(DatabaseProvider):
     def __init__(self, db_path: str = DB_NAME) -> None:
         self.db_path = db_path
         self._local = threading.local()  # Thread-local storage for connections
-
-    @classmethod
-    def get_instance(cls, db_path: str = DB_NAME) -> Any:
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = cls(db_path)
-            return cls._instance
 
     def _get_conn(self) -> sqlite3.Connection:
         """Get thread-specific connection."""
@@ -102,27 +94,4 @@ class SQLiteProvider(DatabaseProvider):
             raise sqlite3.OperationalError(msg)
         raise last_error
 
-    def fetch_all(self, query: str, params: tuple = ()) -> list[dict]:
-        cur = self.execute(query, params)
-        return [dict(row) for row in cur.fetchall()]
 
-    def fetch_one(self, query: str, params: tuple = ()) -> dict | None:
-        cur = self.execute(query, params)
-        row = cur.fetchone()
-        return dict(row) if row else None
-
-    @contextmanager
-    def transaction(self) -> Any:
-        """Context manager for atomic transactions."""
-        conn = self._get_conn()
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-# Global Accessor
-def get_db(db_path: str = "drakben.db") -> SQLiteProvider:
-    return SQLiteProvider.get_instance(db_path)

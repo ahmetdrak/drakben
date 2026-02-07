@@ -194,10 +194,8 @@ def _xd(s, k):
     def _substitute_instructions(self, code: str) -> str:
         """Replace operations with equivalent alternatives."""
         substitutions = [
-            # a + b -> a - (-b)
-            (" + ", " - (-"),
-            # a == b -> not (a != b)
-            (" == ", " != "),
+            # a + b -> a - (-b)  (balanced parens)
+            (" + ", " - (-1) * "),
             # True -> (1 == 1)
             ("True", "(1 == 1)"),
             ("False", "(1 == 0)"),
@@ -259,8 +257,25 @@ class VariableRenamer(ast.NodeTransformer):
     def __init__(self) -> None:
         self.var_map: dict[str, str] = {}
         self.counter = 0
-        # Don't rename these
-        self.preserved = {"self", "cls", "args", "kwargs", "True", "False", "None"}
+        # Don't rename these (keywords + builtins)
+        self.preserved = {
+            "self", "cls", "args", "kwargs", "True", "False", "None",
+            # Python builtins that must not be renamed
+            "print", "len", "range", "str", "int", "float", "bool",
+            "list", "dict", "set", "tuple", "type", "super", "object",
+            "isinstance", "issubclass", "hasattr", "getattr", "setattr",
+            "delattr", "property", "staticmethod", "classmethod",
+            "enumerate", "zip", "map", "filter", "sorted", "reversed",
+            "min", "max", "sum", "abs", "round", "pow", "divmod",
+            "hash", "id", "repr", "ascii", "chr", "ord", "hex", "oct", "bin",
+            "format", "input", "open", "compile", "exec", "eval",
+            "globals", "locals", "vars", "dir", "help",
+            "any", "all", "iter", "next", "callable", "breakpoint",
+            "Exception", "BaseException", "ValueError", "TypeError",
+            "KeyError", "IndexError", "AttributeError", "RuntimeError",
+            "ImportError", "OSError", "IOError", "StopIteration",
+            "NotImplementedError", "FileNotFoundError", "PermissionError",
+        }
 
     def _get_new_name(self, old_name: str) -> str:
         """Generate a new random variable name."""

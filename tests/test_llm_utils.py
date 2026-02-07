@@ -16,6 +16,7 @@ class TestParseLlmJsonResponse:
 
     def test_direct_json_nested(self) -> None:
         result = parse_llm_json_response('{"a": {"b": [1, 2]}}')
+        assert result is not None
         assert result["a"]["b"] == [1, 2]
 
     # Strategy 2: Markdown code blocks

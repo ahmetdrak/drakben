@@ -115,14 +115,6 @@ class ToolSelector:
             return True
         return False
 
-    def update_tool_priority(self, tool_name: str, delta: int) -> None:
-        """Update priority for a single tool."""
-        if tool_name in self.tools:
-            self.tools[tool_name].priority = max(
-                0,
-                min(100, self.tools[tool_name].priority + delta),
-            )
-
     def register_dynamic_tool(
         self,
         name: str,
@@ -385,10 +377,6 @@ class ToolSelector:
 
         return allowed
 
-    def filter_for_system_tools(self) -> list[str]:
-        """List tools that should be installed on system."""
-        return [spec.system_tool for spec in self.tools.values() if spec.system_tool]
-
     def select_tool_for_surface(
         self,
         state: AgentState,
@@ -439,30 +427,6 @@ class ToolSelector:
 
         return None
 
-    def get_fallback_tool(self, failed_tool: str, state: AgentState) -> str | None:
-        """Get fallback tool for failed tool - DETERMINISTIC.
-
-        Args:
-            failed_tool: Tool that failed
-            state: Current state
-
-        Returns:
-            Fallback tool name or None
-
-        """
-        if failed_tool not in self.fallback_map:
-            return None
-
-        fallbacks = self.fallback_map[failed_tool]
-        allowed = self.get_allowed_tools(state)
-
-        # Return first available fallback
-        for fb in fallbacks:
-            if fb in allowed:
-                return fb
-
-        return None
-
     def validate_tool_selection(
         self,
         tool_name: str,
@@ -501,23 +465,6 @@ class ToolSelector:
     def is_tool_blocked(self, tool_name: str, max_failures: int = 2) -> bool:
         """Check if tool is blocked? (2 failures -> block)."""
         return self.failed_tools.get(tool_name, 0) >= max_failures
-
-    def get_next_phase_tools(self, state: AgentState) -> list[str]:
-        """Suggest tools needed for next phase.
-
-        Phase progression:
-        INIT -> RECON -> VULN_SCAN -> EXPLOIT -> FOOTHOLD -> POST_EXPLOIT
-        """
-        phase_tools = {
-            AttackPhase.INIT: ["nmap_port_scan"],
-            AttackPhase.RECON: ["nmap_service_scan"],
-            AttackPhase.VULN_SCAN: ["nmap_vuln_scan", "nikto_web_scan", "sqlmap_scan"],
-            AttackPhase.EXPLOIT: ["sqlmap_exploit", "metasploit_exploit"],
-            AttackPhase.FOOTHOLD: ["msfvenom_payload", "reverse_shell"],
-            AttackPhase.POST_EXPLOIT: ["privilege_escalation", "lateral_movement"],
-        }
-
-        return phase_tools.get(state.phase, [])
 
     def recommend_next_action(self, state: AgentState) -> tuple[str, str, dict] | None:
         """Recommend next action based on state - DETERMINISTIC.

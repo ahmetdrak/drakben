@@ -33,7 +33,6 @@ from typing import TYPE_CHECKING
 from core.agent.memory.concept_node import (
     ConceptNode,
     NodeType,
-    PentestRelevance,
 )
 
 if TYPE_CHECKING:
@@ -432,48 +431,6 @@ class RetrievalEngine:
                         lines.append(f"  - {scored.node.description}")
 
         return "\n".join(lines)
-
-    def get_attack_path_context(
-        self,
-        target: str,
-        n: int = 10,
-    ) -> list[ConceptNode]:
-        """Get nodes forming a potential attack path.
-
-        Specialized retrieval that traces the chain of:
-        recon → vulnerability → exploit → foothold
-
-        Args:
-            target: Target IP/domain
-            n: Maximum nodes to return
-
-        Returns:
-            List of nodes forming attack path
-        """
-        # Query for attack path related memories
-        result = self.retrieve(
-            query="vulnerability exploit attack foothold shell access credential",
-            n=n * 2,
-            target=target,
-            include_types=[NodeType.FINDING, NodeType.EVENT, NodeType.REFLECTION],
-        )
-
-        # Filter for high-poignancy attack-related nodes
-        attack_nodes = [
-            scored.node for scored in result.nodes
-            if scored.node.poignancy >= 6.0
-            or scored.node.pentest_relevance in [
-                PentestRelevance.CRITICAL_VULN,
-                PentestRelevance.HIGH_VULN,
-                PentestRelevance.CREDENTIAL,
-                PentestRelevance.ATTACK_PATH,
-            ]
-        ]
-
-        # Sort by creation time to show progression
-        attack_nodes.sort(key=lambda x: x.created_at)
-
-        return attack_nodes[:n]
 
 
 def create_retrieval_engine(

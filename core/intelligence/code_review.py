@@ -3,20 +3,23 @@
 # Provides code review and approval workflow before execution
 # Similar to Open Interpreter's code review feature
 
+from __future__ import annotations
+
 import ast
 import difflib
 import hashlib
 import logging
 import os
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from rich.console import Console
-from rich.panel import Panel
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -180,20 +183,6 @@ class CodeAnalyzer:
         return RiskLevel.LOW, concerns
 
     @classmethod
-    def check_ast_safety(cls, code: str) -> tuple[bool, list[str]]:
-        """Perform AST-based safety check."""
-        issues: list[str] = []
-        try:
-            tree = ast.parse(code)
-        except SyntaxError as e:
-            return False, [f"Syntax error: {e}"]
-
-        for node in ast.walk(tree):
-            cls._check_node_safety(node, issues)
-
-        return len(issues) == 0, issues
-
-    @classmethod
     def _check_node_safety(cls, node: ast.AST, issues: list[str]) -> None:
         """Helper to check individual AST nodes for safety."""
         # Check for dangerous function calls
@@ -203,9 +192,11 @@ class CodeAnalyzer:
 
         # Check for dangerous imports
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name in ("ctypes", "pickle", "marshal"):
-                    issues.append(f"Dangerous import: {alias.name}")
+            issues.extend(
+                f"Dangerous import: {alias.name}"
+                for alias in node.names
+                if alias.name in ("ctypes", "pickle", "marshal")
+            )
 
         # Check for dangerous "from" imports
         if isinstance(node, ast.ImportFrom):
@@ -311,142 +302,34 @@ class CodeReview:
 
         return change
 
-    def _handle_approve(self, change: CodeChange) -> bool:
-        """Handle approval action."""
-        change.status = ReviewStatus.APPROVED
-        change.reviewed_at = time.time()
-        self.console.print("[green]Change approved.[/green]")
-        if self.on_approval:
-            self.on_approval(change)
-        return True
-
-    def _handle_reject(self, change: CodeChange) -> bool:
-        """Handle rejection action."""
-        change.status = ReviewStatus.REJECTED
-        change.reviewed_at = time.time()
-        notes = input("Rejection reason (optional): ").strip()
-        change.review_notes = notes
-        self.console.print("[red]Change rejected.[/red]")
-        if self.on_rejection:
-            self.on_rejection(change)
-        return False
-
-    def _handle_user_response(self, change: CodeChange, response: str) -> bool | None:
-        """Handle user response to review prompt."""
-        if response == "a":
-            return self._handle_approve(change)
-        if response == "r":
-            return self._handle_reject(change)
-        if response == "d":
-            self._display_diff(change)
-            return None
-        if response == "e":
-            self.console.print("[yellow]Edit not implemented yet.[/yellow]")
-            return None
-        if response == "q":
-            return False
-        self.console.print("[yellow]Invalid option.[/yellow]")
-        return None
-
-    def review_change(self, change: CodeChange, interactive: bool = True) -> bool:
-        """Review a single code change.
+    def _find_original_path(self, change_id: str, fallback_name: str) -> Path:
+        """Find the original file path for a change from session history.
 
         Args:
-            change: The CodeChange to review
-            interactive: Whether to prompt for user approval
+            change_id: The change ID to look up
+            fallback_name: Fallback filename if not found in history
 
         Returns:
-            True if approved, False otherwise
+            Path to the original file
 
         """
-        # Auto-approve low risk if enabled
-        if self.auto_approve_low_risk and change.risk_level == RiskLevel.LOW:
-            change.status = ReviewStatus.AUTO_APPROVED
-            change.reviewed_at = time.time()
-            logger.info("Auto-approved low-risk change: %s", change.change_id)
-            return True
+        # Search pending changes
+        for change in self.pending_changes:
+            if change.change_id == change_id:
+                return Path(change.file_path)
 
-        if not interactive:
-            return False
+        # Search sessions
+        for session in self.sessions:
+            for change in session.changes:
+                if change.change_id == change_id:
+                    return Path(change.file_path)
 
-        # Show review UI
-        self._display_change(change)
-
-        # Get approval
-        while True:
-            response = (
-                input("\n[A]pprove / [R]eject / [D]iff / [E]dit / [Q]uit? ")
-                .strip()
-                .lower()
-            )
-            result = self._handle_user_response(change, response)
-            if result is not None:
-                return result
-
-    def review_all_pending(self, interactive: bool = True) -> tuple[int, int]:
-        """Review all pending changes.
-
-        Returns:
-            (approved_count, rejected_count)
-
-        """
-        approved = 0
-        rejected = 0
-
-        for change in self.pending_changes[:]:  # Copy list for iteration
-            if change.status == ReviewStatus.PENDING:
-                if self.review_change(change, interactive):
-                    approved += 1
-                else:
-                    rejected += 1
-
-        return approved, rejected
-
-    def apply_change(self, change: CodeChange, create_backup: bool = True) -> bool:
-        """Apply an approved change to the filesystem.
-
-        Args:
-            change: The approved CodeChange
-            create_backup: Whether to create a backup
-
-        Returns:
-            True if successful
-
-        """
-        if change.status not in (ReviewStatus.APPROVED, ReviewStatus.AUTO_APPROVED):
-            logger.warning("Cannot apply non-approved change: %s", change.change_id)
-            return False
-
-        try:
-            # Create backup if file exists
-            if create_backup and os.path.exists(change.file_path):
-                backup_path = (
-                    self.backup_dir
-                    / f"{change.change_id}_{Path(change.file_path).name}.bak"
-                )
-                with open(change.file_path, encoding="utf-8") as f:
-                    with open(backup_path, "w", encoding="utf-8") as bf:
-                        bf.write(f.read())
-                logger.info("Created backup: %s", backup_path)
-
-            # Apply change
-            if change.change_type == "delete":
-                if os.path.exists(change.file_path):
-                    os.remove(change.file_path)
-            else:
-                # Create parent directories if needed
-                Path(change.file_path).parent.mkdir(parents=True, exist_ok=True)
-
-                with open(change.file_path, "w", encoding="utf-8") as f:
-                    f.write(change.new_content)
-
-            logger.info("Applied change: %s to %s", change.change_id, change.file_path)
-            self.pending_changes.remove(change)
-            return True
-
-        except Exception as e:
-            logger.exception("Failed to apply change: %s", e)
-            return False
+        # Fallback: use CWD + filename (legacy behaviour)
+        logger.warning(
+            "Could not find original path for change %s, using fallback",
+            change_id,
+        )
+        return Path.cwd() / fallback_name
 
     def rollback_change(self, change_id: str) -> bool:
         """Rollback a previously applied change.
@@ -479,9 +362,8 @@ class CodeReview:
                 with open(backup_file, encoding="utf-8") as f:
                     backup_content = f.read()
 
-                # Find the original file path from stored metadata or changelog
-                # Restore to project root with matching name (not backup_dir.parent)
-                original_path = Path.cwd() / original_name
+                # Find matching change to get original file path
+                original_path = self._find_original_path(change_id, original_name)
 
                 # Write backup content to restore the file
                 with open(original_path, "w", encoding="utf-8") as f:
@@ -501,68 +383,6 @@ class CodeReview:
         logger.warning("No backup found for change: %s", change_id)
         return False
 
-    def _display_change(self, change: CodeChange) -> None:
-        """Display a change for review."""
-        # Risk level color
-        risk_colors = {
-            RiskLevel.LOW: "green",
-            RiskLevel.MEDIUM: "yellow",
-            RiskLevel.HIGH: "red",
-            RiskLevel.CRITICAL: "bold red",
-        }
-        risk_color = risk_colors.get(change.risk_level, "white")
-
-        # Header
-        self.console.print("\n" + "=" * 60)
-        self.console.print(
-            Panel(
-                f"[bold]Code Review[/bold]\n\n"
-                f"File: [cyan]{change.file_path}[/cyan]\n"
-                f"Type: {change.change_type}\n"
-                f"Risk: [{risk_color}]{change.risk_level.value.upper()}[/{risk_color}]\n"
-                f"Description: {change.description}",
-                title="Review Required",
-                border_style=risk_color,
-            ),
-        )
-
-        # Show concerns if high risk
-        if change.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-            _, concerns = CodeAnalyzer.analyze_code(change.new_content)
-            if concerns:
-                self.console.print("\n[bold red]Security Concerns:[/bold red]")
-                for concern in concerns:
-                    self.console.print(f"  ⚠️  {concern}")
-
-        # Show diff summary
-        additions = sum(
-            1
-            for line in change.diff_lines
-            if line.startswith("+") and not line.startswith("+++")
-        )
-        deletions = sum(
-            1
-            for line in change.diff_lines
-            if line.startswith("-") and not line.startswith("---")
-        )
-        self.console.print(
-            f"\n[green]+{additions}[/green] / [red]-{deletions}[/red] lines",
-        )
-
-    def _display_diff(self, change: CodeChange) -> None:
-        """Display the diff of a change."""
-        self.console.print("\n[bold]Diff:[/bold]\n")
-
-        for line in change.diff_lines:
-            if line.startswith("+") and not line.startswith("+++"):
-                self.console.print(f"[green]{line}[/green]")
-            elif line.startswith("-") and not line.startswith("---"):
-                self.console.print(f"[red]{line}[/red]")
-            elif line.startswith("@@"):
-                self.console.print(f"[cyan]{line}[/cyan]")
-            else:
-                self.console.print(line)
-
     def get_pending_summary(self) -> dict:
         """Get summary of pending changes."""
         by_risk: dict[RiskLevel, list[CodeChange]] = {level: [] for level in RiskLevel}
@@ -577,11 +397,6 @@ class CodeReview:
             "changes": self.pending_changes,
         }
 
-    def clear_pending(self) -> None:
-        """Clear all pending changes."""
-        self.pending_changes.clear()
-        logger.info("Cleared all pending changes")
-
 
 class CodeReviewMiddleware:
     """Middleware that intercepts code execution and applies review.
@@ -590,81 +405,6 @@ class CodeReviewMiddleware:
 
     def __init__(self, review_system: CodeReview) -> None:
         self.review = review_system
-
-    def wrap_file_write(
-        self,
-        file_path: str,
-        content: str,
-        description: str = "",
-    ) -> bool:
-        """Wrap a file write operation with code review.
-
-        Returns:
-            True if write was approved and successful
-
-        """
-        change = self.review.create_change(
-            file_path=file_path,
-            new_content=content,
-            description=description,
-        )
-
-        if self.review.review_change(change, interactive=True):
-            return self.review.apply_change(change)
-
-        return False
-
-    def wrap_code_execution(
-        self,
-        code: str,
-        executor: Callable[[str], Any],
-        description: str = "",
-    ) -> tuple[bool, Any]:
-        """Wrap code execution with review.
-
-        Returns:
-            (approved, execution_result)
-
-        """
-        # Create a virtual change for the code
-        change = self.review.create_change(
-            file_path="<execution>",
-            new_content=code,
-            description=description or "Execute code",
-            change_type="execute",
-        )
-
-        if self.review.review_change(change, interactive=True):
-            # Execute the code
-            try:
-                result = executor(code)
-                return True, result
-            except Exception as e:
-                return True, {"error": str(e)}
-
-        return False, None
-
-
-# Convenience functions
-def create_review_system(auto_approve_low: bool = False) -> CodeReview:
-    """Create a new code review system."""
-    return CodeReview(auto_approve_low_risk=auto_approve_low)
-
-
-def quick_review(file_path: str, new_content: str, description: str = "") -> bool:
-    """Quick review of a single file change.
-
-    Returns:
-        True if approved and applied
-
-    """
-    review = CodeReview()
-    change = review.create_change(file_path, new_content, description)
-
-    if review.review_change(change):
-        return review.apply_change(change)
-
-    return False
 
 
 if __name__ == "__main__":

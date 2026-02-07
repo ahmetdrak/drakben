@@ -25,7 +25,6 @@ from typing import Any, NoReturn
 from core.intelligence.sre_failure import SREFailureMixin
 from core.intelligence.sre_models import (
     SCHEMA_SQL,
-    FailureContext,  # noqa: F401 (re-exported)
     Policy,  # noqa: F401 (re-exported)
     PolicyTier,
     Strategy,
@@ -258,13 +257,6 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 pass
             conn.execute("PRAGMA user_version = 2")
             conn.commit()
-
-    def _needs_migration(self, conn: sqlite3.Connection) -> bool:
-        """Check if schema needs migration using PRAGMA user_version."""
-        cursor = conn.execute("PRAGMA user_version")
-        version = cursor.fetchone()[0]
-        # Current schema version is 2. If lower, we need migration.
-        return version < 2
 
     def _handle_db_error(self, e: Exception) -> NoReturn:
         """Handle database specific errors."""
@@ -589,19 +581,18 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                     "SELECT * FROM strategies WHERE target_type = ? AND is_active = 1",
                     (target_type,),
                 )
-                strategies = []
-                for row in cursor.fetchall():
-                    strategies.append(
-                        Strategy(
-                            strategy_id=row["strategy_id"],
-                            name=row["name"],
-                            target_type=row["target_type"],
-                            description=row["description"],
-                            base_parameters=json.loads(row["base_parameters"]),
-                            created_at=row["created_at"],
-                            is_active=bool(row["is_active"]),
-                        ),
+                strategies = [
+                    Strategy(
+                        strategy_id=row["strategy_id"],
+                        name=row["name"],
+                        target_type=row["target_type"],
+                        description=row["description"],
+                        base_parameters=json.loads(row["base_parameters"]),
+                        created_at=row["created_at"],
+                        is_active=bool(row["is_active"]),
                     )
+                    for row in cursor.fetchall()
+                ]
                 return strategies
             finally:
                 conn.close()
@@ -630,29 +621,28 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                         (strategy_name,),
                     )
 
-                profiles = []
-                for row in cursor.fetchall():
-                    profiles.append(
-                        StrategyProfile(
-                            profile_id=row["profile_id"],
-                            strategy_name=row["strategy_name"],
-                            parameters=json.loads(row["parameters"]),
-                            step_order=json.loads(row["step_order"]),
-                            aggressiveness=row["aggressiveness"],
-                            tool_preferences=json.loads(row["tool_preferences"])
-                            if row["tool_preferences"]
-                            else [],
-                            success_rate=row["success_rate"],
-                            usage_count=row["usage_count"],
-                            success_count=row["success_count"],
-                            failure_count=row["failure_count"],
-                            retired=bool(row["retired"]),
-                            parent_profile_id=row["parent_profile_id"],
-                            mutation_generation=row["mutation_generation"],
-                            created_at=row["created_at"],
-                            last_used_at=row["last_used_at"],
-                        ),
+                profiles = [
+                    StrategyProfile(
+                        profile_id=row["profile_id"],
+                        strategy_name=row["strategy_name"],
+                        parameters=json.loads(row["parameters"]),
+                        step_order=json.loads(row["step_order"]),
+                        aggressiveness=row["aggressiveness"],
+                        tool_preferences=json.loads(row["tool_preferences"])
+                        if row["tool_preferences"]
+                        else [],
+                        success_rate=row["success_rate"],
+                        usage_count=row["usage_count"],
+                        success_count=row["success_count"],
+                        failure_count=row["failure_count"],
+                        retired=bool(row["retired"]),
+                        parent_profile_id=row["parent_profile_id"],
+                        mutation_generation=row["mutation_generation"],
+                        created_at=row["created_at"],
+                        last_used_at=row["last_used_at"],
                     )
+                    for row in cursor.fetchall()
+                ]
                 return profiles
             finally:
                 conn.close()
@@ -1006,51 +996,5 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 status["failures_with_policies"] = cursor.fetchone()[0]
 
                 return status
-            finally:
-                conn.close()
-
-    def get_profile_lineage(self, profile_id: str) -> list[str]:
-        """Get the mutation lineage of a profile.
-
-        Includes protection against circular references to prevent infinite loops.
-        """
-        lineage = [profile_id]
-        current_id = profile_id
-        visited = {profile_id}  # Track visited IDs to prevent cycles
-        max_depth = 100  # Maximum lineage depth to prevent infinite loops
-
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                depth = 0
-                while depth < max_depth:
-                    cursor = conn.execute(
-                        "SELECT parent_profile_id FROM strategy_profiles WHERE profile_id = ?",
-                        (current_id,),
-                    )
-                    row = cursor.fetchone()
-                    if not row or not row[0]:
-                        break
-
-                    parent_id = row[0]
-
-                    # Check for circular reference
-                    if parent_id in visited:
-                        logger.warning(
-                            f"Circular reference detected in profile lineage: {parent_id}",
-                        )
-                        break
-
-                    lineage.append(parent_id)
-                    visited.add(parent_id)
-                    current_id = parent_id
-                    depth += 1
-
-                if depth >= max_depth:
-                    logger.warning(
-                        f"Profile lineage exceeded max depth ({max_depth}), truncating",
-                    )
-
-                return lineage[1:]  # Exclude self, return from parent to oldest ancestor
             finally:
                 conn.close()

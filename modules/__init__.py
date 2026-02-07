@@ -107,11 +107,7 @@ _LAZY_MAP: dict[str, tuple[str, str]] = {
     "NucleiSeverity": (_MOD_NUCLEI, "NucleiSeverity"),
     "NucleiTemplateType": (_MOD_NUCLEI, "NucleiTemplateType"),
     # Payload
-    "AVBypass": (_MOD_PAYLOAD, "AVBypass"),
-    "BashObfuscator": (_MOD_PAYLOAD, "BashObfuscator"),
-    "PayloadError": (_MOD_PAYLOAD, "PayloadError"),
     "PayloadObfuscator": (_MOD_PAYLOAD, "PayloadObfuscator"),
-    "PowerShellObfuscator": (_MOD_PAYLOAD, "PowerShellObfuscator"),
     # Post-Exploitation
     "C2ShellWrapper": (_MOD_POST_EXPLOIT, "C2ShellWrapper"),
     "LinuxPostExploit": (_MOD_POST_EXPLOIT, "LinuxPostExploit"),
@@ -128,7 +124,6 @@ _LAZY_MAP: dict[str, tuple[str, str]] = {
     "get_dns_records": (_MOD_RECON, "get_dns_records"),
     "get_whois_info": (_MOD_RECON, "get_whois_info"),
     "passive_recon": (_MOD_RECON, "passive_recon"),
-    "passive_recon_sync": (_MOD_RECON, "passive_recon_sync"),
     "scan_ports": (_MOD_RECON, "scan_ports"),
     "scan_ports_sync": (_MOD_RECON, "scan_ports_sync"),
     # Report Generator
@@ -138,7 +133,6 @@ _LAZY_MAP: dict[str, tuple[str, str]] = {
     "ReportGenerator": (_MOD_REPORT_GENERATOR, "ReportGenerator"),
     "ScanResult": (_MOD_REPORT_GENERATOR, "ScanResult"),
     # Stealth Client
-    "AsyncStealthSession": (_MOD_STEALTH_CLIENT, "AsyncStealthSession"),
     "ProxyManager": (_MOD_STEALTH_CLIENT, "ProxyManager"),
     "StealthSession": (_MOD_STEALTH_CLIENT, "StealthSession"),
     # Subdomain

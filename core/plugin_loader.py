@@ -89,6 +89,7 @@ class PluginLoader:
 
             # Verification: Must have register() function
             if not hasattr(module, "register"):
+                sys.modules.pop(isolated_name, None)  # Clean up
                 logger.warning(
                     f"Plugin {file_path.name} missing 'register()' function.",
                 )

