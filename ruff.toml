@@ -114,7 +114,11 @@ ignore = [
     "PLW2901", # redefined-loop-name — common in data processing
     "PLW1510", # subprocess-run-without-check — intentional in pentest
     "PLC0414", # useless-import-alias — used for re-exports
-    "PLC0415", # import-outside-top-level — lazy imports are intentional
+    "PLC0415", # import-outside-top-level -- lazy imports are intentional
+    "PLC0207", # repeated-string-split -- minor optimization, readability preferred
+    "PT028",   # pytest-param-default -- false positives on non-test test_ functions
+    "FURB110", # if-exp-instead-of-or-operator -- readability preference
+    "PTH208",  # os-listdir -- pathlib migration (iterdir)
     "BLE001",  # blind-except — pentest code needs broad catch
     "TRY401",  # verbose-log-message — informative logging is good
     "TRY300",  # try-consider-else — style preference
