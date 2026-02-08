@@ -129,6 +129,71 @@ class CodeAnalyzer:
     ]
 
     @classmethod
+    def _extract_code_tokens(cls, code: str, concerns: list[str]) -> tuple[set[str], int]:
+        """Parse AST to extract real code tokens (identifiers/calls).
+
+        Returns:
+            (set of lowercase token strings, initial risk_score adjustment)
+
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            concerns.append(f"Syntax error: {e}")
+            return set(), 5
+
+        tokens: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                tokens.add(node.id.lower())
+            elif isinstance(node, ast.Attribute):
+                tokens.add(node.attr.lower())
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                tokens.add(node.func.id.lower())
+        return tokens, 0
+
+    @classmethod
+    def _pattern_matches(
+        cls, pattern: str, code_tokens: set[str], code_lower: str,
+    ) -> bool:
+        """Check if a pattern matches via AST tokens or string fallback."""
+        key = pattern.lower().strip().split("(")[0].split(" ")[-1]
+        if code_tokens:
+            return key in code_tokens
+        return pattern.lower() in code_lower
+
+    @classmethod
+    def _score_patterns(
+        cls, code_tokens: set[str], code_lower: str,
+    ) -> tuple[int, list[str]]:
+        """Score code against high/medium/safe pattern lists."""
+        score = 0
+        concerns: list[str] = []
+        for pattern in cls.HIGH_RISK_PATTERNS:
+            if cls._pattern_matches(pattern, code_tokens, code_lower):
+                concerns.append(f"High-risk pattern found: {pattern}")
+                score += 10
+        for pattern in cls.MEDIUM_RISK_PATTERNS:
+            if cls._pattern_matches(pattern, code_tokens, code_lower):
+                concerns.append(f"Medium-risk pattern found: {pattern}")
+                score += 3
+        for pattern in cls.SAFE_PATTERNS:
+            if pattern.lower() in code_lower:
+                score -= 1
+        return score, concerns
+
+    @staticmethod
+    def _risk_level_from_score(score: int) -> RiskLevel:
+        """Map numeric risk score to a RiskLevel enum value."""
+        if score >= 20:
+            return RiskLevel.CRITICAL
+        if score >= 10:
+            return RiskLevel.HIGH
+        if score >= 5:
+            return RiskLevel.MEDIUM
+        return RiskLevel.LOW
+
+    @classmethod
     def analyze_code(cls, code: str) -> tuple[RiskLevel, list[str]]:
         """Analyze code and return risk level with concerns.
 
@@ -136,47 +201,17 @@ class CodeAnalyzer:
             (RiskLevel, list of concern strings)
 
         """
-        concerns = []
-        risk_score = 0
+        concerns: list[str] = []
 
-        # M-10 FIX: Extract only actual code (not string literals/comments)
-        # by using AST to get real identifiers and calls
-        try:
-            tree = ast.parse(code)
-            # Collect all Name and Attribute nodes (actual code references)
-            code_tokens: set[str] = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Name):
-                    code_tokens.add(node.id.lower())
-                elif isinstance(node, ast.Attribute):
-                    code_tokens.add(node.attr.lower())
-                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                    code_tokens.add(node.func.id.lower())
-        except SyntaxError as e:
-            concerns.append(f"Syntax error: {e}")
-            risk_score += 5
-            code_tokens = set()  # Fallback below will use string matching
+        # M-10 FIX: Extract real identifiers via AST (skip string literals)
+        code_tokens, risk_score = cls._extract_code_tokens(code, concerns)
 
-        code_lower = code.lower()
-
-        # Check high-risk patterns — prefer AST tokens, fallback to string
-        for pattern in cls.HIGH_RISK_PATTERNS:
-            pattern_key = pattern.lower().strip().split("(")[0].split(" ")[-1]
-            if (code_tokens and pattern_key in code_tokens) or (not code_tokens and pattern.lower() in code_lower):
-                concerns.append(f"High-risk pattern found: {pattern}")
-                risk_score += 10
-
-        # Check medium-risk patterns
-        for pattern in cls.MEDIUM_RISK_PATTERNS:
-            pattern_key = pattern.lower().strip().split("(")[0].split(" ")[-1]
-            if (code_tokens and pattern_key in code_tokens) or (not code_tokens and pattern.lower() in code_lower):
-                concerns.append(f"Medium-risk pattern found: {pattern}")
-                risk_score += 3
-
-        # Check for safe patterns (reduce score)
-        for pattern in cls.SAFE_PATTERNS:
-            if pattern.lower() in code_lower:
-                risk_score -= 1
+        # Score against pattern lists
+        pattern_score, pattern_concerns = cls._score_patterns(
+            code_tokens, code.lower(),
+        )
+        risk_score += pattern_score
+        concerns.extend(pattern_concerns)
 
         # Check code length (very long generated code is suspicious)
         line_count = code.count("\n") + 1
@@ -184,16 +219,8 @@ class CodeAnalyzer:
             concerns.append(f"Very long code ({line_count} lines)")
             risk_score += 5
 
-        # Determine risk level
-        risk_score = max(0, risk_score)  # Ensure non-negative
-
-        if risk_score >= 20:
-            return RiskLevel.CRITICAL, concerns
-        if risk_score >= 10:
-            return RiskLevel.HIGH, concerns
-        if risk_score >= 5:
-            return RiskLevel.MEDIUM, concerns
-        return RiskLevel.LOW, concerns
+        risk_score = max(0, risk_score)
+        return cls._risk_level_from_score(risk_score), concerns
 
     @classmethod
     def _check_node_safety(cls, node: ast.AST, issues: list[str]) -> None:
