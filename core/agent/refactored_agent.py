@@ -967,22 +967,37 @@ class RefactoredDrakbenAgent(
 
         if modification.get("code"):
             new_content = modification["code"]
-            # Verify syntax
+            # C-3 FIX: Verify syntax AND security before writing
             import ast
+
+            from core.intelligence.coder import ASTSecurityChecker
 
             try:
                 ast.parse(new_content)
+            except SyntaxError:
+                return {
+                    "success": False,
+                    "error": "Generated code had syntax errors. Change rejected.",
+                }
+
+            # Security check — block dangerous patterns
+            checker = ASTSecurityChecker()
+            violations = checker.check(new_content)
+            if violations:
+                return {
+                    "success": False,
+                    "error": f"Security check failed: {violations[:3]}",
+                }
+
+            try:
                 with open(target_path, "w") as f:
                     f.write(new_content)
                 return {
                     "success": True,
                     "output": f"File {target} modified successfully.",
                 }
-            except SyntaxError:
-                return {
-                    "success": False,
-                    "error": "Generated code had syntax errors. Change rejected.",
-                }
+            except OSError as e:
+                return {"success": False, "error": f"Write failed: {e}"}
 
         return {"success": False, "error": "No code generated"}
 
@@ -1062,9 +1077,9 @@ class RefactoredDrakbenAgent(
         # Fallback raw error if normalize returns nothing but exit code non-zero
         if exit_code != 0 and not error_msg:
             if stderr_str.strip():
-                error_msg: str = f"Tool Error: {stderr_str.strip()[:200]}"
+                error_msg = f"Tool Error: {stderr_str.strip()[:200]}"
             else:
-                error_msg: str = f"Command failed with exit code {exit_code}"
+                error_msg = f"Command failed with exit code {exit_code}"
 
         final_result = {
             "success": result.status.value == "success",

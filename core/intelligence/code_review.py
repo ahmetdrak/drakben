@@ -139,17 +139,37 @@ class CodeAnalyzer:
         concerns = []
         risk_score = 0
 
+        # M-10 FIX: Extract only actual code (not string literals/comments)
+        # by using AST to get real identifiers and calls
+        try:
+            tree = ast.parse(code)
+            # Collect all Name and Attribute nodes (actual code references)
+            code_tokens: set[str] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Name):
+                    code_tokens.add(node.id.lower())
+                elif isinstance(node, ast.Attribute):
+                    code_tokens.add(node.attr.lower())
+                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    code_tokens.add(node.func.id.lower())
+        except SyntaxError as e:
+            concerns.append(f"Syntax error: {e}")
+            risk_score += 5
+            code_tokens = set()  # Fallback below will use string matching
+
         code_lower = code.lower()
 
-        # Check high-risk patterns
+        # Check high-risk patterns — prefer AST tokens, fallback to string
         for pattern in cls.HIGH_RISK_PATTERNS:
-            if pattern.lower() in code_lower:
+            pattern_key = pattern.lower().strip().split("(")[0].split(" ")[-1]
+            if (code_tokens and pattern_key in code_tokens) or (not code_tokens and pattern.lower() in code_lower):
                 concerns.append(f"High-risk pattern found: {pattern}")
                 risk_score += 10
 
         # Check medium-risk patterns
         for pattern in cls.MEDIUM_RISK_PATTERNS:
-            if pattern.lower() in code_lower:
+            pattern_key = pattern.lower().strip().split("(")[0].split(" ")[-1]
+            if (code_tokens and pattern_key in code_tokens) or (not code_tokens and pattern.lower() in code_lower):
                 concerns.append(f"Medium-risk pattern found: {pattern}")
                 risk_score += 3
 
@@ -157,13 +177,6 @@ class CodeAnalyzer:
         for pattern in cls.SAFE_PATTERNS:
             if pattern.lower() in code_lower:
                 risk_score -= 1
-
-        # Check for syntax errors
-        try:
-            ast.parse(code)
-        except SyntaxError as e:
-            concerns.append(f"Syntax error: {e}")
-            risk_score += 5
 
         # Check code length (very long generated code is suspicious)
         line_count = code.count("\n") + 1

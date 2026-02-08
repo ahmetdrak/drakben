@@ -391,7 +391,11 @@ class ConfigManager:
 
     @property
     def llm_client(self) -> Any:
-        """Lazy initialization of LLM client."""
+        """Lazy initialization of LLM client.
+
+        M-7 NOTE: Dynamic import of llm.openrouter_client is intentional
+        to avoid circular import (core.config ↔ llm module).
+        """
         with self._lock:
             if self._llm_client is None:
                 try:

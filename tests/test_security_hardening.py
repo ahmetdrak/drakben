@@ -36,7 +36,7 @@ class TestAstIsSafe:
         code = "import os\nos.system('rm -rf /')"
         safe, reason = _ast_is_safe(code)
         assert safe is False
-        assert "os" in reason
+        assert "system" in reason  # os.system() blocked by _DANGEROUS_CALLS
 
     def test_blocks_subprocess_import(self):
         code = "import subprocess\nsubprocess.call('ls')"
@@ -52,8 +52,9 @@ class TestAstIsSafe:
 
     def test_blocks_from_os_import(self):
         code = "from os import system"
-        safe, _ = _ast_is_safe(code)
+        safe, reason = _ast_is_safe(code)
         assert safe is False
+        assert "system" in reason  # from os import system blocked
 
     def test_blocks_from_subprocess_import(self):
         code = "from subprocess import Popen"

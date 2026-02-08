@@ -735,6 +735,16 @@ class SmartTerminal:
 class CommandGenerator:
     """Generates optimized commands for different tools."""
 
+    @staticmethod
+    def _sanitize_target(target: str) -> str:
+        """Sanitize target IP/hostname to prevent command injection."""
+        import re as _re
+        # H-3 FIX: Only allow valid IP addresses, hostnames, CIDR ranges
+        if _re.match(r"^[a-zA-Z0-9._:/-]+$", target) and len(target) < 256:
+            return target
+        # Strip dangerous chars as fallback
+        return _re.sub(r'[;&|$`"\'\\ \n\r]', "", target)[:255]
+
     def generate_nmap_command(
         self,
         target: str,
@@ -743,16 +753,18 @@ class CommandGenerator:
         script: str | None = None,
     ) -> str:
         """Generate optimized nmap command."""
+        # H-3 FIX: Sanitize target before interpolation
+        safe_target = self._sanitize_target(target)
         if scan_type == "quick":
-            cmd: str = f"nmap -T4 -F {target}"
+            cmd: str = f"nmap -T4 -F {safe_target}"
         elif scan_type == "stealth":
-            cmd: str = f"nmap -sS -T2 {target}"
+            cmd: str = f"nmap -sS -T2 {safe_target}"
         elif scan_type == "aggressive":
-            cmd: str = f"nmap -A -T4 {target}"
+            cmd: str = f"nmap -A -T4 {safe_target}"
         elif scan_type == "version":
-            cmd: str = f"nmap -sV -T4 {target}"
+            cmd: str = f"nmap -sV -T4 {safe_target}"
         else:  # full
-            cmd: str = f"nmap -sV -sC -T4 {target}"
+            cmd: str = f"nmap -sV -sC -T4 {safe_target}"
 
         if ports:
             cmd += f" -p {ports}"

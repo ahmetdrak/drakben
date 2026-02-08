@@ -211,7 +211,20 @@ class EvolutionMemory:
         )
 
         try:
-            conn = sqlite3.connect(db_path_str, timeout=10.0, check_same_thread=False)
+            # H-4 FIX: Use thread-local storage for connections
+            import threading as _threading
+            if not hasattr(self, "_local"):
+                self._local = _threading.local()
+
+            # Return cached thread-local connection if still valid
+            if hasattr(self._local, "conn") and self._local.conn is not None:
+                try:
+                    self._local.conn.execute("SELECT 1")
+                    return self._local.conn
+                except sqlite3.Error:
+                    pass  # Connection stale, create new one
+
+            conn = sqlite3.connect(db_path_str, timeout=10.0)
             conn.row_factory = sqlite3.Row
 
             # Enable WAL mode for better concurrency (reduces lock contention)
@@ -221,6 +234,8 @@ class EvolutionMemory:
             except sqlite3.OperationalError:
                 pass  # WAL might not be available, continue anyway
 
+            # Cache in thread-local storage
+            self._local.conn = conn
             return conn
         except sqlite3.OperationalError as e:
             import logging

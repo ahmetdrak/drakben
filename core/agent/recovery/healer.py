@@ -202,6 +202,12 @@ class SelfHealer:
             "pillow", "python-whois", "netaddr", "ipaddress",
         })
 
+        # H-5 FIX: Validate module name format to prevent injection
+        import re as _re
+        if not _re.match(r"^[a-zA-Z0-9_-]+$", module_name):
+            logger.warning("Invalid module name format: %s", module_name)
+            return False, None
+
         if module_name.lower() not in _SAFE_PACKAGES:
             logger.warning(
                 "Module '%s' not in safe whitelist, skipping auto-install",

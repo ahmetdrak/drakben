@@ -19,9 +19,17 @@ _DANGEROUS_CALLS: frozenset[str] = frozenset({
     "remove", "rmdir", "unlink", "rmtree",
 })
 
+# M-9 FIX: Allow 'import os' (for os.path) — dangerous os.* calls are blocked
+# by _DANGEROUS_CALLS. But 'from os import system' is explicitly blocked below.
 _DANGEROUS_IMPORTS: frozenset[str] = frozenset({
-    "os", "subprocess", "shutil", "ctypes", "multiprocessing",
+    "subprocess", "shutil", "ctypes", "multiprocessing",
     "signal", "pty", "resource",
+})
+
+# Specific os sub-imports that are dangerous
+_DANGEROUS_OS_NAMES: frozenset[str] = frozenset({
+    "system", "popen", "spawn", "execv", "execvp", "execvpe",
+    "remove", "unlink", "rmdir",
 })
 
 
@@ -48,8 +56,15 @@ def _check_import_safety(node: ast.Import) -> str | None:
 
 def _check_import_from_safety(node: ast.ImportFrom) -> str | None:
     """Return reason string if an ImportFrom node is dangerous, else None."""
-    if node.module and node.module.split(".")[0] in _DANGEROUS_IMPORTS:
-        return f"Dangerous import blocked: {node.module}"
+    if node.module:
+        top = node.module.split(".")[0]
+        if top in _DANGEROUS_IMPORTS:
+            return f"Dangerous import blocked: {node.module}"
+        # M-9 FIX: Block dangerous 'from os import ...' sub-imports
+        if top == "os":
+            for alias in node.names:
+                if alias.name in _DANGEROUS_OS_NAMES:
+                    return f"Dangerous import blocked: from os import {alias.name}"
     return None
 
 

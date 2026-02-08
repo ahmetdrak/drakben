@@ -192,23 +192,58 @@ def _xd(s, k):
             return code
 
     def _substitute_instructions(self, code: str) -> str:
-        """Replace operations with equivalent alternatives."""
-        substitutions = [
-            # a + b -> a - (-b)  (balanced parens)
-            (" + ", " - (-1) * "),
-            # True -> (1 == 1)
-            ("True", "(1 == 1)"),
-            ("False", "(1 == 0)"),
-        ]
+        """Replace operations with equivalent alternatives (AST-safe)."""
+        # M-1 FIX: Use AST transformation instead of raw string replacement
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return code
 
-        # Apply one random substitution
-        if substitutions:
-            old, new = secrets.choice(substitutions)
-            if old in code:
-                # Only replace first occurrence to avoid breaking code
-                code = code.replace(old, new, 1)
+        import secrets as _secrets
+        choice = _secrets.randbelow(2)  # 0 = add→sub, 1 = bool swap
 
-        return code
+        class _SubstTransformer(ast.NodeTransformer):
+            def __init__(self, mode: int) -> None:
+                self.mode = mode
+                self._done = False
+
+            def visit_BinOp(self, node):
+                self.generic_visit(node)
+                if not self._done and self.mode == 0 and isinstance(node.op, ast.Add):
+                    # a + b  →  a - (-1 * b)
+                    node.op = ast.Sub()
+                    node.right = ast.BinOp(
+                        left=ast.UnaryOp(op=ast.USub(), operand=ast.Constant(value=1)),
+                        op=ast.Mult(),
+                        right=node.right,
+                    )
+                    self._done = True
+                return node
+
+            def visit_Constant(self, node):
+                if not self._done and self.mode == 1:
+                    if node.value is True:
+                        self._done = True
+                        return ast.Compare(
+                            left=ast.Constant(value=1),
+                            ops=[ast.Eq()],
+                            comparators=[ast.Constant(value=1)],
+                        )
+                    if node.value is False:
+                        self._done = True
+                        return ast.Compare(
+                            left=ast.Constant(value=1),
+                            ops=[ast.Eq()],
+                            comparators=[ast.Constant(value=0)],
+                        )
+                return node
+
+        try:
+            tree = _SubstTransformer(choice).visit(tree)
+            ast.fix_missing_locations(tree)
+            return ast.unparse(tree)
+        except Exception:
+            return code
 
     def _estimate_bypassed_engines(self, applied: list[str]) -> list[str]:
         """Estimate which detection engines might be bypassed."""

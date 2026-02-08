@@ -88,7 +88,9 @@ class SQLiteProvider(DatabaseProvider):
                 with suppress(Exception):
                     conn.rollback()
                 raise
-        # This part should theoretically not be reached if continue/raise logic is correct
+        # Defensive: This should be unreachable — every loop iteration either
+        # returns (success), raises (non-locked error / final attempt), or
+        # continues (locked + not final). Kept as safety net.
         if last_error is None:
             msg = "Database operation failed without an error instance"
             raise sqlite3.OperationalError(msg)

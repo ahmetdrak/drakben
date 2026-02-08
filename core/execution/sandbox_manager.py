@@ -443,7 +443,11 @@ def get_sandbox_manager() -> SandboxManager:
     """
     global _sandbox_manager
     if _sandbox_manager is None:
-        _sandbox_manager = SandboxManager()
+        import threading
+        _sm_lock = threading.Lock()
+        with _sm_lock:
+            if _sandbox_manager is None:
+                _sandbox_manager = SandboxManager()
     return _sandbox_manager
 
 

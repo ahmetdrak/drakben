@@ -49,7 +49,8 @@ class DistributedStateManager:
                 self.redis_client.ping()
             self.connected = True
             logger.info(
-                f"Connected to Redis Distributed State ({self.redis_host}:{self.redis_port})",
+                "Connected to Redis Distributed State (%s:%s)",
+                self.redis_host, self.redis_port,
             )
         except ImportError:
             logger.warning("Redis library not installed. Running in standalone mode.")

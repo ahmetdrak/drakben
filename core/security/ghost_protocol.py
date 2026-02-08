@@ -350,16 +350,13 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Base64 encode the string
         encoded = base64.b64encode(value.encode()).decode()
 
-        # Create: __import__('base64').b64decode('encoded').decode()
+        # H-2 FIX: Use pre-imported base64 reference instead of __import__
+        # Create: _b64.b64decode('encoded').decode()
         return ast.Call(
             func=ast.Attribute(
                 value=ast.Call(
                     func=ast.Attribute(
-                        value=ast.Call(
-                            func=ast.Name(id="__import__", ctx=ast.Load()),
-                            args=[ast.Constant(value="base64")],
-                            keywords=[],
-                        ),
+                        value=ast.Name(id="_b64", ctx=ast.Load()),
                         attr="b64decode",
                         ctx=ast.Load(),
                     ),
@@ -399,10 +396,17 @@ class PolymorphicTransformer(ast.NodeTransformer):
     def _inject_dead_code_blocks(self, tree: ast.Module) -> ast.Module:
         """Inject random dead code blocks at random positions."""
         new_body = []
-        for node in tree.body:
+        for i, node in enumerate(tree.body):
             new_body.append(node)
+            # M-2 FIX: Skip injection before decorated functions/classes
+            next_node = tree.body[i + 1] if i + 1 < len(tree.body) else None
+            has_decorators = (
+                next_node is not None
+                and isinstance(next_node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                and getattr(next_node, "decorator_list", [])
+            )
             # LOGIC FIX: 20% chance to inject a COMPLETELY UNIQUE dead code block
-            if secrets.randbelow(100) < 20:
+            if not has_decorators and secrets.randbelow(100) < 20:
                 new_body.append(self._generate_dynamic_dead_code())
 
         tree.body = new_body
@@ -524,8 +528,8 @@ class SecureCleanup:
             logger.debug("Securely deleted: %s", filepath)
             return True
 
-        except Exception as e:
-            logger.exception(f"Secure delete failed for {filepath}: %s", e)
+        except Exception:
+            logger.exception("Secure delete failed for %s", filepath)
             return False
 
 

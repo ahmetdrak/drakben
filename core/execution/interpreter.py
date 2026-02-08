@@ -195,14 +195,23 @@ class UniversalInterpreter:
         }
 
         # Import SAFE standard libs only (no os, no sys)
-        exec("import math", self.locals)
-        exec("import json", self.locals)
-        exec("import time", self.locals)
-        exec("import datetime", self.locals)
-        exec("import random", self.locals)
-        exec("import re", self.locals)
-        exec("import hashlib", self.locals)
-        exec("import base64", self.locals)
+        # C-1 FIX: Direct assignment instead of exec() for module imports
+        import base64
+        import datetime
+        import hashlib
+        import json
+        import math
+        import random
+        import re
+        import time
+        self.locals["math"] = math
+        self.locals["json"] = json
+        self.locals["time"] = time
+        self.locals["datetime"] = datetime
+        self.locals["random"] = random
+        self.locals["re"] = re
+        self.locals["hashlib"] = hashlib
+        self.locals["base64"] = base64
 
         # Provide restricted os module with only safe functions
         import os as _os
@@ -240,9 +249,21 @@ class UniversalInterpreter:
                 # Try to eval first (if single line expression)
                 # If fail or multiline, use exec
                 try:
+                    # C-1 FIX: Block introspection-based sandbox escapes
+                    _BLOCKED_ATTRS = frozenset({
+                        "__class__", "__bases__", "__subclasses__",
+                        "__mro__", "__globals__", "__code__",
+                        "__builtins__", "__import__",
+                    })
+                    for _blocked in _BLOCKED_ATTRS:
+                        if _blocked in code:
+                            msg = f"Blocked introspection attribute: {_blocked}"
+                            raise SecurityError(
+                                msg,
+                            )
                     # Compile to check syntax first
                     compiled = compile(code, "<string>", "exec")
-                    exec(compiled, self.locals)
+                    exec(compiled, self.locals)  # nosec B102
                 except (SyntaxError, NameError, TypeError, ValueError) as e:
                     # Capture traceback
                     traceback.print_exc()

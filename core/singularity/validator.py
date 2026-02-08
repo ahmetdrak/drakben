@@ -168,6 +168,7 @@ class CodeValidator(IValidator):
 
     def _run_code_safety(self, snippet: CodeSnippet) -> bool:
         """Write code to temp file and execute it."""
+        f_path = None
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
                 f.write(snippet.code)
@@ -180,8 +181,6 @@ class CodeValidator(IValidator):
                 timeout=self.timeout,
                 check=False,  # We handle errors via returncode
             )
-
-            self._cleanup_temp_file(f_path)
 
             if result.returncode == 0:
                 logger.info("Validation successful")
@@ -196,6 +195,10 @@ class CodeValidator(IValidator):
         except Exception as e:
             logger.exception("Validation error: %s", e)
             return False
+        finally:
+            # H-7 FIX: Always cleanup temp file, even on exceptions
+            if f_path:
+                self._cleanup_temp_file(f_path)
 
     def _cleanup_temp_file(self, f_path: str) -> None:
         """Clean up temporary validation file."""

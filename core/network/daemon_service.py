@@ -24,8 +24,12 @@ class DaemonService:
 
     def _cleanup(self) -> None:
         """Remove PID file on exit."""
-        if os.path.exists(self.pid_file):
-            os.remove(self.pid_file)
+        # L-5 FIX: Handle PermissionError (e.g. PID file owned by root)
+        try:
+            if os.path.exists(self.pid_file):
+                os.remove(self.pid_file)
+        except OSError as e:
+            logger.warning("Could not remove PID file %s: %s", self.pid_file, e)
 
     def _signal_handler(self, _signum: int, _frame: object) -> None:
         """Handle termination signals."""
@@ -49,8 +53,16 @@ class DaemonService:
             return True
 
         try:
-            os.kill(pid, signal.SIGTERM)
-            time.sleep(1)
+            # M-11 FIX: Cross-platform process termination
+            if self.is_windows:
+                import subprocess
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    capture_output=True, check=False,
+                )
+            else:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(1)  # Give process time to clean up on Unix
             self._cleanup()
             logger.info("Daemon stopped")
             return True

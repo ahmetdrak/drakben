@@ -562,7 +562,7 @@ class ToolRegistry:
                 "tool": tool.name,
             }
         except Exception as e:
-            logger.exception(f"Python tool {tool.name} failed: {e}")
+            logger.exception("Python tool %s failed: %s", tool.name, e)
             return {"success": False, "error": str(e), "tool": tool.name}
 
     async def _async_execute_python(self, tool: Tool, target: str, **kwargs: Any) -> dict:
@@ -581,7 +581,7 @@ class ToolRegistry:
                 "tool": tool.name,
             }
         except Exception as e:
-            logger.exception(f"Python tool {tool.name} failed: {e}")
+            logger.exception("Python tool %s failed: %s", tool.name, e)
             return {"success": False, "error": str(e), "tool": tool.name}
 
     # =========================================================================
