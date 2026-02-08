@@ -1,7 +1,4 @@
-"""DRAKBEN Singularity - Code Synthesizer
-Author: @drak_ben
-Description: Generates functional code using LLM prompts and AST validation.
-"""
+"""Code generation via LLM with AST validation and dependency extraction."""
 
 import ast
 import logging
@@ -225,238 +222,122 @@ Remember: Output ONLY the code, no markdown, no explanations."""
         return "\n".join(lines)
 
     def _mock_llm_call(self, prompt: str, _language: str) -> str:
-        """Fallback mock response for testing or when LLM unavailable."""
+        """Fallback: return a minimal working script when LLM is unavailable."""
+        import re as _re
+
         prompt_lower = prompt.lower()
 
-        if "scanner" in prompt_lower or "port" in prompt_lower:
-            return '''import socket
-import logging
+        _TEMPLATES: dict[str, str] = {
+            "port|scanner": (
+                "import socket, logging\n"
+                "logger = logging.getLogger(__name__)\n"
+                "def scan(target: str, ports: list[int]) -> dict[int, bool]:\n"
+                "    results = {}\n"
+                "    for port in ports:\n"
+                "        try:\n"
+                "            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n"
+                "                s.settimeout(1)\n"
+                "                results[port] = s.connect_ex((target, port)) == 0\n"
+                "        except OSError:\n"
+                "            results[port] = False\n"
+                "    return results\n"
+            ),
+            "subdomain|enum": (
+                "import socket, logging\n"
+                "logger = logging.getLogger(__name__)\n"
+                "PREFIXES = ['www','mail','ftp','api','dev','staging','admin','vpn','cdn']\n"
+                "def enumerate_subdomains(domain: str, wordlist: list[str] | None = None) -> list[str]:\n"
+                "    found = []\n"
+                "    for prefix in (wordlist or PREFIXES):\n"
+                "        try:\n"
+                "            socket.getaddrinfo(f'{prefix}.{domain}', None)\n"
+                "            found.append(f'{prefix}.{domain}')\n"
+                "        except socket.gaierror:\n"
+                "            pass\n"
+                "    return found\n"
+            ),
+            "header|http": (
+                "import http.client, logging\nfrom urllib.parse import urlparse\n"
+                "logger = logging.getLogger(__name__)\n"
+                "SECURITY_HEADERS = ['Strict-Transport-Security','Content-Security-Policy',\n"
+                "    'X-Content-Type-Options','X-Frame-Options','X-XSS-Protection']\n"
+                "def check_headers(url: str) -> dict[str, str | None]:\n"
+                "    p = urlparse(url)\n"
+                "    conn = (http.client.HTTPSConnection if p.scheme == 'https' else\n"
+                "            http.client.HTTPConnection)(p.hostname, p.port or 443, timeout=10)\n"
+                "    try:\n"
+                "        conn.request('HEAD', p.path or '/')\n"
+                "        hdrs = dict(conn.getresponse().getheaders())\n"
+                "        return {h: hdrs.get(h) or hdrs.get(h.lower()) for h in SECURITY_HEADERS}\n"
+                "    finally:\n"
+                "        conn.close()\n"
+            ),
+            "dir|brute|fuzz": (
+                "import http.client, logging\nfrom urllib.parse import urlparse\n"
+                "logger = logging.getLogger(__name__)\n"
+                "WORDLIST = ['admin','login','api','.git','.env','robots.txt','sitemap.xml']\n"
+                "def dir_bruteforce(base_url: str, paths: list[str] | None = None) -> list[dict]:\n"
+                "    p = urlparse(base_url)\n"
+                "    conn = (http.client.HTTPSConnection if p.scheme == 'https' else\n"
+                "            http.client.HTTPConnection)(p.hostname, p.port or 443, timeout=10)\n"
+                "    found = []\n"
+                "    try:\n"
+                "        for path in (paths or WORDLIST):\n"
+                "            try:\n"
+                "                conn.request('GET', f'/{path}')\n"
+                "                r = conn.getresponse(); _ = r.read()\n"
+                "                if r.status not in (404, 403):\n"
+                "                    found.append({'path': f'/{path}', 'status': r.status})\n"
+                "            except Exception:\n"
+                "                pass\n"
+                "    finally:\n"
+                "        conn.close()\n"
+                "    return found\n"
+            ),
+            "dns|record|resolve": (
+                "import socket, logging\n"
+                "logger = logging.getLogger(__name__)\n"
+                "def dns_lookup(domain: str) -> dict[str, list[str]]:\n"
+                "    results: dict[str, list[str]] = {'A': [], 'AAAA': []}\n"
+                "    try:\n"
+                "        results['A'] = list({a[4][0] for a in socket.getaddrinfo(domain, None, socket.AF_INET)})\n"
+                "    except socket.gaierror:\n"
+                "        pass\n"
+                "    try:\n"
+                "        results['AAAA'] = list({a[4][0] for a in socket.getaddrinfo(domain, None, socket.AF_INET6)})\n"
+                "    except socket.gaierror:\n"
+                "        pass\n"
+                "    return results\n"
+            ),
+            "banner|grab|service": (
+                "import socket, logging\n"
+                "logger = logging.getLogger(__name__)\n"
+                "def grab_banner(target: str, port: int, timeout: float = 3.0) -> str:\n"
+                "    try:\n"
+                "        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n"
+                "            s.settimeout(timeout)\n"
+                "            s.connect((target, port))\n"
+                "            s.sendall(b'\\r\\n')\n"
+                "            return s.recv(1024).decode(errors='replace').strip()\n"
+                "    except Exception:\n"
+                "        return ''\n"
+            ),
+        }
 
-logger = logging.getLogger(__name__)
+        for pattern, code in _TEMPLATES.items():
+            if _re.search(pattern, prompt_lower):
+                return code
 
-def scan(target: str, ports: list[int]) -> dict[int, bool]:
-    """Scan target for open ports."""
-    results = {}
-    logger.info("Scanning %s...", target)
-
-    for port in ports:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1)
-                result = s.connect_ex((target, port))
-                results[port] = (result == 0)
-                if result == 0:
-                    logger.info("Port %s: OPEN", port)
-        except Exception as e:
-            logger.debug("Port %s scan error: %s", port, e)
-            results[port] = False
-
-    return results
-
-if __name__ == "__main__":
-    scan("127.0.0.1", [80, 443, 22, 8080])
-'''
-
-        if "subdomain" in prompt_lower or "enum" in prompt_lower:
-            return '''import socket
-import logging
-
-logger = logging.getLogger(__name__)
-
-COMMON_PREFIXES = [
-    "www", "mail", "ftp", "blog", "dev", "api", "staging", "test",
-    "admin", "portal", "vpn", "ns1", "ns2", "mx", "smtp", "pop",
-    "imap", "cdn", "media", "static", "app", "shop", "store",
-]
-
-def enumerate_subdomains(domain: str, wordlist: list[str] | None = None) -> list[str]:
-    """Enumerate subdomains via DNS resolution."""
-    prefixes = wordlist or COMMON_PREFIXES
-    found: list[str] = []
-    for prefix in prefixes:
-        fqdn = f"{prefix}.{domain}"
-        try:
-            socket.getaddrinfo(fqdn, None)
-            found.append(fqdn)
-            logger.info("FOUND: %s", fqdn)
-        except socket.gaierror:
-            pass
-    return found
-
-if __name__ == "__main__":
-    results = enumerate_subdomains("example.com")
-    for sub in results:
-        print(sub)
-'''
-
-        if "header" in prompt_lower or "http" in prompt_lower:
-            return '''import http.client
-import logging
-from urllib.parse import urlparse
-
-logger = logging.getLogger(__name__)
-
-SECURITY_HEADERS = [
-    "Strict-Transport-Security",
-    "Content-Security-Policy",
-    "X-Content-Type-Options",
-    "X-Frame-Options",
-    "X-XSS-Protection",
-    "Referrer-Policy",
-    "Permissions-Policy",
-]
-
-def check_headers(url: str) -> dict[str, str | None]:
-    """Check security headers of a given URL."""
-    parsed = urlparse(url)
-    scheme = parsed.scheme or "https"
-    host = parsed.hostname or parsed.path
-    port = parsed.port or (443 if scheme == "https" else 80)
-
-    conn_cls = http.client.HTTPSConnection if scheme == "https" else http.client.HTTPConnection
-    conn = conn_cls(host, port, timeout=10)
-    try:
-        conn.request("HEAD", parsed.path or "/")
-        resp = conn.getresponse()
-        headers = {k: v for k, v in resp.getheaders()}
-        result: dict[str, str | None] = {}
-        for hdr in SECURITY_HEADERS:
-            val = headers.get(hdr) or headers.get(hdr.lower())
-            result[hdr] = val
-            status = "PRESENT" if val else "MISSING"
-            logger.info("%s: %s", hdr, status)
-        return result
-    finally:
-        conn.close()
-
-if __name__ == "__main__":
-    check_headers("https://example.com")
-'''
-
-        if "dir" in prompt_lower or "brute" in prompt_lower or "fuzz" in prompt_lower:
-            return '''import http.client
-import logging
-from urllib.parse import urlparse
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_WORDLIST = [
-    "admin", "login", "dashboard", "api", "config", "backup",
-    ".git", ".env", "wp-admin", "phpmyadmin", "server-status",
-    "robots.txt", "sitemap.xml", ".htaccess", "web.config",
-]
-
-def dir_bruteforce(base_url: str, wordlist: list[str] | None = None) -> list[dict[str, int | str]]:
-    """Brute-force directories on a web server."""
-    paths = wordlist or DEFAULT_WORDLIST
-    parsed = urlparse(base_url)
-    scheme = parsed.scheme or "https"
-    host = parsed.hostname or parsed.path
-    port = parsed.port or (443 if scheme == "https" else 80)
-
-    conn_cls = http.client.HTTPSConnection if scheme == "https" else http.client.HTTPConnection
-    found: list[dict[str, int | str]] = []
-    conn = conn_cls(host, port, timeout=10)
-    try:
-        for path in paths:
-            full_path = f"/{path}"
-            try:
-                conn.request("GET", full_path)
-                resp = conn.getresponse()
-                _ = resp.read()  # drain body
-                if resp.status not in (404, 403):
-                    entry = {"path": full_path, "status": resp.status}
-                    found.append(entry)
-                    logger.info("FOUND %s -> %d", full_path, resp.status)
-            except Exception as e:
-                logger.debug("Error on %s: %s", full_path, e)
-    finally:
-        conn.close()
-    return found
-
-if __name__ == "__main__":
-    dir_bruteforce("https://example.com")
-'''
-
-        if "dns" in prompt_lower or "record" in prompt_lower or "resolve" in prompt_lower:
-            return '''import socket
-import logging
-
-logger = logging.getLogger(__name__)
-
-def dns_lookup(domain: str) -> dict[str, list[str]]:
-    """Perform DNS lookups for a domain using socket."""
-    results: dict[str, list[str]] = {"A": [], "AAAA": []}
-    # A records
-    try:
-        addrs = socket.getaddrinfo(domain, None, socket.AF_INET)
-        results["A"] = list({addr[4][0] for addr in addrs})
-        logger.info("%s A records: %s", domain, results["A"])
-    except socket.gaierror as e:
-        logger.debug("A lookup failed: %s", e)
-
-    # AAAA records
-    try:
-        addrs = socket.getaddrinfo(domain, None, socket.AF_INET6)
-        results["AAAA"] = list({addr[4][0] for addr in addrs})
-        logger.info("%s AAAA records: %s", domain, results["AAAA"])
-    except socket.gaierror as e:
-        logger.debug("AAAA lookup failed: %s", e)
-
-    return results
-
-if __name__ == "__main__":
-    dns_lookup("example.com")
-'''
-
-        if "banner" in prompt_lower or "grab" in prompt_lower or "service" in prompt_lower:
-            return '''import socket
-import logging
-
-logger = logging.getLogger(__name__)
-
-def grab_banner(target: str, port: int, timeout: float = 3.0) -> str:
-    """Grab the service banner from a host:port."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(timeout)
-            s.connect((target, port))
-            # Some services send banner on connect; others need a nudge
-            s.sendall(b"\\r\\n")
-            banner = s.recv(1024).decode(errors="replace").strip()
-            logger.info("Banner %s:%d -> %s", target, port, banner)
-            return banner
-    except Exception as e:
-        logger.debug("Banner grab failed %s:%d: %s", target, port, e)
-        return ""
-
-def scan_banners(target: str, ports: list[int]) -> dict[int, str]:
-    """Grab banners from multiple ports."""
-    results: dict[int, str] = {}
-    for port in ports:
-        banner = grab_banner(target, port)
-        if banner:
-            results[port] = banner
-    return results
-
-if __name__ == "__main__":
-    scan_banners("127.0.0.1", [21, 22, 25, 80, 443])
-'''
-
-        # Generic fallback — still functional, not just a comment
-        return f'''import logging
-
-logger = logging.getLogger(__name__)
-
-def run() -> str:
-    """Auto-generated stub for: {prompt[:80]}"""
-    logger.info("Executing generated task")
-    # TODO: Implement full logic when LLM is available
-    return "Task placeholder — LLM required for full generation"
-
-if __name__ == "__main__":
-    print(run())
-'''
+        # Generic fallback
+        desc = prompt[:60].replace("'", "\\'")
+        return (
+            "import logging\n"
+            "logger = logging.getLogger(__name__)\n"
+            f"def run() -> str:\n"
+            f"    '''Auto-generated stub for: {desc}'''\n"
+            f"    logger.info('Executing generated task')\n"
+            f"    return 'LLM required for full generation'\n"
+        )
 
     def _validate_python_syntax(self, code: str) -> bool:
         """Check if Python code is syntactically correct."""

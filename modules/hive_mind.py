@@ -219,11 +219,13 @@ class CredentialHarvester:
     def harvest_environment(self) -> list[Credential]:
         """Harvest credentials from environment variables.
 
-        Returns:
-            List of potential credentials from environment
-
+        Inspects every env-var whose name matches known sensitive patterns.
+        TOKEN / API_KEY vars are classified as CredentialType.TOKEN,
+        CERTIFICATE / CERT vars as CredentialType.CERTIFICATE, and KRB5 /
+        KERBEROS vars as CredentialType.KERBEROS_TICKET.  Everything else
+        falls back to CredentialType.PASSWORD.
         """
-        found = []
+        found: list[Credential] = []
         sensitive_patterns = [
             "PASSWORD",
             "PASSWD",
@@ -234,21 +236,37 @@ class CredentialHarvester:
             "ACCESS_KEY",
             "PRIVATE_KEY",
             "CREDENTIAL",
+            "CERTIFICATE",
+            "CERT",
+            "KRB5",
+            "KERBEROS",
         ]
 
         for key, value in os.environ.items():
+            upper_key = key.upper()
             for pattern in sensitive_patterns:
-                if pattern in key.upper() and value:
+                if pattern in upper_key and value:
+                    # Classify credential type based on the env-var name
+                    if any(t in upper_key for t in ("TOKEN", "API_KEY", "APIKEY", "ACCESS_KEY")):
+                        ctype = CredentialType.TOKEN
+                    elif any(t in upper_key for t in ("CERT", "CERTIFICATE")):
+                        ctype = CredentialType.CERTIFICATE
+                    elif any(t in upper_key for t in ("KRB5", "KERBEROS")):
+                        ctype = CredentialType.KERBEROS_TICKET
+                    else:
+                        ctype = CredentialType.PASSWORD
+
                     cred = Credential(
                         username="env:" + key,
                         domain="",
-                        credential_type=CredentialType.PASSWORD,
+                        credential_type=ctype,
                         value=value,
                         source="environment",
                         metadata={"env_var": key},
                     )
                     found.append(cred)
                     self.harvested.append(cred)
+                    break  # one match per env-var is enough
 
         return found
 
@@ -586,6 +604,16 @@ class ADAnalyzer:
             "sharepoint*",
         ]
 
+    # Maps open port → (technique, credential hint)
+    _PORT_TECHNIQUE_MAP: dict[int, tuple[MovementTechnique, str]] = {
+        22: (MovementTechnique.SSH, "ssh_key_or_password"),
+        88: (MovementTechnique.PASS_THE_TICKET, "kerberos_ticket"),
+        135: (MovementTechnique.WMIEXEC, "admin_password_or_hash"),
+        445: (MovementTechnique.PSEXEC, "admin_ntlm_hash_or_password"),
+        3389: (MovementTechnique.RDP, "interactive_logon_creds"),
+        5985: (MovementTechnique.WINRM, "admin_password"),
+    }
+
     def calculate_attack_path(
         self,
         source: str,
@@ -593,67 +621,104 @@ class ADAnalyzer:
         available_creds: list[Credential],
         discovered_hosts: dict[str, NetworkHost],
     ) -> AttackPath | None:
-        """Calculate attack path from source to target.
+        """BFS shortest-path through *discovered_hosts* from *source* to *target*.
 
-        BloodHound-style shortest path calculation.
-
-        Args:
-            source: Current position (hostname/IP)
-            target: Target (hostname/IP or "Domain Admin")
-            available_creds: Available credentials
-            discovered_hosts: Discovered network hosts
-
-        Returns:
-            AttackPath or None if no path found
-
+        Returns ``None`` when *source* is unknown or no route exists.
         """
-        # Simple path calculation
-        # In real implementation, this would use graph algorithms
-
-        hops = []
-        techniques = []
-        creds_needed = []
-
-        source_host = discovered_hosts.get(source)
-        target_host = discovered_hosts.get(target)
-
-        if not source_host:
+        if source not in discovered_hosts:
             return None
 
-        # Check direct connection
-        if target_host:
-            if 22 in target_host.ports:
-                techniques.append(MovementTechnique.SSH)
-                creds_needed.append("ssh_key_or_password")
-            elif 445 in target_host.ports:
-                techniques.append(MovementTechnique.PSEXEC)
-                creds_needed.append("admin_ntlm_hash_or_password")
-            elif 5985 in target_host.ports:
-                techniques.append(MovementTechnique.WINRM)
-                creds_needed.append("admin_password")
-            elif 3389 in target_host.ports:
-                techniques.append(MovementTechnique.RDP)
-                creds_needed.append("interactive_logon_creds")
+        adj = self._build_adjacency(discovered_hosts)
+        route = self._bfs(adj, source, target)
+        if route is None:
+            return None
 
-            hops = [target]
+        hops, techs, creds = route
+        probability = self._path_probability(available_creds, len(hops))
+        return AttackPath(
+            source=source,
+            target=target,
+            hops=hops,
+            techniques=techs,
+            credentials_needed=creds,
+            probability=round(probability, 4),
+        )
 
-        if hops:
-            # Calculate success probability based on available creds
-            probability = 0.5  # Base probability
-            for cred in available_creds:
-                if cred.admin_level:
-                    probability = min(0.9, probability + 0.2)
+    # ------------------------------------------------------------------
+    # Private helpers (keep calculate_attack_path cognitive-complexity low)
+    # ------------------------------------------------------------------
 
-            return AttackPath(
-                source=source,
-                target=target,
-                hops=hops,
-                techniques=techniques,
-                credentials_needed=creds_needed,
-                probability=probability,
-            )
+    def _build_adjacency(
+        self,
+        hosts: dict[str, NetworkHost],
+    ) -> dict[str, list[tuple[str, MovementTechnique, str]]]:
+        """Build a directed adjacency list from discovered hosts.
 
+        An edge ``other → hostname`` is added when *hostname* has an open
+        port that maps to a known lateral-movement technique.
+        """
+        adj: dict[str, list[tuple[str, MovementTechnique, str]]] = {
+            h: [] for h in hosts
+        }
+        for hostname, host in hosts.items():
+            edge = self._first_technique_for(host)
+            if edge is None:
+                continue
+            tech, cred_hint = edge
+            for other in hosts:
+                if other != hostname:
+                    adj[other].append((hostname, tech, cred_hint))
+        return adj
+
+    def _first_technique_for(
+        self,
+        host: NetworkHost,
+    ) -> tuple[MovementTechnique, str] | None:
+        """Return the first matching (technique, cred_hint) for *host* ports."""
+        for port, edge in self._PORT_TECHNIQUE_MAP.items():
+            if port in host.ports:
+                return edge
         return None
+
+    @staticmethod
+    def _bfs(
+        adj: dict[str, list[tuple[str, MovementTechnique, str]]],
+        source: str,
+        target: str,
+    ) -> tuple[list[str], list[MovementTechnique], list[str]] | None:
+        """Run BFS and return ``(hops, techniques, cred_hints)`` or ``None``."""
+        from collections import deque
+
+        visited: set[str] = {source}
+        queue: deque[
+            tuple[str, list[str], list[MovementTechnique], list[str]]
+        ] = deque([(source, [], [], [])])
+
+        while queue:
+            node, hops, techs, creds = queue.popleft()
+            for neighbour, tech, cred_hint in adj.get(node, []):
+                if neighbour in visited:
+                    continue
+                new_hops = [*hops, neighbour]
+                new_techs = [*techs, tech]
+                new_creds = [*creds, cred_hint]
+                if neighbour == target:
+                    return new_hops, new_techs, new_creds
+                visited.add(neighbour)
+                queue.append((neighbour, new_hops, new_techs, new_creds))
+        return None
+
+    @staticmethod
+    def _path_probability(
+        available_creds: list[Credential],
+        hop_count: int,
+    ) -> float:
+        """Estimate success probability given credentials and hop distance."""
+        base = 0.5
+        for cred in available_creds:
+            if cred.admin_level:
+                base = min(0.95, base + 0.2)
+        return base * (0.85 ** (hop_count - 1))
 
 
 # =============================================================================
@@ -1291,8 +1356,13 @@ class HiveMind:
             ):
                 return c
             if (
-                technique in [MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH]
+                technique in (MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH)
                 and c.credential_type == CredentialType.NTLM_HASH
+            ):
+                return c
+            if (
+                technique == MovementTechnique.PASS_THE_TICKET
+                and c.credential_type == CredentialType.KERBEROS_TICKET
             ):
                 return c
         return None

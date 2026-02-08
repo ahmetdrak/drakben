@@ -1,13 +1,7 @@
-"""SELF-REFINING EVOLVING AGENT ENGINE.
-===================================
+"""Strategy profile management with policy-based mutation on failure.
 
-This module implements a STRONG self-refining agent with:
-- Strategy Profiles (behavioral variants)
-- Policy Engine with Conflict Resolution
-- Profile Mutation on Failure
-- Restart Evolution Guarantee
-
-Author: Drakben Team
+Maintains SQLite-backed strategy profiles, applies deterministic conflict
+resolution between policies, and mutates underperforming profiles.
 """
 
 import copy
@@ -42,14 +36,10 @@ logger = logging.getLogger(__name__)
 
 
 class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
-    """STRONG SELF-REFINING EVOLVING AGENT ENGINE.
+    """Manages strategy profiles and mutates them based on execution outcomes.
 
-    This engine provides:
-    1. Strategy and Profile management
-    2. Policy-based behavior modification
-    3. Deterministic conflict resolution
-    4. Profile mutation on failure
-    5. Restart evolution guarantee
+    Backed by SQLite.  Profiles below PROFILE_RETIRE_THRESHOLD success rate
+    are retired after MIN_USAGE_FOR_RETIRE uses.
     """
 
     # Thresholds

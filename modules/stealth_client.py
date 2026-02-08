@@ -1,6 +1,7 @@
-"""DRAKBEN Stealth Client - Powered by curl_cffi
-Author: @ahmetdrak
-Description: State-of-the-art TLS Fingerprint Impersonation with Proxy Rotation and Human Behavior Simulation.
+"""HTTP client with TLS fingerprint impersonation and proxy rotation.
+
+Uses curl_cffi for JA3/JA4-compatible browser impersonation.
+Falls back to standard requests.Session when curl_cffi is not installed.
 """
 
 import logging
