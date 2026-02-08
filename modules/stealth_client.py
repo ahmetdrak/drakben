@@ -8,7 +8,16 @@ import secrets
 import time
 from typing import Any
 
-from curl_cffi.requests import Session
+try:
+    from curl_cffi.requests import Session as CurlSession
+    CURL_CFFI_AVAILABLE = True
+except ImportError:
+    CurlSession = None  # type: ignore[misc, assignment]
+    CURL_CFFI_AVAILABLE = False
+
+# Fallback to standard requests if curl_cffi is not available
+if not CURL_CFFI_AVAILABLE:
+    import requests as _fallback_requests
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +62,21 @@ class ProxyManager:
             logger.warning("Proxy marked as bad: %s", proxy)
 
 
-class StealthSession(Session):
+# Determine base Session class
+if CURL_CFFI_AVAILABLE:
+    _BaseSession = CurlSession
+else:
+    _BaseSession = _fallback_requests.Session  # type: ignore[assignment]
+
+
+class StealthSession(_BaseSession):
     """Advanced Session with Cloudflare Bypass capabilities.
     Features:
     - TLS Fingerprint Impersonation (JA3/JA4 compatible)
     - Proxy Rotation
     - Human Behavior Simulation (Jitter, Referer Spoofing).
+
+    Falls back to standard requests.Session when curl_cffi is not installed.
     """
 
     def __init__(
@@ -81,18 +99,25 @@ class StealthSession(Session):
         self.current_proxy = self.proxy_manager.get_proxy()
         self._last_url: str = ""
 
-        # Init parent with proxy if available
-        super().__init__(
-            impersonate=self.impersonate_target,
-            proxies={"http": self.current_proxy, "https": self.current_proxy}
-            if self.current_proxy
-            else None,
-            **kwargs,
-        )
+        if CURL_CFFI_AVAILABLE:
+            # Init parent with proxy and impersonation
+            super().__init__(
+                impersonate=self.impersonate_target,
+                proxies={"http": self.current_proxy, "https": self.current_proxy}
+                if self.current_proxy
+                else None,
+                **kwargs,
+            )
+        else:
+            # Fallback: standard requests.Session (no impersonation)
+            super().__init__(**kwargs)
+            if self.current_proxy:
+                self.proxies = {"http": self.current_proxy, "https": self.current_proxy}
+            logger.info("StealthSession using requests fallback (curl_cffi not available)")
 
         self.headers.update(self._get_default_headers())
         logger.debug(
-            f"StealthSession initialized: {self.impersonate_target} | Proxy: {bool(self.current_proxy)}",
+            f"StealthSession initialized: {self.impersonate_target} | Proxy: {bool(self.current_proxy)} | curl_cffi: {CURL_CFFI_AVAILABLE}",
         )
 
     def _get_default_headers(self) -> dict[str, str]:
@@ -190,7 +215,7 @@ class StealthSession(Session):
                 kwargs["headers"]["Referer"] = self._last_url
 
         try:
-            if "impersonate" not in kwargs:
+            if CURL_CFFI_AVAILABLE and "impersonate" not in kwargs:
                 kwargs["impersonate"] = self.impersonate_target
 
             response = super().request(method, url, *args, **kwargs)

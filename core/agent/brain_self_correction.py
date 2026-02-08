@@ -126,7 +126,7 @@ class SelfCorrection:
 
     def _check_prerequisites(self, decision: dict) -> list[str]:
         """Check for missing prerequisites."""
-        prereqs = []
+        prereqs: list[str] = []
 
         # Check if tools are available
         required_tools = decision.get("required_tools", [])

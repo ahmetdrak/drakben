@@ -447,7 +447,7 @@ class AuditLogger:
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
-        results = []
+        results: list[dict] = []
         conn = self._get_connection()
         try:
             conn.row_factory = sqlite3.Row

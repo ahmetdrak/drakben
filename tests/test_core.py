@@ -727,8 +727,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
         try:
             engine = SelfRefiningEngine()
             assert engine  # Verify instance created successfully
-        except Exception as e:
-            self.skipTest(f"SelfRefiningEngine initialization failed: {e}")
+        except (ImportError, OSError) as e:
+            self.skipTest(f"SelfRefiningEngine initialization failed (env): {e}")
 
     def test_strategy_selection(self) -> None:
         """Test strategy selection."""
@@ -740,8 +740,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
             strategy, profile = engine.select_strategy_and_profile("192.168.1.1")
             assert strategy is not None
             assert profile is not None
-        except Exception as e:
-            self.skipTest(f"Strategy selection test failed: {e}")
+        except (ImportError, OSError) as e:
+            self.skipTest(f"Strategy selection test failed (env): {e}")
 
     def test_profile_mutation(self) -> None:
         """Test profile mutation on failure."""
@@ -761,8 +761,8 @@ class TestSelfRefiningEngine(unittest.TestCase):
             _, profile2 = engine.select_strategy_and_profile("192.168.1.1")
             # New profile should be different
             assert profile2 is not None
-        except Exception as e:
-            self.skipTest(f"Profile mutation test failed: {e}")
+        except (ImportError, OSError) as e:
+            self.skipTest(f"Profile mutation test failed (env): {e}")
 
 
 class TestLogging(unittest.TestCase):

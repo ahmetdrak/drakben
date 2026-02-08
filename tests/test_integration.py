@@ -6,9 +6,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-errors: list[str] = []
-passed: list[str] = []
-
 
 def test_full_integration() -> None:
     """DRAKBEN Integration Test - Verify all main subsystems connect correctly."""
@@ -63,7 +60,3 @@ if __name__ == "__main__":
         test_full_integration()
     except Exception:
         sys.exit(1)
-# If imported by pytest, raise error if any tests failed so pytest sees it
-elif errors:
-    msg = f"Integration tests failed: {errors}"
-    raise RuntimeError(msg)

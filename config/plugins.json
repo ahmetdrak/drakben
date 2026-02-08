@@ -1,4 +1,5 @@
 {
+  "_note": "Plugin manifest – PluginLoader loads .py files from plugins/ dir. These entries are for future adapter-based loading.",
   "plugins": [
     {
       "plugin_id": "recon.nmap",
@@ -7,7 +8,7 @@
       "version": "1.0.0",
       "description": "Port scanning and service detection with Nmap",
       "capabilities": ["port_scan", "service_detection", "os_detection", "vuln_scan"],
-      "module": "core.plugins.adapters.nmap_plugin",
+      "module": "plugins.nmap_plugin",
       "class_name": "NmapReconPlugin",
       "requires_approval": false,
       "timeout": 600
@@ -19,7 +20,7 @@
       "version": "1.0.0",
       "description": "SQL injection testing and exploitation",
       "capabilities": ["sqli_detect", "sqli_exploit", "db_dump"],
-      "module": "core.plugins.adapters.sqlmap_plugin",
+      "module": "plugins.sqlmap_plugin",
       "class_name": "SqlmapExploitPlugin",
       "requires_approval": true,
       "timeout": 600
@@ -31,7 +32,7 @@
       "version": "1.0.0",
       "description": "Generate reverse shells and payloads",
       "capabilities": ["reverse_shell", "bind_shell", "web_shell"],
-      "module": "core.plugins.adapters.payload_plugin",
+      "module": "plugins.payload_plugin",
       "class_name": "MsfPayloadPlugin",
       "requires_approval": true,
       "timeout": 120
@@ -43,7 +44,7 @@
       "version": "0.1.0",
       "description": "Placeholder recon plugin",
       "capabilities": ["recon"],
-      "module": "core.plugins.adapters.noop",
+      "module": "plugins.noop",
       "class_name": "NoOpRecon",
       "requires_approval": false
     },
@@ -54,7 +55,7 @@
       "version": "0.1.0",
       "description": "Placeholder analysis plugin",
       "capabilities": ["analysis"],
-      "module": "core.plugins.adapters.noop",
+      "module": "plugins.noop",
       "class_name": "NoOpAnalysis",
       "requires_approval": false
     },
@@ -65,7 +66,7 @@
       "version": "0.1.0",
       "description": "Placeholder bypass plugin",
       "capabilities": ["bypass"],
-      "module": "core.plugins.adapters.noop",
+      "module": "plugins.noop",
       "class_name": "NoOpBypass",
       "requires_approval": true
     },
@@ -76,7 +77,7 @@
       "version": "0.1.0",
       "description": "Placeholder post-exploitation plugin",
       "capabilities": ["post"],
-      "module": "core.plugins.adapters.noop",
+      "module": "plugins.noop",
       "class_name": "NoOpPost",
       "requires_approval": true
     }

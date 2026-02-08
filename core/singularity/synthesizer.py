@@ -475,7 +475,7 @@ if __name__ == "__main__":
 
     def _extract_python_deps(self, code: str) -> list[str]:
         """Helper to extract Python imports."""
-        deps = []
+        deps: list[str] = []
         try:
             tree = ast.parse(code)
             for node in ast.walk(tree):

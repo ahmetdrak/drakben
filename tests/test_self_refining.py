@@ -58,8 +58,16 @@ class TestSelfRefiningEngine(unittest.TestCase):
         # Note: Exact math depends on implementation, but it should be recorded.
 
     def test_persistence(self) -> None:
-        """Test that profiles persist (mock)."""
-        # Ideally checks if DB/File is updated
+        """Test that profiles persist across engine instances."""
+        target = "172.16.0.1"
+        _, profile = self.engine.select_strategy_and_profile(target)
+        profile_id = profile.profile_id
+
+        # Create a fresh engine instance and verify profile still exists
+        engine2 = SelfRefiningEngine()
+        engine2._ensure_initialized()
+        loaded = engine2.get_profile(profile_id)
+        assert loaded is not None, f"Profile {profile_id} should persist across instances"
 
 
 if __name__ == "__main__":

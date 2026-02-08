@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.agent.brain import ContinuousReasoning, ExecutionContext
-from core.execution.execution_engine import CommandSanitizer, SmartTerminal
+from core.execution.execution_engine import CommandSanitizer, SecurityError, SmartTerminal
 from core.singularity.engine import SingularityEngine
 
 # Setup Logger
@@ -136,7 +136,7 @@ class TestPerformanceStress(unittest.TestCase):
             try:
                 CommandSanitizer.sanitize(cmd)
                 self.fail(f"Dangerous command allowed: {cmd}")
-            except Exception:  # Expecting SecurityError
+            except SecurityError:
                 blocked_count += 1
 
         assert blocked_count == len(dangerous_commands), (

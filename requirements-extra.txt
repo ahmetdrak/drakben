@@ -18,3 +18,11 @@ chromadb>=0.5.0           # Vector database for memory (~500MB deps)
 # Bunlar olmadan tüm pentest özellikleri çalışır, sadece graf görseli devre dışı
 networkx>=3.2.0           # Graph analysis
 pyvis>=0.3.2              # Interactive network visualization
+
+# ========== STEGANOGRAPHY ==========
+# Pillow olmadan chunk-injection fallback kullanılır
+Pillow>=10.0.0            # LSB steganography for C2 image encoding
+
+# ========== SSH POST-EXPLOITATION ==========
+# Paramiko olmadan SSH shell özelliği devre dışı kalır
+paramiko>=3.4.0           # SSH connections for post-exploitation

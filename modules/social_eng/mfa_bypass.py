@@ -58,7 +58,7 @@ class MFABypass:
 
     def list_phishlets(self) -> list[str]:
         """List available phishlets (login page templates)."""
-        phishlets = []
+        phishlets: list[str] = []
         if os.path.exists(self.phishlets_dir):
             phishlets.extend(
                 f.replace(".yaml", "")

@@ -25,7 +25,7 @@ sys.dont_write_bytecode = True
 # Load environment variables from config/api.env
 env_file: Path = PROJECT_ROOT / "config" / "api.env"
 if env_file.exists():
-    load_dotenv(env_file)
+    load_dotenv(env_file, override=True)
 
 # Initialize logging
 setup_logging(
@@ -164,14 +164,14 @@ def check_environment() -> None:
     env_file: Path = PROJECT_ROOT / "config" / "api.env"
     if not env_file.exists():
         env_template = """# DRAKBEN LLM Configuration
-# Copy this file and edit with your API keys
+# Edit with your API keys or use /llm command in DRAKBEN
 
 # OpenRouter (Recommended - Free models available)
-OPENROUTER_API_KEY=your_key_here
+OPENROUTER_API_KEY=
 OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 
 # OpenAI (Alternative)
-# OPENAI_API_KEY=your_key_here
+# OPENAI_API_KEY=
 # OPENAI_MODEL=gpt-4o-mini
 
 # Ollama (Local LLM - Free)

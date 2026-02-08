@@ -139,13 +139,17 @@ class DrakbenMenu:
         try:
             from core.agent.pentest_orchestrator import get_orchestrator
 
-            # Try to get LLM client
+            # Try to get LLM client (only if real API key exists)
             llm_client = None
             try:
                 from llm.openrouter_client import OpenRouterClient
                 llm_client = OpenRouterClient()
-                # Check if API key is configured
-                if not getattr(llm_client, "api_key", None):
+                # Check if API key is configured and not a placeholder
+                api_key = getattr(llm_client, "api_key", None)
+                if not api_key or api_key in (
+                    "your_key_here", "your-key-here", "YOUR_KEY_HERE",
+                    "sk-xxx", "sk-your-key",
+                ):
                     llm_client = None
             except (ImportError, OSError, AttributeError):
                 pass
@@ -1835,7 +1839,9 @@ class DrakbenMenu:
     def _save_llm_config(self, provider_key: str, selected_model: str, api_key: str) -> None:
         from pathlib import Path
 
-        env_file = Path("config/api.env")
+        # Use absolute path based on project root (not CWD) for reliability
+        project_root = Path(__file__).resolve().parent.parent.parent
+        env_file = project_root / "config" / "api.env"
 
         # Configuration templates
         templates: dict[str, str] = {
@@ -1861,12 +1867,14 @@ class DrakbenMenu:
 
             load_dotenv(env_file, override=True)
 
-            # Update config manager
-            self.config_manager.load_config()
-            self.config: DrakbenConfig = self.config_manager.config
+            # Reload config manager (load JSON + re-read env vars)
+            self.config_manager.config = self.config_manager.load_config()
+            self.config_manager._load_env()
+            self.config = self.config_manager.config
 
-            # Reset brain to pick up new config
+            # Reset brain and LLM client to pick up new config
             self.brain = None
+            self.config_manager.llm_client = None
 
             # Success message
             lang: str = self.config.language

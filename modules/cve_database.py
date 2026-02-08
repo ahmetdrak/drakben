@@ -347,7 +347,7 @@ class CVEDatabase:
 
     def _extract_cpe_matches(self, cve_data: dict) -> list[str]:
         """Extract CPE matches from configurations."""
-        cpe_matches = []
+        cpe_matches: list[str] = []
         for config in cve_data.get("configurations", []):
             for node in config.get("nodes", []):
                 cpe_matches.extend(
@@ -359,7 +359,7 @@ class CVEDatabase:
 
     def _extract_cwe_weaknesses(self, cve_data: dict) -> list[str]:
         """Extract CWE weaknesses."""
-        weaknesses = []
+        weaknesses: list[str] = []
         for weakness in cve_data.get("weaknesses", []):
             weaknesses.extend(
                 desc.get("value", "")

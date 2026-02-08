@@ -27,7 +27,7 @@
             "RECON"
         ],
         "risk_level": "low",
-        "system_tool": false
+        "system_tool": true
     },
     "nmap_vuln_scan": {
         "name": "nmap_vuln_scan",

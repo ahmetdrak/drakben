@@ -8,7 +8,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-1330%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
+[![Tests](https://img.shields.io/badge/tests-1324%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
 [![Ruff](https://img.shields.io/badge/linting-ruff-brightgreen.svg)](https://github.com/astral-sh/ruff)
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
@@ -411,7 +411,7 @@ drakben/
 │   └── social_eng/             # Social engineering modules
 ├── llm/                        # LLM integration
 │   └── openrouter_client.py    # OpenRouter API client
-├── tests/                      # Test suite (1330+ tests)
+├── tests/                      # Test suite (1324+ tests)
 ├── config/                     # Configuration files
 │   ├── settings.json           # Application settings
 │   ├── plugins.json            # Plugin configuration
@@ -443,7 +443,7 @@ python -m pytest --cov=core --cov=modules --cov-report=html
 python -m pytest --maxfail=10 --disable-warnings --tb=short
 ```
 
-**Current Status:** 1330+ tests passing | Ruff (36 rule groups) clean | Mypy strict | SonarQube compliant
+**Current Status:** 1324+ tests passing | Ruff (36 rule groups) clean | Mypy strict | SonarQube compliant
 
 ---
 

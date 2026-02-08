@@ -27,9 +27,19 @@ try:
     _project_root = _this_file.parent.parent
     _env_file = _project_root / "config" / "api.env"
     if _env_file.exists():
-        load_dotenv(_env_file)
+        load_dotenv(_env_file, override=True)
 except ImportError:
     pass  # dotenv not installed, use OS env
+
+# Placeholder values that should not be treated as valid keys
+_PLACEHOLDER_API_VALUES = frozenset({
+    "your_key_here",
+    "your-key-here",
+    "YOUR_KEY_HERE",
+    "sk-xxx",
+    "sk-your-key",
+    "",
+})
 
 
 @dataclass
@@ -310,7 +320,8 @@ class OpenRouterClient:
         elif self.provider == "openai":
             self.base_url = "https://api.openai.com/v1/chat/completions"
             self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-            self.api_key = os.getenv("OPENAI_API_KEY")
+            raw_key = os.getenv("OPENAI_API_KEY", "")
+            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None
         elif self.provider == "custom":
             self.base_url = os.getenv("CUSTOM_API_URL")
             self.model = os.getenv("CUSTOM_MODEL", "default")
@@ -321,7 +332,8 @@ class OpenRouterClient:
                 "OPENROUTER_MODEL",
                 "meta-llama/llama-3.1-8b-instruct:free",
             )
-            self.api_key = os.getenv("OPENROUTER_API_KEY")
+            raw_key = os.getenv("OPENROUTER_API_KEY", "")
+            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None
 
     def query(
         self,
@@ -646,6 +658,9 @@ class OpenRouterClient:
         if not self.api_key:
             return ""
         key = self.api_key.strip()
+        # Check for placeholder values
+        if key in _PLACEHOLDER_API_VALUES:
+            return f"API key is a placeholder value: '{key}'"
         if key != self.api_key:
             return "API key contains leading/trailing whitespace"
         if self.provider == "openrouter" and key.startswith("sk-or-"):

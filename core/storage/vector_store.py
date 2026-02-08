@@ -81,7 +81,7 @@ class VectorStore:
         try:
             results = self.collection.query(query_texts=[query], n_results=n_results)
 
-            output = []
+            output: list[dict] = []
             documents = results.get("documents")
             metadatas = results.get("metadatas")
             distances = results.get("distances")

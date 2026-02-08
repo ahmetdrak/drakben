@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 # Constants
 API_ENV_PATH = "config/api.env"
 
+# Placeholder values that should NOT be treated as valid API keys
+_PLACEHOLDER_VALUES = frozenset({
+    "your_key_here",
+    "your-key-here",
+    "YOUR_KEY_HERE",
+    "sk-xxx",
+    "sk-your-key",
+    "",
+})
+
 
 # ===========================================
 # CENTRALIZED TIMEOUT CONFIGURATION
@@ -185,32 +195,53 @@ class ConfigManager:
         self._load_env()
         self._llm_client = None  # Lazy initialization
 
-    def _load_env(self) -> None:
-        """Load API keys from .env."""
-        env_file = Path(API_ENV_PATH)
-        if env_file.exists():
-            load_dotenv(env_file)
+    @staticmethod
+    def _is_valid_key(value: str | None) -> bool:
+        """Check if a value is a real API key (not empty or placeholder)."""
+        if not value:
+            return False
+        return value.strip() not in _PLACEHOLDER_VALUES
 
-        # Override with environment variables
-        if os.getenv("OPENROUTER_API_KEY"):
-            self.config.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        if os.getenv("OPENAI_API_KEY"):
-            self.config.openai_api_key = os.getenv("OPENAI_API_KEY")
+    def _load_env(self) -> None:
+        """Load API keys from .env (with override to pick up file changes)."""
+        # Use absolute path based on project root for reliability
+        project_root = Path(__file__).resolve().parent.parent
+        env_file = project_root / API_ENV_PATH
+        if not env_file.exists():
+            env_file = Path(API_ENV_PATH)
+        if env_file.exists():
+            load_dotenv(env_file, override=True)
+
+        # Override with environment variables (filter out placeholders)
+        or_key = os.getenv("OPENROUTER_API_KEY", "")
+        if self._is_valid_key(or_key):
+            self.config.openrouter_api_key = or_key
+        else:
+            self.config.openrouter_api_key = None
+
+        oai_key = os.getenv("OPENAI_API_KEY", "")
+        if self._is_valid_key(oai_key):
+            self.config.openai_api_key = oai_key
+        else:
+            self.config.openai_api_key = None
+
         if os.getenv("LOCAL_LLM_URL"):
             self.config.ollama_url = os.getenv("LOCAL_LLM_URL")
         if os.getenv("LOCAL_LLM_MODEL"):
             self.config.ollama_model = os.getenv("LOCAL_LLM_MODEL")
 
-        # Mark setup complete if any provider is configured
+        # Mark setup complete only if a REAL provider is configured
         if any(
             [
-                os.getenv("OPENROUTER_API_KEY"),
-                os.getenv("OPENAI_API_KEY"),
+                self._is_valid_key(os.getenv("OPENROUTER_API_KEY", "")),
+                self._is_valid_key(os.getenv("OPENAI_API_KEY", "")),
                 os.getenv("LOCAL_LLM_URL"),
                 os.getenv("LOCAL_LLM_MODEL"),
             ],
         ):
             self.config.llm_setup_complete = True
+        else:
+            self.config.llm_setup_complete = False
 
     def _read_env_file(self) -> dict[str, str]:
         """Read api.env into a dict."""
@@ -261,8 +292,8 @@ class ConfigManager:
 
         if env_path.exists() and any(
             [
-                existing.get("OPENROUTER_API_KEY"),
-                existing.get("OPENAI_API_KEY"),
+                self._is_valid_key(existing.get("OPENROUTER_API_KEY", "")),
+                self._is_valid_key(existing.get("OPENAI_API_KEY", "")),
                 existing.get("LOCAL_LLM_URL"),
                 existing.get("LOCAL_LLM_MODEL"),
             ],
@@ -273,8 +304,8 @@ class ConfigManager:
 
         if env_path.exists() and not any(
             [
-                existing.get("OPENROUTER_API_KEY"),
-                existing.get("OPENAI_API_KEY"),
+                self._is_valid_key(existing.get("OPENROUTER_API_KEY", "")),
+                self._is_valid_key(existing.get("OPENAI_API_KEY", "")),
                 existing.get("LOCAL_LLM_URL"),
                 existing.get("LOCAL_LLM_MODEL"),
             ],

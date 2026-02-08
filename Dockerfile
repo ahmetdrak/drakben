@@ -63,7 +63,10 @@ RUN mkdir -p /app/logs /app/sessions /app/reports /app/config \
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "from core.state import AgentState; print('OK')" || exit 1
+    CMD python3 -c "from core.agent.state import AgentState; print('OK')" || exit 1
+
+# Switch to non-root user
+USER drakben
 
 # Default command
 ENTRYPOINT ["python3"]

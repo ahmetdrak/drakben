@@ -142,7 +142,7 @@ class InteractiveShell:
 
     def _completer(self, text: str, state: int) -> str | None:
         """Tab completion for commands."""
-        options = []
+        options: list[str] = []
 
         # Complete commands
         if not text or text.startswith("/"):
