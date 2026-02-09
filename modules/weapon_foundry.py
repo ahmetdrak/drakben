@@ -671,13 +671,15 @@ def _vm():
     try:
         o=subprocess.check_output("systemd-detect-virt",stderr=subprocess.DEVNULL).decode().strip()
         return o not in ["none",""]
-    except Exception: pass
+    except Exception:
+        logger.debug("VM detection via systemd-detect-virt failed")
     try:
         with open("/sys/class/dmi/id/product_name", encoding="utf-8") as f:
             p=f.read().lower()
             for v in ["vmware","virtualbox","qemu","xen","kvm"]:
                 if v in p: return True
-    except Exception: pass
+    except Exception:
+        logger.debug("VM detection via DMI failed")
     return False
 if _vm(): import sys; sys.exit(0)
 """

@@ -278,8 +278,9 @@ class CredentialHarvester:
                 # Simple parser for Host * User pattern
                 content = config_path.read_text()
                 for line in content.splitlines():
-                    if line.strip().startswith("User "):
-                        return line.split()[1]
+                    line_parts = line.strip().split()
+                    if len(line_parts) >= 2 and line_parts[0] == "User":
+                        return line_parts[1]
         except (OSError, ValueError) as e:
             logger.debug("SSH config read failed: %s", e)
         return os.getlogin() if hasattr(os, "getlogin") else "unknown"
@@ -319,9 +320,12 @@ class NetworkMapper:
         try:
             ips = socket.getaddrinfo(hostname, None, socket.AF_INET)
             for ip_info in ips:
-                ip = str(ip_info[4][0])
-                if not ip.startswith("127."):
-                    interfaces.append(ip)
+                # getaddrinfo returns: (family, type, proto, canonname, sockaddr)
+                # sockaddr is (address, port) tuple for IPv4
+                if len(ip_info) >= 5 and len(ip_info[4]) >= 1:
+                    ip = str(ip_info[4][0])
+                    if not ip.startswith("127."):
+                        interfaces.append(ip)
         except socket.gaierror:
             pass
 

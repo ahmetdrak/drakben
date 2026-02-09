@@ -347,7 +347,7 @@ class ActiveDirectoryAttacker:
                 user,
                 type=constants.PrincipalNameType.NT_PRINCIPAL.value,
             )
-            tgt, cipher, _, session_key = getKerberosTGT(
+            tgt, cipher, _, _session_key = getKerberosTGT(
                 client_name,
                 "",
                 domain,

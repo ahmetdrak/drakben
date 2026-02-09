@@ -360,9 +360,9 @@ class ErrorDiagnosticsMixin:
         if any(x in output_lower for x in patterns):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
         # Check HTTP 429 with context to avoid false positives
-        if re.search(r'\b429\b.*(?:too many|rate|limit|throttl)', output_lower):
+        if re.search(r"\b429\b.*(?:too many|rate|limit|throttl)", output_lower):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
-        if re.search(r'HTTP[/ ]\d\.\d\s+429\b', output_lower):
+        if re.search(r"HTTP[/ ]\d\.\d\s+429\b", output_lower):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
         return None
 
@@ -381,7 +381,7 @@ class ErrorDiagnosticsMixin:
         if any(x in output_lower for x in patterns):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         # Check 403 with context (HTTP response, not port or IP)
-        if re.search(r'\b403\s+forbidden\b', output_lower):
+        if re.search(r"\b403\s+forbidden\b", output_lower):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 

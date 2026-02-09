@@ -231,7 +231,7 @@ class RAStateUpdatesMixin:
             )
             self.state.set_observation(
                 "Nmap parsing failed — no services extracted from output. "
-                "Consider re-running the scan or checking target reachability."
+                "Consider re-running the scan or checking target reachability.",
             )
             td = self._get_transparency()
             if td:
@@ -260,7 +260,7 @@ class RAStateUpdatesMixin:
         if not args_port:
             command = result.get("command", "") or result.get("args", {}).get("command", "")
             if command:
-                port_match = re.search(r'-p\s*(\d{1,5})', str(command))
+                port_match = re.search(r"-p\s*(\d{1,5})", str(command))
                 if port_match:
                     args_port = int(port_match.group(1))
 
@@ -269,7 +269,7 @@ class RAStateUpdatesMixin:
             stdout = result.get("stdout", "")
             if stdout:
                 # Look for nmap-style "PORT/tcp open" lines
-                port_matches = re.findall(r'(\d{1,5})/(?:tcp|udp)\s+open', stdout)
+                port_matches = re.findall(r"(\d{1,5})/(?:tcp|udp)\s+open", stdout)
                 if port_matches:
                     # Mark all found ports as tested
                     for port_str in port_matches:

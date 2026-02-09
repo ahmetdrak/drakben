@@ -470,15 +470,18 @@ class AdaptiveMutationMemory:
             try:
                 stats = {}
                 cursor = conn.execute("SELECT COUNT(*) FROM payload_attempts")
-                stats["total_attempts"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                stats["total_attempts"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM payload_attempts WHERE success = 1",
                 )
-                stats["successful_bypasses"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                stats["successful_bypasses"] = row[0] if row else 0
 
                 cursor = conn.execute("SELECT COUNT(*) FROM blocked_patterns")
-                stats["known_blocked_patterns"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                stats["known_blocked_patterns"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     """

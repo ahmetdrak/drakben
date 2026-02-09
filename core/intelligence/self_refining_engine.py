@@ -229,7 +229,11 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     def _handle_schema_migration(self, conn: sqlite3.Connection) -> None:
         """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)."""
         cursor = conn.execute("PRAGMA user_version")
-        version = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if not row:
+            logger.error("Failed to get database version")
+            return
+        version = row[0]
 
         if version == 1:
             logger.info(
@@ -315,7 +319,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     def _strategies_exist(self, conn: "sqlite3.Connection") -> bool:
         """Check if strategies table is populated."""
         cursor = conn.execute("SELECT COUNT(*) FROM strategies")
-        return cursor.fetchone()[0] > 0
+        row = cursor.fetchone()
+        return row and row[0] > 0
 
     def _get_default_strategy_definitions(self) -> list[dict]:
         """Return list of default strategies."""
@@ -944,29 +949,34 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategies WHERE is_active = 1",
                 )
-                status["active_strategies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_strategies"] = row[0] if row else 0
 
                 # Profiles
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 0",
                 )
-                status["active_profiles"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_profiles"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 1",
                 )
-                status["retired_profiles"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["retired_profiles"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT MAX(mutation_generation) FROM strategy_profiles",
                 )
-                status["max_mutation_generation"] = cursor.fetchone()[0] or 0
+                row = cursor.fetchone()
+                status["max_mutation_generation"] = row[0] if row and row[0] else 0
 
                 # Policies
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM policies WHERE is_active = 1",
                 )
-                status["active_policies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_policies"] = row[0] if row else 0
 
                 cursor = conn.execute("""
                     SELECT priority_tier, COUNT(*) FROM policies
@@ -978,12 +988,14 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
 
                 # Failures
                 cursor = conn.execute("SELECT COUNT(*) FROM failure_contexts")
-                status["total_failures"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["total_failures"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM failure_contexts WHERE policy_generated = 1",
                 )
-                status["failures_with_policies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["failures_with_policies"] = row[0] if row else 0
 
                 return status
             finally:

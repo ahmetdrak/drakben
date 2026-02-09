@@ -72,6 +72,7 @@ ignore = [
     "S102",    # exec-builtin — needed in singularity engine
     "S108",    # hardcoded-temp-file — acceptable in pentest
     "S105",    # hardcoded-password — false positives from test mocks
+    "S106",    # hardcoded-password-arguments — false positives (token_type, etc)
     "RUF001",  # Türkçe unicode characters in strings — intentional
     "RUF002",  # Türkçe unicode in docstrings — intentional
     "RUF003",  # Türkçe unicode in comments — intentional

@@ -66,6 +66,9 @@ class EvolutionMemory:
             self._is_memory = False
             self._persistent_conn = None
         self._lock = threading.Lock()
+        # Initialize thread-local storage in __init__ for thread safety
+        import threading as _threading
+        self._local = _threading.local()
         self._init_database()
 
     def _init_database(self) -> None:
@@ -211,11 +214,7 @@ class EvolutionMemory:
         )
 
         try:
-            # H-4 FIX: Use thread-local storage for connections
-            import threading as _threading
-            if not hasattr(self, "_local"):
-                self._local = _threading.local()
-
+            # H-4 FIX: Use thread-local storage for connections (initialized in __init__)
             # Return cached thread-local connection if still valid
             if hasattr(self._local, "conn") and self._local.conn is not None:
                 try:

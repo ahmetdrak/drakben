@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-logger = logging.getLogger(__name__)
-
 from core.intelligence.evolution_memory import get_evolution_memory
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from core.intelligence.evolution_memory import EvolutionMemory

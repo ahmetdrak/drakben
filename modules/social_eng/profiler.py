@@ -240,11 +240,11 @@ class NLPPayloadEngine:
         # Select Top 2
         sorted_biases = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         primary = (
-            sorted_biases[0][0] if sorted_biases[0][1] > 0 else CognitiveBias.CURIOSITY
+            sorted_biases[0][0] if sorted_biases and sorted_biases[0][1] > 0 else CognitiveBias.CURIOSITY
         )
         secondary = (
             sorted_biases[1][0]
-            if sorted_biases[1][1] > 0
+            if len(sorted_biases) > 1 and sorted_biases[1][1] > 0
             else CognitiveBias.SOCIAL_PROOF
         )
 
