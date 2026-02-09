@@ -393,8 +393,9 @@ class OpenRouterClient:
                 from core.ui.transparency import get_transparency
                 td = get_transparency()
                 td.log_llm_query(prompt[:200], result[:200], _duration)
-            except Exception:
-                pass  # Transparency is optional, never break LLM flow
+            except (ImportError, AttributeError) as e:
+                # Transparency is optional, never break LLM flow
+                logger.debug("Transparency logging skipped: %s", e)
 
         # Cache successful responses (not errors)
         if use_cache and self._cache and not result.startswith("["):

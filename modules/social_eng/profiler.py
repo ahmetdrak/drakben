@@ -344,14 +344,22 @@ class PsychoProfiler:
     # SYNTHETIC PRETEXT TEMPLATES (Dynamic)
     # =========================================================================
 
+    def _get_first_name(self, full_name: str) -> str:
+        """Safely extract first name from full name."""
+        if not full_name:
+            return "there"
+        parts = full_name.strip().split()
+        return parts[0] if parts else full_name
+
     def _tmpl_dev_ticket(self, target, ticket_id) -> str:
+        first_name = self._get_first_name(target.full_name)
         return f"""
 <div style="font-family: Arial; border-left: 4px solid #d04437; padding-left: 10px;">
     <h3>JIRA Software</h3>
     <p><b>{target.full_name}</b>, you were mentioned in a ticket:</p>
     <a href="{{link}}"><b>{ticket_id}: NullPointer Exception in Auth Module</b></a>
     <br>
-    <p><i>"@ {target.full_name.split()[0]} can you check this? It's blocking the release. CI/CD is failing."</i></p>
+    <p><i>"@ {first_name} can you check this? It's blocking the release. CI/CD is failing."</i></p>
     <br>
     <button style="background: #0052cc; color: white; border: none; padding: 10px;">View Issue</button>
 </div>
@@ -382,8 +390,9 @@ class PsychoProfiler:
 """
 
     def _tmpl_generic_vip(self, target) -> str:
+        first_name = self._get_first_name(target.full_name)
         return f"""
-<p>Hi {target.full_name.split()[0]},</p>
+<p>Hi {first_name},</p>
 <p>The Director asked me to schedule a quick sync with you regarding the Q3 goals.</p>
 <p>Are you free next Tuesday? I've shared the tentative agenda below.</p>
 <p><a href="{{link}}">View Agenda.docx</a> (SharePoint)</p>

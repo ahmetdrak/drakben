@@ -91,7 +91,8 @@ class SREFailureMixin:
                     (row["target_signature"], row["error_type"], row["profile_id"]),
                 )
 
-                similar_count = cursor.fetchone()[0]
+                result = cursor.fetchone()
+                similar_count = result[0] if result else 0
 
                 # CRITICAL SECURITY FIX: Determine if we should learn immediately
                 critical_errors = ["blocked", "banned", "firewall", "access_denied"]
