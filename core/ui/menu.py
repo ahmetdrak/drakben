@@ -974,7 +974,8 @@ class DrakbenMenu:
         # FEEDBACK LOOP: Report back to brain so it remembers!
         if self.brain:
             output_content: str = result.stdout if result.stdout else result.stderr
-            tool_name: str = command.split()[0]
+            parts = command.strip().split() if command else []
+            tool_name: str = parts[0] if parts else "unknown"
             self.brain.observe(
                 tool=tool_name,
                 output=output_content,

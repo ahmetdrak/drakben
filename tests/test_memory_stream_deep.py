@@ -311,7 +311,8 @@ class TestEviction:
 
         # Verify DB matches in-memory count
         cursor = ms._db_conn.execute("SELECT COUNT(*) FROM memory_nodes")
-        db_count = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        db_count = row[0] if row else 0
         assert db_count == ms.count()
         ms.close()
 
@@ -594,7 +595,8 @@ class TestFullClear:
 
         # Verify DB is also empty
         cursor = ms._db_conn.execute("SELECT COUNT(*) FROM memory_nodes")
-        assert cursor.fetchone()[0] == 0
+        row = cursor.fetchone()
+        assert row and row[0] == 0
         ms.close()
 
 
