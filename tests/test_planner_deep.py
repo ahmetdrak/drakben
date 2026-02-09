@@ -394,7 +394,7 @@ class TestReplan:
         planner._replan_counts = {"s1": Planner.MAX_REPLAN_PER_STEP}
         planner._total_replans = 0
         result = planner.replan("s1")
-        assert result is True  # Step is skipped
+        assert result is False  # Replan failed — limits exceeded
         assert step.status == StepStatus.SKIPPED
 
     @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
@@ -405,7 +405,7 @@ class TestReplan:
         planner._replan_counts = {}
         planner._total_replans = Planner.MAX_REPLAN_PER_SESSION
         result = planner.replan("s1")
-        assert result is True
+        assert result is False  # Replan failed — limits exceeded
         assert step.status == StepStatus.SKIPPED
 
     @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))

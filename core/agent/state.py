@@ -22,9 +22,9 @@ MAX_CONSECUTIVE_SAME_TOOL = 3
 MAX_HALLUCINATION_FLAGS = 10
 MAX_OBSERVATION_LENGTH = 500
 MAX_TOOL_CALL_HISTORY = 10
-MAX_STATE_CHANGES_HISTORY = 5
+MAX_STATE_CHANGES_HISTORY = 15
 PHASE_TOLERANCE = 1
-STAGNATION_CHECK_WINDOW = 3
+STAGNATION_CHECK_WINDOW = 8
 MAX_HALLUCINATIONS_THRESHOLD = 3
 
 # Thread-safe singleton implementation - MUST be defined BEFORE AgentState class
@@ -303,10 +303,19 @@ class AgentState:
             return
 
         existing: ServiceInfo = self.open_services[svc.port]
+        old_name = existing.service
+
         if self._should_skip_unknown_service(svc, existing):
             return
 
-        self.open_services[svc.port] = self._select_best_service(svc, existing)
+        best = self._select_best_service(svc, existing)
+        self.open_services[svc.port] = best
+
+        # Clean up stale surface keys when service name changes
+        if best.service != old_name:
+            stale_key = f"{svc.port}:{old_name}"
+            self.remaining_attack_surface.discard(stale_key)
+            self.tested_attack_surface.discard(stale_key)
 
     def _should_skip_unknown_service(
         self,
@@ -629,8 +638,9 @@ class AgentState:
             violations.extend(self._check_surface_invariants())
             violations.extend(self._check_limits_invariants())
 
+            # Reset violations each cycle — only CURRENT violations halt
+            self.invariant_violations = violations
             if violations:
-                self.invariant_violations.extend(violations)
                 logger.error("State invariant violations: %s", violations)
                 return False
             return True
@@ -762,7 +772,29 @@ class AgentState:
         self.target = data.get("target")
         self.phase = AttackPhase(data.get("phase", "init"))
         self.iteration_count = data.get("iteration_count", 0)
-        # Other fields as needed for future session recovery
+
+        # Restore discovery data
+        from core.agent.state import CredentialInfo, ServiceInfo, VulnerabilityInfo
+        for port, svc in data.get("open_services", {}).items():
+            try:
+                self.open_services[int(port)] = ServiceInfo(**svc) if isinstance(svc, dict) else svc
+            except (TypeError, ValueError):
+                pass
+        self.tested_attack_surface = set(data.get("tested_attack_surface", []))
+        self.remaining_attack_surface = set(data.get("remaining_attack_surface", []))
+        for v in data.get("vulnerabilities", []):
+            try:
+                self.vulnerabilities.append(VulnerabilityInfo(**v) if isinstance(v, dict) else v)
+            except (TypeError, ValueError):
+                pass
+        for c in data.get("credentials", []):
+            try:
+                self.credentials.append(CredentialInfo(**c) if isinstance(c, dict) else c)
+            except (TypeError, ValueError):
+                pass
+        self.has_foothold = data.get("has_foothold", False)
+        self.foothold_method = data.get("foothold_method")
+        self.post_exploit_completed = set(data.get("post_exploit_completed", []))
 
 
 # NOTE: _state_lock and _state_instance are defined at module top (before AgentState class)

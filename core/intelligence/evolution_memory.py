@@ -51,9 +51,9 @@ class EvolutionMemory:
     4. Plans are persisted and support replanning
     """
 
-    PENALTY_INCREMENT = 10.0
+    PENALTY_INCREMENT = 5.0
     PENALTY_DECREMENT = 5.0
-    BLOCK_THRESHOLD = 50.0  # Tool blocked after this penalty
+    BLOCK_THRESHOLD = 100.0  # Tool blocked after this penalty
 
     def __init__(self, db_path: str = "drakben_evolution.db") -> None:
         # Handle in-memory databases specially
@@ -177,10 +177,10 @@ class EvolutionMemory:
             # Initialize default heuristics if not exist
             defaults = [
                 ("max_retries", 3.0),
-                ("penalty_increment", 10.0),
+                ("penalty_increment", 5.0),
                 ("penalty_decrement", 5.0),
-                ("block_threshold", 50.0),
-                ("stagnation_limit", 3.0),
+                ("block_threshold", 100.0),
+                ("stagnation_limit", 8.0),
             ]
             for key, val in defaults:
                 cursor.execute(
@@ -248,6 +248,9 @@ class EvolutionMemory:
         """Close connection, unless it's an in-memory persistent connection."""
         if not self._is_memory:
             conn.close()
+            # Clear thread-local cache to prevent stale connection reuse
+            if hasattr(self, "_local") and hasattr(self._local, "conn"):
+                self._local.conn = None
 
     @contextmanager
     def _safe_conn(self):
@@ -572,21 +575,23 @@ class EvolutionMemory:
 
     def detect_stagnation(self) -> bool:
         """Detect if agent is stuck:
-        - Same tool called 3+ times consecutively
-        - All recent actions failed.
+        - Same tool called 4+ times consecutively
+        - All recent actions (6+) failed.
         """
-        recent = self.get_recent_actions(5)
-        if len(recent) < 3:
+        recent = self.get_recent_actions(8)
+        if len(recent) < 4:
             return False
 
-        # Check same tool repeated
-        tools = [a.tool for a in recent[:3]]
+        # Check same tool repeated (4 consecutive)
+        tools = [a.tool for a in recent[:4]]
         if len(set(tools)) == 1:
             return True
 
-        # Check all failures
-        outcomes = [a.outcome for a in recent]
-        return bool(all(o == "failure" for o in outcomes))
+        # Check all failures (need at least 6 consecutive failures)
+        if len(recent) >= 6:
+            outcomes = [a.outcome for a in recent[:6]]
+            return bool(all(o == "failure" for o in outcomes))
+        return False
 
 
 # Global instance

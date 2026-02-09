@@ -38,7 +38,7 @@ def parse_llm_json_response(response: str) -> dict | None:
             pass
 
     # Strategy 3: Regex search for JSON object anywhere
-    json_match = re.search(r"\{[\s\S]*\}", response)
+    json_match = re.search(r"\{[\s\S]*?\}", response)
     if json_match:
         try:
             return json.loads(json_match.group())

@@ -43,8 +43,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     """
 
     # Thresholds
-    PROFILE_RETIRE_THRESHOLD = 0.25  # Retire if success_rate < 25%
-    MIN_USAGE_FOR_RETIRE = 3  # Minimum uses before retirement
+    PROFILE_RETIRE_THRESHOLD = 0.15  # Retire if success_rate < 15%
+    MIN_USAGE_FOR_RETIRE = 8  # Minimum uses before retirement eligible
     MUTATION_PARAM_CHANGE = 0.2  # How much to change params on mutation
 
     def __init__(self, db_path: str | None = None) -> None:

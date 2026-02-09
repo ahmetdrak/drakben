@@ -433,6 +433,10 @@ class ConfigManager:
                             data["allow_self_signed_certs"] = security.get(
                                 "allow_self_signed_certs", False,
                             )
+                        # Filter unknown keys to avoid TypeError on DrakbenConfig init
+                        import dataclasses as _dc
+                        valid_fields = {f.name for f in _dc.fields(DrakbenConfig)}
+                        data = {k: v for k, v in data.items() if k in valid_fields}
                         return DrakbenConfig(**data)
                 except Exception as e:
                     logger.exception("Config load error: %s", e)

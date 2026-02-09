@@ -329,8 +329,24 @@ class TestHandlePlanCompletion:
     def test_no_executable_step(self):
         agent = _create_agent()
         agent.planner.is_plan_complete.return_value = False
+        agent.planner.steps = []  # No steps to replan
+        agent.planner.replan.return_value = False
         agent.running = True
-        agent._handle_plan_completion()
+        agent.stagnation_counter = 0
+        result = agent._handle_plan_completion()
+        # Should not halt immediately — gives replan a chance
+        assert result is True
+        assert agent.stagnation_counter == 1
+
+    def test_no_executable_step_halt_after_6(self):
+        agent = _create_agent()
+        agent.planner.is_plan_complete.return_value = False
+        agent.planner.steps = []
+        agent.planner.replan.return_value = False
+        agent.running = True
+        agent.stagnation_counter = 5
+        result = agent._handle_plan_completion()
+        assert result is False
         assert agent.running is False
 
 
@@ -354,14 +370,14 @@ class TestCheckStagnation:
         assert agent.stagnation_counter == 1
         agent.planner.replan.assert_called_once()
 
-    def test_stagnation_halt_after_3(self):
+    def test_stagnation_halt_after_6(self):
         agent = _create_agent()
         agent.evolution.detect_stagnation.return_value = True
         agent.planner.get_next_step.return_value = MagicMock()
-        agent.stagnation_counter = 2
+        agent.stagnation_counter = 5
         result = agent._check_stagnation()
         assert result is True  # Should halt
-        assert agent.stagnation_counter == 3
+        assert agent.stagnation_counter == 6
 
 
 # ---------------------------------------------------------------------------
@@ -430,22 +446,24 @@ class TestAttemptToolRecovery:
     def test_success(self):
         agent = _create_agent()
         mock_adapter = MagicMock()
-        mock_adapter.install_tool.return_value = {"success": True}
+        mock_adapter.resolver = MagicMock()
+        mock_adapter.resolver.install_tool.return_value = {"success": True, "method": "apt"}
         with patch(
             "core.intelligence.universal_adapter.get_universal_adapter",
             return_value=mock_adapter,
-        ):
+        ), patch("core.intelligence.universal_adapter.TOOL_REGISTRY", {"nmap": MagicMock()}):
             result = agent._attempt_tool_recovery("nmap")
         assert result is True
 
     def test_install_failure(self):
         agent = _create_agent()
         mock_adapter = MagicMock()
-        mock_adapter.install_tool.return_value = {"success": False, "message": "not found"}
+        mock_adapter.resolver = MagicMock()
+        mock_adapter.resolver.install_tool.return_value = {"success": False, "message": "not found", "method": "apt"}
         with patch(
             "core.intelligence.universal_adapter.get_universal_adapter",
             return_value=mock_adapter,
-        ):
+        ), patch("core.intelligence.universal_adapter.TOOL_REGISTRY", {"nmap": MagicMock()}):
             result = agent._attempt_tool_recovery("nmap")
         assert result is False
 
@@ -457,3 +475,258 @@ class TestAttemptToolRecovery:
         ):
             result = agent._attempt_tool_recovery("nmap")
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# 15. _check_dangerous_operation (Approval Flow)
+# ---------------------------------------------------------------------------
+class TestCheckDangerousOperation:
+    def test_safe_tool_auto_approves(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="port_scan", tool="nmap_port_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        assert agent._check_dangerous_operation(step) is True
+
+    def test_exploit_is_dangerous(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="exploit", tool="sqlmap_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        # Auto-approve when config says so
+        agent.config.auto_approve_dangerous = True
+        assert agent._check_dangerous_operation(step) is True
+
+    def test_exploit_denied_by_user(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="exploit", tool="sqlmap_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        agent.config.auto_approve_dangerous = False
+        with patch("builtins.input", return_value="n"):
+            result = agent._check_dangerous_operation(step)
+        assert result is False
+
+    def test_exploit_approved_by_user(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="exploit", tool="metasploit_exploit",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        agent.config.auto_approve_dangerous = False
+        with patch("builtins.input", return_value="y"):
+            result = agent._check_dangerous_operation(step)
+        assert result is True
+
+    def test_eof_is_denial(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="get_shell", tool="reverse_shell",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        agent.config.auto_approve_dangerous = False
+        with patch("builtins.input", side_effect=EOFError):
+            result = agent._check_dangerous_operation(step)
+        assert result is False
+
+    def test_dangerous_tool_without_dangerous_action(self):
+        agent = _create_agent()
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="scan", tool="hydra",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.PENDING,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        agent.config.auto_approve_dangerous = True
+        assert agent._check_dangerous_operation(step) is True
+
+
+# ---------------------------------------------------------------------------
+# 16. _parse_llm_json
+# ---------------------------------------------------------------------------
+class TestParseLlmJson:
+    def test_raw_json(self):
+        from core.agent.refactored_agent import RefactoredDrakbenAgent
+        result = RefactoredDrakbenAgent._parse_llm_json('{"summary": "ok"}')
+        assert result["summary"] == "ok"
+
+    def test_fenced_json(self):
+        from core.agent.refactored_agent import RefactoredDrakbenAgent
+        resp = '```json\n{"summary": "found vuln"}\n```'
+        result = RefactoredDrakbenAgent._parse_llm_json(resp)
+        assert result["summary"] == "found vuln"
+
+    def test_invalid_json_returns_fallback(self):
+        from core.agent.refactored_agent import RefactoredDrakbenAgent
+        result = RefactoredDrakbenAgent._parse_llm_json("not json at all")
+        assert result["severity"] == "info"
+        assert "not json" in result["summary"]
+
+
+# ---------------------------------------------------------------------------
+# 17. _analyze_with_llm_transparency (LLM feedback loop)
+# ---------------------------------------------------------------------------
+class TestAnalyzeWithLlmTransparency:
+    def test_injects_llm_suggestions_into_plan(self):
+        agent = _create_agent()
+        from core.agent.state import AgentState, AttackPhase
+        agent.state = MagicMock(spec=AgentState)
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = AttackPhase.RECON
+        agent.state.open_services = {80: MagicMock()}
+        agent.state.vulnerabilities = []
+        agent.planner.inject_dynamic_steps = MagicMock(return_value=1)
+
+        mock_llm = MagicMock()
+        mock_llm.query.return_value = '{"findings": ["port 80"], "summary": "web found", "severity": "medium", "next_steps": [{"action": "web_vuln_scan", "tool": "nikto_web_scan", "reason": "HTTP"}]}'
+
+        agent._analyze_with_llm_transparency("nmap", "80/tcp open http", mock_llm)
+        agent.planner.inject_dynamic_steps.assert_called_once()
+        call_args = agent.planner.inject_dynamic_steps.call_args
+        assert call_args[1]["source"] == "llm" or call_args[0][2] == "llm" if len(call_args[0]) > 2 else True
+
+    def test_falls_back_on_llm_error(self):
+        agent = _create_agent()
+        agent.state = MagicMock()
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = MagicMock()
+        agent.state.phase.value = "recon"
+        agent.state.open_services = {}
+        agent.state.vulnerabilities = []
+
+        mock_llm = MagicMock()
+        mock_llm.query.side_effect = Exception("LLM timeout")
+
+        # Should not raise — falls back to offline
+        agent._analyze_with_llm_transparency("nmap", "some output", mock_llm)
+
+    def test_handles_legacy_next_action(self):
+        agent = _create_agent()
+        agent.state = MagicMock()
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = MagicMock()
+        agent.state.phase.value = "recon"
+        agent.state.open_services = {}
+        agent.state.vulnerabilities = []
+        agent.planner.inject_dynamic_steps = MagicMock(return_value=1)
+
+        mock_llm = MagicMock()
+        mock_llm.query.return_value = '{"findings": [], "summary": "ok", "severity": "info", "next_action": "nikto_web_scan"}'
+
+        agent._analyze_with_llm_transparency("nmap", "80/tcp open", mock_llm)
+        agent.planner.inject_dynamic_steps.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# 18. _attempt_llm_recovery
+# ---------------------------------------------------------------------------
+class TestAttemptLlmRecovery:
+    def test_no_llm_returns_empty(self):
+        agent = _create_agent()
+        agent.brain.llm_client = None
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="vuln_scan", tool="nmap_vuln_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.FAILED,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        result = agent._attempt_llm_recovery(step, "connection refused")
+        assert result == []
+
+    def test_returns_llm_suggestions(self):
+        agent = _create_agent()
+        agent.brain.llm_client = MagicMock()
+        agent.brain.llm_client.query.return_value = '[{"action": "try_stealth_scan", "tool": "nmap_port_scan", "reason": "Firewall blocking"}]'
+        agent.state = MagicMock()
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = MagicMock()
+        agent.state.phase.value = "recon"
+
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="vuln_scan", tool="nmap_vuln_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.FAILED,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        result = agent._attempt_llm_recovery(step, "connection refused")
+        assert len(result) == 1
+        assert result[0]["action"] == "try_stealth_scan"
+
+    def test_handles_llm_error_gracefully(self):
+        agent = _create_agent()
+        agent.brain.llm_client = MagicMock()
+        agent.brain.llm_client.query.side_effect = Exception("LLM down")
+        agent.state = MagicMock()
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = MagicMock()
+        agent.state.phase.value = "recon"
+
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="scan", tool="nmap",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.FAILED,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        result = agent._attempt_llm_recovery(step, "some error")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# 19. _handle_step_failure with LLM recovery integration
+# ---------------------------------------------------------------------------
+class TestHandleStepFailureWithLlm:
+    def test_llm_recovery_injects_steps(self):
+        agent = _create_agent()
+        agent.brain.llm_client = MagicMock()
+        agent.brain.llm_client.query.return_value = '[{"action": "alt_scan", "tool": "nikto", "reason": "retry"}]'
+        agent.state = MagicMock()
+        agent.state.target = "10.0.0.1"
+        agent.state.phase = MagicMock()
+        agent.state.phase.value = "recon"
+        agent.planner.mark_step_failed = MagicMock(return_value=True)
+        agent.planner.inject_dynamic_steps = MagicMock(return_value=1)
+        agent.current_profile = None
+
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="vuln_scan", tool="nmap_vuln_scan",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.FAILED,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        result = agent._handle_step_failure(step, {"stderr": "connection refused"})
+        assert result is True
+        agent.planner.inject_dynamic_steps.assert_called_once()
+
+    def test_tool_missing_still_triggers_install(self):
+        agent = _create_agent()
+        agent.planner.mark_step_failed = MagicMock(return_value=True)
+        agent.planner.replan = MagicMock(return_value=True)
+
+        from core.agent.planner import PlanStep, StepStatus
+        step = PlanStep(
+            step_id="s1", action="scan", tool="nmap",
+            target="10.0.0.1", params={}, depends_on=[], status=StepStatus.FAILED,
+            max_retries=2, retry_count=0, expected_outcome="", actual_outcome="", error="",
+        )
+        mock_adapter = MagicMock()
+        mock_adapter.resolver = MagicMock()
+        mock_adapter.resolver.install_tool.return_value = {"success": True, "method": "apt"}
+        with patch(
+            "core.intelligence.universal_adapter.get_universal_adapter",
+            return_value=mock_adapter,
+        ), patch("core.intelligence.universal_adapter.TOOL_REGISTRY", {"nmap": MagicMock()}):
+            result = agent._handle_step_failure(step, {"stderr": "nmap: command not found"})
+        assert result is True

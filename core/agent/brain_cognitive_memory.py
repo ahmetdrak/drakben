@@ -103,7 +103,7 @@ class CognitiveMemoryManager:
             )
             return nodes
         except Exception as e:
-            logger.debug("Failed to perceive tool output: %s", e)
+            logger.warning("Failed to perceive tool output: %s", e, exc_info=True)
             return []
 
     def get_context_for_llm(
@@ -143,7 +143,7 @@ class CognitiveMemoryManager:
             )
             return retrieved_ctx.context_string
         except Exception as e:
-            logger.debug("Failed to retrieve context: %s", e)
+            logger.warning("Failed to retrieve context: %s", e, exc_info=True)
             return ""
 
     def generate_reflections(
@@ -174,7 +174,7 @@ class CognitiveMemoryManager:
             reflections = self._reflect.reflect(target=target, force=force)
             return reflections
         except Exception as e:
-            logger.debug("Failed to generate reflections: %s", e)
+            logger.warning("Failed to generate reflections: %s", e, exc_info=True)
             return []
 
     def get_stats(self) -> dict[str, Any]:

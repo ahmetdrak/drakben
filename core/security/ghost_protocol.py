@@ -191,6 +191,9 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Track function/class definitions
         self.defined_names: set[str] = set()
 
+        # Track imported names — these must NOT be obfuscated
+        self._protected_names: set[str] = set()
+
         # Counter for unique name generation
         self._name_counter = 0
 
@@ -220,6 +223,11 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Second pass: apply transformations
         transformed_tree = self.visit(tree)
 
+        # Inject `import base64 as _b64` if string encryption is used
+        if self.encrypt_strings and isinstance(transformed_tree, ast.Module):
+            b64_import = ast.Import(aliases=[ast.alias(name="base64", asname="_b64")])
+            transformed_tree.body.insert(0, b64_import)
+
         # Third pass: inject dead code if enabled
         if self.inject_dead_code:
             transformed_tree = self._inject_dead_code_blocks(transformed_tree)
@@ -237,8 +245,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         """Protect imported module/alias names from obfuscation."""
         for alias in node.names:
             name_to_protect = alias.asname or alias.name
-            self.defined_names.add(name_to_protect)
-            # Note: Do NOT add to global BUILTIN_NAMES to avoid cross-call pollution
+            self._protected_names.add(name_to_protect)
 
     def _collect_function_names(self, node: ast.FunctionDef) -> None:
         """Collect function and argument names."""
@@ -281,6 +288,9 @@ class PolymorphicTransformer(ast.NodeTransformer):
         if original in PYTHON_KEYWORDS or original in BUILTIN_NAMES:
             return original
 
+        if original in self._protected_names:
+            return original  # Never rename imported module names
+
         if original.startswith("__") and original.endswith("__"):
             return original  # Preserve dunder methods
 
@@ -305,7 +315,23 @@ class PolymorphicTransformer(ast.NodeTransformer):
             and isinstance(node.body[0].value, ast.Constant)
             and isinstance(node.body[0].value.value, str)
         ):
-            pass  # Docstring logic placeholder
+            # Save the original docstring node to reinsert after obfuscation
+            saved_docstring = node.body[0]
+            node.body = node.body[1:]
+            node = self.generic_visit(node)  # type: ignore[assignment]
+            node.body.insert(0, saved_docstring)
+            # Obfuscate function name (except main and special methods)
+            if (
+                self.obfuscate_names
+                and not node.name.startswith("__")
+                and node.name not in ("main", "run")
+            ):
+                node.name = self._get_obfuscated_name(node.name)
+            if self.obfuscate_names:
+                for arg in node.args.args:
+                    if arg.arg not in ("self", "cls"):
+                        arg.arg = self._get_obfuscated_name(arg.arg)
+            return node  # type: ignore[return-value]
 
         # Obfuscate function name (except main and special methods)
         if (
@@ -725,9 +751,15 @@ class SecureMemory:
         """
         try:
             import ctypes
+            import sys as _sys
 
-            # String object header is typically 48 bytes in CPython
-            ctypes.memset(buffer_id + 48, 0, length)
+            # Compute CPython string object header size dynamically
+            # by comparing id() address with known data start
+            header_size = _sys.getsizeof("") - 1  # Empty string overhead
+            if header_size < 32 or header_size > 128:
+                header_size = 48  # Fallback to common CPython 3.x value
+
+            ctypes.memset(buffer_id + header_size, 0, length)
             return True
         except (OSError, ValueError, TypeError) as e:
             logger.debug("Memory wipe failed: %s", e)

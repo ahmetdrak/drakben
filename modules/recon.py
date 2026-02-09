@@ -17,11 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # State integration
-try:
-    STATE_AVAILABLE = True
-except ImportError:
-    STATE_AVAILABLE = False
-    logger.warning("State module not available")
+STATE_AVAILABLE = True
 
 # Optional imports with fallback
 try:
@@ -294,7 +290,7 @@ async def _perform_external_lookups(domain: str, result: dict[str, Any]) -> None
     """Perform DNS and WHOIS lookups."""
     # DNS Records
     if DNS_AVAILABLE:
-        result["dns_records"] = await asyncio.get_event_loop().run_in_executor(
+        result["dns_records"] = await asyncio.get_running_loop().run_in_executor(
             None,
             get_dns_records,
             domain,
@@ -304,7 +300,7 @@ async def _perform_external_lookups(domain: str, result: dict[str, Any]) -> None
 
     # WHOIS
     if WHOIS_AVAILABLE:
-        result["whois"] = await asyncio.get_event_loop().run_in_executor(
+        result["whois"] = await asyncio.get_running_loop().run_in_executor(
             None,
             get_whois_info,
             domain,
@@ -344,13 +340,17 @@ def detect_cms(html: str, headers: dict[str, str]) -> str | None:
             return cms
 
     # Check headers for CMS hints
-    _ = headers.get("Server", "").lower()
+    server = headers.get("Server", "").lower()
     x_powered = headers.get("X-Powered-By", "").lower()
 
     if "wp" in x_powered or "wordpress" in x_powered:
         return "WordPress"
     if "drupal" in x_powered:
         return "Drupal"
+    if "nginx" in server:
+        pass  # nginx is not a CMS
+    if "apache" in server and "coyote" in server:
+        return "Apache Tomcat"
 
     return None
 

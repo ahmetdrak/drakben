@@ -78,7 +78,7 @@ class MasterOrchestrator:
             return None
 
         last_3 = self.context.history[-3:]
-        current_action = decision.get("action") or decision.get("next_action", {}).get("type")
+        current_action = self._normalize_action(decision.get("action") or decision.get("next_action", {}).get("type"))
         repeated_count = sum(1 for hist in last_3 if self._get_hist_action(hist) == current_action)
 
         if repeated_count >= 3:
@@ -91,12 +91,19 @@ class MasterOrchestrator:
             }
         return None
 
+    @staticmethod
+    def _normalize_action(action) -> str | None:
+        """Normalize an action to a comparable string."""
+        if action is None:
+            return None
+        if isinstance(action, dict):
+            return action.get("tool") or action.get("type") or str(sorted(action.items()))
+        return str(action)
+
     def _get_hist_action(self, hist: dict) -> str | None:
         """Extract action from history entry."""
         hist_action_obj = hist.get("action", {})
-        if isinstance(hist_action_obj, dict):
-            return hist_action_obj.get("tool") or hist_action_obj.get("type")
-        return str(hist_action_obj)
+        return self._normalize_action(hist_action_obj)
 
     def process_request(self, user_input: str, system_context: dict) -> dict:
         """Ana işlem döngüsü.

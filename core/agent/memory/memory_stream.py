@@ -362,6 +362,13 @@ class MemoryStream:
                 except Exception:
                     pass
 
+        # Commit eviction deletes to persist them
+        if self._db_conn:
+            try:
+                self._db_conn.commit()
+            except Exception:
+                pass
+
         logger.info("Evicted %d low-importance nodes", min(to_remove, len(candidates)))
 
     def _embed_node(self, node: ConceptNode) -> None:

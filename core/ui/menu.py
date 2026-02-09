@@ -492,6 +492,12 @@ class DrakbenMenu:
                 response = result.get("response", "")
                 intent = result.get("intent", "chat")
 
+                # Show intent detection so user sees what the AI understood
+                if intent and intent != "chat":
+                    intent_display = {"scan": "🔍 Tarama", "action": "⚡ Eylem", "exploit": "💥 Exploit",
+                                      "find_vulnerability": "🔎 Zafiyet Arama", "needs_target": "🎯 Hedef Gerekli"}.get(intent, f"📋 {intent}")
+                    self.console.print(f"   [dim]{intent_display}[/dim]")
+
                 # Show response
                 if response:
                     self.console.print(f"\n[DRAKBEN] {response}\n", style=self.COLORS["cyan"])
@@ -1235,6 +1241,9 @@ class DrakbenMenu:
             if self.agent is None:
                 raise AssertionError(self.MSG_AGENT_NOT_NONE)
 
+            # Show scan plan and ask for confirmation
+            self._show_scan_plan_and_confirm(lang)
+
             # Update display with tool info
             scan_display.update_progress(tool="nmap", current_action="Port scanning...")
 
@@ -1300,6 +1309,59 @@ class DrakbenMenu:
             f"Tarama hatası: {error}" if lang == "tr" else f"Scan error: {error}"
         )
         self.console.print(f"[red]{error_msg}[/]")
+
+    def _show_scan_plan_and_confirm(self, lang: str) -> None:
+        """Display the scan plan and ask user for confirmation before starting."""
+        is_tr = lang == "tr"
+
+        if self.agent is None:
+            return
+
+        self._display_plan_table(is_tr)
+
+        # Ask for confirmation
+        prompt_text = (
+            "[bold yellow]Taramayı başlatmak istiyor musunuz? (E/h):[/] "
+            if is_tr
+            else "[bold yellow]Start scan? (Y/n):[/] "
+        )
+        try:
+            answer = self.console.input(prompt_text).strip().lower()
+            if answer in ("h", "n", "hayır", "no"):
+                cancel_msg = "Tarama iptal edildi." if is_tr else "Scan cancelled."
+                self.console.print(f"[yellow]{cancel_msg}[/]")
+                msg = "User cancelled scan"
+                raise KeyboardInterrupt(msg)
+        except EOFError:
+            pass  # Non-interactive mode, proceed
+
+    def _display_plan_table(self, is_tr: bool) -> None:
+        """Build and display the scan plan table."""
+        from rich.table import Table
+
+        steps = getattr(self.agent, "planner", None)
+        if not (steps and hasattr(steps, "steps") and steps.steps):
+            return
+
+        table = Table(
+            title="📋 Tarama Planı" if is_tr else "📋 Scan Plan",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Adım" if is_tr else "Action", style="cyan")
+        table.add_column("Araç" if is_tr else "Tool", style="green")
+        table.add_column("Açıklama" if is_tr else "Description", style="dim")
+
+        for i, step in enumerate(steps.steps, 1):
+            action = getattr(step, "action", "?")
+            tool = getattr(step, "tool", "?")
+            expected = getattr(step, "expected_outcome", "")
+            table.add_row(str(i), action, tool, expected[:60])
+
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
 
     def _ensure_agent_initialized(self) -> None:
         """Ensure agent is initialized."""

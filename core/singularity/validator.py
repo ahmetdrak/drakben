@@ -78,30 +78,51 @@ class CodeValidator(IValidator):
                     logger.error("Syntax error in code: %s", e)
                     return False
 
-            # Step 2: Execute in sandbox
-            result = self.sandbox.execute_in_sandbox(  # type: ignore[call-arg]
-                code=snippet.code,
-                language=snippet.language,
-                timeout=self.timeout,
+            # Step 2: Create a sandbox container
+            container_info = self.sandbox.create_sandbox(
+                name=f"validate-{os.getpid()}",
             )
+            if container_info is None:
+                logger.warning("Could not create sandbox container, falling back")
+                return self._validate_subprocess(snippet)
 
-            # Step 3: Check execution result
-            if result is None:
-                logger.warning("Sandbox returned None result")
-                return False
+            container_id = container_info.container_id
 
-            # Handle different result types
-            if isinstance(result, dict):
-                success = result.get("success", False)
+            try:
+                # Step 3: Build the execution command based on language
+                lang = snippet.language.lower()
+                if lang == "python":
+                    # Use python -c with the code (escaped for shell)
+                    escaped_code = snippet.code.replace("'", "'\\''")
+                    command = f"python3 -c '{escaped_code}'"
+                elif lang == "bash":
+                    escaped_code = snippet.code.replace("'", "'\\''")
+                    command = f"bash -c '{escaped_code}'"
+                else:
+                    logger.warning("Unsupported language for docker validation: %s", lang)
+                    return self._validate_subprocess(snippet)
+
+                # Step 4: Execute in sandbox with correct API
+                result = self.sandbox.execute_in_sandbox(
+                    container_id=container_id,
+                    command=command,
+                    timeout=self.timeout,
+                )
+
+                # Step 5: Check execution result
+                if result is None:
+                    logger.warning("Sandbox returned None result")
+                    return False
+
+                success = getattr(result, "success", False)
                 if not success:
-                    error = result.get("error", "Unknown error")
-                    logger.error("Docker validation failed: %s", error)
+                    stderr = getattr(result, "stderr", "Unknown error")
+                    logger.error("Docker validation failed: %s", stderr)
                 return success
-            elif isinstance(result, bool):
-                return result
-            else:
-                # Assume string output means success
-                return True
+
+            finally:
+                # Always clean up the container
+                self.sandbox.cleanup_sandbox(container_id)
 
         except TimeoutError:
             logger.error("Docker validation timed out after %ss", self.timeout)

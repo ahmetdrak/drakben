@@ -539,8 +539,47 @@ class InteractiveShell:
         module = args[0]
         self.console.print(f"[yellow]Running exploit: {module}[/yellow]")
 
-        # Would integrate with exploit modules here
-        return CommandResult(success=True, output="Exploit execution placeholder")
+        # Try to execute via agent's tool execution system
+        if hasattr(self, "agent") and self.agent:
+            target_args: dict = {}
+            if len(args) > 1:
+                # Parse remaining args as key=value pairs
+                for arg in args[1:]:
+                    if "=" in arg:
+                        k, v = arg.split("=", 1)
+                        target_args[k] = v
+                    else:
+                        target_args["target"] = arg
+
+            # Map common module names to tool_name
+            tool_mapping = {
+                "sqli": "sqlmap_scan",
+                "sqlmap": "sqlmap_scan",
+                "nikto": "nikto_web_scan",
+                "nuclei": "nuclei_scan",
+                "metasploit": "metasploit_exploit",
+                "msf": "metasploit_exploit",
+            }
+            tool_name = tool_mapping.get(module, module)
+
+            try:
+                result = self.agent._execute_tool(tool_name, target_args)
+                if result.get("success"):
+                    self.console.print("[green]Exploit completed successfully![/green]")
+                    output = result.get("stdout", result.get("output", ""))
+                    if output:
+                        from rich.syntax import Syntax
+                        self.console.print(Syntax(str(output)[:2000], "text"))
+                    return CommandResult(success=True, output=str(output)[:2000])
+                else:
+                    error_msg = result.get("error", "Unknown error")
+                    self.console.print(f"[red]Exploit failed: {error_msg}[/red]")
+                    return CommandResult(success=False, error=error_msg)
+            except Exception as e:
+                self.console.print(f"[red]Exploit error: {e}[/red]")
+                return CommandResult(success=False, error=str(e))
+
+        return CommandResult(success=False, error="No agent available for exploit execution")
 
     def _cmd_shell(self, args: list[str]) -> CommandResult:
         """Execute a system shell command."""

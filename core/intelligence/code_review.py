@@ -446,6 +446,52 @@ class CodeReviewMiddleware:
     def __init__(self, review_system: CodeReview) -> None:
         self.review = review_system
 
+    def intercept(self, code: str, description: str = "", author: str = "ai") -> dict:
+        """Intercept code before execution, run review, and return verdict.
+
+        Args:
+            code: The code to review before execution.
+            description: Description of what the code does.
+            author: Who wrote the code (e.g. 'ai', 'user').
+
+        Returns:
+            Dict with 'approved' (bool), 'issues' (list), 'risk' (str).
+        """
+        from core.intelligence.code_review import CodeChange, RiskLevel
+
+        change = CodeChange(
+            file_path="<runtime>",
+            original_code="",
+            new_code=code,
+            description=description,
+            author=author,
+        )
+
+        session = self.review.start_review(change)
+        self.review.run_checks(session)
+
+        # Determine approval based on findings
+        has_critical = any(
+            f.risk.value >= RiskLevel.CRITICAL.value
+            for f in session.findings
+            if hasattr(f, "risk")
+        )
+        has_high = any(
+            f.risk.value >= RiskLevel.HIGH.value
+            for f in session.findings
+            if hasattr(f, "risk")
+        )
+
+        approved = not has_critical
+        risk = "critical" if has_critical else "high" if has_high else "low"
+
+        return {
+            "approved": approved,
+            "issues": [str(f) for f in session.findings],
+            "risk": risk,
+            "session_id": id(session),
+        }
+
 
 if __name__ == "__main__":
     # Demo mode

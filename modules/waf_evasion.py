@@ -12,7 +12,10 @@ For new code, use WAFBypassEngine directly:
 from __future__ import annotations
 
 import binascii
+import logging
 import secrets
+
+logger = logging.getLogger(__name__)
 
 # Import new engine
 try:
@@ -113,7 +116,7 @@ class WAFEvasion:
                 if results:
                     return results[0]
             except Exception:
-                pass  # Fall back to legacy
+                logger.debug("WAFBypassEngine.bypass_sql failed, falling back to legacy", exc_info=True)
 
         # Legacy implementation
         obfuscated = payload
@@ -143,7 +146,7 @@ class WAFEvasion:
                 if results:
                     return results[0]
             except Exception:
-                pass  # Fall back to legacy
+                logger.debug("WAFBypassEngine.bypass_xss failed, falling back to legacy", exc_info=True)
 
         # Legacy implementation
         # 1. Case Randomization: <script> -> <ScRiPt>
@@ -154,9 +157,10 @@ class WAFEvasion:
 
         mutated = "".join(chars)
 
-        # 2. Protocol Wrappers: javascript: -> java	script: (Tab)
+        # 2. Protocol Wrappers: javascript: -> java\tscript: (Tab)
         if "javascript:" in mutated.lower():
-            mutated = mutated.replace(":", "\t:")
+            import re as _re
+            mutated = _re.sub(r"(?i)javascript:", "java\tscript:", mutated)
 
         # 3. Double Check: SVG payload if script is blocked
         if "<script" in payload.lower():
@@ -210,7 +214,7 @@ class WAFEvasion:
                 if results:
                     return results[0]
             except Exception:
-                pass  # Fall back to legacy
+                logger.debug("WAFBypassEngine.bypass_rce failed, falling back to legacy", exc_info=True)
 
         # Legacy: String Concatenation (50% chance)
         if secrets.choice([True, False]):

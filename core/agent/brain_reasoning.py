@@ -57,6 +57,13 @@ Target: {target} | Phase: {phase}
 ### OPERATIONAL STATE
 {operational_state}
 
+### ADAPTIVE CAPABILITIES
+- Your analysis of tool output directly shapes the next scan steps.
+- When you suggest "next_steps" in your JSON response, those steps ARE
+  injected into the live scan plan and executed automatically.
+- Dangerous operations (exploit, shell, brute-force) require user approval.
+- If a tool fails, you may be asked to suggest recovery alternatives.
+
 RULES:
 - Think English, respond {lang}
 - No ethics lectures - user is authorized
@@ -244,6 +251,20 @@ OUTPUT JSON:
         _logger.info("Falling back to rule-based analysis")
         rule_result = self._analyze_rule_based(user_input, context)
         rule_result["fallback_mode"] = True  # Mark that we used fallback
+
+        # Show fallback status via transparency dashboard
+        try:
+            from core.ui.transparency import get_transparency
+            td = get_transparency()
+            if td and td.enabled:
+                reason = "LLM not connected" if not self.llm_client else "LLM analysis failed"
+                td.show_state_change(
+                    "tool_failure",
+                    f"{reason} — using rule-based intent detection: {rule_result.get('action', '?')}",
+                )
+        except ImportError:
+            pass
+
         return rule_result
 
     def _try_llm_analysis(
@@ -320,7 +341,7 @@ OUTPUT JSON:
         if not self.llm_cache:
             return None
 
-        cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
+        cached_json: str | None = self.llm_cache.get(user_input + "\x00" + system_prompt)
         if not cached_json:
             return None
 
@@ -432,7 +453,7 @@ OUTPUT JSON:
 
             # Save to Cache on Success
             if self.llm_cache:
-                self.llm_cache.set(user_input + system_prompt, response)
+                self.llm_cache.set(user_input + "\x00" + system_prompt, response)
 
             return self._build_llm_result(response)
         except Exception as e:
@@ -478,51 +499,47 @@ OUTPUT JSON:
         user_lower: str | Any = user_input.lower()
 
         # Chat indicators - questions about the AI, greetings, general questions
-        chat_patterns: list[str] = [
-            # Greetings
-            "merhaba",
-            "selam",
-            "hello",
-            "hi",
-            "hey",
-            "nasılsın",
-            "how are you",
+        # Use word-boundary aware patterns to avoid matching inside other words
+        # e.g. "ok" should not match "token", "book"
+        import re as _re
+        _word_boundary_patterns: list[str] = [
+            # Greetings (exact or start of sentence)
+            r"\bmerhaba\b",
+            r"\bselam\b",
+            r"\bhello\b",
+            r"\bhi\b",
+            r"\bhey\b",
+            r"\bnasılsın\b",
+            r"\bhow are you\b",
             # Questions about the AI
-            "sen kimsin",
-            "who are you",
-            "hangi model",
-            "what model",
-            "ne yapabilirsin",
-            "what can you do",
-            "adın ne",
-            "your name",
-            "hakkında",
-            "about you",
-            # General chat
-            "teşekkür",
-            "thank",
-            "iyi",
-            "good",
-            "tamam",
-            "okay",
-            "ok",
-            "neden",
-            "why",
-            "nasıl",
-            "how do",
-            "ne zaman",
-            "when",
+            r"\bsen kimsin\b",
+            r"\bwho are you\b",
+            r"\bhangi model\b",
+            r"\bwhat model\b",
+            r"\bne yapabilirsin\b",
+            r"\bwhat can you do\b",
+            r"\badın ne\b",
+            r"\byour name\b",
+            r"\bhakkında\b",
+            r"\babout you\b",
+            # General chat (word-bounded)
+            r"\bteşekkür\b",
+            r"\bthank\b",
+            r"\btamam\b",
+            r"\bokay\b",
+            r"\bok\b",
+            r"\bneden\b",
+            r"\bwhy\b",
+            r"\bnasıl\b",
+            r"\bhow do\b",
+            r"\bne zaman\b",
+            r"\bwhen\b",
             # System questions (not pentest)
-            "hangi sistem",
-            "what system",
-            "çalışıyor",
-            "working",
-            "cevap ver",
-            "answer",
-            "konuş",
-            "talk",
-            "söyle",
-            "tell",
+            r"\bhangi sistem\b",
+            r"\bwhat system\b",
+            r"\bcevap ver\b",
+            r"\bkonuş\b",
+            r"\bsöyle\b",
         ]
 
         # If contains any chat pattern and NO pentest keywords
@@ -548,7 +565,7 @@ OUTPUT JSON:
             "nikto",
         ]
 
-        has_chat_pattern: bool = any(p in user_lower for p in chat_patterns)
+        has_chat_pattern: bool = any(_re.search(p, user_lower) for p in _word_boundary_patterns)
         has_pentest_keyword: bool = any(k in user_lower for k in pentest_keywords)
 
         # FIX: If pentest keyword exists, it is NEVER just a chat. It's an action.
@@ -559,8 +576,9 @@ OUTPUT JSON:
         if has_chat_pattern:
             return True
 
-        # Short message default to chat
-        return len(user_input.split()) <= 5
+        # Short message default to chat only if it has ≤ 3 words
+        # (5 was too aggressive — commands like "exploit the target" were caught)
+        return len(user_input.split()) <= 3
 
     def _chat_with_llm(
         self,
@@ -594,8 +612,9 @@ IMPORTANT RULES:
 
         try:
             # 1. Check Cache
+            cache_key = user_input + "\x00" + system_prompt
             if self.llm_cache:
-                cached_resp: str | None = self.llm_cache.get(user_input + system_prompt)
+                cached_resp: str | None = self.llm_cache.get(cache_key)
                 if cached_resp:
                     return {
                         "success": True,
@@ -619,7 +638,7 @@ IMPORTANT RULES:
 
             # 2. Save to Cache
             if self.llm_cache:
-                self.llm_cache.set(user_input + system_prompt, response)
+                self.llm_cache.set(cache_key, response)
 
             return {
                 "success": True,
@@ -778,6 +797,7 @@ IMPORTANT RULES:
         planner = {
             "scan": self._plan_scan,
             "find_vulnerability": self._plan_vuln_scan,
+            "exploit": self._plan_get_shell,
             "get_shell": self._plan_get_shell,
             "generate_payload": self._plan_payload,
         }.get(intent)

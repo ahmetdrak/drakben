@@ -377,10 +377,24 @@ class OpenRouterClient:
             return "[Rate Limited] Too many requests, please wait."
 
         # Route to appropriate provider
+        import time as _time
+        _t0 = _time.time()
+
         if self.provider == "ollama":
             result = self._query_ollama(prompt, system_prompt, timeout)
         else:
             result = self._query_openai_compatible(prompt, system_prompt, timeout)
+
+        _duration = _time.time() - _t0
+
+        # Log to transparency dashboard (non-error responses only)
+        if not result.startswith("["):
+            try:
+                from core.ui.transparency import get_transparency
+                td = get_transparency()
+                td.log_llm_query(prompt[:200], result[:200], _duration)
+            except Exception:
+                pass  # Transparency is optional, never break LLM flow
 
         # Cache successful responses (not errors)
         if use_cache and self._cache and not result.startswith("["):
@@ -401,9 +415,14 @@ class OpenRouterClient:
                 if result is not None:
                     return result
             except requests.exceptions.ConnectionError:
-                return self._handle_ollama_connection_error(attempt)
+                msg = self._handle_ollama_connection_error(attempt)
+                if msg:  # Non-empty string means final error
+                    return msg
+                # Empty string means retry — continue the loop
             except requests.exceptions.Timeout:
-                return self._handle_ollama_timeout(attempt)
+                msg = self._handle_ollama_timeout(attempt)
+                if msg:
+                    return msg
             except Exception as e:
                 logger.exception(f"Ollama query error: {e}")
                 return f"[Ollama Error] {e!s}"
@@ -491,11 +510,17 @@ class OpenRouterClient:
                 if result is not None:
                     return result
             except requests.exceptions.Timeout:
-                return self._handle_api_timeout(timeout, attempt)
+                msg = self._handle_api_timeout(timeout, attempt)
+                if msg:
+                    return msg
             except requests.exceptions.ConnectionError as e:
-                return self._handle_api_connection_error(e, attempt)
+                msg = self._handle_api_connection_error(e, attempt)
+                if msg:
+                    return msg
             except requests.exceptions.RequestException as e:
-                return self._handle_api_request_error(e, attempt)
+                msg = self._handle_api_request_error(e, attempt)
+                if msg:
+                    return msg
             except Exception as e:
                 logger.exception(f"API query error: {e}")
                 return f"[Error] {e!s}"
@@ -594,6 +619,8 @@ class OpenRouterClient:
         logger.warning(
             f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking",
         )
+        if attempt < self.max_retries - 1:
+            return ""  # Signal retry
         return "[Timeout] API did not respond in time (possible WAF blocking)."
 
     def _handle_api_connection_error(self, e: Exception, attempt: int) -> str:

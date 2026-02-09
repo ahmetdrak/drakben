@@ -99,13 +99,14 @@ class ErrorDiagnosticsMixin:
             "no such command",
             "unknown command",
             "is not recognized as",
-            "bash:",
-            "sh:",
-            "zsh:",
-            "cmd:",
-            "powershell:",
         ]
-        if any(x in output_lower for x in patterns):
+        # Shell prefixes: require ': ' after shell name to avoid false positives
+        shell_patterns = [
+            "bash: ",
+            "sh: ",
+            "zsh: ",
+        ]
+        if any(x in output_lower for x in patterns) or any(x in output_lower for x in shell_patterns):
             match = re.search(
                 r"['\"]?(\w+)['\"]?[:\s]*(command )?not found",
                 output_lower,
@@ -183,7 +184,9 @@ class ErrorDiagnosticsMixin:
             "no route to host",
             "econnrefused",
             "ssl error",
-            "tls",
+            "tls handshake",
+            "tls error",
+            "certificate verify failed",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
@@ -350,27 +353,35 @@ class ErrorDiagnosticsMixin:
         patterns = [
             "rate limit",
             "too many requests",
-            "429",
             "throttled",
             "quota exceeded",
             "istek limiti",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
+        # Check HTTP 429 with context to avoid false positives
+        if re.search(r'\b429\b.*(?:too many|rate|limit|throttl)', output_lower):
+            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
+        if re.search(r'HTTP[/ ]\d\.\d\s+429\b', output_lower):
+            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
         return None
 
     def _check_firewall_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for firewall/WAF blocked errors."""
         patterns = [
-            "blocked",
-            "firewall",
-            "waf",
-            "forbidden",
-            "filtered",
+            "blocked by firewall",
+            "blocked by waf",
+            "firewall denied",
+            "waf detected",
+            "waf blocked",
+            "filtered by waf",
             "connection reset by peer",
             "güvenlik duvarı",
         ]
         if any(x in output_lower for x in patterns):
+            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
+        # Check 403 with context (HTTP response, not port or IP)
+        if re.search(r'\b403\s+forbidden\b', output_lower):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 

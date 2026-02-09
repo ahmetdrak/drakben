@@ -60,3 +60,99 @@ class DistributedStateManager:
                 "Redis connection failed: %s. Running in standalone mode.", e,
             )
             self.connected = False
+
+    def get_state(self, key: str, namespace: str = "global") -> Any | None:
+        """Get state value by key.
+
+        Args:
+            key: The state key to retrieve.
+            namespace: Namespace prefix for key isolation.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        full_key = f"drakben:{namespace}:{key}"
+        if self.connected and self.redis_client:
+            try:
+                import json
+                raw = self.redis_client.get(full_key)
+                if raw is not None:
+                    try:
+                        return json.loads(raw)
+                    except (json.JSONDecodeError, TypeError):
+                        return raw
+                return None
+            except Exception as e:
+                logger.warning("Redis get failed for %s: %s", full_key, e)
+        # Fallback to local
+        ns = self._local_state.get(namespace, {})
+        return ns.get(key)
+
+    def set_state(self, key: str, value: Any, namespace: str = "global", ttl: int | None = None) -> bool:
+        """Set state value.
+
+        Args:
+            key: The state key.
+            value: The value to store (will be JSON-serialized for Redis).
+            namespace: Namespace prefix.
+            ttl: Optional time-to-live in seconds (Redis only).
+
+        Returns:
+            True if stored successfully.
+        """
+        import json
+
+        full_key = f"drakben:{namespace}:{key}"
+        if self.connected and self.redis_client:
+            try:
+                serialized = json.dumps(value)
+                if ttl:
+                    self.redis_client.setex(full_key, ttl, serialized)
+                else:
+                    self.redis_client.set(full_key, serialized)
+                return True
+            except Exception as e:
+                logger.warning("Redis set failed for %s: %s", full_key, e)
+        # Always update local state as fallback/cache
+        if namespace not in self._local_state:
+            self._local_state[namespace] = {}
+        self._local_state[namespace][key] = value
+        return True
+
+    def delete_state(self, key: str, namespace: str = "global") -> bool:
+        """Delete a state key.
+
+        Args:
+            key: The key to delete.
+            namespace: Namespace prefix.
+
+        Returns:
+            True if deleted.
+        """
+        full_key = f"drakben:{namespace}:{key}"
+        if self.connected and self.redis_client:
+            try:
+                self.redis_client.delete(full_key)
+            except Exception as e:
+                logger.warning("Redis delete failed for %s: %s", full_key, e)
+        ns = self._local_state.get(namespace, {})
+        ns.pop(key, None)
+        return True
+
+    def get_all_keys(self, namespace: str = "global") -> list[str]:
+        """List all keys in a namespace.
+
+        Args:
+            namespace: Namespace to list.
+
+        Returns:
+            List of key names.
+        """
+        prefix = f"drakben:{namespace}:"
+        if self.connected and self.redis_client:
+            try:
+                raw_keys = self.redis_client.keys(f"{prefix}*")
+                return [k.replace(prefix, "") for k in raw_keys]
+            except Exception as e:
+                logger.warning("Redis keys failed: %s", e)
+        return list(self._local_state.get(namespace, {}).keys())

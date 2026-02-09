@@ -45,6 +45,104 @@ class DaemonService:
         except (OSError, ValueError):
             return None
 
+    def start(self, target_func=None) -> bool:
+        """Start daemon process.
+
+        Args:
+            target_func: The main function to run as a daemon.
+                         If None, just creates PID file for external process.
+
+        Returns:
+            True if daemon started successfully.
+        """
+        # Check if already running
+        existing_pid = self.get_pid()
+        if existing_pid:
+            try:
+                os.kill(existing_pid, 0)  # Check if process alive
+                logger.warning("Daemon already running (PID: %s)", existing_pid)
+                return False
+            except OSError:
+                # Stale PID file
+                self._cleanup()
+
+        if self.is_windows:
+            return self._start_windows(target_func)
+        return self._start_unix(target_func)
+
+    def _start_unix(self, target_func=None) -> bool:
+        """Start daemon on Unix (double-fork)."""
+        try:
+            # First fork
+            pid = os.fork()
+            if pid > 0:
+                return True  # Parent returns
+
+            # Decouple from parent environment
+            os.setsid()
+            os.umask(0)
+
+            # Second fork
+            pid = os.fork()
+            if pid > 0:
+                sys.exit(0)
+
+            # Write PID file
+            with open(self.pid_file, "w") as f:
+                f.write(str(os.getpid()))
+
+            # Register signal handlers
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGINT, self._signal_handler)
+
+            self.running = True
+            logger.info("Daemon started (PID: %s)", os.getpid())
+
+            if target_func:
+                target_func()
+            else:
+                # Keep alive loop
+                while self.running:
+                    time.sleep(1)
+
+            return True
+        except AttributeError:
+            # os.fork not available (Windows)
+            logger.error("Unix daemon mode not available on this platform")
+            return False
+        except OSError as e:
+            logger.exception("Failed to start daemon: %s", e)
+            return False
+
+    def _start_windows(self, target_func=None) -> bool:
+        """Start as a background process on Windows."""
+        import subprocess as sp
+
+        try:
+            if target_func:
+                # Can't fork on Windows; run target in-process
+                with open(self.pid_file, "w") as f:
+                    f.write(str(os.getpid()))
+                self.running = True
+                logger.info("Daemon started in-process (PID: %s)", os.getpid())
+                target_func()
+                return True
+            else:
+                # Launch Python script detached
+                proc = sp.Popen(
+                    [sys.executable, "-m", "drakben"],
+                    creationflags=sp.DETACHED_PROCESS | sp.CREATE_NEW_PROCESS_GROUP,
+                    stdout=sp.DEVNULL,
+                    stderr=sp.DEVNULL,
+                )
+                with open(self.pid_file, "w") as f:
+                    f.write(str(proc.pid))
+                logger.info("Daemon started (PID: %s)", proc.pid)
+                return True
+        except OSError as e:
+            logger.exception("Failed to start Windows daemon: %s", e)
+            return False
+
     def stop(self) -> bool:
         """Stop running daemon."""
         pid = self.get_pid()

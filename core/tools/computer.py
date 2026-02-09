@@ -70,11 +70,28 @@ class Computer:
         self.check_availability()
 
         if isinstance(x, str):
-            # For now, just log and fail safe
-            msg = "Visual clicking (click('Submit')) not yet implemented. Use coordinates."
-            raise NotImplementedError(
-                msg,
+            # Visual element clicking: try to find element by text on screen
+            try:
+                import pyautogui
+                location = pyautogui.locateOnScreen(x, confidence=0.8)
+                if location:
+                    center = pyautogui.center(location)
+                    pyautogui.click(x=center.x, y=center.y, clicks=clicks, button=button)
+                    logger.info("Clicked '%s' at (%s, %s)", x, center.x, center.y)
+                    return
+            except Exception:
+                pass
+
+            # Fallback: log a helpful warning instead of crashing
+            logger.warning(
+                "Visual clicking for '%s' could not locate element on screen. "
+                "Use coordinates instead: click(x, y)", x,
             )
+            msg = (
+                f"Could not locate '{x}' on screen. "
+                f"Use coordinates instead: click(x, y)"
+            )
+            raise ComputerError(msg)
 
         # At this point x must be int
         target_x: int = int(x)

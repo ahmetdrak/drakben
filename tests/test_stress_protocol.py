@@ -50,6 +50,7 @@ def agent():
 
     # Critical: Set running flags
     agent.running = True
+    agent.config.auto_approve_dangerous = True  # Tests run non-interactively
     agent.current_profile = MagicMock()
     agent.current_profile.profile_id = "test_profile_id"
     agent.current_profile.step_order = ["recon", "vuln", "exploit"]
