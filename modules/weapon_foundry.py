@@ -671,13 +671,15 @@ def _vm() -> Any:
     try:
         o=subprocess.check_output("systemd-detect-virt",stderr=subprocess.DEVNULL).decode().strip()
         return o not in ["none",""]
-    except Exception: pass
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        pass  # systemd-detect-virt not available or failed
     try:
         with open("/sys/class/dmi/id/product_name", encoding="utf-8") as f:
             p=f.read().lower()
             for v in ["vmware","virtualbox","qemu","xen","kvm"]:
                 if v in p: return True
-    except Exception: pass
+    except (FileNotFoundError, OSError, PermissionError):
+        pass  # DMI info not accessible
     return False
 if _vm(): import sys; sys.exit(0)
 """

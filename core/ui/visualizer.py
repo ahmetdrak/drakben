@@ -52,7 +52,7 @@ class NetworkVisualizer:
                 "NetworkVisualizer requires pyvis and networkx. "
                 "Install: pip install -r requirements-extra.txt"
             )
-            raise NotImplementedError(msg)
+            raise RuntimeError(msg)
 
         from pyvis.network import Network
 

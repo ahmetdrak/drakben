@@ -35,6 +35,10 @@ class SQLiteProvider(DatabaseProvider):
         self.db_path = db_path
         self._local = threading.local()  # Thread-local storage for connections
 
+    def connect(self) -> None:
+        """Explicitly create connection for current thread (lazy by default)."""
+        _ = self._get_conn()
+
     def _get_conn(self) -> sqlite3.Connection:
         """Get thread-specific connection."""
         if not hasattr(self._local, "conn"):
