@@ -262,7 +262,9 @@ class RAStateUpdatesMixin:
             if command:
                 port_match = re.search(r"-p\s*(\d{1,5})", str(command))
                 if port_match:
-                    args_port = int(port_match.group(1))
+                    port_num = int(port_match.group(1))
+                    if 1 <= port_num <= 65535:
+                        args_port = port_num
 
         # Strategy 3: Try to extract from stdout
         if not args_port:
