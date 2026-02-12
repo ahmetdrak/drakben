@@ -265,8 +265,27 @@ class EvolutionMemory:
         conn = self._get_conn()
         try:
             yield conn
-        finally:
+        except Exception:
+            # On error, close the connection to avoid stale state
             self._close_conn(conn)
+            raise
+
+    def close(self) -> None:
+        """Close all database connections to avoid ResourceWarning."""
+        with self._lock:
+            if self._persistent_conn is not None:
+                self._persistent_conn.close()
+                self._persistent_conn = None
+            if hasattr(self, "_local") and hasattr(self._local, "conn") and self._local.conn is not None:
+                self._local.conn.close()
+                self._local.conn = None
+
+    def __del__(self) -> None:
+        """Ensure database connections are closed on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
     # ==================== ACTION RECORDING ====================
 
@@ -278,7 +297,8 @@ class EvolutionMemory:
             cursor.execute(
                 """
                 INSERT INTO action_history
-                (goal, plan_id, step_id, action_name, tool, parameters, outcome, timestamp, penalty_score, error_message)
+                (goal, plan_id, step_id, action_name, tool, parameters,
+                outcome, timestamp, penalty_score, error_message)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
@@ -318,7 +338,8 @@ class EvolutionMemory:
                 penalty = 0.0 if success else self.PENALTY_INCREMENT
                 cursor.execute(
                     """
-                    INSERT INTO tool_penalties (tool, target, penalty_score, success_count, failure_count, last_used, blocked)
+                    INSERT INTO tool_penalties
+                    (tool, target, penalty_score, success_count, failure_count, last_used, blocked)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
@@ -400,12 +421,10 @@ class EvolutionMemory:
         """Filter tool list by penalty.
         Returns only non-blocked tools, sorted by penalty (lowest first).
         """
-        result = []
         penalties = []
 
         for tool in tool_list:
             if not self.is_tool_blocked(tool):
-                result.append(tool)
                 penalties.append((tool, self.get_tool_penalty(tool)))
 
         # Sort by penalty ascending (prefer low-penalty tools)
@@ -595,14 +614,17 @@ class EvolutionMemory:
 
 # Global instance
 _evolution_memory: EvolutionMemory | None = None
+_evolution_memory_lock = threading.Lock()
 
 
 def get_evolution_memory(db_path: str | None = None) -> EvolutionMemory:
     """Get singleton instance (optionally override db_path)."""
     global _evolution_memory
     if _evolution_memory is None:
-        _evolution_memory = EvolutionMemory(db_path or "drakben_evolution.db")
-        return _evolution_memory
+        with _evolution_memory_lock:
+            if _evolution_memory is None:
+                _evolution_memory = EvolutionMemory(db_path or "drakben_evolution.db")
+                return _evolution_memory
 
     current_path = (
         str(_evolution_memory.db_path)
@@ -612,10 +634,12 @@ def get_evolution_memory(db_path: str | None = None) -> EvolutionMemory:
 
     if db_path:
         if current_path != db_path:
-            _evolution_memory = EvolutionMemory(db_path)
+            with _evolution_memory_lock:
+                _evolution_memory = EvolutionMemory(db_path)
             return _evolution_memory
     elif not _evolution_memory._is_memory and not Path(current_path).exists():
         # If the backing file was removed, re-initialize to restore tables
-        _evolution_memory = EvolutionMemory(current_path)
+        with _evolution_memory_lock:
+            _evolution_memory = EvolutionMemory(current_path)
 
     return _evolution_memory

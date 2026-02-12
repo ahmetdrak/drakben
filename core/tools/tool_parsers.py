@@ -58,7 +58,7 @@ Response (JSON only):"""
             # Try to extract JSON from response
             import json
 
-            json_match = re.search(r"\[.*\]", response, re.DOTALL)
+            json_match = re.search(r"\[[^\]]*\]", response)
             if json_match:
                 parsed = json.loads(json_match.group())
                 if isinstance(parsed, list):
@@ -161,7 +161,7 @@ def _extract_json_from_llm_response(response: str) -> list[dict]:
     """Extract JSON array from LLM response."""
     import json
 
-    json_match = re.search(r"\[.*\]", response, re.DOTALL)
+    json_match = re.search(r"\[[^\]]*\]", response)
     if json_match:
         parsed = json.loads(json_match.group())
         if isinstance(parsed, list):

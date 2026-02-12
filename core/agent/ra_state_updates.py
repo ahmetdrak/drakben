@@ -135,7 +135,10 @@ class RAStateUpdatesMixin:
             td = self._get_transparency()
             if td:
                 n_vulns = len(self.state.vulnerabilities)
-                td.show_phase_transition(old_phase, "EXPLOIT", f"{n_vulns} vulnerabilities found — attempting exploitation")
+                td.show_phase_transition(
+                    old_phase, "EXPLOIT",
+                    f"{n_vulns} vulnerabilities found — attempting exploitation",
+                )
         elif self.state.phase != AttackPhase.VULN_SCAN:
             self.state.phase = AttackPhase.VULN_SCAN
             self.state._record_change("phase_advance", "vuln_scan")
@@ -248,8 +251,6 @@ class RAStateUpdatesMixin:
         2. From the command string (e.g. 'nmap -p 80 ...')
         3. From stdout (service scan output)
         """
-        import re
-
         if self.state is None:
             raise AssertionError(self.MSG_STATE_NOT_NONE)
 
@@ -258,44 +259,61 @@ class RAStateUpdatesMixin:
 
         # Strategy 2: Extract from command string
         if not args_port:
-            command = result.get("command", "") or result.get("args", {}).get("command", "")
-            if command:
-                port_match = re.search(r"-p\s*(\d{1,5})", str(command))
-                if port_match:
-                    port_num = int(port_match.group(1))
-                    if 1 <= port_num <= 65535:
-                        args_port = port_num
+            args_port = self._extract_port_from_command(result)
 
-        # Strategy 3: Try to extract from stdout
-        if not args_port:
-            stdout = result.get("stdout", "")
-            if stdout:
-                # Look for nmap-style "PORT/tcp open" lines
-                port_matches = re.findall(r"(\d{1,5})/(?:tcp|udp)\s+open", stdout)
-                if port_matches:
-                    # Mark all found ports as tested
-                    for port_str in port_matches:
-                        port_num = int(port_str)
-                        if port_num in self.state.open_services:
-                            svc = self.state.open_services[port_num]
-                            self.state.mark_surface_tested(port_num, svc.service)
-                    return  # Already handled all ports
+        # Strategy 3: Try to extract from stdout (may handle multi-port)
+        if not args_port and self._try_mark_ports_from_stdout(result):
+            return
 
         if not args_port:
-            # Still no port — log but don't block
             self.state.set_observation("Service scan completed but could not determine port from result")
             return
 
-        # Convert to int if string
+        self._validate_and_mark_port(args_port)
+
+    def _extract_port_from_command(self, result: dict) -> int | None:
+        """Extract port number from command string in result."""
+        import re
+
+        command = result.get("command", "") or result.get("args", {}).get("command", "")
+        if not command:
+            return None
+        port_match = re.search(r"-p\s*(\d{1,5})", str(command))
+        if port_match:
+            port_num = int(port_match.group(1))
+            if 1 <= port_num <= 65535:
+                return port_num
+        return None
+
+    def _try_mark_ports_from_stdout(self, result: dict) -> bool:
+        """Try to extract and mark ports from stdout. Returns True if handled."""
+        import re
+
+        stdout = result.get("stdout", "")
+        if not stdout:
+            return False
+        # Look for nmap-style "PORT/tcp open" lines
+        port_matches = re.findall(r"(\d{1,5})/(?:tcp|udp)\s+open", stdout)
+        if not port_matches:
+            return False
+        for port_str in port_matches:
+            port_num = int(port_str)
+            if port_num in self.state.open_services:
+                svc = self.state.open_services[port_num]
+                self.state.mark_surface_tested(port_num, svc.service)
+        return True
+
+    def _validate_and_mark_port(self, args_port: object) -> None:
+        """Validate port value and mark the service as tested."""
         try:
-            args_port = int(args_port)
+            port_int = int(args_port)  # type: ignore[arg-type]
         except (ValueError, TypeError):
             self.state.set_observation(f"Invalid port value: {args_port}")
             return
 
-        if args_port in self.state.open_services:
-            service_info: ServiceInfo = self.state.open_services[args_port]
-            self.state.mark_surface_tested(args_port, service_info.service)
+        if port_int in self.state.open_services:
+            service_info: ServiceInfo = self.state.open_services[port_int]
+            self.state.mark_surface_tested(port_int, service_info.service)
 
     def _process_vulnerability_result(
         self,
@@ -340,37 +358,42 @@ class RAStateUpdatesMixin:
         # Hybrid parsing with LLM fallback
         _ = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
 
-        # 3. Process findings (if any)
-        if result.get("success") and "findings" in result:
-            for finding in result["findings"]:
-                if self.state:
-                    from core.agent.state import VulnerabilityInfo
+        # Process findings (if any)
+        if not (result.get("success") and "findings" in result):
+            return
 
-                    # Adapt finding dict to VulnerabilityInfo dataclass
-                    severity_str: str = str(finding.get("severity", "medium")).lower()
+        for finding in result["findings"]:
+            if self.state:
+                self._record_single_vulnerability(finding)
 
-                    vuln = VulnerabilityInfo(
-                        vuln_id=f"VULN-{int(time.time())}-{secrets.randbelow(9000) + 1000}",
-                        service=finding.get("service", "unknown"),
-                        port=int(finding.get("port", 0)),
-                        severity=severity_str,
-                        exploitable=True,
-                        exploit_attempted=False,
-                        exploit_success=False,
-                    )
+    def _record_single_vulnerability(self, finding: dict) -> None:
+        """Create a VulnerabilityInfo from a finding dict and add to state."""
+        from core.agent.state import VulnerabilityInfo
 
-                    if hasattr(self.state, "add_vulnerability"):
-                        self.state.add_vulnerability(vuln)
-                    elif hasattr(self.state, "vulnerabilities") and isinstance(
-                        self.state.vulnerabilities,
-                        list,
-                    ):
-                        self.state.vulnerabilities.append(vuln)
+        severity_str: str = str(finding.get("severity", "medium")).lower()
 
-                    # Notify user about discovered vulnerability
-                    td = self._get_transparency()
-                    if td:
-                        td.show_state_change(
-                            "vulnerability_found",
-                            f"{vuln.vuln_id} — {vuln.service}:{vuln.port} ({vuln.severity})",
-                        )
+        vuln = VulnerabilityInfo(
+            vuln_id=f"VULN-{int(time.time())}-{secrets.randbelow(9000) + 1000}",
+            service=finding.get("service", "unknown"),
+            port=int(finding.get("port", 0)),
+            severity=severity_str,
+            exploitable=True,
+            exploit_attempted=False,
+            exploit_success=False,
+        )
+
+        if hasattr(self.state, "add_vulnerability"):
+            self.state.add_vulnerability(vuln)
+        elif hasattr(self.state, "vulnerabilities") and isinstance(
+            self.state.vulnerabilities,
+            list,
+        ):
+            self.state.vulnerabilities.append(vuln)
+
+        # Notify user about discovered vulnerability
+        td = self._get_transparency()
+        if td:
+            td.show_state_change(
+                "vulnerability_found",
+                f"{vuln.vuln_id} — {vuln.service}:{vuln.port} ({vuln.severity})",
+            )

@@ -19,6 +19,8 @@ import secrets
 import shlex
 import socket
 import subprocess
+import sys
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -28,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Singleton instance
 _hive_mind: "HiveMind | None" = None
+_hive_mind_lock = threading.Lock()
 
 
 # =============================================================================
@@ -152,7 +155,7 @@ class CredentialHarvester:
     def _try_harvest_ssh_key(self, key_path: Path) -> Credential | None:
         """Try to harvest a single SSH key file."""
         try:
-            content = key_path.read_text()
+            content = key_path.read_text(encoding="utf-8")
             if "PRIVATE KEY" not in content:
                 return None
 
@@ -330,15 +333,18 @@ class NetworkMapper:
             pass
 
         # Also try to get the primary IP
+        s = None
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             primary_ip = s.getsockname()[0]
-            s.close()
             if primary_ip not in interfaces:
                 interfaces.append(primary_ip)
         except OSError as e:
             logger.debug("Failed to get primary IP: %s", e)
+        finally:
+            if s is not None:
+                s.close()
 
         self.local_interfaces = interfaces
         return interfaces
@@ -371,11 +377,11 @@ class NetworkMapper:
         services = {}
 
         for port in ports:
+            sock = None
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
                 result = sock.connect_ex((target, port))
-                sock.close()
 
                 if result == 0:
                     open_ports.append(port)
@@ -384,6 +390,9 @@ class NetworkMapper:
             except Exception as e:
                 logger.debug("Service guessing failed for port %s: %s", port, e)
                 continue
+            finally:
+                if sock is not None:
+                    sock.close()
 
         if open_ports:
             host = NetworkHost(ip=target, ports=open_ports, services=services)
@@ -576,7 +585,7 @@ class ADAnalyzer:
 
         # Check /etc/resolv.conf (Linux)
         try:
-            with open("/etc/resolv.conf") as f:
+            with open("/etc/resolv.conf", encoding="utf-8") as f:
                 for line in f:
                     if line.startswith(("search ", "domain ")):
                         parts = line.split()
@@ -923,13 +932,11 @@ class TunnelManager:
     def __init__(self) -> None:
         """Initialize tunnel manager."""
         self.active_tunnels: dict[int, TunnelConfig] = {}
-        self._next_local_port = 9050
+        self._port_counter = __import__("itertools").count(9050)
 
     def _get_next_port(self) -> int:
-        """Get next available local port."""
-        port = self._next_local_port
-        self._next_local_port += 1
-        return port
+        """Get next available local port (thread-safe)."""
+        return next(self._port_counter)
 
     def create_socks5_tunnel(
         self,
@@ -1031,7 +1038,15 @@ class TunnelManager:
 
         if config.pid:
             try:
-                os.kill(config.pid, 15)  # SIGTERM
+                if sys.platform == "win32":
+                    import subprocess as _sp
+                    _sp.run(
+                        ["taskkill", "/PID", str(config.pid), "/F"],
+                        capture_output=True, check=False,
+                    )
+                else:
+                    import signal as _sig
+                    os.kill(config.pid, _sig.SIGTERM)
                 logger.info("Tunnel on port %d closed", local_port)
             except OSError as e:
                 logger.debug("Error closing tunnel: %s", e)
@@ -1491,14 +1506,16 @@ class HiveMind:
 
 
 def get_hive_mind() -> HiveMind:
-    """Get singleton HiveMind instance.
+    """Get singleton HiveMind instance (thread-safe).
 
     Returns:
         HiveMind instance
     """
     global _hive_mind
     if _hive_mind is None:
-        _hive_mind = HiveMind()
+        with _hive_mind_lock:
+            if _hive_mind is None:
+                _hive_mind = HiveMind()
     return _hive_mind
 
 

@@ -326,7 +326,60 @@ class ToolSelector:
                 ],
                 risk_level="critical",
                 priority=100,  # Max priority
-                description="Modify system code or create new tools. Args: action='create_tool'|'modify_file', target='name/path', instruction='...'",
+                description=(
+                    "Modify system code or create new tools. "
+                    "Args: action='create_tool'|'modify_file', target='name/path', instruction='...'"
+                ),
+            ),
+            # WAF BYPASS ENGINE
+            "waf_bypass": ToolSpec(
+                name="waf_bypass",
+                category=ToolCategory.EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN, AttackPhase.EXPLOIT],
+                risk_level="medium",
+                system_tool="",
+                description="WAF detection and adaptive bypass via mutation engine (SQLi/XSS/RCE)",
+            ),
+            # C2 FRAMEWORK
+            "c2_beacon": ToolSpec(
+                name="c2_beacon",
+                category=ToolCategory.POST_EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.POST_EXPLOIT, AttackPhase.FOOTHOLD],
+                risk_level="high",
+                system_tool="",
+                description="C2 beacon setup with domain fronting, DNS tunneling, and encrypted channels",
+            ),
+            # SUBDOMAIN ENUMERATION (Python)
+            "subdomain_enum": ToolSpec(
+                name="subdomain_enum",
+                category=ToolCategory.RECON,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.INIT, AttackPhase.RECON],
+                risk_level="low",
+                system_tool="",
+                description="Python-based subdomain enumeration with multiple techniques",
+            ),
+            # CVE DATABASE LOOKUP
+            "cve_lookup": ToolSpec(
+                name="cve_lookup",
+                category=ToolCategory.VULN_SCAN,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN, AttackPhase.RECON],
+                risk_level="low",
+                system_tool="",
+                description="Search CVE database for known vulnerabilities by product/version/CVE-ID",
+            ),
+            # NUCLEI SCANNER (Python)
+            "nuclei_scan": ToolSpec(
+                name="nuclei_scan",
+                category=ToolCategory.VULN_SCAN,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN],
+                risk_level="medium",
+                system_tool="",
+                description="Python-based Nuclei vulnerability scanner with custom templates",
             ),
         }
 

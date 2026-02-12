@@ -42,8 +42,20 @@ class CognitiveMemoryManager:
             from core.agent.cognitive import PerceiveModule, ReflectModule, RetrieveModule
             from core.agent.memory import MemoryStream, RetrievalEngine
 
-            # Initialize core components
-            self._memory_stream = MemoryStream(persist_path=db_path)
+            # Try to initialize VectorStore for semantic embeddings
+            vector_store = None
+            try:
+                from core.storage.vector_store import VectorStore
+                vector_store = VectorStore()
+                logger.debug("VectorStore initialized for semantic embeddings")
+            except Exception as vs_err:
+                logger.debug("VectorStore not available (optional): %s", vs_err)
+
+            # Initialize core components with optional VectorStore
+            self._memory_stream = MemoryStream(
+                persist_path=db_path,
+                vector_store=vector_store,
+            )
             self._retrieval_engine = RetrievalEngine(memory_stream=self._memory_stream)
 
             # Initialize cognitive modules

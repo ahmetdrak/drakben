@@ -4,6 +4,7 @@
 
 import io
 import logging
+import threading as _interp_threading
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
 from typing import Any
@@ -11,7 +12,13 @@ from typing import Any
 # Global references with proper typing for Mypy
 _computer_obj: Any = None
 _CommandSanitizer_cls: Any = None
-_SecurityError_cls: Any = Exception
+
+
+class _FallbackSecurityError(Exception):
+    """Fallback SecurityError that won't be caught by generic handlers."""
+
+
+_SecurityError_cls: type[Exception] = _FallbackSecurityError
 
 # Import Computer integration
 try:
@@ -52,7 +59,6 @@ SAFE_BUILTINS = {
     "int",
     "float",
     "bool",
-    "type",
     "enumerate",
     "zip",
     "min",
@@ -141,6 +147,7 @@ class UniversalInterpreter:
         # Create safe file opener that validates paths
         def safe_open(path, mode="r", *args, **kwargs) -> Any:
             """Restricted file open - blocks dangerous paths."""
+            import os as _os
             dangerous_paths = [
                 "/etc/passwd",
                 "/etc/shadow",
@@ -149,13 +156,14 @@ class UniversalInterpreter:
                 "C:\\Windows\\System32",
                 "C:\\Windows\\System",
             ]
-            path_str = str(path)
+            # Resolve to real path to prevent symlink/traversal bypass
+            path_str = str(_os.path.realpath(path))
             for dp in dangerous_paths:
                 if dp.lower() in path_str.lower():
                     msg = f"Access to {path} is blocked for security"
                     raise PermissionError(msg)
             # Block write to system directories
-            if mode in ("w", "a", "wb", "ab") and any(
+            if any(c in mode for c in "wa+") and any(
                 path_str.startswith(p)
                 for p in ["/etc", "/usr", "/bin", "/sbin", "C:\\Windows"]
             ):
@@ -222,7 +230,6 @@ class UniversalInterpreter:
             {
                 "path": _os.path,
                 "getcwd": _os.getcwd,
-                "listdir": _os.listdir,
                 "sep": _os.sep,
                 "linesep": _os.linesep,
             },
@@ -238,6 +245,32 @@ class UniversalInterpreter:
             return self._run_shell(code)
         return InterpreterResult("", f"Unsupported language: {language}")
 
+    def _check_code_security(self, code: str) -> None:
+        """Check code for blocked introspection attributes (sandbox escape prevention)."""
+        _BLOCKED_ATTRS = frozenset({
+            "__class__", "__bases__", "__subclasses__",
+            "__mro__", "__globals__", "__code__",
+            "__builtins__", "__import__",
+        })
+        # AST-based check to prevent string concatenation bypass
+        try:
+            import ast as _ast
+            tree = _ast.parse(code)
+            for node in _ast.walk(tree):
+                if isinstance(node, _ast.Attribute) and node.attr in _BLOCKED_ATTRS:
+                    msg = f"Blocked introspection attribute: {node.attr}"
+                    raise SecurityError(msg)
+                if isinstance(node, _ast.Name) and node.id in ("__import__", "__builtins__"):
+                    msg = f"Blocked introspection name: {node.id}"
+                    raise SecurityError(msg)
+        except SyntaxError:
+            pass  # Will be caught by compile() below
+        # Also do a basic string check as defense in depth
+        for _blocked in _BLOCKED_ATTRS:
+            if _blocked in code:
+                msg = f"Blocked introspection attribute: {_blocked}"
+                raise SecurityError(msg)
+
     def _run_python(self, code: str) -> InterpreterResult:
         """Execute Python code statefully."""
         stdout_capture = io.StringIO()
@@ -245,37 +278,27 @@ class UniversalInterpreter:
 
         try:
             with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                # We need to handle expressions vs statements
-                # Try to eval first (if single line expression)
-                # If fail or multiline, use exec
                 try:
-                    # C-1 FIX: Block introspection-based sandbox escapes
-                    _BLOCKED_ATTRS = frozenset({
-                        "__class__", "__bases__", "__subclasses__",
-                        "__mro__", "__globals__", "__code__",
-                        "__builtins__", "__import__",
-                    })
-                    for _blocked in _BLOCKED_ATTRS:
-                        if _blocked in code:
-                            msg = f"Blocked introspection attribute: {_blocked}"
-                            raise SecurityError(
-                                msg,
-                            )
-                    # Compile to check syntax first
+                    self._check_code_security(code)
                     compiled = compile(code, "<string>", "exec")
                     exec(compiled, self.locals)  # nosec B102
                 except (SyntaxError, NameError, TypeError, ValueError) as e:
-                    # Capture traceback
+                    # Capture traceback to stderr and return error
                     traceback.print_exc()
                     logger.debug("Code execution error: %s", e)
 
             output = stdout_capture.getvalue()
             error = stderr_capture.getvalue()
 
+            # If error output exists and no stdout, report as failed execution
+            if error and not output:
+                return InterpreterResult("", error)
+
             return InterpreterResult(output, error)
 
         except Exception as e:
-            return InterpreterResult("", str(e))
+            partial_output = stdout_capture.getvalue() if stdout_capture else ""
+            return InterpreterResult(partial_output, str(e))
 
     def _run_shell(self, command: str) -> InterpreterResult:
         """Execute shell command with SECURITY SANITIZATION."""
@@ -374,5 +397,24 @@ class UniversalInterpreter:
         self._initialize_context()
 
 
-# Global instance
-interpreter = UniversalInterpreter()
+# Global instance (use threading.Lock to prevent concurrent access to shared locals)
+_interpreter_lock = _interp_threading.Lock()
+_interpreter_instance: UniversalInterpreter | None = None
+
+
+def _get_interpreter() -> UniversalInterpreter:
+    """Get thread-safe interpreter instance."""
+    global _interpreter_instance
+    if _interpreter_instance is None:
+        with _interpreter_lock:
+            if _interpreter_instance is None:
+                _interpreter_instance = UniversalInterpreter()
+    return _interpreter_instance
+
+
+# Keep backward compatibility — use the thread-safe singleton
+def __getattr__(name: str) -> Any:
+    if name == "interpreter":
+        return _get_interpreter()
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)

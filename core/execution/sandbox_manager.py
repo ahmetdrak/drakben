@@ -11,6 +11,7 @@ This module provides:
 
 import logging
 import subprocess
+import threading as _sm_threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -120,6 +121,7 @@ class SandboxManager:
         self.memory_limit = memory_limit
         self.cpu_limit = cpu_limit
         self.active_containers: dict[str, ContainerInfo] = {}
+        self._containers_lock = _sm_threading.Lock()  # Thread safety for active_containers
         self._docker_available: bool | None = None
         self._docker_client: Any | None = None
 
@@ -244,7 +246,8 @@ class SandboxManager:
                 volumes=volumes or [],
             )
 
-            self.active_containers[container.id] = info
+            with self._containers_lock:
+                self.active_containers[container.id] = info
             logger.info(
                 f"Created sandbox container: {container_name} ({container.id[:12]})",
             )
@@ -276,7 +279,9 @@ class SandboxManager:
         """
         start_time = time.time()
 
-        if container_id not in self.active_containers:
+        with self._containers_lock:
+            container_exists = container_id in self.active_containers
+        if not container_exists:
             return ExecutionResult(
                 success=False,
                 stdout="",
@@ -351,9 +356,10 @@ class SandboxManager:
             True if cleanup successful
 
         """
-        if container_id not in self.active_containers:
-            logger.warning("Container %s not in active containers", container_id[:12])
-            return False
+        with self._containers_lock:
+            if container_id not in self.active_containers:
+                logger.warning("Container %s not in active containers", container_id[:12])
+                return False
 
         client = self._get_docker_client()
         if client is None:
@@ -363,7 +369,8 @@ class SandboxManager:
             container = client.containers.get(container_id)
             container.remove(force=force)
 
-            del self.active_containers[container_id]
+            with self._containers_lock:
+                self.active_containers.pop(container_id, None)
             logger.info("Cleaned up sandbox container: %s", container_id[:12])
 
             return True
@@ -380,7 +387,8 @@ class SandboxManager:
 
         """
         cleaned = 0
-        container_ids = list(self.active_containers.keys())
+        with self._containers_lock:
+            container_ids = list(self.active_containers.keys())
 
         for container_id in container_ids:
             if self.cleanup_sandbox(container_id):
@@ -426,12 +434,17 @@ class SandboxManager:
             List of ContainerInfo objects
 
         """
-        return list(self.active_containers.values())
+        with self._containers_lock:
+            return list(self.active_containers.values())
 
 
 # =============================================================================
 # MODULE-LEVEL FUNCTIONS
 # =============================================================================
+
+
+# Module-level lock for singleton thread safety
+_sm_lock = _sm_threading.Lock()
 
 
 def get_sandbox_manager() -> SandboxManager:
@@ -443,8 +456,6 @@ def get_sandbox_manager() -> SandboxManager:
     """
     global _sandbox_manager
     if _sandbox_manager is None:
-        import threading
-        _sm_lock = threading.Lock()
         with _sm_lock:
             if _sandbox_manager is None:
                 _sandbox_manager = SandboxManager()

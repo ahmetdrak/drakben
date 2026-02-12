@@ -177,6 +177,8 @@ unfixable = []
 # Modules may need subprocess/exec for pentest tooling
 "modules/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
 "modules/**/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
+# weapon_foundry has long lines inside multiline HTA template strings (cannot use inline noqa)
+"modules/weapon_foundry.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507", "E501"]
 # Core execution needs subprocess
 "core/execution/*.py" = ["S602", "S603", "S604", "S605", "S607"]
 # Core agent/network may use insecure hashing for pentest

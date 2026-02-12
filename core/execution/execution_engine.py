@@ -560,7 +560,7 @@ class SmartTerminal:
         command: str,
         shell: bool,
         skip_sanitization: bool,
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, str | list[str]]:
         """Prepare command for execution: sanitize and split."""
         # SECURITY: Sanitize command before execution
         if not skip_sanitization:
@@ -571,11 +571,12 @@ class SmartTerminal:
         if risk_level in ("high", "critical"):
             logger.warning("Executing %s risk command: %s...", risk_level, command[:100])
 
+        cmd_args: str | list[str]
         if shell:
             logger.warning("Shell execution enabled - this is a security risk")
-            cmd_args: str = command
+            cmd_args = command
         else:
-            cmd_args: list[str] = shlex.split(command)
+            cmd_args = shlex.split(command)
 
         return command, cmd_args
 

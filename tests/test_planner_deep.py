@@ -414,7 +414,7 @@ class TestReplan:
         step = _make_step("s1", action="unknown_action", tool="unknown_tool", error="failed")
         planner.steps = [step]
         result = planner.replan("s1")
-        assert result is True
+        assert result is False  # No alternative found = replan failed
         assert step.status == StepStatus.SKIPPED
 
     @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))

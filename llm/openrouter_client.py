@@ -1,15 +1,19 @@
 # llm/openrouter_client.py
 # Multi-Provider LLM Client - OpenRouter, Ollama, OpenAI, Custom
-# Enhanced with: Retry Logic, Rate Limiting, Caching, Connection Pooling
+# Enhanced with: Retry Logic, Rate Limiting, Caching, Connection Pooling,
+#                Streaming, Function Calling, Token Counting
 
 import hashlib
+import json
 import logging
 import os
 import threading
 import time
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 import requests  # type: ignore[import-untyped]
 from requests.adapters import HTTPAdapter
@@ -40,6 +44,11 @@ _PLACEHOLDER_API_VALUES = frozenset({
     "sk-your-key",
     "",
 })
+
+# Error message constants (SonarCloud: avoid duplicate literals)
+_MSG_OFFLINE_NO_KEY = "[Offline Mode] No API key configured."
+_MSG_OFFLINE_NO_CONN = "[Offline] No internet connection."
+_MSG_RATE_LIMITED = "[Rate Limited] Too many requests, please wait."
 
 
 @dataclass
@@ -374,7 +383,7 @@ class OpenRouterClient:
 
         # Acquire rate limit token
         if not self._rate_limiter.acquire(timeout=timeout):
-            return "[Rate Limited] Too many requests, please wait."
+            return _MSG_RATE_LIMITED
 
         # Route to appropriate provider
         import time as _time
@@ -425,7 +434,7 @@ class OpenRouterClient:
                 if msg:
                     return msg
             except Exception as e:
-                logger.exception(f"Ollama query error: {e}")
+                logger.exception("Ollama query error: %s", e)
                 return f"[Ollama Error] {e!s}"
 
         return "[Error] Max retries exceeded"
@@ -489,7 +498,7 @@ class OpenRouterClient:
     ) -> str:
         """Query OpenAI-compatible API with retry logic and rate limit handling."""
         if not self.api_key:
-            return "[Offline Mode] No API key configured."
+            return _MSG_OFFLINE_NO_KEY
 
         # Validate key format before sending request
         key_warning = self._validate_api_key_format()
@@ -500,33 +509,36 @@ class OpenRouterClient:
         payload = self._build_api_payload(system_prompt, prompt)
 
         for attempt in range(self.max_retries):
-            try:
-                response = self._session.post(
-                    self.base_url,
-                    headers=headers,
-                    json=payload,
-                    timeout=timeout,
-                )
-                result = self._handle_api_response(response, attempt)
-                if result is not None:
-                    return result
-            except requests.exceptions.Timeout:
-                msg = self._handle_api_timeout(timeout, attempt)
-                if msg:
-                    return msg
-            except requests.exceptions.ConnectionError as e:
-                msg = self._handle_api_connection_error(e, attempt)
-                if msg:
-                    return msg
-            except requests.exceptions.RequestException as e:
-                msg = self._handle_api_request_error(e, attempt)
-                if msg:
-                    return msg
-            except Exception as e:
-                logger.exception(f"API query error: {e}")
-                return f"[Error] {e!s}"
+            result = self._attempt_api_call(headers, payload, timeout, attempt)
+            if result is not None:
+                return result
 
         return "[Error] Max retries exceeded"
+
+    def _attempt_api_call(
+        self, headers: dict, payload: dict, timeout: int, attempt: int,
+    ) -> str | None:
+        """Execute a single API call attempt. Returns result or None to retry."""
+        try:
+            response = self._session.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+            return self._handle_api_response(response, attempt)
+        except requests.exceptions.Timeout:
+            msg = self._handle_api_timeout(timeout, attempt)
+            return msg if msg else None
+        except requests.exceptions.ConnectionError as e:
+            msg = self._handle_api_connection_error(e, attempt)
+            return msg if msg else None
+        except requests.exceptions.RequestException as e:
+            msg = self._handle_api_request_error(e, attempt)
+            return msg if msg else None
+        except Exception as e:
+            logger.exception("API query error: %s", e)
+            return f"[Error] {e!s}"
 
     def _build_api_headers(self) -> dict[str, str]:
         """Build API request headers."""
@@ -609,7 +621,8 @@ class OpenRouterClient:
         if attempt < self.max_retries - 1:
             wait_time = min(2**attempt, 5)
             logger.warning(
-                f"Server error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{self.max_retries})",
+                f"Server error {response.status_code}, retrying in "
+                f"{wait_time}s (attempt {attempt + 1}/{self.max_retries})",
             )
             time.sleep(wait_time)
             return None
@@ -621,6 +634,8 @@ class OpenRouterClient:
             f"Request timeout after {timeout}s (attempt {attempt + 1}/{self.max_retries}) - possible WAF blocking",
         )
         if attempt < self.max_retries - 1:
+            wait_time = min(2**attempt, 5)
+            time.sleep(wait_time)
             return ""  # Signal retry
         return "[Timeout] API did not respond in time (possible WAF blocking)."
 
@@ -655,6 +670,345 @@ class OpenRouterClient:
             info["cache_stats"] = self._cache.get_stats()
 
         return info
+
+    # ─────────────────── Streaming Support ───────────────────
+    def stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        timeout: int = 30,
+    ) -> Generator[str, None, None]:
+        """Stream LLM response token-by-token (SSE).
+
+        Instead of waiting 30s for the full response, yields each token
+        as it arrives from the API. Compatible with ``rich.live`` and
+        any iterator consumer.
+
+        Args:
+            prompt: User prompt.
+            system_prompt: System prompt (optional).
+            timeout: Request timeout in seconds.
+
+        Yields:
+            Text chunks (tokens) as they arrive from the API.
+
+        Example::
+
+            for chunk in client.stream("Explain nmap"):
+                print(chunk, end="", flush=True)
+
+        """
+        if system_prompt is None:
+            system_prompt = "You are a penetration testing assistant."
+
+        if self.provider == "ollama":
+            yield from self._stream_ollama(prompt, system_prompt, timeout)
+            return
+
+        if not self.api_key:
+            yield _MSG_OFFLINE_NO_KEY
+            return
+
+        if not self._rate_limiter.acquire(timeout=timeout):
+            yield _MSG_RATE_LIMITED
+            return
+
+        headers = self._build_api_headers()
+        payload = self._build_api_payload(system_prompt, prompt)
+        payload["stream"] = True
+
+        try:
+            response = self._session.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+                stream=True,
+            )
+
+            if response.status_code != 200:
+                yield f"[API Error] {response.status_code}: {response.text[:200]}"
+                return
+
+            collected = list(self._parse_sse_chunks(response))
+            yield from collected
+
+            # Cache the full collected response
+            if collected and self.enable_cache and self._cache:
+                self._cache.set(prompt, system_prompt, self.model, "".join(collected))
+
+        except requests.exceptions.Timeout:
+            yield "[Timeout] Stream request timed out."
+        except requests.exceptions.ConnectionError:
+            yield _MSG_OFFLINE_NO_CONN
+        except Exception as exc:
+            logger.exception("Stream error: %s", exc)
+            yield f"[Error] {exc!s}"
+
+    @staticmethod
+    def _parse_sse_chunks(response: requests.Response) -> Generator[str, None, None]:
+        """Parse SSE stream and yield text content chunks."""
+        for line in response.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data: "):
+                continue
+            data_str = line[6:]  # Remove "data: " prefix
+            if data_str.strip() == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data_str)
+                content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                if content:
+                    yield content
+            except (json.JSONDecodeError, IndexError, KeyError):
+                continue
+
+    def _stream_ollama(
+        self, prompt: str, system_prompt: str, timeout: int,
+    ) -> Generator[str, None, None]:
+        """Stream from local Ollama instance."""
+        payload = {
+            "model": self.model,
+            "prompt": f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:",
+            "stream": True,
+        }
+        try:
+            response = self._session.post(
+                self.base_url, json=payload, timeout=timeout, stream=True,
+            )
+            if response.status_code != 200:
+                yield f"[Ollama Error] {response.status_code}"
+                return
+
+            for line in response.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
+                except json.JSONDecodeError:
+                    continue
+        except requests.exceptions.ConnectionError:
+            yield "[Offline] Ollama bağlantısı yok."
+        except Exception as exc:
+            yield f"[Error] {exc!s}"
+
+    # ─────────────────── Function Calling ───────────────────
+    def query_with_tools(
+        self,
+        prompt: str,
+        tools: list[dict[str, Any]],
+        system_prompt: str | None = None,
+        timeout: int = 30,
+    ) -> dict[str, Any]:
+        """Query LLM with function/tool definitions for guaranteed structured output.
+
+        Instead of hoping the LLM returns valid JSON, this uses the native
+        ``tools`` parameter (OpenAI function calling protocol) to guarantee
+        the model returns a proper tool call with validated arguments.
+
+        Args:
+            prompt: User prompt.
+            tools: OpenAI-format tool definitions::
+
+                [{"type": "function", "function": {
+                    "name": "nmap_scan",
+                    "description": "Run nmap port scan",
+                    "parameters": {"type": "object", "properties": {...}}
+                }}]
+
+            system_prompt: System prompt (optional).
+            timeout: Request timeout in seconds.
+
+        Returns:
+            Dict with ``content`` and/or ``tool_calls``::
+
+                {
+                    "content": "I'll scan the target...",
+                    "tool_calls": [{
+                        "id": "call_abc123",
+                        "function": {"name": "nmap_scan", "arguments": "{...}"}
+                    }]
+                }
+
+        """
+        if system_prompt is None:
+            system_prompt = "You are a penetration testing assistant. Use the provided tools when appropriate."
+
+        if not self.api_key and self.provider != "ollama":
+            return {"content": _MSG_OFFLINE_NO_KEY, "tool_calls": []}
+
+        if not self._rate_limiter.acquire(timeout=timeout):
+            return {"content": _MSG_RATE_LIMITED, "tool_calls": []}
+
+        headers = self._build_api_headers()
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            "tools": tools,
+        }
+
+        try:
+            response = self._session.post(
+                self.base_url, headers=headers, json=payload, timeout=timeout,
+            )
+
+            if response.status_code != 200:
+                return {
+                    "content": f"[API Error] {response.status_code}: {response.text[:200]}",
+                    "tool_calls": [],
+                }
+
+            data = response.json()
+            choices = data.get("choices", [])
+            if not choices:
+                return {"content": "[API Error] No choices in response", "tool_calls": []}
+
+            message = choices[0].get("message", {})
+            result: dict[str, Any] = {
+                "content": message.get("content", ""),
+                "tool_calls": [],
+            }
+
+            raw_calls = message.get("tool_calls")
+            if raw_calls:
+                result["tool_calls"] = [
+                    {
+                        "id": tc.get("id", ""),
+                        "function": {
+                            "name": tc.get("function", {}).get("name", ""),
+                            "arguments": tc.get("function", {}).get("arguments", "{}"),
+                        },
+                    }
+                    for tc in raw_calls
+                ]
+
+            return result
+
+        except requests.exceptions.Timeout:
+            return {"content": "[Timeout] Function calling request timed out.", "tool_calls": []}
+        except requests.exceptions.ConnectionError:
+            return {"content": _MSG_OFFLINE_NO_CONN, "tool_calls": []}
+        except Exception as exc:
+            logger.exception("Function calling error: %s", exc)
+            return {"content": f"[Error] {exc!s}", "tool_calls": []}
+
+    def query_with_messages(
+        self,
+        messages: list[dict[str, str]],
+        timeout: int = 30,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        stream: bool = False,
+    ) -> str | Generator[str, None, None] | dict[str, Any]:
+        """Query LLM with a full message history (multi-turn).
+
+        This is the key method that enables multi-turn conversations.
+        Instead of single prompt+system_prompt, accepts the full message
+        list from ``MessageHistory.get_trimmed_messages()``.
+
+        Args:
+            messages: List of {"role": ..., "content": ...} messages.
+            timeout: Request timeout in seconds.
+            tools: Optional tool definitions for function calling.
+            stream: If True, returns a generator yielding tokens.
+
+        Returns:
+            Response string, streaming generator, or tool-call dict.
+
+        """
+        if not messages:
+            return "[Error] Empty message list"
+
+        if not self.api_key and self.provider != "ollama":
+            return _MSG_OFFLINE_NO_KEY
+
+        if not self._rate_limiter.acquire(timeout=timeout):
+            return _MSG_RATE_LIMITED
+
+        headers = self._build_api_headers()
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+        }
+
+        if tools:
+            payload["tools"] = tools
+
+        if stream:
+            payload["stream"] = True
+            return self._stream_messages(headers, payload, timeout)
+
+        try:
+            response = self._session.post(
+                self.base_url, headers=headers, json=payload, timeout=timeout,
+            )
+            if response.status_code != 200:
+                return f"[API Error] {response.status_code}: {response.text[:200]}"
+
+            data = response.json()
+            message = data.get("choices", [{}])[0].get("message", {})
+
+            # If tool calls present, return full dict
+            if message.get("tool_calls"):
+                return {
+                    "content": message.get("content", ""),
+                    "tool_calls": [
+                        {
+                            "id": tc.get("id", ""),
+                            "function": {
+                                "name": tc.get("function", {}).get("name", ""),
+                                "arguments": tc.get("function", {}).get("arguments", "{}"),
+                            },
+                        }
+                        for tc in message["tool_calls"]
+                    ],
+                }
+
+            return message.get("content", "[API Error] No content in response")
+
+        except requests.exceptions.Timeout:
+            return "[Timeout] Request timed out."
+        except requests.exceptions.ConnectionError:
+            return _MSG_OFFLINE_NO_CONN
+        except Exception as exc:
+            logger.exception("Multi-turn query error: %s", exc)
+            return f"[Error] {exc!s}"
+
+    def _stream_messages(
+        self, headers: dict, payload: dict, timeout: int,
+    ) -> Generator[str, None, None]:
+        """Stream response from a multi-turn message payload."""
+        try:
+            response = self._session.post(
+                self.base_url, headers=headers, json=payload,
+                timeout=timeout, stream=True,
+            )
+            if response.status_code != 200:
+                yield f"[API Error] {response.status_code}: {response.text[:200]}"
+                return
+
+            for line in response.iter_lines(decode_unicode=True):
+                if not line or not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    if content:
+                        yield content
+                except (json.JSONDecodeError, IndexError, KeyError):
+                    continue
+        except Exception as exc:
+            yield f"[Error] {exc!s}"
 
     def test_connection(self) -> bool:
         """Test if the LLM connection is working."""
@@ -702,6 +1056,14 @@ class OpenRouterClient:
         if self._session:
             self._session.close()
             logger.info("LLM client session closed")
+
+    def __enter__(self) -> "OpenRouterClient":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager, closing session."""
+        self.close()
 
     def __del__(self) -> None:
         """Cleanup on deletion."""

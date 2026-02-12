@@ -262,7 +262,7 @@ async def _create_nuclei_targets_file(targets: list[str]) -> str | None:
             return f.name
 
     try:
-        return await asyncio.get_event_loop().run_in_executor(None, _write_temp_file)
+        return await asyncio.get_running_loop().run_in_executor(None, _write_temp_file)
     except Exception as e:
         logger.exception("Failed to create temp targets file: %s", e)
         return None

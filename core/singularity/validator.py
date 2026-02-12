@@ -90,14 +90,13 @@ class CodeValidator(IValidator):
 
             try:
                 # Step 3: Build the execution command based on language
+                import shlex
                 lang = snippet.language.lower()
                 if lang == "python":
-                    # Use python -c with the code (escaped for shell)
-                    escaped_code = snippet.code.replace("'", "'\\''")
-                    command = f"python3 -c '{escaped_code}'"
+                    # Use python -c with the code (safely quoted for shell)
+                    command = f"python3 -c {shlex.quote(snippet.code)}"
                 elif lang == "bash":
-                    escaped_code = snippet.code.replace("'", "'\\''")
-                    command = f"bash -c '{escaped_code}'"
+                    command = f"bash -c {shlex.quote(snippet.code)}"
                 else:
                     logger.warning("Unsupported language for docker validation: %s", lang)
                     return self._validate_subprocess(snippet)
@@ -154,37 +153,47 @@ class CodeValidator(IValidator):
 
     def _check_ast_node(self, node: ast.AST) -> bool:
         """Check a single AST node for dangerous patterns."""
-        # Block dangerous calls
         if isinstance(node, ast.Call):
-            func_name = ""
-            if isinstance(node.func, ast.Name):
-                func_name = node.func.id
-            elif isinstance(node.func, ast.Attribute):
-                func_name = node.func.attr
+            return self._check_call_node(node)
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return self._check_import_node(node)
+        return True
 
-            forbidden = {
-                "system",
-                "popen",
-                "spawn",
-                "exec",
-                "eval",
-                "open",
-                "remove",
-                "rmdir",
-                "unlink",
-            }
-            if func_name in forbidden:
-                logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)
-                return False
+    def _check_call_node(self, node: ast.Call) -> bool:
+        """Block dangerous function calls."""
+        func_name = ""
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            func_name = node.func.attr
 
-        # Block sensitive imports
-        if isinstance(node, ast.Import | ast.ImportFrom):
+        forbidden = {
+            "system", "popen", "spawn", "exec", "eval",
+            "open", "remove", "rmdir", "unlink",
+        }
+        if func_name in forbidden:
+            logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)
+            return False
+        return True
+
+    def _check_import_node(self, node: ast.Import | ast.ImportFrom) -> bool:
+        """Block sensitive imports."""
+        _blocked_modules = {"os", "subprocess", "shutil", "requests", "socket"}
+        if isinstance(node, ast.Import):
             for name in node.names:
-                if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
+                if name.name in _blocked_modules:
                     logger.error(
-                        f"SECURITY ALERT: Blocked sensitive import '{name.name}'",
+                        "SECURITY ALERT: Blocked sensitive import '%s'",
+                        name.name,
                     )
                     return False
+        if isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split(".")[0] in _blocked_modules:
+                logger.error(
+                    "SECURITY ALERT: Blocked sensitive 'from %s' import",
+                    node.module,
+                )
+                return False
         return True
 
     def _run_code_safety(self, snippet: CodeSnippet) -> bool:

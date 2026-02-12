@@ -255,8 +255,20 @@ class PerceiveModule:
         """Parse directory bruteforce output."""
         nodes: list[ConceptNode] = []
 
-        # Count found directories/files
-        found_count = output.lower().count("200") + output.lower().count("found")
+        # Count found directories/files by parsing line-by-line with proper pattern
+        # Dirb/Gobuster lines look like: "+ http://...  (CODE:200|SIZE:1234)"
+        dirb_line_pattern = re.compile(
+            r"(?:^\+?\s*https?://\S+.*\bCODE:\s*200\b)"
+            r"|(?:^https?://\S+\s+\(Status:\s*200\b)"
+            r"|(?:^/\S+\s+\(Status:\s*200\b)",
+            re.MULTILINE,
+        )
+        found_count = len(dirb_line_pattern.findall(output))
+        # Fallback: count lines containing 'found' keyword as secondary signal
+        for line in output.splitlines():
+            stripped = line.strip().lower()
+            if "found" in stripped and "200" not in stripped:
+                found_count += 1
 
         node = create_event_node(
             description=f"Directory enumeration: {found_count} interesting paths found",

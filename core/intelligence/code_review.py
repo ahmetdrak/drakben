@@ -38,10 +38,10 @@ class ReviewStatus(Enum):
 class RiskLevel(Enum):
     """Risk level of code changes."""
 
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
 
 
 @dataclass
@@ -457,39 +457,35 @@ class CodeReviewMiddleware:
         Returns:
             Dict with 'approved' (bool), 'issues' (list), 'risk' (str).
         """
-        from core.intelligence.code_review import CodeChange, RiskLevel
+        # Use CodeAnalyzer for risk analysis
+        risk_level, concerns = CodeAnalyzer.analyze_code(code)
 
-        change = CodeChange(
+        # Create proper change through the review system
+        change = self.review.create_change(
             file_path="<runtime>",
-            original_code="",
-            new_code=code,
-            description=description,
-            author=author,
+            new_content=code,
+            description=description or "Runtime code review",
+            change_type="create",
         )
+        change.reviewed_by = author
 
-        session = self.review.start_review(change)
-        self.review.run_checks(session)
-
-        # Determine approval based on findings
-        has_critical = any(
-            f.risk.value >= RiskLevel.CRITICAL.value
-            for f in session.findings
-            if hasattr(f, "risk")
-        )
-        has_high = any(
-            f.risk.value >= RiskLevel.HIGH.value
-            for f in session.findings
-            if hasattr(f, "risk")
-        )
+        # Determine approval based on risk level
+        has_critical = risk_level == RiskLevel.CRITICAL
+        has_high = risk_level.value >= RiskLevel.HIGH.value
 
         approved = not has_critical
-        risk = "critical" if has_critical else "high" if has_high else "low"
+        if has_critical:
+            risk = "critical"
+        elif has_high:
+            risk = "high"
+        else:
+            risk = "low"
 
         return {
             "approved": approved,
-            "issues": [str(f) for f in session.findings],
+            "issues": concerns,
             "risk": risk,
-            "session_id": id(session),
+            "session_id": id(change),
         }
 
 

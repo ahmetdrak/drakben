@@ -39,6 +39,7 @@ class StopController:
 
     _instance = None
     _lock = threading.Lock()
+    _initialized: bool = False
 
     def __new__(cls):
         """Singleton pattern."""
@@ -46,7 +47,7 @@ class StopController:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
+                    cls._instance._initialized: bool = False
         return cls._instance
 
     def __init__(self):
@@ -100,6 +101,15 @@ class StopController:
         """
         with self._callbacks_lock:
             self._active_processes.append(process)
+
+    def register_cleanup(self, callback: Callable[[], None]) -> None:
+        """Register a cleanup callback to run on stop.
+
+        Args:
+            callback: A callable with no arguments, invoked during stop.
+        """
+        with self._callbacks_lock:
+            self._cleanup_callbacks.append(callback)
 
     def _terminate_all_processes(self) -> None:
         """Terminate all registered processes."""

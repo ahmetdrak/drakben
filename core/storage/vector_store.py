@@ -106,5 +106,26 @@ class VectorStore:
             return self.collection.count()
         return 0
 
+    def close(self) -> None:
+        """Release ChromaDB resources to avoid unclosed SQLite connections."""
+        self.collection = None
+        if self.client is not None:
+            try:
+                # Stop ChromaDB's internal system (closes SQLite connections)
+                if hasattr(self.client, "_system"):
+                    self.client._system.stop()
+                elif hasattr(self.client, "close"):
+                    self.client.close()
+            except Exception:
+                pass
+            self.client = None
+
+    def __del__(self) -> None:
+        """Ensure resources are released on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
 
 

@@ -45,6 +45,11 @@ class TransparencyDashboard:
     BORDER_STATE = "yellow"
     BORDER_PHASE = "bright_blue"
 
+    # Rich style constants (SonarQube: avoid duplicate literals)
+    _STYLE_BOLD_GREEN = "bold green"
+    _STYLE_BOLD_CYAN = "bold cyan"
+    _STYLE_BOLD_RED = "bold red"
+
     def __init__(self, console: Console) -> None:
         self.console = console
         self.enabled = True  # Can be toggled by user
@@ -70,7 +75,7 @@ class TransparencyDashboard:
         content = Text()
         content.append("📤 Prompt: ", style="bold magenta")
         content.append(f"{prompt_short}\n\n", style="dim")
-        content.append("📥 Response: ", style="bold green")
+        content.append("📥 Response: ", style=self._STYLE_BOLD_GREEN)
         content.append(response_short, style="white")
 
         if duration > 0:
@@ -99,7 +104,7 @@ class TransparencyDashboard:
 
         content = Text()
         content.append("🔧 Tool: ", style="bold")
-        content.append(f"{tool_name}\n", style="bold cyan")
+        content.append(f"{tool_name}\n", style=self._STYLE_BOLD_CYAN)
         content.append("📋 Action: ", style="bold")
         content.append(f"{action}\n", style="white")
         content.append("💡 Reason: ", style="bold")
@@ -137,7 +142,7 @@ class TransparencyDashboard:
         severity = analysis.get("severity", "info")
 
         severity_style = {
-            "critical": "bold red",
+            "critical": self._STYLE_BOLD_RED,
             "high": "red",
             "medium": "yellow",
             "low": "cyan",
@@ -149,7 +154,7 @@ class TransparencyDashboard:
         content.append(f"{summary}\n", style="white")
 
         if findings:
-            content.append(f"\n🔍 Findings ({len(findings)}):\n", style="bold green")
+            content.append(f"\n🔍 Findings ({len(findings)}):\n", style=self._STYLE_BOLD_GREEN)
             for i, finding in enumerate(findings[:10], 1):
                 content.append(f"   {i}. {finding}\n", style="white")
 
@@ -223,7 +228,7 @@ class TransparencyDashboard:
         table = Table(
             title="🔓 Discovered Services",
             show_header=True,
-            header_style="bold cyan",
+            header_style=self._STYLE_BOLD_CYAN,
             border_style="dim",
         )
         table.add_column("Port", style="bold", width=8)
@@ -255,7 +260,7 @@ class TransparencyDashboard:
             tool = step.get("tool", action)
             reason = step.get("reason", "")
             content.append(f"   {i}. ", style="dim")
-            content.append(f"{action}", style="bold cyan")
+            content.append(f"{action}", style=self._STYLE_BOLD_CYAN)
             content.append(f" ({tool})", style="dim")
             if reason:
                 content.append(f" — {reason}", style="bright_yellow")
@@ -278,15 +283,15 @@ class TransparencyDashboard:
             return
 
         status = "✅ APPROVED" if approved else "⛔ SKIPPED"
-        status_style = "bold green" if approved else "bold red"
+        status_style = self._STYLE_BOLD_GREEN if approved else self._STYLE_BOLD_RED
 
         content = Text()
         content.append("🔧 Tool: ", style="bold")
-        content.append(f"{tool_name}\n", style="bold cyan")
+        content.append(f"{tool_name}\n", style=self._STYLE_BOLD_CYAN)
         content.append("📋 Action: ", style="bold")
         content.append(f"{action}\n", style="white")
         content.append("⚠️  Risk: ", style="bold")
-        content.append(f"{risk_level.upper()}\n", style="bold red")
+        content.append(f"{risk_level.upper()}\n", style=self._STYLE_BOLD_RED)
         content.append("📌 Status: ", style="bold")
         content.append(status, style=status_style)
 
@@ -331,7 +336,7 @@ class TransparencyDashboard:
             return
 
         icon = "✅" if success else "❌"
-        style = "bold green" if success else "bold red"
+        style = self._STYLE_BOLD_GREEN if success else self._STYLE_BOLD_RED
         self.console.print(
             f"   📦 {icon} [bold]{tool_name}[/] install via {method}",
             style=style,

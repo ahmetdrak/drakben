@@ -1,9 +1,10 @@
 # core/brain.py
 # DRAKBEN - AI Brain with 5 Core Modules
-# Real LLM Integration
+# Real LLM Integration + Unified LLM Engine
 # Modules extracted to brain_*.py for maintainability.
 
 import logging
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,6 +40,17 @@ try:
 except ImportError:
     logger.warning("LLM client not available, running in offline mode")
 
+# LLM Engine import (unified layer)
+LLMEngine: Any = None
+_ENGINE_AVAILABLE = False
+try:
+    from core.llm.llm_engine import LLMEngine as _LLMEngine
+
+    LLMEngine = _LLMEngine
+    _ENGINE_AVAILABLE = True
+except ImportError:
+    logger.debug("LLMEngine not available — using raw client only.")
+
 
 @dataclass
 class ExecutionContext:
@@ -57,6 +69,15 @@ class ExecutionContext:
 class DrakbenBrain:
     """Ana beyin interface - 5 modülü koordine eder
     Gerçek LLM entegrasyonu ile.
+
+    Enhanced with:
+    - Streaming: ``stream_think()`` for token-by-token output
+    - Function Calling: ``think_with_tools()`` for guaranteed schema
+    - Multi-Turn: LLM sees its own previous responses
+    - Token Counting: auto context window management
+    - Output Validation: auto-retry on broken JSON
+    - RAG: CVE/exploit enrichment from vector DB
+    - Async: ``athink()`` for parallel operations
     """
 
     def __init__(self, llm_client=None, use_cognitive_memory: bool = True) -> None:
@@ -69,6 +90,22 @@ class DrakbenBrain:
                 llm_client = None
 
         self.llm_client = llm_client
+
+        # ── Initialize Unified LLM Engine ──
+        self.engine: Any = None
+        if _ENGINE_AVAILABLE and llm_client is not None:
+            try:
+                self.engine = LLMEngine(
+                    llm_client=llm_client,
+                    system_prompt="You are DRAKBEN, an elite AI pentesting assistant.",
+                    enable_rag=True,
+                    enable_validation=True,
+                    enable_token_management=True,
+                )
+                logger.info("LLM Engine initialized (streaming, tools, RAG, multi-turn)")
+            except Exception as e:
+                logger.debug("Could not initialize LLM Engine: %s", e)
+                self.engine = None
 
         # Initialize Stanford-style Cognitive Memory System FIRST
         self.cognitive_memory: CognitiveMemoryManager | None = None
@@ -165,7 +202,10 @@ class DrakbenBrain:
         }
 
     def chat(self, message: str) -> str:
-        """Direct chat with LLM.
+        """Direct chat with LLM (multi-turn aware).
+
+        If LLMEngine is available, the LLM sees all previous messages
+        in the conversation, enabling coherent multi-turn dialog.
 
         Args:
             message: User message
@@ -174,11 +214,97 @@ class DrakbenBrain:
             AI response string
 
         """
+        # Multi-turn via engine
+        if self.engine:
+            result = self.engine.query_with_history(message)
+            if isinstance(result, str):
+                self.engine.add_assistant_message(result)
+                return result
+            # Dict result (tool calls) — extract content
+            content = result.get("content", "")
+            if content:
+                self.engine.add_assistant_message(content)
+            return content or str(result)
+
+        # Fallback: raw client
         if self.llm_client:
             return self.llm_client.query(message)
         return (
             "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
         )
+
+    def stream_think(
+        self,
+        user_input: str,
+        system_prompt: str | None = None,
+    ) -> Generator[str, None, None]:
+        """Stream AI response token-by-token.
+
+        Instead of waiting 30s for a complete response, yields each token
+        as it arrives. Use with ``rich.live`` or any streaming consumer.
+
+        Args:
+            user_input: User message.
+            system_prompt: Optional system prompt override.
+
+        Yields:
+            Text chunks as they arrive from the LLM.
+
+        Example::
+
+            for chunk in brain.stream_think("Explain XSS"):
+                print(chunk, end="", flush=True)
+
+        """
+        if self.engine:
+            yield from self.engine.stream(user_input, system_prompt)
+        elif self.llm_client and hasattr(self.llm_client, "stream"):
+            yield from self.llm_client.stream(user_input, system_prompt)
+        elif self.llm_client:
+            yield self.llm_client.query(user_input, system_prompt)
+        else:
+            yield "[Offline Mode] LLM bağlantısı yok."
+
+    def think_with_tools(
+        self,
+        user_input: str,
+        tool_names: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Think with function calling — LLM selects tools with guaranteed schema.
+
+        Instead of hoping the LLM returns valid JSON tool selections,
+        uses the native function calling protocol for guaranteed structure.
+
+        Args:
+            user_input: User message.
+            tool_names: Specific tools to offer. None = all registered tools.
+
+        Returns:
+            Dict with ``content`` and ``tool_calls``::
+
+                {
+                    "content": "I'll scan the target...",
+                    "tool_calls": [{
+                        "function": {"name": "nmap", "arguments": "{\\"target\\": \\"10.0.0.1\\"}"}
+                    }]
+                }
+
+        """
+        if not self.engine:
+            # Fallback to regular think
+            result = self.think(user_input)
+            return {"content": result.get("reply", ""), "tool_calls": []}
+
+        try:
+            schemas = self.engine.build_tool_schemas_from_registry(tool_names)
+        except Exception:
+            schemas = []
+
+        if not schemas:
+            result = self.think(user_input)
+            return {"content": result.get("reply", ""), "tool_calls": []}
+
+        return self.engine.call_with_tools(user_input, schemas)
 
     def process(self, user_input: str, system_context: dict) -> dict:
         """Main entry point - Process user request."""
@@ -187,8 +313,19 @@ class DrakbenBrain:
     def observe(self, tool: str, output: str, success: bool = True) -> None:
         """Observe tool output and update context.
         This allows the Brain to 'see' what happened in the terminal.
+
+        Also feeds:
+        - Multi-turn history (so LLM sees tool results in next query)
+        - RAG pipeline (so tool output is searchable for future prompts)
         """
         logger.info("Brain observing tool %s (success=%s)", tool, success)
+
+        # Feed multi-turn history via engine
+        if self.engine:
+            self.engine.add_tool_result(tool, output, success=success)
+            # Ingest into RAG for future retrieval
+            target = self.context_mgr.get("target") if self.context_mgr else ""
+            self.engine.ingest_tool_output(tool, output, target=target or "")
 
         # Create a history entry (for specialized history if needed)
         entry = {
@@ -238,7 +375,12 @@ class DrakbenBrain:
             "corrections_made": len(self.self_correction.correction_history),
             "decisions_made": len(self.decision_engine.decision_history),
             "llm_available": self.llm_client is not None,
+            "engine_available": self.engine is not None,
         }
+
+        # Add engine stats (streaming, tools, RAG, etc.)
+        if self.engine:
+            stats["engine"] = self.engine.get_stats()
 
         # Add cognitive memory stats if available
         if self.cognitive_memory:

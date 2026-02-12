@@ -74,7 +74,7 @@ class DrakbenMenu:
     STYLE_BOLD_RED = "bold red"
     STYLE_DIM_CYAN = "dim cyan"
     STYLE_DIM_RED = "dim red"
-    MSG_AGENT_NOT_NONE = "self.agent is not None"
+    MSG_AGENT_NOT_NONE = "self.agent must not be None"
 
     # Command constants (SonarCloud: avoid duplicate literals)
     CMD_SCAN = "/scan"
@@ -480,42 +480,53 @@ class DrakbenMenu:
                 # Use orchestrator chat (handles action detection internally)
                 result = self.orchestrator.chat(user_input)
 
-            # Check if orchestrator extracted and set a new target
-            new_target = self.orchestrator.context.target
-            if new_target and new_target != target_before:
-                # Sync to config
-                self.config_manager.set_target(new_target)
-                self.config = self.config_manager.config
-                self.console.print(f"\n[bold green]Hedef ayarlandi: {new_target}[/]")
+            # Sync newly discovered target
+            self._sync_orchestrator_target(target_before)
 
-            if result.get("success"):
-                response = result.get("response", "")
-                intent = result.get("intent", "chat")
-
-                # Show intent detection so user sees what the AI understood
-                if intent and intent != "chat":
-                    intent_display = {"scan": "🔍 Tarama", "action": "⚡ Eylem", "exploit": "💥 Exploit",
-                                      "find_vulnerability": "🔎 Zafiyet Arama", "needs_target": "🎯 Hedef Gerekli"}.get(intent, f"📋 {intent}")
-                    self.console.print(f"   [dim]{intent_display}[/dim]")
-
-                # Show response
-                if response:
-                    self.console.print(f"\n[DRAKBEN] {response}\n", style=self.COLORS["cyan"])
-
-                # If intent is needs_target, don't show actions
-                if intent == "needs_target":
-                    return
-
-                # Show suggested actions if target is set and intent is action
-                if self.config.target and intent == "action":
-                    self._show_orchestrator_actions(lang)
-            else:
-                error = result.get("error", "Unknown error")
-                self.console.print(f"\n[red]Hata: {error}[/]\n")
+            self._display_orchestrator_result(result, lang)
 
         except KeyboardInterrupt:
             cancel_msg = "Iptal edildi." if lang == "tr" else "Cancelled."
             self.console.print(f"\n[yellow]{cancel_msg}[/]")
+
+    def _sync_orchestrator_target(self, target_before: str | None) -> None:
+        """Sync orchestrator-discovered target to config."""
+        new_target = self.orchestrator.context.target
+        if new_target and new_target != target_before:
+            self.config_manager.set_target(new_target)
+            self.config = self.config_manager.config
+            self.console.print(f"\n[bold green]Hedef ayarlandi: {new_target}[/]")
+
+    def _display_orchestrator_result(self, result: dict, lang: str) -> None:
+        """Display the orchestrator chat result."""
+        if result.get("success"):
+            response = result.get("response", "")
+            intent = result.get("intent", "chat")
+
+            # Show intent detection so user sees what the AI understood
+            if intent and intent != "chat":
+                intent_display = {
+                    "scan": "🔍 Tarama", "action": "⚡ Eylem",
+                    "exploit": "💥 Exploit",
+                    "find_vulnerability": "🔎 Zafiyet Arama",
+                    "needs_target": "🎯 Hedef Gerekli",
+                }.get(intent, f"📋 {intent}")
+                self.console.print(f"   [dim]{intent_display}[/dim]")
+
+            # Show response
+            if response:
+                self.console.print(f"\n[DRAKBEN] {response}\n", style=self.COLORS["cyan"])
+
+            # If intent is needs_target, don't show actions
+            if intent == "needs_target":
+                return
+
+            # Show suggested actions if target is set and intent is action
+            if self.config.target and intent == "action":
+                self._show_orchestrator_actions(lang)
+        else:
+            error = result.get("error", "Unknown error")
+            self.console.print(f"\n[red]Hata: {error}[/]\n")
 
     def _show_orchestrator_actions(self, lang: str) -> None:
         """Show suggested actions and ask user to run."""
@@ -629,7 +640,7 @@ class DrakbenMenu:
             )
 
             if self.brain is None:
-                msg = "self.brain is not None"
+                msg = "self.brain must not be None"
                 raise AssertionError(msg)
 
             # Update display while thinking
@@ -938,7 +949,25 @@ class DrakbenMenu:
             self._handle_command(command)
             return
 
-        # Agent lazy load
+        self._ensure_agent_initialized()
+
+        msg: str = "Çalıştırılıyor..." if lang == "tr" else "Executing..."
+        self.console.print(f"⚡ {msg}", style=self.COLORS["yellow"])
+
+        if self.agent is None:
+            raise AssertionError(self.MSG_AGENT_NOT_NONE)
+        if self.agent.executor is None:
+            msg = "self.agent.executor must not be None"
+            raise AssertionError(msg)
+        result: ExecutionResult = self.agent.executor.terminal.execute(
+            command,
+            timeout=300,
+        )
+
+        self._display_execution_result(result, command)
+
+    def _ensure_agent_initialized(self) -> None:
+        """Lazy-initialize the agent if needed."""
         if not self.agent:
             from core.agent.refactored_agent import RefactoredDrakbenAgent
 
@@ -947,19 +976,8 @@ class DrakbenMenu:
                 raise AssertionError(self.MSG_AGENT_NOT_NONE)
             self.agent.initialize(target=self.config.target or "")
 
-        msg: str = "Çalıştırılıyor..." if lang == "tr" else "Executing..."
-        self.console.print(f"⚡ {msg}", style=self.COLORS["yellow"])
-
-        if self.agent is None:
-            raise AssertionError(self.MSG_AGENT_NOT_NONE)
-        if self.agent.executor is None:
-            msg = "self.agent.executor is not None"
-            raise AssertionError(msg)
-        result: ExecutionResult = self.agent.executor.terminal.execute(
-            command,
-            timeout=300,
-        )
-
+    def _display_execution_result(self, result: "ExecutionResult", command: str) -> None:
+        """Display execution result and report to brain."""
         if result.status.value == "success":
             self.console.print(
                 f"✅ OK ({result.duration:.1f}s)",

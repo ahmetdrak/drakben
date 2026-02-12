@@ -18,7 +18,9 @@ class SelfCorrection:
             Corrected decision
 
         """
-        corrected = decision.copy()
+        import copy
+
+        corrected = copy.deepcopy(decision)
         corrections = []
 
         # Check for dangerous commands
@@ -49,6 +51,9 @@ class SelfCorrection:
                     "corrections": corrections,
                 },
             )
+            # Prevent unbounded memory growth
+            if len(self.correction_history) > 100:
+                self.correction_history = self.correction_history[-100:]
 
         return corrected
 

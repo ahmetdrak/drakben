@@ -118,7 +118,8 @@ class StealthSession(_BaseSession):
 
         self.headers.update(self._get_default_headers())
         logger.debug(
-            f"StealthSession initialized: {self.impersonate_target} | Proxy: {bool(self.current_proxy)} | curl_cffi: {CURL_CFFI_AVAILABLE}",
+            f"StealthSession initialized: {self.impersonate_target}"
+            f" | Proxy: {bool(self.current_proxy)} | curl_cffi: {CURL_CFFI_AVAILABLE}",
         )
 
     def _get_default_headers(self) -> dict[str, str]:

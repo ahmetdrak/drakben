@@ -117,10 +117,13 @@ class ActiveDirectoryAttacker:
         except ImportError:
             # Fallback: Read in thread to avoid blocking loop
             def sync_read() -> list[str]:
-                with open(user_file) as f:
+                with open(user_file, encoding="utf-8") as f:
                     return [line.strip() for line in f if line.strip()]
 
             users = await asyncio.to_thread(sync_read)
+
+        if not users:
+            return {"error": "No users found in file", "success": False}
 
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
@@ -307,23 +310,25 @@ class ActiveDirectoryAttacker:
 
             # Create UDP socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setblocking(False)
+            try:
+                sock.setblocking(False)
 
-            # Send (Async)
-            await loop.sock_sendto(sock, packet, (dc_ip, 88))
+                # Send (Async)
+                await loop.sock_sendto(sock, packet, (dc_ip, 88))
 
-            # Receive with timeout logic
-            sock.setblocking(True)
-            sock.settimeout(2.0)
+                # Receive with timeout logic
+                sock.setblocking(True)
+                sock.settimeout(2.0)
 
-            def receive() -> Any:
-                try:
-                    return sock.recvfrom(4096)
-                except OSError:
-                    return None
+                def receive() -> Any:
+                    try:
+                        return sock.recvfrom(4096)
+                    except OSError:
+                        return None
 
-            data_tuple = await loop.run_in_executor(None, receive)
-            sock.close()
+                data_tuple = await loop.run_in_executor(None, receive)
+            finally:
+                sock.close()
 
             # Check for valid AS-REP (Application 11 = 0x6B)
             if not data_tuple or len(data_tuple[0]) == 0 or data_tuple[0][0] != 0x6B:

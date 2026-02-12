@@ -197,6 +197,12 @@ def generate_payload(
         msg = "State is required for payload generation"
         raise RuntimeError(msg)
 
+    # Validate port range
+    if not (1 <= lport <= 65535):
+        logger.error("Invalid lport: %s (must be 1-65535)", lport)
+        msg = f"Invalid port: {lport}. Must be in range 1-65535."
+        raise ValueError(msg)
+
     # STATE VALIDATION
     if STATE_AVAILABLE and state and not state.validate():
         logger.error("%s in payload generation", STATE_INVARIANT_VIOLATION)
@@ -310,16 +316,19 @@ class PayloadObfuscator:
         return "".join(f"\\u{ord(c):04x}" for c in payload)
 
     @staticmethod
-    def xor_encode(payload: str, key: int = 0x41) -> tuple[str, int]:
-        """XOR encode payload.
+    def xor_encode(payload: str, key: bytes | int = 0x41) -> tuple[str, bytes]:
+        """XOR encode payload with multi-byte key.
 
         Args:
             payload: Original payload
-            key: XOR key (default 0x41)
+            key: XOR key — int (single byte, legacy) or bytes (multi-byte)
 
         Returns:
-            Tuple of (encoded_bytes_as_hex, key)
+            Tuple of (encoded_bytes_as_hex, key_as_bytes)
 
         """
-        encoded = "".join(f"{ord(c) ^ key:02x}" for c in payload)
+        if isinstance(key, int):
+            key = bytes([key])
+        key_len = len(key)
+        encoded = "".join(f"{ord(c) ^ key[i % key_len]:02x}" for i, c in enumerate(payload))
         return encoded, key

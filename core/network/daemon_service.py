@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 import time
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,9 @@ class DaemonService:
     Supports Linux (systemd/init.d) and Windows (pywin32).
     """
 
-    def __init__(self, pid_file: str = "/tmp/drakben.pid") -> None:
+    def __init__(self, pid_file: str | None = None) -> None:
+        if pid_file is None:
+            pid_file = os.path.join(tempfile.gettempdir(), "drakben.pid")
         self.pid_file = pid_file
         self.running = False
         self.is_windows = sys.platform == "win32"
@@ -40,7 +43,7 @@ class DaemonService:
     def get_pid(self) -> int | None:
         """Get running daemon PID."""
         try:
-            with open(self.pid_file) as f:
+            with open(self.pid_file, encoding="utf-8") as f:
                 return int(f.read().strip())
         except (OSError, ValueError):
             return None
@@ -80,7 +83,7 @@ class DaemonService:
 
             # Decouple from parent environment
             os.setsid()
-            os.umask(0)
+            os.umask(0o077)
 
             # Second fork
             pid = os.fork()
@@ -88,7 +91,7 @@ class DaemonService:
                 sys.exit(0)
 
             # Write PID file
-            with open(self.pid_file, "w") as f:
+            with open(self.pid_file, "w", encoding="utf-8") as f:
                 f.write(str(os.getpid()))
 
             # Register signal handlers
@@ -121,7 +124,7 @@ class DaemonService:
         try:
             if target_func:
                 # Can't fork on Windows; run target in-process
-                with open(self.pid_file, "w") as f:
+                with open(self.pid_file, "w", encoding="utf-8") as f:
                     f.write(str(os.getpid()))
                 self.running = True
                 logger.info("Daemon started in-process (PID: %s)", os.getpid())
@@ -135,7 +138,7 @@ class DaemonService:
                     stdout=sp.DEVNULL,
                     stderr=sp.DEVNULL,
                 )
-                with open(self.pid_file, "w") as f:
+                with open(self.pid_file, "w", encoding="utf-8") as f:
                     f.write(str(proc.pid))
                 logger.info("Daemon started (PID: %s)", proc.pid)
                 return True

@@ -79,8 +79,10 @@ class Computer:
                     pyautogui.click(x=center.x, y=center.y, clicks=clicks, button=button)
                     logger.info("Clicked '%s' at (%s, %s)", x, center.x, center.y)
                     return
-            except Exception:
-                pass
+            except ImportError:
+                pass  # pyautogui not installed
+            except Exception as e:
+                logger.warning("Unexpected error during visual element search for '%s': %s", x, e)
 
             # Fallback: log a helpful warning instead of crashing
             logger.warning(

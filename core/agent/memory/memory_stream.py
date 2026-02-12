@@ -777,7 +777,7 @@ class MemoryStream:
 
 # Global singleton instance
 _memory_stream: MemoryStream | None = None
-_memory_stream_lock = threading.Lock()
+_memory_stream_lock = threading.RLock()
 
 
 def get_memory_stream(

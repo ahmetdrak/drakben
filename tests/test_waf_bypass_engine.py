@@ -26,50 +26,65 @@ class TestWAFFingerprinting:
     def test_detect_cloudflare(self) -> None:
         """Test Cloudflare detection."""
         engine = WAFBypassEngine(":memory:")
-        headers = {
-            "cf-ray": "abc123",
-            "server": "cloudflare",
-        }
-        body = "Attention Required! | Cloudflare"
+        try:
+            headers = {
+                "cf-ray": "abc123",
+                "server": "cloudflare",
+            }
+            body = "Attention Required! | Cloudflare"
 
-        waf = engine.fingerprint_waf(headers, body, 403)
-        assert waf == WAFType.CLOUDFLARE
+            waf = engine.fingerprint_waf(headers, body, 403)
+            assert waf == WAFType.CLOUDFLARE
+        finally:
+            engine.close()
 
     def test_detect_aws_waf(self) -> None:
         """Test AWS WAF detection."""
         engine = WAFBypassEngine(":memory:")
-        headers = {
-            "x-amzn-requestid": "abc123",
-        }
-        body = "Request blocked"
+        try:
+            headers = {
+                "x-amzn-requestid": "abc123",
+            }
+            body = "Request blocked"
 
-        waf = engine.fingerprint_waf(headers, body, 403)
-        assert waf == WAFType.AWS_WAF
+            waf = engine.fingerprint_waf(headers, body, 403)
+            assert waf == WAFType.AWS_WAF
+        finally:
+            engine.close()
 
     def test_detect_modsecurity(self) -> None:
         """Test ModSecurity detection."""
         engine = WAFBypassEngine(":memory:")
-        headers: dict[str, str] = {}
-        body = "ModSecurity: Access denied"
+        try:
+            headers: dict[str, str] = {}
+            body = "ModSecurity: Access denied"
 
-        waf = engine.fingerprint_waf(headers, body, 403)
-        assert waf == WAFType.MODSECURITY
+            waf = engine.fingerprint_waf(headers, body, 403)
+            assert waf == WAFType.MODSECURITY
+        finally:
+            engine.close()
 
     def test_detect_imperva(self) -> None:
         """Test Imperva detection."""
         engine = WAFBypassEngine(":memory:")
-        headers = {"x-iinfo": "abc"}
-        body = "Incapsula incident ID"
-        cookies = ["incap_ses_123"]
+        try:
+            headers = {"x-iinfo": "abc"}
+            body = "Incapsula incident ID"
+            cookies = ["incap_ses_123"]
 
-        waf = engine.fingerprint_waf(headers, body, 403, cookies)
-        assert waf == WAFType.IMPERVA
+            waf = engine.fingerprint_waf(headers, body, 403, cookies)
+            assert waf == WAFType.IMPERVA
+        finally:
+            engine.close()
 
     def test_detect_unknown(self) -> None:
         """Test unknown WAF detection."""
         engine = WAFBypassEngine(":memory:")
-        waf = engine.fingerprint_waf({}, "", 200)
-        assert waf == WAFType.UNKNOWN
+        try:
+            waf = engine.fingerprint_waf({}, "", 200)
+            assert waf == WAFType.UNKNOWN
+        finally:
+            engine.close()
 
     def test_fingerprint_function(self) -> None:
         """Test convenience fingerprint function."""
@@ -87,59 +102,36 @@ class TestAdaptiveMutationMemory:
     def test_record_attempt(self) -> None:
         """Test recording payload attempt."""
         memory = AdaptiveMutationMemory(":memory:")
-        attempt = PayloadAttempt(
-            payload_hash="abc123",
-            original_payload="' OR 1=1--",
-            mutated_payload="'%20OR%201=1--",
-            mutation_type="url_encode",
-            waf_type=WAFType.CLOUDFLARE,
-            target="test.com",
-            success=True,
-            response_code=200,
-            timestamp=time.time(),
-            context="sqli",
-        )
+        try:
+            attempt = PayloadAttempt(
+                payload_hash="abc123",
+                original_payload="' OR 1=1--",
+                mutated_payload="'%20OR%201=1--",
+                mutation_type="url_encode",
+                waf_type=WAFType.CLOUDFLARE,
+                target="test.com",
+                success=True,
+                response_code=200,
+                timestamp=time.time(),
+                context="sqli",
+            )
 
-        memory.record_attempt(attempt)
-        stats = memory.get_stats()
+            memory.record_attempt(attempt)
+            stats = memory.get_stats()
 
-        assert stats["total_attempts"] == 1
-        assert stats["successful_bypasses"] == 1
+            assert stats["total_attempts"] == 1
+            assert stats["successful_bypasses"] == 1
+        finally:
+            memory.close()
 
     def test_record_failure(self) -> None:
         """Test recording failed attempt."""
         memory = AdaptiveMutationMemory(":memory:")
-        attempt = PayloadAttempt(
-            payload_hash="abc123",
-            original_payload="' OR 1=1--",
-            mutated_payload="' OR 1=1--",
-            mutation_type="none",
-            waf_type=WAFType.CLOUDFLARE,
-            target="test.com",
-            success=False,
-            response_code=403,
-            timestamp=time.time(),
-            context="sqli",
-        )
-
-        memory.record_attempt(attempt)
-        stats = memory.get_stats()
-
-        assert stats["total_attempts"] == 1
-        assert stats["successful_bypasses"] == 0
-        assert stats["known_blocked_patterns"] == 1
-
-    def test_pattern_blocking(self) -> None:
-        """Test pattern blocking after multiple failures."""
-        memory = AdaptiveMutationMemory(":memory:")
-        payload = "blocked_payload"
-
-        # Record 3 failures for same pattern
-        for _ in range(3):
+        try:
             attempt = PayloadAttempt(
-                payload_hash="test",
-                original_payload=payload,
-                mutated_payload=payload,
+                payload_hash="abc123",
+                original_payload="' OR 1=1--",
+                mutated_payload="' OR 1=1--",
                 mutation_type="none",
                 waf_type=WAFType.CLOUDFLARE,
                 target="test.com",
@@ -148,32 +140,66 @@ class TestAdaptiveMutationMemory:
                 timestamp=time.time(),
                 context="sqli",
             )
-            memory.record_attempt(attempt)
 
-        assert memory.is_pattern_blocked(WAFType.CLOUDFLARE, payload)
+            memory.record_attempt(attempt)
+            stats = memory.get_stats()
+
+            assert stats["total_attempts"] == 1
+            assert stats["successful_bypasses"] == 0
+            assert stats["known_blocked_patterns"] == 1
+        finally:
+            memory.close()
+
+    def test_pattern_blocking(self) -> None:
+        """Test pattern blocking after multiple failures."""
+        memory = AdaptiveMutationMemory(":memory:")
+        try:
+            payload = "blocked_payload"
+
+            # Record 3 failures for same pattern
+            for _ in range(3):
+                attempt = PayloadAttempt(
+                    payload_hash="test",
+                    original_payload=payload,
+                    mutated_payload=payload,
+                    mutation_type="none",
+                    waf_type=WAFType.CLOUDFLARE,
+                    target="test.com",
+                    success=False,
+                    response_code=403,
+                    timestamp=time.time(),
+                    context="sqli",
+                )
+                memory.record_attempt(attempt)
+
+            assert memory.is_pattern_blocked(WAFType.CLOUDFLARE, payload)
+        finally:
+            memory.close()
 
     def test_get_best_mutations(self) -> None:
         """Test getting best mutations."""
         memory = AdaptiveMutationMemory(":memory:")
+        try:
+            # Record successful attempt
+            attempt = PayloadAttempt(
+                payload_hash="abc",
+                original_payload="test",
+                mutated_payload="test_encoded",
+                mutation_type="url_encode",
+                waf_type=WAFType.CLOUDFLARE,
+                target="test.com",
+                success=True,
+                response_code=200,
+                timestamp=time.time(),
+                context="sqli",
+            )
+            memory.record_attempt(attempt)
 
-        # Record successful attempt
-        attempt = PayloadAttempt(
-            payload_hash="abc",
-            original_payload="test",
-            mutated_payload="test_encoded",
-            mutation_type="url_encode",
-            waf_type=WAFType.CLOUDFLARE,
-            target="test.com",
-            success=True,
-            response_code=200,
-            timestamp=time.time(),
-            context="sqli",
-        )
-        memory.record_attempt(attempt)
-
-        best = memory.get_best_mutations(WAFType.CLOUDFLARE, "sqli")
-        assert len(best) > 0
-        assert best[0][0] == "url_encode"
+            best = memory.get_best_mutations(WAFType.CLOUDFLARE, "sqli")
+            assert len(best) > 0
+            assert best[0][0] == "url_encode"
+        finally:
+            memory.close()
 
 
 class TestEncodingEngine:
@@ -369,148 +395,193 @@ class TestWAFBypassEngine:
     def test_create_engine(self) -> None:
         """Test engine creation."""
         engine = create_engine(":memory:")
-        assert engine is not None
-        assert isinstance(engine, WAFBypassEngine)
+        try:
+            assert engine is not None
+            assert isinstance(engine, WAFBypassEngine)
+        finally:
+            engine.close()
 
     def test_bypass_sql(self) -> None:
         """Test SQL bypass generation."""
         engine = WAFBypassEngine(":memory:")
-        payloads = engine.bypass_sql("' OR 1=1--")
+        try:
+            payloads = engine.bypass_sql("' OR 1=1--")
 
-        assert len(payloads) > 0
-        assert all(isinstance(p, str) for p in payloads)
+            assert len(payloads) > 0
+            assert all(isinstance(p, str) for p in payloads)
+        finally:
+            engine.close()
 
     def test_bypass_sql_cloudflare(self) -> None:
         """Test SQL bypass for Cloudflare."""
         engine = WAFBypassEngine(":memory:")
-        engine.detected_waf = WAFType.CLOUDFLARE
-        payloads = engine.bypass_sql("' OR 1=1--", aggressiveness=3)
+        try:
+            engine.detected_waf = WAFType.CLOUDFLARE
+            payloads = engine.bypass_sql("' OR 1=1--", aggressiveness=3)
 
-        assert len(payloads) > 5
-        # Should have Cloudflare-specific mutations
+            assert len(payloads) > 5
+            # Should have Cloudflare-specific mutations
+        finally:
+            engine.close()
 
     def test_bypass_xss(self) -> None:
         """Test XSS bypass generation."""
         engine = WAFBypassEngine(":memory:")
-        payloads = engine.bypass_xss("<script>alert(1)</script>")
+        try:
+            payloads = engine.bypass_xss("<script>alert(1)</script>")
 
-        assert len(payloads) > 0
-        assert any("<svg" in p.lower() for p in payloads)
+            assert len(payloads) > 0
+            assert any("<svg" in p.lower() for p in payloads)
+        finally:
+            engine.close()
 
     def test_bypass_rce_linux(self) -> None:
         """Test RCE bypass for Linux."""
         engine = WAFBypassEngine(":memory:")
-        payloads = engine.bypass_rce("cat /etc/passwd", "linux")
+        try:
+            payloads = engine.bypass_rce("cat /etc/passwd", "linux")
 
-        assert len(payloads) > 0
+            assert len(payloads) > 0
+        finally:
+            engine.close()
 
     def test_bypass_rce_windows(self) -> None:
         """Test RCE bypass for Windows."""
         engine = WAFBypassEngine(":memory:")
-        payloads = engine.bypass_rce("dir", "windows")
+        try:
+            payloads = engine.bypass_rce("dir", "windows")
 
-        assert len(payloads) > 0
+            assert len(payloads) > 0
+        finally:
+            engine.close()
 
     def test_record_result(self) -> None:
         """Test recording bypass result."""
         engine = WAFBypassEngine(":memory:")
-        engine.detected_waf = WAFType.CLOUDFLARE
+        try:
+            engine.detected_waf = WAFType.CLOUDFLARE
 
-        engine.record_result(
-            original="' OR 1=1--",
-            mutated="'%20OR%201=1--",
-            mutation_type="url_encode",
-            success=True,
-            response_code=200,
-            context="sqli",
-            target="test.com",
-        )
-
-        stats = engine.get_stats()
-        assert stats["total_attempts"] == 1
-
-    def test_smart_bypass_sqli(self) -> None:
-        """Test smart bypass for SQLi."""
-        engine = WAFBypassEngine(":memory:")
-        payloads = engine.smart_bypass("' OR 1=1--", "sqli")
-
-        assert len(payloads) > 0
-
-    def test_smart_bypass_xss(self) -> None:
-        """Test smart bypass for XSS."""
-        engine = WAFBypassEngine(":memory:")
-        payloads = engine.smart_bypass("<script>alert(1)</script>", "xss")
-
-        assert len(payloads) > 0
-
-    def test_smart_bypass_rce(self) -> None:
-        """Test smart bypass for RCE."""
-        engine = WAFBypassEngine(":memory:")
-        payloads = engine.smart_bypass("cat /etc/passwd", "rce")
-
-        assert len(payloads) > 0
-
-    def test_smart_bypass_generic(self) -> None:
-        """Test smart bypass for unknown context."""
-        engine = WAFBypassEngine(":memory:")
-        payloads = engine.smart_bypass("test", "unknown")
-
-        assert len(payloads) > 0
-
-    def test_get_chunked_request(self) -> None:
-        """Test chunked request generation."""
-        engine = WAFBypassEngine(":memory:")
-        headers, body = engine.get_chunked_request("test")
-
-        assert "Transfer-Encoding" in headers
-        assert "0\r\n\r\n" in body
-
-    def test_get_hpp_params(self) -> None:
-        """Test HPP params generation."""
-        engine = WAFBypassEngine(":memory:")
-        result = engine.get_hpp_params({"id": "1", "name": "test"})
-
-        assert "id=" in result
-        assert "name=" in result
-
-    def test_get_bypass_headers(self) -> None:
-        """Test bypass headers generation."""
-        engine = WAFBypassEngine(":memory:")
-        headers = engine.get_bypass_headers()
-
-        assert "X-Forwarded-For" in headers
-
-    def test_adaptive_learning(self) -> None:
-        """Test adaptive learning workflow."""
-        engine = WAFBypassEngine(":memory:")
-        engine.detected_waf = WAFType.CLOUDFLARE
-
-        # Record multiple successes for url_encode
-        for _ in range(5):
             engine.record_result(
-                original="test",
-                mutated="test_encoded",
+                original="' OR 1=1--",
+                mutated="'%20OR%201=1--",
                 mutation_type="url_encode",
                 success=True,
                 response_code=200,
                 context="sqli",
+                target="test.com",
             )
 
-        # Record failures for other mutations
-        for _ in range(5):
-            engine.record_result(
-                original="test",
-                mutated="test_other",
-                mutation_type="other",
-                success=False,
-                response_code=403,
-                context="sqli",
-            )
+            stats = engine.get_stats()
+            assert stats["total_attempts"] == 1
+        finally:
+            engine.close()
 
-        # Best mutations should prioritize url_encode
-        best = engine.memory.get_best_mutations(WAFType.CLOUDFLARE, "sqli")
-        assert len(best) > 0
-        # url_encode should have higher score
+    def test_smart_bypass_sqli(self) -> None:
+        """Test smart bypass for SQLi."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            payloads = engine.smart_bypass("' OR 1=1--", "sqli")
+
+            assert len(payloads) > 0
+        finally:
+            engine.close()
+
+    def test_smart_bypass_xss(self) -> None:
+        """Test smart bypass for XSS."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            payloads = engine.smart_bypass("<script>alert(1)</script>", "xss")
+
+            assert len(payloads) > 0
+        finally:
+            engine.close()
+
+    def test_smart_bypass_rce(self) -> None:
+        """Test smart bypass for RCE."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            payloads = engine.smart_bypass("cat /etc/passwd", "rce")
+
+            assert len(payloads) > 0
+        finally:
+            engine.close()
+
+    def test_smart_bypass_generic(self) -> None:
+        """Test smart bypass for unknown context."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            payloads = engine.smart_bypass("test", "unknown")
+
+            assert len(payloads) > 0
+        finally:
+            engine.close()
+
+    def test_get_chunked_request(self) -> None:
+        """Test chunked request generation."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            headers, body = engine.get_chunked_request("test")
+
+            assert "Transfer-Encoding" in headers
+            assert "0\r\n\r\n" in body
+        finally:
+            engine.close()
+
+    def test_get_hpp_params(self) -> None:
+        """Test HPP params generation."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            result = engine.get_hpp_params({"id": "1", "name": "test"})
+
+            assert "id=" in result
+            assert "name=" in result
+        finally:
+            engine.close()
+
+    def test_get_bypass_headers(self) -> None:
+        """Test bypass headers generation."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            headers = engine.get_bypass_headers()
+
+            assert "X-Forwarded-For" in headers
+        finally:
+            engine.close()
+
+    def test_adaptive_learning(self) -> None:
+        """Test adaptive learning workflow."""
+        engine = WAFBypassEngine(":memory:")
+        try:
+            engine.detected_waf = WAFType.CLOUDFLARE
+
+            # Record multiple successes for url_encode
+            for _ in range(5):
+                engine.record_result(
+                    original="test",
+                    mutated="test_encoded",
+                    mutation_type="url_encode",
+                    success=True,
+                    response_code=200,
+                    context="sqli",
+                )
+
+            # Record failures for other mutations
+            for _ in range(5):
+                engine.record_result(
+                    original="test",
+                    mutated="test_other",
+                    mutation_type="other",
+                    success=False,
+                    response_code=403,
+                    context="sqli",
+                )
+
+            # Best mutations should prioritize url_encode
+            best = engine.memory.get_best_mutations(WAFType.CLOUDFLARE, "sqli")
+            assert len(best) > 0
+            # url_encode should have higher score
+        finally:
+            engine.close()
 
 
 class TestWAFSignatures:
@@ -547,34 +618,36 @@ class TestIntegration:
     def test_full_bypass_workflow(self) -> None:
         """Test complete bypass workflow."""
         engine = WAFBypassEngine(":memory:")
-
-        # 1. Fingerprint WAF
-        waf = engine.fingerprint_waf(
-            {"cf-ray": "123", "server": "cloudflare"},
-            "Ray ID: abc",
-            403,
-        )
-        assert waf == WAFType.CLOUDFLARE
-
-        # 2. Generate payloads
-        payloads = engine.bypass_sql("' OR 1=1--")
-        assert len(payloads) > 0
-
-        # 3. Test and record results
-        for i, payload in enumerate(payloads[:3]):
-            success = i == 0  # Simulate first one works
-            engine.record_result(
-                original="' OR 1=1--",
-                mutated=payload,
-                mutation_type="test",
-                success=success,
-                response_code=200 if success else 403,
-                context="sqli",
+        try:
+            # 1. Fingerprint WAF
+            waf = engine.fingerprint_waf(
+                {"cf-ray": "123", "server": "cloudflare"},
+                "Ray ID: abc",
+                403,
             )
+            assert waf == WAFType.CLOUDFLARE
 
-        # 4. Check stats
-        stats = engine.get_stats()
-        assert stats["total_attempts"] >= 3
+            # 2. Generate payloads
+            payloads = engine.bypass_sql("' OR 1=1--")
+            assert len(payloads) > 0
+
+            # 3. Test and record results
+            for i, payload in enumerate(payloads[:3]):
+                success = i == 0  # Simulate first one works
+                engine.record_result(
+                    original="' OR 1=1--",
+                    mutated=payload,
+                    mutation_type="test",
+                    success=success,
+                    response_code=200 if success else 403,
+                    context="sqli",
+                )
+
+            # 4. Check stats
+            stats = engine.get_stats()
+            assert stats["total_attempts"] >= 3
+        finally:
+            engine.close()
 
     def test_memory_persistence(self) -> None:
         """Test memory persists between calls."""
@@ -602,7 +675,9 @@ class TestIntegration:
 
             assert stats["total_attempts"] >= 1
         finally:
-            # Ensure engines are garbage-collected so SQLite releases the file
+            # Properly close engines before garbage collection
+            engine1.close()
+            engine2.close()
             del engine1, engine2
             import gc
 

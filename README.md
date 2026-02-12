@@ -5,11 +5,11 @@
 *Let AI handle the methodology. You focus on the results.*
 
 [![CI](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml/badge.svg)](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-1324%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
-[![Ruff](https://img.shields.io/badge/linting-ruff-brightgreen.svg)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/tests-1363%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
+[![Ruff](https://img.shields.io/badge/linting-ruff%2035%20rule%20groups-brightgreen.svg)](https://github.com/astral-sh/ruff)
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
@@ -50,7 +50,7 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Anti-Hallucination Protocol** - Validates AI outputs against reality
 
 ### 🔄 Self-Evolution Engine (Singularity)
-- **Code Synthesis** - Generates new tools from descriptions (7 real templates)
+- **Code Synthesis** - Generates new tools from descriptions (6 real templates)
 - **AST-Based Refactoring** - Real code improvement via Abstract Syntax Trees
 - **Polymorphic Mutation** - Transforms code to evade detection
 - **Strategy Mutation** - Adapts attack strategies based on failures
@@ -146,7 +146,7 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Multiple Formats** - HTML, Markdown, JSON, PDF
 - **Executive Summary** - AI-generated overview
 - **Risk Scoring** - CVSS-based severity
-- **Evidence Documentation** - Screenshots (Playwright/Selenium/CLI) and logs
+- **Evidence Documentation** - Screenshot embedding and logs
 - **Remediation Guidance** - Actionable fixes
 
 ### 🔒 Security Features
@@ -201,18 +201,19 @@ DRAKBEN works offline with rule-based fallback, but AI features require an LLM p
 ```env
 # Option 1: OpenRouter (recommended - multiple models)
 OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 
 # Option 2: OpenAI
 OPENAI_API_KEY=your_key_here
 
 # Option 3: Local Ollama (free, private)
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.2
+LOCAL_LLM_URL=http://localhost:11434
+LOCAL_LLM_MODEL=llama3.1
 ```
 
 For Ollama, install from [ollama.ai](https://ollama.ai) and run:
 ```bash
-ollama pull llama3.2
+ollama pull llama3.1
 ```
 
 ---
@@ -242,6 +243,8 @@ python drakben.py
 | `/config` | View/edit configuration |
 | `/tr` | Switch to Turkish |
 | `/en` | Switch to English |
+| `/clear` | Clear screen |
+| `/research` | Research mode |
 | `/exit` | Exit DRAKBEN |
 
 ### Natural Language Examples
@@ -309,13 +312,16 @@ drakben> attempt lateral movement to DC
 
 | Phase | Description |
 |-------|-------------|
-| `INIT` | Target validation and scope definition |
+| `IDLE` | Waiting for target assignment |
+| `INIT` / `TARGET_SET` | Target validation and scope definition |
 | `RECON` | Information gathering and enumeration |
 | `VULN_SCAN` | Vulnerability identification |
 | `EXPLOIT` | Exploitation attempts |
 | `FOOTHOLD` | Initial access establishment |
 | `POST_EXPLOIT` | Privilege escalation and persistence |
+| `REPORTING` | Report generation and documentation |
 | `COMPLETE` | Mission accomplished |
+| `FAILED` | Attack chain terminated (recovery possible) |
 
 ---
 
@@ -379,7 +385,7 @@ drakben/
 │   │   └── mutation.py         # Polymorphic code mutation
 │   ├── storage/                # Persistence layer
 │   ├── tools/                  # Tool registry system
-│   │   ├── tool_registry.py    # Central tool hub (20+ tools)
+│   │   ├── tool_registry.py    # Central tool hub (34+ tools)
 │   │   ├── tool_parsers.py     # Output parsers
 │   │   └── computer.py         # Computer interaction
 │   └── ui/                     # User interface
@@ -411,7 +417,7 @@ drakben/
 │   └── social_eng/             # Social engineering modules
 ├── llm/                        # LLM integration
 │   └── openrouter_client.py    # OpenRouter API client
-├── tests/                      # Test suite (1324+ tests)
+├── tests/                      # Test suite (1363+ tests)
 ├── config/                     # Configuration files
 │   ├── settings.json           # Application settings
 │   ├── plugins.json            # Plugin configuration
@@ -443,7 +449,7 @@ python -m pytest --cov=core --cov=modules --cov-report=html
 python -m pytest --maxfail=10 --disable-warnings --tb=short
 ```
 
-**Current Status:** 1324+ tests passing | Ruff (36 rule groups) clean | Mypy strict | SonarQube compliant
+**Current Status:** 1363+ tests passing | Ruff (35 rule groups) clean | Mypy strict | SonarQube compliant
 
 ---
 

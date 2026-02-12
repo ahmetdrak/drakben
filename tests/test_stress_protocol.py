@@ -24,6 +24,10 @@ def agent():
 
     agent = RefactoredDrakbenAgent(config)
 
+    # Close the real EvolutionMemory DB connection before replacing with mock
+    if hasattr(agent, "evolution") and hasattr(agent.evolution, "close"):
+        agent.evolution.close()
+
     # Mock Executor
     agent.executor = MagicMock()
     mock_result = MagicMock()

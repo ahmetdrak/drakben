@@ -4,6 +4,7 @@ Description: Synchronizes agent state across distributed nodes using Redis.
              Gracefully falls back to local memory if Redis is unavailable.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -74,7 +75,6 @@ class DistributedStateManager:
         full_key = f"drakben:{namespace}:{key}"
         if self.connected and self.redis_client:
             try:
-                import json
                 raw = self.redis_client.get(full_key)
                 if raw is not None:
                     try:
@@ -100,9 +100,8 @@ class DistributedStateManager:
         Returns:
             True if stored successfully.
         """
-        import json
-
         full_key = f"drakben:{namespace}:{key}"
+        redis_success = False
         if self.connected and self.redis_client:
             try:
                 serialized = json.dumps(value)
@@ -110,14 +109,14 @@ class DistributedStateManager:
                     self.redis_client.setex(full_key, ttl, serialized)
                 else:
                     self.redis_client.set(full_key, serialized)
-                return True
+                redis_success = True
             except Exception as e:
                 logger.warning("Redis set failed for %s: %s", full_key, e)
         # Always update local state as fallback/cache
         if namespace not in self._local_state:
             self._local_state[namespace] = {}
         self._local_state[namespace][key] = value
-        return True
+        return redis_success or not self.connected
 
     def delete_state(self, key: str, namespace: str = "global") -> bool:
         """Delete a state key.
@@ -151,7 +150,7 @@ class DistributedStateManager:
         prefix = f"drakben:{namespace}:"
         if self.connected and self.redis_client:
             try:
-                raw_keys = self.redis_client.keys(f"{prefix}*")
+                raw_keys = list(self.redis_client.scan_iter(match=f"{prefix}*"))
                 return [k.replace(prefix, "") for k in raw_keys]
             except Exception as e:
                 logger.warning("Redis keys failed: %s", e)

@@ -362,7 +362,8 @@ class AdaptiveMutationMemory:
                 if attempt.success:
                     conn.execute(
                         """
-                        INSERT INTO mutation_scores (waf_type, mutation_type, context, success_count, score, last_updated)
+                        INSERT INTO mutation_scores
+                        (waf_type, mutation_type, context, success_count, score, last_updated)
                         VALUES (?, ?, ?, 1, 0.6, ?)
                         ON CONFLICT(waf_type, mutation_type, context) DO UPDATE SET
                         success_count = success_count + 1,
@@ -401,7 +402,8 @@ class AdaptiveMutationMemory:
 
                     conn.execute(
                         """
-                        INSERT INTO mutation_scores (waf_type, mutation_type, context, failure_count, score, last_updated)
+                        INSERT INTO mutation_scores
+                        (waf_type, mutation_type, context, failure_count, score, last_updated)
                         VALUES (?, ?, ?, 1, 0.4, ?)
                         ON CONFLICT(waf_type, mutation_type, context) DO UPDATE SET
                         failure_count = failure_count + 1,
@@ -497,6 +499,28 @@ class AdaptiveMutationMemory:
             finally:
                 if not self._is_memory:
                     conn.close()
+
+    def close(self) -> None:
+        """Close the database connection."""
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
+
+    def __del__(self) -> None:
+        """Ensure database connection is closed on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __enter__(self) -> AdaptiveMutationMemory:
+        """Support usage as a context manager."""
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Close connection on context-manager exit."""
+        self.close()
 
 
 # =============================================================================
@@ -935,6 +959,8 @@ class CommandBypassEngine:
     @classmethod
     def powershell_obfuscate(cls, cmd: str) -> str:
         """PowerShell obfuscation."""
+        if not cmd:
+            return cmd
         techniques = [
             # Tick insertion
             cmd.replace("e", "e`"),
@@ -1263,7 +1289,10 @@ class WAFBypassEngine:
         payloads.append(self.encoding.unicode_encode(payload, "fullwidth"))
 
         # Obscure event handlers
-        for event in secrets.SystemRandom().sample(self.xss_bypass.OBSCURE_EVENTS, min(3, len(self.xss_bypass.OBSCURE_EVENTS))):
+        for event in secrets.SystemRandom().sample(
+            self.xss_bypass.OBSCURE_EVENTS,
+            min(3, len(self.xss_bypass.OBSCURE_EVENTS)),
+        ):
             tag = secrets.choice(self.xss_bypass.OBSCURE_TAGS)
             payloads.append(f"<{tag} {event}=alert(1)>")
 
@@ -1345,6 +1374,25 @@ class WAFBypassEngine:
         """Get learning statistics."""
         return self.memory.get_stats()
 
+    def close(self) -> None:
+        """Close the underlying memory database connection."""
+        self.memory.close()
+
+    def __del__(self) -> None:
+        """Ensure resources are released on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __enter__(self) -> WAFBypassEngine:
+        """Support usage as a context manager."""
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Close resources on context-manager exit."""
+        self.close()
+
     def smart_bypass(
         self,
         payload: str,
@@ -1397,7 +1445,10 @@ def fingerprint_waf(
 ) -> WAFType:
     """Quick WAF fingerprinting without persistence."""
     engine = WAFBypassEngine(MEMORY_DB_PATH)
-    return engine.fingerprint_waf(headers, body, status_code)
+    try:
+        return engine.fingerprint_waf(headers, body, status_code)
+    finally:
+        engine.close()
 
 
 # Example usage

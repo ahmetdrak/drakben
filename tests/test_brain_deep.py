@@ -35,18 +35,18 @@ class TestGetModelTimeout:
             assert get_model_timeout(model) == expected
 
     def test_prefix_match_wins(self):
-        """First-match-wins: shorter prefix returns its own timeout."""
-        # "gpt-4" matches before "gpt-4-turbo" in dict iteration
-        assert get_model_timeout("gpt-4-turbo") == MODEL_TIMEOUTS["gpt-4"]
-        assert get_model_timeout("claude-3-opus") == MODEL_TIMEOUTS["claude-3"]
+        """Longest match wins: specific prefix returns its own timeout."""
+        # After prefix-sort fix, "gpt-4-turbo" matches before shorter "gpt-4"
+        assert get_model_timeout("gpt-4-turbo") == MODEL_TIMEOUTS["gpt-4-turbo"]
+        assert get_model_timeout("claude-3-opus") == MODEL_TIMEOUTS["claude-3-opus"]
 
     def test_case_insensitive_lookup(self):
         assert get_model_timeout("GPT-4") == MODEL_TIMEOUTS["gpt-4"]
         assert get_model_timeout("MISTRAL") == MODEL_TIMEOUTS["mistral"]
 
     def test_partial_match(self):
-        # "gpt-4" key also matches inside longer strings
-        assert get_model_timeout("openrouter/gpt-4-turbo-preview") == MODEL_TIMEOUTS["gpt-4"]
+        # "gpt-4-turbo" key matches inside longer strings
+        assert get_model_timeout("openrouter/gpt-4-turbo-preview") == MODEL_TIMEOUTS["gpt-4-turbo"]
 
     def test_unknown_model_returns_default(self):
         assert get_model_timeout("unknown-model-xyz") == MODEL_TIMEOUTS["default"]

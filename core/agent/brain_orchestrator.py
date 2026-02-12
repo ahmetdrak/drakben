@@ -155,4 +155,9 @@ class MasterOrchestrator:
             "success": not decision.get("error"),
         })
 
+        # Prevent unbounded memory growth in long autonomous sessions
+        _MAX_HISTORY = 500
+        if len(self.context.history) > _MAX_HISTORY:
+            self.context.history = self.context.history[-_MAX_HISTORY:]
+
         return decision

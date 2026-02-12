@@ -43,7 +43,7 @@ except ImportError:
 
 @dataclass
 class CommandResult:
-    """# noqa: RUF001Result of an interactive command."""
+    """Result of an interactive command."""
 
     success: bool
     output: str = ""
@@ -414,7 +414,11 @@ class InteractiveShell:
             table.add_row(f"/{cmd}", desc)
 
         self.console.print(table)
-        hint = "Doğal dilde de komut yazabilirsiniz." if lang == "tr" else "You can also type natural language commands."
+        hint = (
+            "Doğal dilde de komut yazabilirsiniz."
+            if lang == "tr"
+            else "You can also type natural language commands."
+        )
         self.console.print(f"\n[dim]{hint}[/dim]")
 
         return CommandResult(success=True, output="")
@@ -539,47 +543,54 @@ class InteractiveShell:
         module = args[0]
         self.console.print(f"[yellow]Running exploit: {module}[/yellow]")
 
-        # Try to execute via agent's tool execution system
-        if hasattr(self, "agent") and self.agent:
-            target_args: dict = {}
-            if len(args) > 1:
-                # Parse remaining args as key=value pairs
-                for arg in args[1:]:
-                    if "=" in arg:
-                        k, v = arg.split("=", 1)
-                        target_args[k] = v
-                    else:
-                        target_args["target"] = arg
+        if not (hasattr(self, "agent") and self.agent):
+            return CommandResult(success=False, error="No agent available for exploit execution")
 
-            # Map common module names to tool_name
-            tool_mapping = {
-                "sqli": "sqlmap_scan",
-                "sqlmap": "sqlmap_scan",
-                "nikto": "nikto_web_scan",
-                "nuclei": "nuclei_scan",
-                "metasploit": "metasploit_exploit",
-                "msf": "metasploit_exploit",
-            }
-            tool_name = tool_mapping.get(module, module)
+        target_args = self._parse_exploit_args(args[1:])
+        tool_name = self._resolve_exploit_tool(module)
+        return self._run_exploit_tool(tool_name, target_args)
 
-            try:
-                result = self.agent._execute_tool(tool_name, target_args)
-                if result.get("success"):
-                    self.console.print("[green]Exploit completed successfully![/green]")
-                    output = result.get("stdout", result.get("output", ""))
-                    if output:
-                        from rich.syntax import Syntax
-                        self.console.print(Syntax(str(output)[:2000], "text"))
-                    return CommandResult(success=True, output=str(output)[:2000])
-                else:
-                    error_msg = result.get("error", "Unknown error")
-                    self.console.print(f"[red]Exploit failed: {error_msg}[/red]")
-                    return CommandResult(success=False, error=error_msg)
-            except Exception as e:
-                self.console.print(f"[red]Exploit error: {e}[/red]")
-                return CommandResult(success=False, error=str(e))
+    def _parse_exploit_args(self, args: list[str]) -> dict:
+        """Parse exploit arguments as key=value pairs."""
+        target_args: dict = {}
+        for arg in args:
+            if "=" in arg:
+                k, v = arg.split("=", 1)
+                target_args[k] = v
+            else:
+                target_args["target"] = arg
+        return target_args
 
-        return CommandResult(success=False, error="No agent available for exploit execution")
+    @staticmethod
+    def _resolve_exploit_tool(module: str) -> str:
+        """Map common module names to tool names."""
+        tool_mapping = {
+            "sqli": "sqlmap_scan",
+            "sqlmap": "sqlmap_scan",
+            "nikto": "nikto_web_scan",
+            "nuclei": "nuclei_scan",
+            "metasploit": "metasploit_exploit",
+            "msf": "metasploit_exploit",
+        }
+        return tool_mapping.get(module, module)
+
+    def _run_exploit_tool(self, tool_name: str, target_args: dict) -> CommandResult:
+        """Execute an exploit tool and return result."""
+        try:
+            result = self.agent._execute_tool(tool_name, target_args)
+            if result.get("success"):
+                self.console.print("[green]Exploit completed successfully![/green]")
+                output = result.get("stdout", result.get("output", ""))
+                if output:
+                    from rich.syntax import Syntax
+                    self.console.print(Syntax(str(output)[:2000], "text"))
+                return CommandResult(success=True, output=str(output)[:2000])
+            error_msg = result.get("error", "Unknown error")
+            self.console.print(f"[red]Exploit failed: {error_msg}[/red]")
+            return CommandResult(success=False, error=error_msg)
+        except Exception as e:
+            self.console.print(f"[red]Exploit error: {e}[/red]")
+            return CommandResult(success=False, error=str(e))
 
     def _cmd_shell(self, args: list[str]) -> CommandResult:
         """Execute a system shell command."""
@@ -636,10 +647,20 @@ class InteractiveShell:
         # Fallback to direct execution (less safe)
         import subprocess
 
+        # Validate command before fallback shell execution
+        _DANGEROUS = (
+            "rm -rf /", "mkfs", "dd if=", "> /dev/sda",
+            ":(){ :|:& };:", "shutdown", "reboot",
+        )
+        if any(d in command.lower() for d in _DANGEROUS):
+            return CommandResult(
+                success=False,
+                error="Blocked: dangerous command in fallback mode",
+            )
+
         try:
             result = subprocess.run(
-                command,
-                shell=True,  # nosec B602
+                shlex.split(command),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -715,23 +736,47 @@ class InteractiveShell:
                     "dict": dict,
                     "range": range,
                     "enumerate": enumerate,
+                    "bool": bool,
+                    "tuple": tuple,
+                    "set": set,
+                    "sorted": sorted,
+                    "min": min,
+                    "max": max,
+                    "sum": sum,
+                    "abs": abs,
+                    "round": round,
+                    "repr": repr,
+                    "isinstance": isinstance,
+                    "hasattr": hasattr,
+                    "getattr": getattr,
                 },
                 "target": self.current_target,
                 "session": self.session_vars,
             }
 
-            if "=" not in code:
-                # Expression - use eval but it's already within safe_globals
-                # We'll use a local result variable to avoid potential issues
-                try:
-                    expr_result = eval(code, safe_globals)
-                    if expr_result is not None:
-                        self.console.print(repr(expr_result))
-                except Exception as e:
-                    self.console.print(f"[red]Expression error: {e}[/red]")
-            else:
-                # Statement - use exec
-                exec(code, safe_globals)
+            # Block introspection patterns that could escape the sandbox
+            _BLOCKED_PATTERNS = (
+                "__class__", "__bases__", "__subclasses__",
+                "__import__", "__globals__", "__code__",
+                "__builtins__", "__mro__", "breakpoint",
+                "eval(", "exec(", "compile(",
+                "open(", "os.", "sys.", "subprocess",
+                "importlib",
+            )
+            if any(p in code for p in _BLOCKED_PATTERNS):
+                return CommandResult(
+                    success=False,
+                    error="Blocked: code contains restricted patterns",
+                )
+
+            # Try eval first (expressions), fall back to exec (statements)
+            try:
+                expr_result = eval(code, safe_globals)  # nosec B307
+                if expr_result is not None:
+                    self.console.print(repr(expr_result))
+            except SyntaxError:
+                # Not an expression — execute as statement
+                exec(code, safe_globals)  # nosec B102
 
             return CommandResult(success=True, output="")
         except Exception as e:

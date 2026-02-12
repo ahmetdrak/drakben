@@ -296,11 +296,11 @@ class Planner:
         return True
 
     def _skip_step(self, step: PlanStep, reason: str) -> bool:
-        """Mark step as skipped."""
+        """Mark step as skipped. Returns False to indicate replanning failed."""
         step.status = StepStatus.SKIPPED
         step.error = f"{reason}. Original error: {step.error}"
         self._persist_steps()
-        return True
+        return False
 
     def _format_replan_reason(self, context: dict) -> str:
         """Format human-readable reason for replan."""
@@ -326,7 +326,7 @@ class Planner:
         self,
         new_actions: list[dict[str, str]],
         target: str,
-        _source: str = "llm",
+        source: str = "llm",
     ) -> int:
         """Inject new steps into the plan based on LLM analysis of tool output.
 
@@ -371,6 +371,7 @@ class Planner:
                 "expected_outcome": act.get("reason", f"complete_{action}"),
                 "actual_outcome": "",
                 "error": "",
+                "source": source,
             }
             self.steps.append(self._dict_to_step(step_dict))
             existing_actions.add((action, tool))
@@ -653,9 +654,12 @@ class Planner:
             if not deps_satisfied:
                 if self._handle_failed_dependencies(step):
                     continue
-            else:
-                self.current_step_index = i
-                return step
+                # Dependencies are pending (not failed) - don't skip past this step
+                # so we can retry it on the next call
+                break
+
+            self.current_step_index = i
+            return step
 
         return None  # Plan complete
 

@@ -591,7 +591,10 @@ class TestAnalyzeWithLlmTransparency:
         agent.planner.inject_dynamic_steps = MagicMock(return_value=1)
 
         mock_llm = MagicMock()
-        mock_llm.query.return_value = '{"findings": ["port 80"], "summary": "web found", "severity": "medium", "next_steps": [{"action": "web_vuln_scan", "tool": "nikto_web_scan", "reason": "HTTP"}]}'
+        mock_llm.query.return_value = (
+            '{"findings": ["port 80"], "summary": "web found", "severity": "medium",'
+            ' "next_steps": [{"action": "web_vuln_scan", "tool": "nikto_web_scan", "reason": "HTTP"}]}'
+        )
 
         agent._analyze_with_llm_transparency("nmap", "80/tcp open http", mock_llm)
         agent.planner.inject_dynamic_steps.assert_called_once()
@@ -624,7 +627,10 @@ class TestAnalyzeWithLlmTransparency:
         agent.planner.inject_dynamic_steps = MagicMock(return_value=1)
 
         mock_llm = MagicMock()
-        mock_llm.query.return_value = '{"findings": [], "summary": "ok", "severity": "info", "next_action": "nikto_web_scan"}'
+        mock_llm.query.return_value = (
+            '{"findings": [], "summary": "ok", "severity": "info",'
+            ' "next_action": "nikto_web_scan"}'
+        )
 
         agent._analyze_with_llm_transparency("nmap", "80/tcp open", mock_llm)
         agent.planner.inject_dynamic_steps.assert_called_once()
@@ -649,7 +655,10 @@ class TestAttemptLlmRecovery:
     def test_returns_llm_suggestions(self):
         agent = _create_agent()
         agent.brain.llm_client = MagicMock()
-        agent.brain.llm_client.query.return_value = '[{"action": "try_stealth_scan", "tool": "nmap_port_scan", "reason": "Firewall blocking"}]'
+        agent.brain.llm_client.query.return_value = (
+            '[{"action": "try_stealth_scan", "tool": "nmap_port_scan",'
+            ' "reason": "Firewall blocking"}]'
+        )
         agent.state = MagicMock()
         agent.state.target = "10.0.0.1"
         agent.state.phase = MagicMock()

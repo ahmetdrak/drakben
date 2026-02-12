@@ -12,7 +12,6 @@ This module provides:
 
 import logging
 import os
-import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -388,13 +387,10 @@ class ImpacketWrapper:
 
         # Check if in PATH
         try:
-            result = subprocess.run(
-                ["which", ImpacketTool.PSEXEC.value],
-                capture_output=True,
-                text=True, check=False,
-            )
-            if result.returncode == 0:
-                return os.path.dirname(result.stdout.strip())
+            import shutil
+            found = shutil.which(ImpacketTool.PSEXEC.value)
+            if found:
+                return os.path.dirname(found)
         except Exception as e:
             logger.debug("Failed to find impacket in PATH: %s", e)
 
@@ -459,10 +455,12 @@ class TokenImpersonator:
             import json
             proc_info = json.loads(result.stdout)
             token = TokenInfo(
-                token_type="duplicate",
-                source_pid=pid,
-                privileges=[],
                 username=proc_info.get("ProcessName", "unknown"),
+                domain="",
+                sid="",
+                privileges=[],
+                groups=[],
+                impersonation_level="duplicate",
             )
             self.captured_tokens.append(token)
             logger.info("Duplicated token from PID %d", pid)
@@ -529,10 +527,12 @@ class TokenImpersonator:
             win32security.ImpersonateNamedPipeClient(pipe)
 
             token = TokenInfo(
-                token_type="named_pipe",
-                source_pid=0,
-                privileges=[],
                 username="pipe_client",
+                domain="",
+                sid="",
+                privileges=[],
+                groups=[],
+                impersonation_level="named_pipe",
             )
             self.captured_tokens.append(token)
             self.current_token = token
@@ -571,9 +571,11 @@ class TokenImpersonator:
             },
         ]
 
-        # Pick the best variant based on OS version
+        # Pick the best variant based on OS version (tuple comparison for correctness)
+        os_parts = tuple(int(x) for x in os_version.split(".") if x.isdigit())
         for suggestion in reversed(suggestions):
-            if os_version >= suggestion["min_version"]:
+            min_parts = tuple(int(x) for x in suggestion["min_version"].split(".") if x.isdigit())
+            if os_parts >= min_parts:
                 logger.info("Recommended Potato variant: %s", suggestion["variant"])
                 return {"variant": suggestion["variant"], "description": suggestion["description"]}
 

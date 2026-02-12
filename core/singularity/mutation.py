@@ -159,7 +159,7 @@ for _i_{secrets.token_hex(2)} in range(0):
 """
         # Insert after imports
         lines = code.split("\n")
-        insert_pos = 0
+        insert_pos = len(lines)  # Default: append at end (safe for __future__ imports)
         for i, line in enumerate(lines):
             if not line.startswith(("import ", "from ", "#", '"""', "'''")):
                 if line.strip():
@@ -325,6 +325,19 @@ class VariableRenamer(ast.NodeTransformer):
         """Rename variable references."""
         if isinstance(node.ctx, ast.Store | ast.Load):
             node.id = self._get_new_name(node.id)
+        return node
+
+    def visit_Import(self, node: ast.Import) -> ast.Import:
+        """Collect imported names so they are preserved."""
+        for alias in node.names:
+            name = alias.asname or alias.name.split(".")[0]
+            self.preserved.add(name)
+        return node
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.ImportFrom:
+        """Collect from-imported names so they are preserved."""
+        for alias in node.names:
+            self.preserved.add(alias.asname or alias.name)
         return node
 
     def visit_arg(self, node: ast.arg) -> ast.arg:

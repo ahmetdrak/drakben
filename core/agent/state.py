@@ -132,16 +132,13 @@ class AgentState:
                         self.target = target
                 return
 
-            self._lock: RLock = threading.RLock()
+            self._lock: RLock = _state_lock
 
             # Core state
             self.target: str | None = target
             self.phase: AttackPhase = AttackPhase.INIT
             self.iteration_count: int = 0
             self.max_iterations: int = MAX_ITERATIONS
-
-            # Mark as initialized BEFORE populating state
-            self._initialized = True
 
             # Attack surface tracking
             self.open_services: dict[int, ServiceInfo] = {}  # port -> ServiceInfo
@@ -168,6 +165,7 @@ class AgentState:
 
             # Invariant violation tracking
             self.invariant_violations: list[str] = []
+            self._current_violations: list[str] = []
             self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
 
             # Agentic loop protection
@@ -177,6 +175,9 @@ class AgentState:
             self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
             self.hallucination_flags: list[str] = []  # Hallucination warnings
             self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
+
+            # Mark as initialized AFTER all attributes are set
+            self._initialized = True
 
     def clear(self, new_target: str | None = None) -> None:
         """Clear state for new run - preserves singleton reference.
@@ -298,6 +299,11 @@ class AgentState:
 
     def _merge_service(self, svc: ServiceInfo) -> None:
         """Merge a service into open_services with smart rules."""
+        # Validate port range
+        if not (1 <= svc.port <= 65535):
+            logger.warning("Invalid port number %s — skipping service", svc.port)
+            return
+
         if svc.port not in self.open_services:
             self.open_services[svc.port] = svc
             return
@@ -588,9 +594,9 @@ class AgentState:
             if self.iteration_count >= self.max_iterations:
                 return True, "Max iteration reached"
 
-            # Invariant violation
-            if self.invariant_violations:
-                return True, f"Invariant violation: {self.invariant_violations[0]}"
+            # Invariant violation (only current iteration, not accumulated history)
+            if self._current_violations:
+                return True, f"Invariant violation: {self._current_violations[0]}"
 
             # State stagnation check
             if len(self.state_changes_history) >= STAGNATION_CHECK_WINDOW:
@@ -638,8 +644,14 @@ class AgentState:
             violations.extend(self._check_surface_invariants())
             violations.extend(self._check_limits_invariants())
 
-            # Reset violations each cycle — only CURRENT violations halt
-            self.invariant_violations = violations
+            # Track current violations separately from history
+            self._current_violations = violations
+
+            # Append to accumulated history for debugging
+            self.invariant_violations.extend(violations)
+            # Trim to prevent unbounded growth
+            if len(self.invariant_violations) > self._max_invariant_violations * 2:
+                self.invariant_violations = self.invariant_violations[-self._max_invariant_violations:]
             if violations:
                 logger.error("State invariant violations: %s", violations)
                 return False
@@ -782,11 +794,15 @@ class AgentState:
                 pass
         self.tested_attack_surface = set(data.get("tested_attack_surface", []))
         self.remaining_attack_surface = set(data.get("remaining_attack_surface", []))
+        # Clear existing lists before loading to prevent duplicates on re-load
+        self.vulnerabilities.clear()
         for v in data.get("vulnerabilities", []):
             try:
                 self.vulnerabilities.append(VulnerabilityInfo(**v) if isinstance(v, dict) else v)
             except (TypeError, ValueError):
                 pass
+        # Clear existing credentials before loading to prevent duplicates on re-load
+        self.credentials.clear()
         for c in data.get("credentials", []):
             try:
                 self.credentials.append(CredentialInfo(**c) if isinstance(c, dict) else c)

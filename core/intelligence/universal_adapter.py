@@ -867,12 +867,15 @@ class APIRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._set_headers(404)
                 self.wfile.write(json.dumps({"error": "Not found"}).encode())
 
-        except Exception as e:
+        except Exception:
+            logger.exception("do_GET error")
             self._set_headers(500)
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            self.wfile.write(json.dumps({"error": "Internal server error"}).encode())
 
     def do_POST(self) -> None:
         # Placeholder for POST methods
+        if not self._validate_auth():
+            return
         self._set_headers(501)
         self.wfile.write(
             json.dumps(
@@ -922,8 +925,12 @@ class APIServer:
         return key
 
     def validate_key(self, key: str) -> str | None:
-        """Validate an API key."""
-        return self.api_keys.get(key)
+        """Validate an API key (timing-safe comparison)."""
+        import hmac
+        for stored_key, permissions in self.api_keys.items():
+            if hmac.compare_digest(stored_key, key):
+                return permissions
+        return None
 
     def get_endpoints(self) -> list[dict[str, str]]:
         """Get list of available API endpoints."""

@@ -254,10 +254,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
         if node.args:
             first_arg: ast.expr = node.args[0]
             if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-                path: str = first_arg.value
-                self._check_dangerous_path(path)
-            elif isinstance(first_arg, ast.Str):
-                self._check_dangerous_path(str(first_arg.s))
+                self._check_dangerous_path(first_arg.value)
 
     def _check_dangerous_path(self, path: str) -> None:
         """Check if path is dangerous."""
@@ -287,20 +284,15 @@ class ASTSecurityChecker(ast.NodeVisitor):
         # Check if it's a list like ['nmap', '-p', ...]
         if isinstance(first_arg, ast.List) and first_arg.elts:
             first_element: ast.expr = first_arg.elts[0]
-            if isinstance(first_element, ast.Constant):
-                cmd: str = str(first_element.value).lower()
-                return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
-            if isinstance(first_element, ast.Str):
-                cmd = str(first_element.s).lower()
-                return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+            if isinstance(first_element, ast.Constant) and isinstance(first_element.value, str):
+                cmd = str(first_element.value).lower()
+                return any(tool == cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
 
         # Check if it's a string like "nmap -p ..."
         if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-            cmd = first_arg.value.lower()
-            return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
-        if isinstance(first_arg, ast.Str):
-            cmd = str(getattr(first_arg, "s", "")).lower()
-            return any(tool in cmd for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
+            # Check only first token to avoid matching tool names in arguments
+            cmd_first_token = first_arg.value.strip().split()[0].lower() if first_arg.value.strip() else ""
+            return any(tool == cmd_first_token for tool in self.ALLOWED_SUBPROCESS_FOR_TOOLS)
 
         return False
 
@@ -354,8 +346,16 @@ class AICoder:
 
         """
         logger.info(
-            f"Creating alternative tool for failed: {failed_tool}, action: {action}",
+            "Creating alternative tool for failed: %s, action: %s",
+            failed_tool, action,
         )
+
+        # Enforce MAX_CREATED_TOOLS limit
+        if len(self.created_tools) >= self.MAX_CREATED_TOOLS:
+            return {
+                "success": False,
+                "error": f"Maximum tool limit ({self.MAX_CREATED_TOOLS}) reached",
+            }
 
         tool_name: str = f"auto_{action}_{int(time.time()) % 10000}"
 
@@ -422,7 +422,7 @@ def run(target, args=None) -> Any:
             security_result: dict[str, Any] = self._security_check_ast(code)
             if not security_result["safe"]:
                 logger.warning(
-                    f"Security check failed: {security_result['violations']}",
+                    "Security check failed: %s", security_result["violations"],
                 )
                 return {
                     "success": False,
@@ -454,6 +454,13 @@ def run(target, args=None) -> Any:
     def create_tool(self, tool_name: str, description: str, requirements: str) -> dict:
         """Manual tool creation (legacy method, for backward compatibility)."""
         logger.info("Creating tool: %s", tool_name)
+
+        # Enforce MAX_CREATED_TOOLS limit
+        if len(self.created_tools) >= self.MAX_CREATED_TOOLS:
+            return {
+                "success": False,
+                "error": f"Maximum tool limit ({self.MAX_CREATED_TOOLS}) reached",
+            }
 
         system_msg = """You are an expert Python Security Tool Developer.
 You must write a complete, standalone Python script that performs the requested security task.
@@ -522,10 +529,15 @@ def run(target, args=None) -> Any:
         if "```python" in response:
             start: int = response.find("```python") + 9
             end: int = response.find("```", start)
+            if end == -1:
+                # No closing fence — take everything after opening fence
+                return response[start:].strip()
             return response[start:end].strip()
         if "```" in response:
             start = response.find("```") + 3
             end = response.find("```", start)
+            if end == -1:
+                return response[start:].strip()
             return response[start:end].strip()
         return response.strip()
 

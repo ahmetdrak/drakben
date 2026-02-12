@@ -125,19 +125,19 @@ class AutoUpdater:
         else:
             start_date = last_sync
 
-        # NVD requires ISO8601 format: YYYY-MM-DDThh:mm:ss.s
-        # Adjust format if needed
+        # NVD requires ISO8601 format: YYYY-MM-DDThh:mm:ss.sZ
+        # Ensure proper format without double-suffixing
+        start_date = start_date.rstrip("Z")
         if "." not in start_date:
             start_date += ".000"
-        if not start_date.endswith("Z"):
-            start_date += "Z"
+        start_date += "Z"
 
         # Current time
         end_date = datetime.now().isoformat()
+        end_date = end_date.rstrip("Z")
         if "." not in end_date:
             end_date += ".000"
-        if not end_date.endswith("Z"):
-            end_date += "Z"
+        end_date += "Z"
 
         logger.info("Checking for CVE updates from %s to %s", start_date, end_date)
 
@@ -580,9 +580,12 @@ class CVEDatabase:
         return None
 
     def _save_to_cache(self, entry: CVEEntry) -> None:
-        """Save CVE to local cache."""
+        """Save CVE to local cache.
+
+        Note: Creates a new connection per call to ensure thread safety.
+        """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, check_same_thread=False) as conn:
                 # Save main entry
                 conn.execute(
                     "INSERT OR REPLACE INTO cve_cache (cve_id, data) VALUES (?, ?)",

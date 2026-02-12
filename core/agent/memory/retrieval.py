@@ -137,6 +137,7 @@ class RetrievalEngine:
         target: str | None = None,
         include_types: list[NodeType] | None = None,
         min_score: float = 0.0,
+        weights: RetrievalWeights | None = None,
     ) -> RetrievalResult:
         """Retrieve the most relevant memories for a query.
 
@@ -148,11 +149,13 @@ class RetrievalEngine:
             target: Optional target filter
             include_types: Node types to consider (None = all)
             min_score: Minimum score threshold
+            weights: Optional weights override (defaults to self._weights)
 
         Returns:
             RetrievalResult with scored nodes
         """
         start_time = time.time()
+        active_weights = weights if weights is not None else self._weights
 
         # Step 1: Get semantic relevance scores from vector store
         relevance_scores: dict[str, float] = {}
@@ -165,7 +168,7 @@ class RetrievalEngine:
         # Step 3: Score each candidate
         scored_nodes: list[ScoredNode] = []
         for node in candidates:
-            scored = self._score_node(node, relevance_scores)
+            scored = self._score_node(node, relevance_scores, weights=active_weights)
             if scored.total_score >= min_score:
                 scored_nodes.append(scored)
 
@@ -253,6 +256,7 @@ class RetrievalEngine:
         self,
         node: ConceptNode,
         relevance_scores: dict[str, float],
+        weights: RetrievalWeights | None = None,
     ) -> ScoredNode:
         """Score a single node using the Stanford formula.
 
@@ -265,11 +269,12 @@ class RetrievalEngine:
         Args:
             node: The node to score
             relevance_scores: Pre-computed relevance scores
+            weights: Optional weights override (defaults to self._weights)
 
         Returns:
             ScoredNode with score breakdown
         """
-        w = self._weights
+        w = weights if weights is not None else self._weights
 
         # 1. Recency score (exponential decay)
         recency = node.recency_score(self._decay_factor)
@@ -338,19 +343,14 @@ class RetrievalEngine:
             pentest_boost=1.3,  # Pentest-specific boost
         )
 
-        # Temporarily use planning weights
-        original_weights = self._weights
-        self._weights = planning_weights
-
+        # Thread-safe: pass planning weights directly instead of swapping self._weights
         result = self.retrieve(
             query=query,
             n=n,
             target=target,
             include_types=[NodeType.EVENT, NodeType.FINDING, NodeType.REFLECTION],
+            weights=planning_weights,
         )
-
-        # Restore original weights
-        self._weights = original_weights
 
         return result
 

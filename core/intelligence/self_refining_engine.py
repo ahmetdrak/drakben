@@ -53,15 +53,20 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
             # Check if drakben_evolution.db exists (for compatibility)
             import os
 
-            if os.path.exists("drakben_evolution.db"):
-                self.db_path = "drakben_evolution.db"
+            _project_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+            compat_path = os.path.join(_project_root, "drakben_evolution.db")
+            if os.path.exists(compat_path):
+                self.db_path = compat_path
             else:
-                self.db_path = "evolution.db"
+                self.db_path = os.path.join(_project_root, "evolution.db")
         else:
             self.db_path = db_path
         self._lock = threading.RLock()  # Reentrant lock to prevent deadlocks
         self._initialized = False
         self._init_lock = threading.RLock()  # Reentrant lock
+        self._init_attempts = 0  # Track retry attempts
 
         # LAZY INITIALIZATION: Don't initialize database in __init__
         # This prevents blocking during object creation
@@ -83,20 +88,16 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
         if self._initialized:
             return
 
-        # Track retry attempts to prevent infinite loops
-        if not hasattr(self, "_init_attempts"):
-            self._init_attempts = 0
-
-        # Max 3 retry attempts
-        if self._init_attempts >= 3:
-            logger.warning(
-                "Max initialization attempts reached, skipping database init",
-            )
-            return
-
         with self._init_lock:
             # Double-check after acquiring lock
             if self._initialized:
+                return
+
+            # Max 3 retry attempts
+            if self._init_attempts >= 3:
+                logger.warning(
+                    "Max initialization attempts reached, skipping database init",
+                )
                 return
 
             self._init_attempts += 1
@@ -911,11 +912,12 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 # Add retired profile to failed list to avoid infinite loop
                 failed_profiles.append(selected.profile_id)
                 # Check if we've exceeded time or retried too many times
-                if time.time() - start_time > max_duration:
-                    logger.warning("TOCTOU retry exceeded timeout, returning None")
+                remaining_profiles = [p for p in profiles if p.profile_id not in failed_profiles]
+                if not remaining_profiles or time.time() - start_time > max_duration:
+                    logger.warning("TOCTOU retry exceeded timeout or no profiles left, returning None")
                     return None
-                # Recursively try again with retired profile excluded
-                return self._select_profile(strategy, context, start_time, max_duration)
+                # Return next best profile instead of recursing
+                return remaining_profiles[0]
 
         return selected
 

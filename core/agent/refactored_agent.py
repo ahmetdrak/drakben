@@ -4,6 +4,7 @@
 
 import json
 import logging
+import threading
 import time
 from typing import Any
 
@@ -66,6 +67,9 @@ class RefactoredDrakbenAgent(
 
     # Constant for assertion messages (SonarCloud: avoid duplicate literals)
     MSG_STATE_NOT_NONE = "self.state is not None"
+
+    # Track self-healing attempts to prevent infinite loops
+    MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
 
     def __init__(self, config_manager: ConfigManager) -> None:
         self.config: ConfigManager = config_manager
@@ -741,10 +745,9 @@ class RefactoredDrakbenAgent(
                 f"Return empty list if no further action needed."
             )
 
-            import time as _time
-            t0 = _time.time()
+            t0 = time.time()
             response = llm_client.query(prompt, timeout=25)
-            duration = _time.time() - t0
+            duration = time.time() - t0
 
             # Show the LLM thinking
             self.transparency.show_llm_thinking(
@@ -1133,10 +1136,9 @@ class RefactoredDrakbenAgent(
                 f"Only suggest tools that could actually help recover from this error."
             )
 
-            import time as _time
-            t0 = _time.time()
+            t0 = time.time()
             response = llm_client.query(prompt, timeout=15)
-            duration = _time.time() - t0
+            duration = time.time() - t0
 
             self.transparency.show_llm_thinking(
                 prompt_summary=f"Recovery for {step.tool} failure",
@@ -1189,7 +1191,10 @@ class RefactoredDrakbenAgent(
 
         # Priority 1: Tool missing → install
         if error_type == "tool_missing":
-            self.console.print(f"\u26a0\ufe0f Tool '{step.tool}' missing, attempting install...", style=self.STYLE_YELLOW)
+            self.console.print(
+                f"\u26a0\ufe0f Tool '{step.tool}' missing, attempting install...",
+                style=self.STYLE_YELLOW,
+            )
             if self._attempt_tool_recovery(step.tool):
                 self.planner.replan(step.step_id)
                 return True
@@ -1351,9 +1356,6 @@ class RefactoredDrakbenAgent(
 
     def _execute_tool_with_progress(self, tool_name: str, args: dict) -> dict:
         """Execute tool with progress indicator and timeout handling."""
-        import threading
-        import time as time_module
-
         result_container: dict = {}
         execution_done = threading.Event()
 
@@ -1377,19 +1379,19 @@ class RefactoredDrakbenAgent(
         slow_tools = {"nmap_port_scan", "nmap_service_scan", "nmap_vuln_scan", "sqlmap_scan", "nikto_web_scan"}
         max_display_wait = 600 if tool_name in slow_tools else 180  # 10min for scanners, 3min for others
         feedback_interval = 30 if tool_name in slow_tools else 15
-        wait_start = time_module.time()
+        wait_start = time.time()
         last_feedback = wait_start
 
         while not execution_done.is_set():
-            elapsed = time_module.time() - wait_start
+            elapsed = time.time() - wait_start
 
             # Periodic feedback to user
-            if time_module.time() - last_feedback >= feedback_interval:
+            if time.time() - last_feedback >= feedback_interval:
                 self.console.print(
                     f"   [~] Running... ({int(elapsed)}s)",
                     style="dim",
                 )
-                last_feedback = time_module.time()
+                last_feedback = time.time()
 
             # Check for very long execution
             if elapsed > max_display_wait:
@@ -1404,6 +1406,10 @@ class RefactoredDrakbenAgent(
                 # Wait a bit more but don't spam
                 execution_done.wait(timeout=30)
                 if not execution_done.is_set():
+                    logger.warning(
+                        "Tool %s timed out after %ss — daemon thread may still be running",
+                        tool_name, int(elapsed),
+                    )
                     self.console.print(
                         f"   [!] [red]Timeout: {tool_name} not responding.[/red]",
                         style="red",
@@ -1421,50 +1427,16 @@ class RefactoredDrakbenAgent(
         return result_container.get("result", {"success": False, "error": _ERR_UNKNOWN})
 
     def _execute_tool(self, tool_name: str, args: dict) -> dict:
-        """Execute tool with error handling and retry logic."""
-        # 1. Check if tool is blocked
-        if self.tool_selector.is_tool_blocked(tool_name):
-            return {
-                "success": False,
-                "error": f"Tool {tool_name} blocked due to repeated failures",
-                "args": args,
-            }
+        """Execute tool via Strategy Pattern dispatcher.
 
-        # 2. SYSTEM EVOLUTION (Meta-tool)
-        if tool_name == "system_evolution":
-            return self._handle_system_evolution(args)
+        Uses ToolDispatcher for O(1) dispatch instead of if/elif chains.
+        Custom tool types can be registered at runtime.
+        """
+        if not hasattr(self, "_dispatcher"):
+            from core.agent.tool_dispatch import ToolDispatcher
+            self._dispatcher = ToolDispatcher(self)
 
-        # 3. Metasploit special case
-        if tool_name == "metasploit_exploit":
-            return self._execute_metasploit(args)
-
-        # 3.1 AD Attacks Special Case
-        if tool_name.startswith("ad_"):
-            return self._execute_ad_attacks(tool_name, args)
-
-        # 3.5 Hive Mind Special Case
-        if tool_name.startswith("hive_mind"):
-            return self._execute_hive_mind(tool_name, args)
-
-        # 3.6 Weapon Foundry Special Case
-        if tool_name == "generate_payload":
-            return self._execute_weapon_foundry(args)
-
-        # 3.7 Singularity Special Case
-        if tool_name == "synthesize_code":
-            return self._execute_singularity(args)
-
-        # 3.8 OSINT Special Case
-        if tool_name.startswith("osint_"):
-            return self._execute_osint(tool_name, args)
-
-        # 4. Get tool spec
-        tool_spec: ToolSpec | None = self.tool_selector.tools.get(tool_name)
-        if not tool_spec:
-            return {"success": False, "error": "Tool not found", "args": args}
-
-        # 5. Execute system tool
-        return self._run_system_tool(tool_name, tool_spec, args)
+        return self._dispatcher.dispatch(tool_name, args)
 
     def _handle_system_evolution(self, args: dict) -> dict:
         """Handle the system_evolution meta-tool."""
@@ -1642,7 +1614,6 @@ class RefactoredDrakbenAgent(
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
         # ====== KOMUTU KULLANICIYA GÖSTER ======
-        from rich.panel import Panel
         self.console.print(
             Panel(
                 f"[bold cyan]{command}[/bold cyan]",
@@ -1691,9 +1662,6 @@ class RefactoredDrakbenAgent(
 
         return self._format_tool_result(result, args, tool_name=tool_name)
 
-    # Track self-healing attempts to prevent infinite loops
-    MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
-
     def _format_tool_result(self, result: Any, args: dict, tool_name: str = "unknown") -> dict:
         """Format execution result dictionary with standardized errors."""
         stdout_str = result.stdout or ""
@@ -1730,6 +1698,10 @@ class RefactoredDrakbenAgent(
 
     def _show_final_report(self) -> None:
         """Show final execution report."""
+        if not self.state:
+            self.console.print("\n[yellow]No state available for report.[/yellow]")
+            return
+
         self.console.print("\n" + "=" * 60, style="bold")
         self.console.print("📊 FINAL REPORT", style=self.STYLE_GREEN)
         self.console.print("=" * 60, style="bold")
