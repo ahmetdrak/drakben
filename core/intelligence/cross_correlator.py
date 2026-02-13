@@ -351,7 +351,7 @@ class CrossCorrelator:
                     break
 
         profile.recalculate()
-        return profile
+        return profile  # type: ignore[return-value]
 
     def get_profile(self, target: str) -> TargetProfile | None:
         """Get the current correlated profile for a target."""

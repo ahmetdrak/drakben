@@ -102,8 +102,8 @@ class StealthSession(_BaseSession):
 
         if CURL_CFFI_AVAILABLE:
             # Init parent with proxy and impersonation
-            super().__init__(
-                impersonate=self.impersonate_target,
+            super().__init__(  # type: ignore[call-arg, arg-type]
+                impersonate=self.impersonate_target,  # type: ignore[arg-type]
                 proxies={"http": self.current_proxy, "https": self.current_proxy}
                 if self.current_proxy
                 else None,
@@ -220,7 +220,7 @@ class StealthSession(_BaseSession):
             if CURL_CFFI_AVAILABLE and "impersonate" not in kwargs:
                 kwargs["impersonate"] = self.impersonate_target
 
-            response = super().request(method, url, *args, **kwargs)
+            response = super().request(method, url, *args, **kwargs)  # type: ignore[arg-type]
 
             # LOGIC FIX: Track URL for referer stability
             self._last_url = url
@@ -234,7 +234,7 @@ class StealthSession(_BaseSession):
                     logger.warning(
                         f"Cloudflare Challenge Detected! ({response.status_code})",
                     )
-                    self.proxy_manager.mark_bad(self.current_proxy)
+                    self.proxy_manager.mark_bad(self.current_proxy)  # type: ignore[arg-type]
                     self.rotate_identity()  # Auto-rotate on block
                 elif response.status_code == 429:
                     logger.warning("Rate Limited! Cooling down...")
@@ -244,6 +244,6 @@ class StealthSession(_BaseSession):
 
         except Exception as e:
             logger.exception("Stealth Request Failed: %s", e)
-            self.proxy_manager.mark_bad(self.current_proxy)
+            self.proxy_manager.mark_bad(self.current_proxy)  # type: ignore[arg-type]
             raise
 

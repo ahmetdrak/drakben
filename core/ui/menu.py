@@ -154,7 +154,7 @@ class DrakbenMenu:
             except (ImportError, OSError, AttributeError):
                 pass
 
-            self.orchestrator = get_orchestrator(llm_client)
+            self.orchestrator = get_orchestrator(llm_client)  # type: ignore[assignment]
             self.orchestrator.context.language = self.config.language
         except Exception as e:
             import logging
@@ -1766,7 +1766,7 @@ class DrakbenMenu:
             return
 
         # Save to config/api.env
-        self._save_llm_config(provider_key, selected_model, api_key)
+        self._save_llm_config(provider_key, selected_model, api_key)  # type: ignore[arg-type]
 
     def _display_llm_setup_status(self, lang: str) -> None:
         # Show current status

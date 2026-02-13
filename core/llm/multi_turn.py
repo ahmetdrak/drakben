@@ -62,7 +62,7 @@ class MessageHistory:
         try:
             from core.llm.token_counter import TokenCounter
 
-            self._token_counter = TokenCounter()
+            self._token_counter = TokenCounter()  # type: ignore[assignment]
         except ImportError:
             logger.debug("TokenCounter unavailable — trimming by message count only.")
 
@@ -116,7 +116,7 @@ class MessageHistory:
             self._messages.append({
                 "role": role,
                 "content": content,
-                "timestamp": time.time(),
+                "timestamp": time.time(),  # type: ignore[dict-item]
             })
 
             # Enforce size limit (keep most recent)

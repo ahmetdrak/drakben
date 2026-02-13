@@ -191,13 +191,13 @@ class NLPPayloadEngine:
         scores = dict.fromkeys(CognitiveBias, 0.0)
 
         for bias, data in self.bias_anchors.items():
-            intersection = word_set.intersection(data["keywords"])
-            score = len(intersection) * data["weight"]
+            intersection = word_set.intersection(data["keywords"])  # type: ignore[arg-type]
+            score = len(intersection) * data["weight"]  # type: ignore[operator]
 
             if bias == CognitiveBias.AUTHORITY and "chief" in text:
-                score += 2.0
+                score += 2.0  # type: ignore[assignment]
             if bias == CognitiveBias.SCARCITY and "urgent" in text:
-                score += 2.0
+                score += 2.0  # type: ignore[assignment]
 
             scores[bias] = score
 
@@ -333,7 +333,7 @@ class PsychoProfiler:
             spoof_sender = "executive-assist@corp.com"
 
         return {
-            "to": target.email,
+            "to": target.email,  # type: ignore[dict-item]
             "subject": subject,
             "body": body,
             "from_spoof": spoof_sender,

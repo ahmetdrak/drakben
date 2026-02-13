@@ -555,7 +555,7 @@ class DrakbenBrain:
 
         # Add cognitive memory stats if available
         if self.cognitive_memory:
-            stats["cognitive_memory"] = self.cognitive_memory.get_stats()
+            stats["cognitive_memory"] = self.cognitive_memory.get_stats()  # type: ignore[assignment]
 
         # Intelligence v2 stats
         if self.output_analyzer:
@@ -616,4 +616,4 @@ class DrakbenBrain:
         if not hasattr(self, "coder"):
             self.coder: AICoder = AICoder(self)
 
-        return self.coder.create_tool("dynamic_tool", instruction, context or "")
+        return self.coder.create_tool("dynamic_tool", instruction, context or "")  # type: ignore[arg-type]

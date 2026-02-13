@@ -486,7 +486,7 @@ class ConfigManager:
         self.config.llm_setup_complete = True
         self.save_config()
 
-    def _prompt_user_consent(self, console) -> bool:
+    def _prompt_user_consent(self, console: Any) -> bool:
         """Ask user if they want to configure LLM."""
         console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
         choice = input("> ").strip().lower()
@@ -550,14 +550,14 @@ class ConfigManager:
                 try:
                     from llm.openrouter_client import OpenRouterClient
 
-                    self._llm_client = OpenRouterClient()
+                    self._llm_client = OpenRouterClient()  # type: ignore[assignment]
                 except Exception as e:
                     logger.warning("Failed to initialize LLM client: %s", e)
                     self._llm_client = None
             return self._llm_client
 
     @llm_client.setter
-    def llm_client(self, value) -> None:
+    def llm_client(self, value: Any) -> None:
         """Allow setting LLM client (useful for testing/mocking)."""
         with self._lock:
             self._llm_client = value

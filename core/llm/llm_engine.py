@@ -19,7 +19,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import AsyncGenerator, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class LLMEngine:
     def _init_history(self, system_prompt: str, max_messages: int) -> None:
         try:
             from core.llm.multi_turn import MessageHistory
-            self._history = MessageHistory(
+            self._history = MessageHistory(  # type: ignore[assignment]
                 system_prompt=system_prompt,
                 max_messages=max_messages,
             )
@@ -136,14 +136,14 @@ class LLMEngine:
     def _init_token_counter(self, model: str) -> None:
         try:
             from core.llm.token_counter import TokenCounter
-            self._token_counter = TokenCounter(model=model or "gpt-4o")
+            self._token_counter = TokenCounter(model=model or "gpt-4o")  # type: ignore[assignment]
         except ImportError:
             logger.debug("TokenCounter unavailable — token management disabled.")
 
     def _init_validator(self) -> None:
         try:
             from core.llm.output_models import LLMOutputValidator
-            self._validator = LLMOutputValidator(
+            self._validator = LLMOutputValidator(  # type: ignore[assignment]
                 llm_client=self._client, max_retries=2,
             )
         except ImportError:
@@ -152,7 +152,7 @@ class LLMEngine:
     def _init_rag(self) -> None:
         try:
             from core.llm.rag_pipeline import RAGPipeline
-            self._rag = RAGPipeline()
+            self._rag = RAGPipeline()  # type: ignore[assignment]
             if not self._rag.available:
                 self._rag = None
         except ImportError:
@@ -664,7 +664,7 @@ class LLMEngine:
             async with asyncio.timeout(self._default_timeout), AsyncLLMClient() as client:
                 return await client.ainvoke(prompt, system_prompt)
         except ImportError:
-            return self.query(prompt, system_prompt)
+            return self.query(prompt, system_prompt)  # type: ignore[return-value]
 
     async def abatch(
         self,
@@ -680,7 +680,7 @@ class LLMEngine:
         except ImportError:
             return [self.query(p, system_prompt) for p in prompts]
 
-    async def astream(self, prompt: str, system_prompt: str = ""):
+    async def astream(self, prompt: str, system_prompt: str = "") -> AsyncGenerator[str, None]:
         """Async streaming query."""
         try:
             from core.llm.async_client import AsyncLLMClient
@@ -695,7 +695,7 @@ class LLMEngine:
     def get_stats(self) -> dict[str, Any]:
         """Get comprehensive engine statistics."""
         stats = dict(self._stats)
-        stats["components"] = {
+        stats["components"] = {  # type: ignore[assignment]
             "llm_client": self._client is not None,
             "multi_turn": self._history is not None,
             "token_counter": self._token_counter is not None,

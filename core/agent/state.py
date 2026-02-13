@@ -10,7 +10,7 @@ import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import RLock
-from typing import Optional, Self
+from typing import Any, Optional, Self
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ class AgentState:
     5. State pollution = SYSTEM HALT
     """
 
-    def __new__(cls, *args, **kwargs) -> Self:
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         """Ensure singleton instance."""
         global _state_instance
         if _state_instance is None:
@@ -104,7 +104,7 @@ class AgentState:
                     instance = super().__new__(cls)
                     _state_instance = instance
                     return instance
-        return _state_instance
+        return _state_instance  # type: ignore[return-value]
 
     def __init__(self, target: str | None = None) -> None:
         """Initialize agent state.
@@ -135,7 +135,7 @@ class AgentState:
             self._lock: RLock = _state_lock
 
             # Core state
-            self.target: str | None = target
+            self.target: str | None = target  # type: ignore[assignment]
             self.phase: AttackPhase = AttackPhase.INIT
             self.iteration_count: int = 0
             self.max_iterations: int = MAX_ITERATIONS
@@ -189,7 +189,7 @@ class AgentState:
         """
         with self._lock:
             # Core state
-            self.target = new_target
+            self.target = new_target  # type: ignore[assignment]
             self.phase = AttackPhase.INIT
             self.iteration_count = 0
 
@@ -728,7 +728,7 @@ class AgentState:
 
         return violations
 
-    def _record_change(self, change_type: str, data) -> None:
+    def _record_change(self, change_type: str, data: Any) -> None:
         """Record state change (last N changes).
 
         Args:
@@ -781,7 +781,7 @@ class AgentState:
             data: Dict representation of state
 
         """
-        self.target = data.get("target")
+        self.target = data.get("target")  # type: ignore[assignment]
         self.phase = AttackPhase(data.get("phase", "init"))
         self.iteration_count = data.get("iteration_count", 0)
 

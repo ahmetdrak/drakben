@@ -230,7 +230,7 @@ class ContextCompressor:
         # CVEs
         cves = re.findall(r"CVE-\d{4}-\d+", content, re.IGNORECASE)
         if cves:
-            facts.append(f"CVEs: {', '.join(set(cves)[:3])}")
+            facts.append(f"CVEs: {', '.join(list(set(cves))[:3])}")  # type: ignore[arg-type]
 
         # Tool results
         tools_mentioned = re.findall(

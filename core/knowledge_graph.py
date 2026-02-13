@@ -34,7 +34,10 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +203,7 @@ class KnowledgeGraph:
         return self._make_conn_from_path(self._db_path)
 
     @contextmanager
-    def _get_conn(self):
+    def _get_conn(self) -> Iterator[sqlite3.Connection]:
         """Context manager that yields a connection and auto-closes it.
 
         For file-based databases, closes the connection on exit to
@@ -433,7 +436,7 @@ class KnowledgeGraph:
         current: str,
         path: list[str],
         visited: set[str],
-        queue,
+        queue: Any,
         max_queue: int,
     ) -> None:
         """Add unvisited neighbors to the BFS queue (with size guard)."""

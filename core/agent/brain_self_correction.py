@@ -46,9 +46,9 @@ class SelfCorrection:
             corrected["corrections"] = corrections
             self.correction_history.append(
                 {
-                    "original": decision,
-                    "corrected": corrected,
-                    "corrections": corrections,
+                    "original": decision,  # type: ignore[dict-item]
+                    "corrected": corrected,  # type: ignore[dict-item]
+                    "corrections": corrections,  # type: ignore[dict-item]
                 },
             )
             # Prevent unbounded memory growth

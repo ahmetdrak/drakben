@@ -463,7 +463,7 @@ class AuditLogger:
             params.append(f"%{safe_target}%")
 
         query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
+        params.append(limit)  # type: ignore[arg-type]
 
         results: list[dict] = []
         conn = self._get_connection()

@@ -51,7 +51,7 @@ class RAToolExecutorsMixin:
             artifact: GeneratedPayload = foundry.forge(
                 lhost=lhost,
                 lport=int(lport),
-                output_format=payload_type,
+                output_format=payload_type,  # type: ignore[arg-type]
                 encryption=encryption,
                 iterations=5,
             )

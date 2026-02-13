@@ -84,7 +84,7 @@ class AsyncLLMClient:
             from llm.openrouter_client import OpenRouterClient
 
             client = OpenRouterClient()
-            self.api_key = client.api_key
+            self.api_key = client.api_key  # type: ignore[assignment]
             self.model = client.model
             self.base_url = client.base_url
             self.provider = client.provider

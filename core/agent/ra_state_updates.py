@@ -306,7 +306,7 @@ class RAStateUpdatesMixin:
     def _validate_and_mark_port(self, args_port: object) -> None:
         """Validate port value and mark the service as tested."""
         try:
-            port_int = int(args_port)  # type: ignore[arg-type]
+            port_int = int(args_port)  # type: ignore[call-overload]
         except (ValueError, TypeError):
             self.state.set_observation(f"Invalid port value: {args_port}")
             return

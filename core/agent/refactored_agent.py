@@ -46,8 +46,10 @@ from core.ui.transparency import get_transparency
 _SelfReflectionEngine = None
 _ReActLoop = None
 try:
-    from core.intelligence.react_loop import ReActLoop as _ReActLoop
-    from core.intelligence.self_reflection import SelfReflectionEngine as _SelfReflectionEngine
+    from core.intelligence.react_loop import ReActLoop as _ReActLoop  # type: ignore[assignment]
+    from core.intelligence.self_reflection import (  # type: ignore[assignment]
+        SelfReflectionEngine as _SelfReflectionEngine,
+    )
 except ImportError:
     pass
 
@@ -135,7 +137,7 @@ class RefactoredDrakbenAgent(
             logger.warning(
                 "ActiveDirectoryAttacker could not be initialized (missing imports).",
             )
-            self.ad_attacker = None
+            self.ad_attacker = None  # type: ignore[assignment]
 
         # Runtime state
         self.running = False
@@ -1893,7 +1895,7 @@ class RefactoredDrakbenAgent(
         if not self.evolution:
             return []
         recent_actions: list[dict[str, Any]] = []
-        for r in self.evolution.get_recent_actions(limit=8):
+        for r in self.evolution.get_recent_actions(count=8):
             recent_actions.append({
                 "tool": r.tool if hasattr(r, "tool") else str(r),
                 "success": (r.outcome == "success") if hasattr(r, "outcome") else False,

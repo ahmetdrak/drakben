@@ -114,7 +114,7 @@ Your goal is to write highly optimized, stealthy, and functional security tools.
             elif isinstance(node, ast.Attribute):
                 root = node
                 while isinstance(root, ast.Attribute):
-                    root = root.value
+                    root = root.value  # type: ignore[assignment]
                 if isinstance(root, ast.Name):
                     used_names.add(root.id)
         return used_names

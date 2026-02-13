@@ -649,7 +649,7 @@ class ToolRegistry:
         """Run passive_recon from modules/recon.py - returns coroutine."""
         from modules.recon import passive_recon
         # Return the coroutine directly, let _async_execute_python await it
-        return passive_recon(target)
+        return passive_recon(target)  # type: ignore[return-value]
 
     def _run_sqli_test(self, target: str, **kwargs: Any) -> dict:
         """Run SQL injection test from modules/exploit"""
@@ -916,7 +916,7 @@ class ToolRegistry:
             from modules.nuclei import NucleiScanner
 
             scanner = NucleiScanner()
-            results = asyncio.run(scanner.scan(target))
+            results = asyncio.run(scanner.scan(target))  # type: ignore[arg-type]
             findings = [str(r) for r in results] if results else []
 
             return {

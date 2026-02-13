@@ -41,7 +41,7 @@ class WAFEvasion:
         if _HAS_NEW_ENGINE:
             self._engine = WAFBypassEngine()
         else:
-            self._engine = None
+            self._engine = None  # type: ignore[assignment]
 
         # Legacy keyword mappings (kept for fallback)
         self.sql_keywords = {

@@ -332,7 +332,7 @@ class FewShotEngine:
                     "Step 3: If that fails, try TCP SYN on common ports. "
                     "Step 4: Could also be a firewall — try from different source port."
                 ),
-                output=[
+                output=[  # type: ignore[arg-type]
                     {"action": "nmap_no_ping", "tool": "nmap_port_scan", "reason": "Retry with -Pn to bypass ICMP block", "params": {"extra_args": "-Pn"}},
                     {"action": "tcp_connect", "tool": "nmap_port_scan", "reason": "TCP connect scan as fallback", "params": {"extra_args": "-sT -Pn"}},
                 ],

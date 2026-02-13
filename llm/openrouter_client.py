@@ -330,11 +330,11 @@ class OpenRouterClient:
             self.base_url = "https://api.openai.com/v1/chat/completions"
             self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
             raw_key = os.getenv("OPENAI_API_KEY", "")
-            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None
+            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None  # type: ignore[assignment]
         elif self.provider == "custom":
-            self.base_url = os.getenv("CUSTOM_API_URL")
+            self.base_url = os.getenv("CUSTOM_API_URL")  # type: ignore[assignment]
             self.model = os.getenv("CUSTOM_MODEL", "default")
-            self.api_key = os.getenv("CUSTOM_API_KEY")
+            self.api_key = os.getenv("CUSTOM_API_KEY")  # type: ignore[assignment]
         else:  # openrouter (default)
             self.base_url = "https://openrouter.ai/api/v1/chat/completions"
             self.model = os.getenv(
@@ -342,7 +342,7 @@ class OpenRouterClient:
                 "meta-llama/llama-3.1-8b-instruct:free",
             )
             raw_key = os.getenv("OPENROUTER_API_KEY", "")
-            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None
+            self.api_key = raw_key if raw_key not in _PLACEHOLDER_API_VALUES else None  # type: ignore[assignment]
 
     def query(
         self,

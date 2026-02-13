@@ -105,7 +105,7 @@ class MemoryStream:
         """Initialize SQLite persistence layer."""
         try:
             # M-6 FIX: Resolve path at init time to avoid CWD sensitivity
-            db_path = str(Path(self._persist_path).resolve())
+            db_path = str(Path(self._persist_path).resolve())  # type: ignore[arg-type]
             self._db_conn = sqlite3.connect(
                 db_path,
                 timeout=10.0,
@@ -710,7 +710,7 @@ class MemoryStream:
                 (NodeType.REFLECTION, "\n=== INSIGHTS ===\n", 3),
             ]
             for node_type, header, n in typed_specs:
-                sec, current_chars = self._build_typed_section(
+                sec, current_chars = self._build_typed_section(  # type: ignore[assignment]
                     node_type, header, n, target,
                     include_types, current_chars, max_chars,
                 )

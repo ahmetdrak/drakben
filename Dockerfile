@@ -2,11 +2,11 @@
 # Multi-stage build for optimized image size
 
 # ==================== DRAKBEN RUNTIME ====================
-FROM kalilinux/kali-rolling:2024.4
+FROM kalilinux/kali-rolling:latest
 
 LABEL maintainer="DRAKBEN Team"
 LABEL description="DRAKBEN - Autonomous Pentest AI Framework"
-LABEL version="2.0.0"
+LABEL version="2.5.0"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1

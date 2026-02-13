@@ -78,7 +78,7 @@ class ShadowCloner:
             src = img.get("src")
             if src and not src.startswith("data:"):
                 abs_url = urljoin(base_url, src)
-                b64_data = self._download_as_b64(abs_url)
+                b64_data = self._download_as_b64(abs_url)  # type: ignore[arg-type]
                 if b64_data:
                     img["src"] = b64_data
 
@@ -87,7 +87,7 @@ class ShadowCloner:
             href = link.get("href")
             if href:
                 abs_url = urljoin(base_url, href)
-                css_content = self._fetch_text(abs_url)
+                css_content = self._fetch_text(abs_url)  # type: ignore[arg-type]
                 if css_content:
                     # Replace <link> with <style>
                     new_style = soup.new_tag("style")

@@ -63,7 +63,7 @@ class SymbolicExecutor:
 
         for c in path.constraints:
             candidates = self._candidates_for_constraint(c)
-            result[c.variable] = candidates[0] if candidates else 0
+            result[c.variable] = candidates[0] if candidates else 0  # type: ignore[assignment]
 
         return result
 

@@ -507,7 +507,7 @@ class SmartTerminal:
                 self._sandbox_container_id = container.container_id
 
             # Execute in sandbox
-            sandbox_result: ExecutionResult = sandbox.execute_in_sandbox(
+            sandbox_result: ExecutionResult = sandbox.execute_in_sandbox(  # type: ignore[assignment]
                 self._sandbox_container_id,
                 command,
                 timeout=timeout,
@@ -597,13 +597,13 @@ class SmartTerminal:
             popen_kwargs["start_new_session"] = True
 
         if capture_output:
-            popen_kwargs["stdout"] = subprocess.PIPE
-            popen_kwargs["stderr"] = subprocess.PIPE
+            popen_kwargs["stdout"] = subprocess.PIPE  # type: ignore[assignment]
+            popen_kwargs["stderr"] = subprocess.PIPE  # type: ignore[assignment]
         else:
-            popen_kwargs["stdout"] = subprocess.DEVNULL
-            popen_kwargs["stderr"] = subprocess.DEVNULL
+            popen_kwargs["stdout"] = subprocess.DEVNULL  # type: ignore[assignment]
+            popen_kwargs["stderr"] = subprocess.DEVNULL  # type: ignore[assignment]
 
-        process = subprocess.Popen(cmd_args, **popen_kwargs)
+        process = subprocess.Popen(cmd_args, **popen_kwargs)  # type: ignore[call-overload]
 
         # Register with global stop controller
         try:

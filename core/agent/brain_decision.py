@@ -117,8 +117,8 @@ class DecisionEngine:
         risk_val = registry_entry.get("risk", 5)
         stealth_val = registry_entry.get("stealth", 5)
         # Lower risk + higher stealth = better score
-        score += (10 - risk_val) * 0.03  # 0-0.3 bonus for low risk
-        score += stealth_val * 0.02  # 0-0.2 bonus for stealth
+        score += (10 - risk_val) * 0.03  # type: ignore[operator]  # 0-0.3 bonus for low risk
+        score += stealth_val * 0.02  # type: ignore[operator]  # 0-0.2 bonus for stealth
         return score
 
     def _select_action_scored(
@@ -196,8 +196,8 @@ class DecisionEngine:
         "exploit_search": {"cmd": "searchsploit {target}", "risk": 0, "stealth": 10},
         # General
         "check_tools": {"cmd": "which nmap nikto gobuster ffuf sqlmap hydra nuclei 2>/dev/null", "risk": 0, "stealth": 10},
-        "analyze_results": {"cmd": None, "risk": 0, "stealth": 10},
-        "analyze_vulns": {"cmd": None, "risk": 0, "stealth": 10},
+        "analyze_results": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
+        "analyze_vulns": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
     }
 
     def _generate_command(self, action: str, context: ExecutionContext) -> str | None:

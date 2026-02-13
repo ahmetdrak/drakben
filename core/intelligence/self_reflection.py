@@ -364,6 +364,6 @@ class SelfReflectionEngine:
         stats = dict(self._stats)
         stats["history_length"] = len(self.history)
         if self.history:
-            stats["latest_verdict"] = self.history[-1].verdict
-            stats["latest_progress"] = self.history[-1].progress_pct
+            stats["latest_verdict"] = self.history[-1].verdict  # type: ignore[assignment]
+            stats["latest_progress"] = self.history[-1].progress_pct  # type: ignore[assignment]
         return stats

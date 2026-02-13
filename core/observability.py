@@ -35,7 +35,10 @@ from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +142,7 @@ class Tracer:
         self,
         name: str,
         attributes: dict[str, Any] | None = None,
-    ):
+    ) -> Iterator[Any]:
         """Context manager that creates and tracks a span.
 
         Yields the Span object so callers can add attributes/events.

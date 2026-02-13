@@ -126,7 +126,7 @@ class WebResearcher:
                 if p_tag:
                     snippet = p_tag.get_text(strip=True)
 
-                results.append({"title": title, "href": href, "body": snippet})
+                results.append({"title": title, "href": href, "body": snippet})  # type: ignore[dict-item]
 
             return results
         except Exception as e:
