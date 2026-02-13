@@ -217,8 +217,8 @@ def _register_agent_endpoints(app) -> None:
                 "has_foothold": state.has_foothold,
                 "foothold_method": state.foothold_method,
             }
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception:
+            return {"error": "Failed to retrieve agent state"}
 
     @app.get("/api/v1/plan")
     async def get_current_plan() -> dict[str, Any]:
@@ -235,8 +235,8 @@ def _register_agent_endpoints(app) -> None:
             from core.stop_controller import stop
             stop()
             return {"status": "stop_requested"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+        except Exception:
+            return {"status": "error", "message": "Failed to stop agent"}
 
 
 def _safe_import_status(module: str, cls: str) -> str:

@@ -66,6 +66,23 @@ def _reset_evolution_memory_singleton():
 
 
 @pytest.fixture(autouse=True)
+def _reset_event_and_observability_singletons():
+    """Reset EventBus, Tracer, and MetricsCollector singletons between tests."""
+    yield
+    try:
+        from core.events import EventBus
+        EventBus.reset()
+    except Exception:
+        pass
+    try:
+        from core.observability import MetricsCollector, Tracer
+        MetricsCollector.reset()
+        Tracer.reset()
+    except Exception:
+        pass
+
+
+@pytest.fixture(autouse=True)
 def _suppress_resource_warnings():
     """Force garbage collection after every test and suppress stale ResourceWarnings.
 

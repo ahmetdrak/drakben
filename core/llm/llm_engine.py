@@ -89,6 +89,14 @@ class LLMEngine:
         if enable_rag:
             self._init_rag()
 
+        # ── Context Compressor (Intelligence v2) ──
+        self._context_compressor: Any = None
+        self._init_context_compressor()
+
+        # ── Model Router (Intelligence v3) ──
+        self._model_router: Any = None
+        self._init_model_router()
+
         # ── Stats ──
         self._stats = {
             "queries": 0,
@@ -150,6 +158,33 @@ class LLMEngine:
         except ImportError:
             logger.debug("RAGPipeline unavailable — RAG disabled.")
 
+    def _init_context_compressor(self) -> None:
+        """Initialize ContextCompressor for intelligent message summarization."""
+        try:
+            from core.intelligence.context_compressor import ContextCompressor
+            self._context_compressor = ContextCompressor(llm_client=self._client)
+        except ImportError:
+            logger.debug("ContextCompressor unavailable — compression disabled.")
+
+    def _init_model_router(self) -> None:
+        """Initialize ModelRouter for intelligent model selection."""
+        try:
+            from core.intelligence.model_router import ModelRouter
+            self._model_router = ModelRouter()
+            # Auto-detect model capabilities from client
+            if self._client and hasattr(self._client, "model"):
+                self._model_router.auto_detect_models([self._client.model])
+            # Try to discover available models from client
+            if self._client and hasattr(self._client, "available_models"):
+                try:
+                    models = self._client.available_models
+                    if isinstance(models, list) and models:
+                        self._model_router.auto_detect_models(models)
+                except Exception:
+                    pass
+        except ImportError:
+            logger.debug("ModelRouter unavailable — routing disabled.")
+
     # ─────────────────────── Core Query Methods ───────────────────────
 
     def query(
@@ -179,27 +214,63 @@ class LLMEngine:
 
         self._stats["queries"] += 1
 
-        # Enrich with RAG if available
-        effective_system = system_prompt or (
+        routed_model = self._route_model(prompt)
+        effective_system = self._enrich_system_prompt(prompt, system_prompt)
+
+        result = self._query_client(prompt, effective_system, timeout, routed_model)
+
+        if validate and self._validator:
+            return self._validate_result(result, model_class)
+
+        return result
+
+    def _route_model(self, prompt: str) -> str | None:
+        """Get routed model ID from ModelRouter if available."""
+        if not self._model_router:
+            return None
+        try:
+            decision = self._model_router.route(prompt)
+            if decision and decision.model_id:
+                return decision.model_id
+        except Exception:
+            pass
+        return None
+
+    def _enrich_system_prompt(self, prompt: str, system_prompt: str | None) -> str:
+        """Enrich system prompt with RAG context if available."""
+        effective = system_prompt or (
             self._history.system_prompt if self._history else ""
         )
-        if self._rag:
-            enriched = self._rag.enrich_prompt(prompt, effective_system)
-            if enriched != effective_system:
-                effective_system = enriched
-                self._stats["rag_enrichments"] += 1
+        if not self._rag:
+            return effective
+        enriched = self._rag.enrich_prompt(prompt, effective)
+        if enriched != effective:
+            self._stats["rag_enrichments"] += 1
+            return enriched
+        return effective
 
-        # Query via client
-        result = self._client.query(prompt, effective_system, timeout=timeout)
+    def _query_client(
+        self, prompt: str, system: str, timeout: int, routed_model: str | None,
+    ) -> str:
+        """Execute query against LLM client with optional model routing."""
+        if not routed_model or not hasattr(self._client, "query"):
+            return self._client.query(prompt, system, timeout=timeout)
+        try:
+            import inspect
+            sig = inspect.signature(self._client.query)
+            if "model" in sig.parameters:
+                return self._client.query(prompt, system, timeout=timeout, model=routed_model)
+        except Exception:
+            pass
+        return self._client.query(prompt, system, timeout=timeout)
 
-        # Validate if requested
-        if validate and self._validator:
-            validated = self._validator.validate_response(result, model_class)
-            if validated is not None:
-                if self._validator.get_stats().get("repairs", 0) > 0:
-                    self._stats["validation_repairs"] += 1
-                return validated
-
+    def _validate_result(self, result: str, model_class: type | None) -> str | dict[str, Any]:
+        """Validate and optionally repair LLM response."""
+        validated = self._validator.validate_response(result, model_class)
+        if validated is not None:
+            if self._validator.get_stats().get("repairs", 0) > 0:
+                self._stats["validation_repairs"] += 1
+            return validated
         return result
 
     def stream(
@@ -326,51 +397,67 @@ class LLMEngine:
             return _MSG_OFFLINE
 
         if not self._history:
-            # No history support — fallback to simple query
             if user_message:
                 return self.query(user_message, timeout=timeout)
             return "[Error] No message and no history available."
 
-        # Add new user message
         if user_message:
             self._history.add_user(user_message)
 
-        # Get token-trimmed messages
         messages = self._history.get_trimmed_messages()
-
         if not messages:
             return "[Error] Empty conversation history."
 
-        # RAG enrichment on system prompt
-        if self._rag and messages and messages[0].get("role") == "system":
-            query_text = user_message or ""
-            enriched = self._rag.enrich_prompt(
-                query_text, messages[0]["content"],
-            )
-            if enriched != messages[0]["content"]:
-                messages[0] = {"role": "system", "content": enriched}
-                self._stats["rag_enrichments"] += 1
-
-        # Track tokens saved
-        if self._token_counter:
-            full_tokens = self._token_counter.count_messages_tokens(
-                self._history.get_messages(),
-            )
-            trimmed_tokens = self._token_counter.count_messages_tokens(messages)
-            saved = full_tokens - trimmed_tokens
-            if saved > 0:
-                self._stats["tokens_saved_by_trim"] += saved
+        messages = self._compress_messages(messages)
+        messages = self._enrich_history_system(messages, user_message)
+        self._track_token_savings(messages)
 
         self._stats["queries"] += 1
 
-        # Use the multi-turn query method
         if hasattr(self._client, "query_with_messages"):
             return self._client.query_with_messages(
                 messages, timeout, tools=tools, stream=stream,
             )
-
-        # Fallback: concatenate messages into single prompt
         return self._fallback_multi_turn(messages, timeout)
+
+    def _compress_messages(
+        self, messages: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        """Compress conversation history if compressor is available."""
+        if not self._context_compressor or len(messages) <= 6:
+            return messages
+        try:
+            return self._context_compressor.compress_messages(messages)
+        except Exception as exc:
+            logger.debug("Context compression failed: %s", exc)
+            return messages
+
+    def _enrich_history_system(
+        self, messages: list[dict[str, str]], user_message: str | None,
+    ) -> list[dict[str, str]]:
+        """Enrich system prompt in history with RAG context."""
+        if not self._rag or not messages:
+            return messages
+        if messages[0].get("role") != "system":
+            return messages
+        query_text = user_message or ""
+        enriched = self._rag.enrich_prompt(query_text, messages[0]["content"])
+        if enriched != messages[0]["content"]:
+            messages[0] = {"role": "system", "content": enriched}
+            self._stats["rag_enrichments"] += 1
+        return messages
+
+    def _track_token_savings(self, messages: list[dict[str, str]]) -> None:
+        """Track tokens saved by context trimming."""
+        if not self._token_counter:
+            return
+        full_tokens = self._token_counter.count_messages_tokens(
+            self._history.get_messages(),
+        )
+        trimmed_tokens = self._token_counter.count_messages_tokens(messages)
+        saved = full_tokens - trimmed_tokens
+        if saved > 0:
+            self._stats["tokens_saved_by_trim"] += saved
 
     def _fallback_multi_turn(self, messages: list[dict[str, str]], timeout: int) -> str:
         """Fallback for clients without query_with_messages."""

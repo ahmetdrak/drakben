@@ -15,6 +15,7 @@ _M_SRE = "core.intelligence.self_refining_engine"
 _M_SECUTIL = "core.security.security_utils"
 _M_EVENTS = "core.events"
 _M_OBS = "core.observability"
+_M_STRUCTURED = "core.intelligence.structured_output"
 
 # Map of symbol name → (module_path, symbol_name)
 _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
@@ -53,6 +54,24 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "StrategyProfile": (_M_SRE, "StrategyProfile"),
     "UniversalAdapter": ("core.intelligence.universal_adapter", "UniversalAdapter"),
     "get_universal_adapter": ("core.intelligence.universal_adapter", "get_universal_adapter"),
+    # Intelligence v2 — ReAct, Structured Output, Analysis, Compression, Reflection
+    "ReActLoop": ("core.intelligence.react_loop", "ReActLoop"),
+    "StructuredOutputParser": (_M_STRUCTURED, "StructuredOutputParser"),
+    "PentestAction": (_M_STRUCTURED, "PentestAction"),
+    "ToolAnalysis": (_M_STRUCTURED, "ToolAnalysis"),
+    "PromptTemplates": (_M_STRUCTURED, "PromptTemplates"),
+    "ToolOutputAnalyzer": ("core.intelligence.tool_output_analyzer", "ToolOutputAnalyzer"),
+    "AnalyzedOutput": ("core.intelligence.tool_output_analyzer", "AnalyzedOutput"),
+    "ContextCompressor": ("core.intelligence.context_compressor", "ContextCompressor"),
+    "SelfReflectionEngine": ("core.intelligence.self_reflection", "SelfReflectionEngine"),
+    # Intelligence v3 — Few-Shot, Cross-Correlation, Adversarial, Prediction, KB, Router
+    "FewShotEngine": ("core.intelligence.few_shot_engine", "FewShotEngine"),
+    "CrossCorrelator": ("core.intelligence.cross_correlator", "CrossCorrelator"),
+    "TargetProfile": ("core.intelligence.cross_correlator", "TargetProfile"),
+    "AdversarialAdapter": ("core.intelligence.adversarial_adapter", "AdversarialAdapter"),
+    "ExploitPredictor": ("core.intelligence.exploit_predictor", "ExploitPredictor"),
+    "CrossSessionKB": ("core.intelligence.knowledge_base", "CrossSessionKB"),
+    "ModelRouter": ("core.intelligence.model_router", "ModelRouter"),
     # Security module
     "GhostProtocol": ("core.security.ghost_protocol", "GhostProtocol"),
     "AuditLogger": (_M_SECUTIL, "AuditLogger"),

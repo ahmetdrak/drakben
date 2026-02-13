@@ -20,15 +20,18 @@ This document describes the layered architecture, data flow, module responsibili
 │  ┌──────────┐  ┌──────────────┐  ┌──────────────┐               │
 │  │  agent/   │  │  execution/  │  │intelligence/ │               │
 │  │ brain     │──│ engine       │──│ self-refine  │               │
-│  │ planner   │  │ tool_select  │  │ reasoning    │               │
-│  │ state     │  │ sandbox      │  │ adapter      │               │
-│  │ memory/   │  └──────────────┘  └──────────────┘               │
-│  │ cognitive/│                                                   │
-│  │ recovery/ │  ┌──────────────┐  ┌──────────────┐               │
-│  └──────────┘  │  security/   │  │ singularity/ │               │
-│                 │ ghost_proto  │  │ chaos engine │               │
-│                 │ cred_store   │  │ infinite loop│               │
-│                 └──────────────┘  └──────────────┘               │
+│  │ planner   │  │ tool_select  │  │ react_loop   │               │
+│  │ state     │  │ sandbox      │  │ few_shot     │               │
+│  │ memory/   │  └──────────────┘  │ correlator   │               │
+│  │ cognitive/│                    │ predictor    │               │
+│  │ recovery/ │  ┌──────────────┐  │ knowledge_db │               │
+│  └──────────┘  │  security/   │  │ model_router │               │
+│                 │ ghost_proto  │  └──────────────┘               │
+│                 │ cred_store   │  ┌──────────────┐               │
+│                 └──────────────┘  │ singularity/ │               │
+│                                   │ chaos engine │               │
+│                                   │ infinite loop│               │
+│                                   └──────────────┘               │
 │                                                                  │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐                   │
 │  │  llm/    │  │ network/ │  │   storage/   │                   │
@@ -94,13 +97,26 @@ The core package is the framework backbone. It never performs attacks directly �
 
 #### 2.3 Intelligence (`core/intelligence/`)
 
-Self-evolution and adaptive reasoning capabilities.
+Self-evolution, adaptive reasoning, and AI-augmented analysis capabilities.
 
-| Feature | Description |
+| Module | Description |
 |---|---|
-| Self-Refining Agent | Learns from failed tool calls, adjusts strategy priorities |
-| Universal Adapter | Adapts tool parameters based on target fingerprint |
-| Continuous Reasoning | LLM-powered real-time analysis loop |
+| `evolution_memory.py` | Persistent learning across sessions with tool penalty system (SQLite) |
+| `self_refining_engine.py` | Policy engine, conflict resolution, strategy mutation |
+| `coder.py` | Code generation assistant |
+| **Intelligence v2** | |
+| `react_loop.py` | ReAct reasoning: Thought→Action→Observation cycle for multi-step LLM reasoning |
+| `structured_output.py` | Multi-strategy LLM output parser (JSON, tables, key-value extraction) |
+| `tool_output_analyzer.py` | Tool result classification (success/partial/fail), finding extraction |
+| `context_compressor.py` | Token-budget conversation compression with priority scoring |
+| `self_reflection.py` | Post-action reflection, confidence scoring, lesson extraction |
+| **Intelligence v3** | |
+| `few_shot_engine.py` | Dynamic few-shot example selection from past successes |
+| `cross_correlator.py` | Cross-tool pattern recognition (port↔CVE, service↔vulnerability) |
+| `adversarial_adapter.py` | WAF/IDS evasion variant generation with encoding mutations |
+| `exploit_predictor.py` | ML-style exploit success probability scoring |
+| `knowledge_base.py` | SQLite-backed cross-session knowledge with semantic recall |
+| `model_router.py` | Intelligent LLM selection based on task complexity and token budget |
 
 #### 2.4 Security (`core/security/`)
 
@@ -249,7 +265,7 @@ modules/                    # Attack modules (lazy-loaded)
     exploit/                # Exploit package (SQLi, XSS, LFI, etc.)
 llm/                        # LLM backend client
 plugins/                    # User-defined tool plugins
-tests/                      # 770+ pytest tests
+tests/                      # 1609+ pytest tests
 sessions/                   # Session persistence
 logs/                       # Runtime logs + screenshots
 ```
@@ -258,7 +274,7 @@ logs/                       # Runtime logs + screenshots
 
 ## Testing Strategy
 
-- **771 tests** across 40 test files
+- **1609+ tests** across 50+ test files
 - Frameworks: `pytest`, `pytest-asyncio`, `pytest-mock`, `pytest-cov`
 - Categories: unit, integration, chaos, stress, simulation
 - Coverage targets: core agent, all attack modules, error diagnostics, plugin loading, lazy imports, port scanner, report generation, LLM utils

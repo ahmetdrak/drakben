@@ -128,6 +128,9 @@ OUTPUT JSON:
         # Cognitive memory context if available
         self._add_memory_context(context, parts)
 
+        # ── Intelligence v3: Cross-Session KB Context ──
+        self._add_kb_context(context, parts)
+
         return "\n".join(parts) if parts else "No prior observations yet."
 
     def _extract_history_state(
@@ -187,6 +190,36 @@ OUTPUT JSON:
         except Exception:
             pass
 
+    def _add_kb_context(self, context: ExecutionContext, parts: list[str]) -> None:
+        """Add Cross-Session Knowledge Base context to operational state."""
+        if not (hasattr(self, "knowledge_base") and self.knowledge_base):
+            return
+        try:
+            target = getattr(context, "target", None) or ""
+            service = self._detect_service(context)
+            kb_ctx = self.knowledge_base.recall_for_context(target=target, service=service)
+            if kb_ctx and len(kb_ctx) > 10:
+                parts.append(f"Prior knowledge:\n{kb_ctx[:400]}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _detect_service(context: ExecutionContext) -> str | None:
+        """Detect service type from recent execution history."""
+        _SERVICE_KEYWORDS: dict[str, list[str]] = {
+            "http": ["http", "nikto", "web"],
+            "smb": ["smb", "enum4linux"],
+            "ssh": ["ssh"],
+        }
+        for entry in reversed(getattr(context, "history", None) or []):
+            if not isinstance(entry, dict):
+                continue
+            tool = entry.get("tool", "")
+            for svc, keywords in _SERVICE_KEYWORDS.items():
+                if any(kw in tool for kw in keywords):
+                    return svc
+        return None
+
     def __init__(self, llm_client: Any = None, cognitive_memory: Any = None) -> None:
         """Initialize reasoning engine with optional LLM support.
 
@@ -203,6 +236,14 @@ OUTPUT JSON:
         self.use_llm: bool = llm_client is not None
         self._system_context: dict[str, Any] = {}  # Cached system info
         self._first_error_shown = False  # Track if first error was shown
+
+        # ── Intelligence v3: Cross-Session KB ──
+        self.knowledge_base: Any = None
+        try:
+            from core.intelligence.knowledge_base import CrossSessionKB
+            self.knowledge_base = CrossSessionKB()
+        except ImportError:
+            pass
 
         # Initialize LLM Cache
         self.llm_cache = None

@@ -188,7 +188,7 @@ class KnowledgeGraph:
     @staticmethod
     def _make_conn_from_path(db_path: str) -> sqlite3.Connection:
         """Create a new SQLite connection with default pragmas."""
-        conn = sqlite3.connect(db_path, timeout=10)
+        conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         if db_path != _MEMORY_DB:
             conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")

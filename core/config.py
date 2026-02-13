@@ -141,14 +141,19 @@ _DEFAULT_OLLAMA_MODEL = "llama3.1"
 
 @dataclass
 class LLMConfig:
-    """LLM-specific settings (SRP: separated from main config)."""
+    """LLM-specific settings (SRP: separated from main config).
+
+    Note: API keys are NOT stored here.  The LLM clients read keys
+    directly from environment variables (OPENROUTER_API_KEY, OPENAI_API_KEY).
+    The boolean flags below only indicate whether a valid key was detected.
+    """
 
     provider: str = "auto"  # auto, openrouter, ollama, openai
-    openrouter_api_key: str | None = None
+    openrouter_key_set: bool = False
     openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
     ollama_url: str = _DEFAULT_OLLAMA_URL
     ollama_model: str = _DEFAULT_OLLAMA_MODEL
-    openai_api_key: str | None = None
+    openai_key_set: bool = False
     openai_model: str = "gpt-4o-mini"
     setup_complete: bool = False
 
@@ -267,14 +272,19 @@ class DrakbenConfig:
 
     @property
     def llm(self) -> LLMConfig:
-        """Get LLM sub-configuration."""
+        """Get LLM sub-configuration.
+
+        Note: API keys are sourced from environment variables or a local
+        api.env file.  They must be passed in-memory to the LLM client;
+        this does **not** persist them beyond what the user already stored.
+        """
         return LLMConfig(
             provider=self.llm_provider,
-            openrouter_api_key=self.openrouter_api_key,
+            openrouter_key_set=bool(self.openrouter_api_key),
             openrouter_model=self.openrouter_model,
             ollama_url=self.ollama_url,
             ollama_model=self.ollama_model,
-            openai_api_key=self.openai_api_key,
+            openai_key_set=bool(self.openai_api_key),
             openai_model=self.openai_model,
             setup_complete=self.llm_setup_complete,
             model_overrides=self.model_overrides,
@@ -647,19 +657,6 @@ class ConfigManager:
                 "ollama_url": self.config.ollama_url,
                 "ollama_model": self.config.ollama_model,
                 "openai_api_key": _redact(self.config.openai_api_key),
-                "openai_model": self.config.openai_model,
-            }
-
-    def _get_raw_llm_config(self) -> dict[str, Any]:
-        """Get LLM configuration with full API keys (internal use only)."""
-        with self._lock:
-            return {
-                "provider": self.config.llm_provider,
-                "openrouter_api_key": self.config.openrouter_api_key,
-                "openrouter_model": self.config.openrouter_model,
-                "ollama_url": self.config.ollama_url,
-                "ollama_model": self.config.ollama_model,
-                "openai_api_key": self.config.openai_api_key,
                 "openai_model": self.config.openai_model,
             }
 

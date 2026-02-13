@@ -150,8 +150,11 @@ class EventBus:
 
     # -- Subscribe / Unsubscribe --
 
-    def subscribe(self, event_type: EventType, handler: EventHandler) -> None:
+    def subscribe(self, event_type: EventType | str, handler: EventHandler) -> None:
         """Subscribe to a specific event type."""
+        if isinstance(event_type, str):
+            # Allow string event types for convenience
+            event_type = EventType(event_type) if event_type in {e.value for e in EventType} else event_type  # type: ignore[assignment]
         with self._bus_lock:
             if handler not in self._subscribers[event_type]:
                 self._subscribers[event_type].append(handler)
@@ -182,12 +185,20 @@ class EventBus:
 
     def publish(
         self,
-        event_type: EventType,
+        event_type: EventType | str,
         data: dict[str, Any] | None = None,
         source: str = "",
     ) -> None:
         """Publish an event to all subscribers (non-blocking)."""
-        event = Event(type=event_type, data=data or {}, source=source)
+        # Resolve string event_type to enum if possible
+        resolved_type = event_type
+        if isinstance(event_type, str):
+            try:
+                resolved_type = EventType(event_type)
+            except ValueError:
+                resolved_type = event_type  # type: ignore[assignment]
+
+        event = Event(type=resolved_type, data=data or {}, source=source)  # type: ignore[arg-type]
 
         with self._bus_lock:
             if self._paused:
@@ -203,12 +214,13 @@ class EventBus:
             global_handlers = list(self._global_subscribers)
 
         # Dispatch without holding the lock
+        event_label = event_type.value if hasattr(event_type, "value") else str(event_type)
         for handler in specific + global_handlers:
             try:
                 handler(event)
             except Exception:
                 logger.exception(
-                    "Event handler error for %s", event_type.value,
+                    "Event handler error for %s", event_label,
                 )
 
     # -- Control --

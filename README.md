@@ -5,11 +5,13 @@
 *Let AI handle the methodology. You focus on the results.*
 
 [![CI](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml/badge.svg)](https://github.com/ahmetdrak/drakben/actions/workflows/drakben_ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-1363%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
+[![Tests](https://img.shields.io/badge/tests-1609%2B%20passed-brightgreen.svg)](https://github.com/ahmetdrak/drakben/actions)
+[![SonarQube](https://img.shields.io/badge/SonarQube-0%20issues-brightgreen.svg)](https://sonarcloud.io/)
 [![Ruff](https://img.shields.io/badge/linting-ruff%2035%20rule%20groups-brightgreen.svg)](https://github.com/astral-sh/ruff)
+[![MyPy](https://img.shields.io/badge/typing-mypy%20strict-blue.svg)](https://mypy-lang.org/)
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Advanced](#-advanced-capabilities) • [Contributing](#-contributing)
 
@@ -74,6 +76,21 @@ DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 pot
 - **Conflict Resolution** - Handles conflicting strategies
 - **Failure Context Analysis** - Extracts patterns from errors
 - **Automatic Replanning** - Recovers from failed steps
+
+### 🧪 Intelligence v2 — Reasoning Pipeline
+- **ReAct Reasoning Loop** - Thought→Action→Observation cycle for structured LLM reasoning
+- **Structured Output Parser** - Extracts JSON, tables, and key-value pairs from raw LLM responses
+- **Tool Output Analyzer** - Classifies tool results (success/partial/fail) and extracts actionable findings
+- **Context Compressor** - Intelligently compresses conversation history to fit token budgets
+- **Self-Reflection Engine** - Post-action reflection with confidence scoring and lesson extraction
+
+### 🔮 Intelligence v3 — Advanced AI Modules
+- **Few-Shot Learning Engine** - Dynamic example selection from past successes for in-context learning
+- **Cross-Tool Correlator** - Finds patterns across multiple tool outputs (port↔CVE, header↔vulnerability)
+- **Adversarial Adapter** - Generates WAF/IDS evasion variants with encoding mutations
+- **Exploit Predictor** - ML-style probability scoring for exploit success based on service fingerprints
+- **Cross-Session Knowledge Base** - SQLite-backed persistent knowledge with semantic recall
+- **Model Router** - Intelligent LLM selection based on task complexity and token budget
 
 ### 🔍 Reconnaissance
 - **Port Scanning** - Nmap integration with smart defaults
@@ -376,7 +393,18 @@ drakben/
 │   ├── intelligence/           # AI modules
 │   │   ├── evolution_memory.py # Persistent learning (SQLite)
 │   │   ├── self_refining_engine.py  # Policy engine + strategy mutation
-│   │   └── coder.py            # Code generation assistant
+│   │   ├── coder.py            # Code generation assistant
+│   │   ├── react_loop.py       # ReAct reasoning (Thought→Action→Observation)
+│   │   ├── structured_output.py # LLM output parsing (JSON, tables, KV)
+│   │   ├── tool_output_analyzer.py # Tool result classification
+│   │   ├── context_compressor.py   # Token-budget context compression
+│   │   ├── self_reflection.py  # Post-action reflection engine
+│   │   ├── few_shot_engine.py  # Dynamic few-shot example selection
+│   │   ├── cross_correlator.py # Cross-tool finding correlation
+│   │   ├── adversarial_adapter.py  # WAF/IDS evasion mutations
+│   │   ├── exploit_predictor.py    # Exploit success probability scoring
+│   │   ├── knowledge_base.py   # Cross-session knowledge (SQLite)
+│   │   └── model_router.py     # Intelligent LLM model selection
 │   ├── llm/                    # LLM abstraction layer
 │   ├── network/                # Network utilities
 │   ├── security/               # Security modules (sanitization, blocking)
@@ -417,7 +445,7 @@ drakben/
 │   └── social_eng/             # Social engineering modules
 ├── llm/                        # LLM integration
 │   └── openrouter_client.py    # OpenRouter API client
-├── tests/                      # Test suite (1363+ tests)
+├── tests/                      # Test suite (1609+ tests)
 ├── config/                     # Configuration files
 │   ├── settings.json           # Application settings
 │   ├── plugins.json            # Plugin configuration
@@ -449,7 +477,7 @@ python -m pytest --cov=core --cov=modules --cov-report=html
 python -m pytest --maxfail=10 --disable-warnings --tb=short
 ```
 
-**Current Status:** 1363+ tests passing | Ruff (35 rule groups) clean | Mypy strict | SonarQube compliant
+**Current Status:** 1609+ tests passing | Ruff (35 rule groups) clean | Mypy strict | SonarQube 0 issues
 
 ---
 

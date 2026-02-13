@@ -42,6 +42,15 @@ from core.storage.structured_logger import DrakbenLogger
 from core.tools.tool_parsers import normalize_error_message
 from core.ui.transparency import get_transparency
 
+# Intelligence v2 imports (optional — graceful degradation)
+_SelfReflectionEngine = None
+_ReActLoop = None
+try:
+    from core.intelligence.react_loop import ReActLoop as _ReActLoop
+    from core.intelligence.self_reflection import SelfReflectionEngine as _SelfReflectionEngine
+except ImportError:
+    pass
+
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -89,6 +98,33 @@ class RefactoredDrakbenAgent(
         self.planner = Planner()
         self.coder: AICoder = AICoder(self.brain)
         self.healer = SelfHealer(self.executor, self.console)  # Error recovery
+
+        # Intelligence v2: Self-Reflection Engine
+        self.reflector = None
+        if _SelfReflectionEngine is not None:
+            try:
+                self.reflector = _SelfReflectionEngine(
+                    llm_client=config_manager.llm_client,
+                    reflect_interval=5,
+                )
+                logger.info("Self-Reflection Engine initialized (every 5 steps)")
+            except Exception as e:
+                logger.debug("SelfReflectionEngine init failed: %s", e)
+
+        # Intelligence v2: ReAct Loop (available as alternative to plan-based loop)
+        self.react_loop = None
+        if _ReActLoop is not None:
+            try:
+                self.react_loop = _ReActLoop(
+                    brain=self.brain,
+                    executor=self.executor,
+                    tool_selector=self.tool_selector,
+                    evolution=self.evolution,
+                    max_steps=25,
+                )
+                logger.info("ReAct Loop initialized (available via /react command)")
+            except Exception as e:
+                logger.debug("ReActLoop init failed: %s", e)
 
         # Additional Modules for Full System Test
         try:
@@ -497,6 +533,10 @@ class RefactoredDrakbenAgent(
         if self._check_stagnation():
             return False
 
+        # 1.5 Self-Reflection Check (Intelligence v2)
+        if self.reflector and self.reflector.should_reflect(iteration):
+            self._run_self_reflection(iteration)
+
         # 2. Get Next Step
         step: PlanStep | None = self.planner.get_next_step()
         if not step:
@@ -555,16 +595,18 @@ class RefactoredDrakbenAgent(
 
         # ── APPROVAL CHECK for dangerous operations ──
         if not self._check_dangerous_operation(step):
-            # User denied — skip this step, continue with next
             if self.state is not None:
                 self.state.increment_iteration()
             return True
 
         # Show what we're about to do with context
-        self.console.print(f"\n[>] [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
-        if step.params:
-            params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
-            self.console.print(f"   Params: {params_display}", style="dim")
+        self._show_step_info(step)
+
+        # ── Intelligence v3: Adversarial Adapter — apply evasion args ──
+        self._apply_evasion_args(step)
+
+        # ── Intelligence v3: Exploit Predictor — predict before attempting ──
+        self._predict_exploit_outcome(step)
 
         # Execute with progress indicator and timeout handling
         execution_result = self._execute_tool_with_progress(step.tool, step.params)
@@ -579,16 +621,15 @@ class RefactoredDrakbenAgent(
         # Handle Result
         if success:
             self._handle_step_success(step, execution_result)
-            # LLM Analysis of output (transparency)
             self._analyze_and_show_output(step.tool, execution_result)
         elif not self._handle_step_failure(step, execution_result):
             return False
 
-        # 7. Update State
+        # Update State
         observation: str = f"{step.tool}: {'success' if success else 'failed'}"
         self._update_state_from_result(step.tool, execution_result, observation)
 
-        # 8. Validation & Halt Limit
+        # Validation & Halt Limit
         if not self._validate_loop_state():
             return False
 
@@ -597,6 +638,64 @@ class RefactoredDrakbenAgent(
             raise AssertionError(self.MSG_STATE_NOT_NONE)
         self.state.increment_iteration()
         return True
+
+    def _show_step_info(self, step: PlanStep) -> None:
+        """Display step info to console before execution."""
+        self.console.print(f"\n[>] [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
+        if step.params:
+            params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
+            self.console.print(f"   Params: {params_display}", style="dim")
+
+    def _apply_evasion_args(self, step: PlanStep) -> None:
+        """Apply adversarial evasion arguments to step params."""
+        adversarial = getattr(self.brain, "adversarial", None) if self.brain else None
+        if not adversarial or step.params is None:
+            return
+        try:
+            modifier = adversarial.get_tool_args_modifier(step.tool)
+            if not modifier:
+                return
+            extra_args = modifier.get("extra_args", {})
+            if extra_args:
+                step.params.update(extra_args)
+                self.console.print(
+                    f"   🛡\ufe0f Evasion active: +{len(extra_args)} stealth args",
+                    style="bold red",
+                )
+            delay = modifier.get("delay", 0)
+            if delay > 0:
+                self.console.print(
+                    f"   ⏱\ufe0f Stealth delay: {delay}s between requests",
+                    style="dim red",
+                )
+        except Exception:
+            pass  # graceful degradation
+
+    def _predict_exploit_outcome(self, step: PlanStep) -> None:
+        """Run exploit predictor for exploit steps."""
+        if step.action not in ("exploit", "execute_exploit", "sqlmap_exploit"):
+            return
+        predictor = getattr(self.brain, "exploit_predictor", None) if self.brain else None
+        if not predictor:
+            return
+        try:
+            exploit_name = step.params.get("exploit", step.tool) if step.params else step.tool
+            svc = step.params.get("service", "") if step.params else ""
+            ver = step.params.get("version", "") if step.params else ""
+            target = self.state.target if self.state else ""
+            prediction = predictor.predict(
+                exploit_name=exploit_name, service=svc, version=ver, target=target,
+            )
+            self.console.print(
+                f"   🎯 Exploit prediction: {prediction.probability:.0%} success"
+                f" ({prediction.reasoning})",
+                style="bold cyan",
+            )
+            if prediction.alternatives:
+                alt_str = ", ".join(prediction.alternatives[:3])
+                self.console.print(f"   💡 Alternatives: {alt_str}", style="dim cyan")
+        except Exception:
+            pass
 
     def _build_tool_reason(self, step: PlanStep) -> str:
         """Build a human-readable reason for why this tool was selected."""
@@ -724,64 +823,106 @@ class RefactoredDrakbenAgent(
         4. Show everything transparently to the user
         """
         try:
-            target = self.state.target if self.state else "N/A"
-            phase = self.state.phase.value if self.state else "unknown"
-            n_services = len(self.state.open_services) if self.state else 0
-            n_vulns = len(self.state.vulnerabilities) if self.state else 0
-
-            prompt = (
-                f"You are DRAKBEN's analysis engine. Analyze this {tool_name} output "
-                f"for target {target} (phase: {phase}, {n_services} services, {n_vulns} vulns).\n\n"
-                f"OUTPUT:\n{stdout[:4000]}\n\n"
-                f"Respond ONLY in JSON:\n"
-                f'{{"findings": ["finding1", ...], '
-                f'"summary": "2-3 sentence technical analysis", '
-                f'"severity": "info|low|medium|high|critical", '
-                f'"next_steps": ['
-                f'  {{"action": "action_name", "tool": "tool_name", "reason": "why"}}'
-                f']}}\n\n'
-                f"next_steps should recommend concrete follow-up scans based on what "
-                f"was discovered (e.g., web port open -> nikto, SMB -> enum4linux). "
-                f"Return empty list if no further action needed."
-            )
+            prompt = self._build_analysis_prompt(tool_name, stdout)
+            prompt = self._enhance_analysis_prompt(prompt, tool_name)
 
             t0 = time.time()
             response = llm_client.query(prompt, timeout=25)
             duration = time.time() - t0
 
-            # Show the LLM thinking
             self.transparency.show_llm_thinking(
                 prompt_summary=f"Analyze {tool_name} output ({len(stdout)} chars)",
                 response=response[:500],
                 duration=duration,
             )
 
-            # Parse structured response
-            analysis = self._parse_llm_json(response)
+            analysis = self._parse_analysis_response(response)
             self.transparency.show_output_analysis(tool_name, analysis)
-
-            # ── KEY: Feed LLM suggestions back into the plan ──
-            next_steps = analysis.get("next_steps") or []
-            # Support legacy "next_action" single string field too
-            if not next_steps and analysis.get("next_action"):
-                next_steps = [{"action": analysis["next_action"], "tool": analysis["next_action"]}]
-
-            if next_steps and self.state:
-                n_injected = self.planner.inject_dynamic_steps(
-                    new_actions=next_steps,
-                    target=self.state.target or target,
-                    source="llm",
-                )
-                if n_injected > 0:
-                    self.transparency.show_plan_injection(next_steps[:n_injected], source="llm")
-                    self.console.print(
-                        f"   \ud83e\udde0 LLM injected {n_injected} new step(s) into plan",
-                        style="bold magenta",
-                    )
+            self._inject_analysis_steps(analysis)
 
         except Exception as e:
             logger.debug("LLM analysis failed, falling back to offline: %s", e)
             self._analyze_offline(tool_name, stdout)
+
+    def _build_analysis_prompt(self, tool_name: str, stdout: str) -> str:
+        """Build the LLM analysis prompt with current state context."""
+        target = self.state.target if self.state else "N/A"
+        phase = self.state.phase.value if self.state else "unknown"
+        n_services = len(self.state.open_services) if self.state else 0
+        n_vulns = len(self.state.vulnerabilities) if self.state else 0
+
+        return (
+            f"You are DRAKBEN's analysis engine. Analyze this {tool_name} output "
+            f"for target {target} (phase: {phase}, {n_services} services, {n_vulns} vulns).\n\n"
+            f"OUTPUT:\n{stdout[:4000]}\n\n"
+            f"Respond ONLY in JSON:\n"
+            f'{{"findings": ["finding1", ...], '
+            f'"summary": "2-3 sentence technical analysis", '
+            f'"severity": "info|low|medium|high|critical", '
+            f'"next_steps": ['
+            f'  {{"action": "action_name", "tool": "tool_name", "reason": "why"}}'
+            f']}}\n\n'
+            f"next_steps should recommend concrete follow-up scans based on what "
+            f"was discovered (e.g., web port open -> nikto, SMB -> enum4linux). "
+            f"Return empty list if no further action needed."
+        )
+
+    def _enhance_analysis_prompt(self, prompt: str, tool_name: str) -> str:
+        """Enhance analysis prompt with few-shot examples and KB context."""
+        phase = self.state.phase.value if self.state else "unknown"
+        target = self.state.target if self.state else "N/A"
+
+        few_shot = getattr(self.brain, "few_shot", None) if self.brain else None
+        if few_shot:
+            try:
+                prompt = few_shot.enhance_prompt(prompt, phase=phase, task_type="tool_analysis")
+            except Exception:
+                pass
+
+        kb = getattr(self.brain, "knowledge_base", None) if self.brain else None
+        if kb:
+            try:
+                service_hint = tool_name.split("_")[0] if "_" in tool_name else None
+                kb_context = kb.recall_for_context(target=target, service=service_hint)
+                if kb_context:
+                    prompt = f"{prompt}\n\n### PRIOR KNOWLEDGE\n{kb_context}"
+            except Exception:
+                pass
+
+        return prompt
+
+    def _parse_analysis_response(self, response: str) -> dict[str, Any]:
+        """Parse LLM analysis response using structured parser or fallback."""
+        output_parser = getattr(self.brain, "output_parser", None) if self.brain else None
+        if output_parser and type(output_parser).__name__ == "StructuredOutputParser":
+            try:
+                from core.intelligence.structured_output import ToolAnalysis as _TA
+                parsed = output_parser.parse(response, _TA)
+                if parsed and hasattr(parsed, "to_dict"):
+                    return parsed.to_dict()
+            except Exception:
+                pass
+        return self._parse_llm_json(response)
+
+    def _inject_analysis_steps(self, analysis: dict[str, Any]) -> None:
+        """Inject LLM-suggested next steps into the live plan."""
+        next_steps = analysis.get("next_steps") or []
+        if not next_steps and analysis.get("next_action"):
+            next_steps = [{"action": analysis["next_action"], "tool": analysis["next_action"]}]
+
+        if not next_steps or not self.state:
+            return
+
+        target = self.state.target or "unknown"
+        n_injected = self.planner.inject_dynamic_steps(
+            new_actions=next_steps, target=target, source="llm",
+        )
+        if n_injected > 0:
+            self.transparency.show_plan_injection(next_steps[:n_injected], source="llm")
+            self.console.print(
+                f"   \ud83e\udde0 LLM injected {n_injected} new step(s) into plan",
+                style=self.STYLE_MAGENTA,
+            )
 
     @staticmethod
     def _parse_llm_json(response: str) -> dict[str, Any]:
@@ -1725,6 +1866,120 @@ class RefactoredDrakbenAgent(
                 report.append(f"   - {violation}\n", style="red")
 
         self.console.print(Panel(report, border_style="green", title="Summary"))
+
+    def _run_self_reflection(self, iteration: int) -> None:
+        """Run periodic self-reflection checkpoint (Intelligence v2)."""
+        if not self.reflector or not self.state:
+            return
+
+        try:
+            recent_actions = self._gather_recent_actions()
+
+            entry = self.reflector.reflect(
+                step=iteration,
+                goal=f"Pentest {self.state.target}",
+                recent_actions=recent_actions,
+                agent_state=self.state,
+            )
+
+            self._display_reflection(iteration, entry)
+            self._act_on_reflection(entry)
+
+        except Exception as e:
+            logger.debug("Self-reflection failed: %s", e)
+
+    def _gather_recent_actions(self) -> list[dict[str, Any]]:
+        """Gather recent actions from evolution memory for reflection."""
+        if not self.evolution:
+            return []
+        recent_actions: list[dict[str, Any]] = []
+        for r in self.evolution.get_recent_actions(limit=8):
+            recent_actions.append({
+                "tool": r.tool if hasattr(r, "tool") else str(r),
+                "success": (r.outcome == "success") if hasattr(r, "outcome") else False,
+                "output": r.error_message[:100] if hasattr(r, "error_message") else "",
+            })
+        return recent_actions
+
+    def _display_reflection(self, iteration: int, entry: Any) -> None:
+        """Display self-reflection result to console."""
+        verdict_style = {
+            "continue": "green", "pivot": "yellow", "escalate": "red",
+        }.get(entry.verdict, "dim")
+
+        self.console.print(
+            f"\n🪞 Self-Reflection (Step {iteration}): "
+            f"[{verdict_style}]{entry.verdict.upper()}[/{verdict_style}]",
+            style="bold",
+        )
+        if entry.reasoning:
+            self.console.print(f"   💭 {entry.reasoning[:200]}", style="dim")
+        if entry.blind_spots:
+            self.console.print(f"   🔍 Blind spots: {', '.join(entry.blind_spots[:3])}", style="dim")
+        if entry.suggested_changes:
+            self.console.print(f"   💡 Suggestions: {', '.join(entry.suggested_changes[:3])}", style="dim")
+
+    def _act_on_reflection(self, entry: Any) -> None:
+        """Act on reflection verdict if strategy change is needed."""
+        if entry.verdict != "pivot" or not self.current_strategy:
+            return
+        self.console.print(
+            "   🔄 Reflection suggests strategy change — triggering replan",
+            style="yellow",
+        )
+        current_step = self.planner.get_next_step()
+        if current_step:
+            self.planner.replan(current_step.step_id)
+
+    def run_react_loop(self, target: str) -> dict:
+        """Run the ReAct loop as an alternative to plan-based scanning.
+
+        This uses tight Observe→Think→Act cycles where the LLM
+        decides EVERY step based on real tool output.
+
+        Usage from menu: /react <target>
+        """
+        if not self.react_loop:
+            self.console.print("❌ ReAct Loop not available", style="red")
+            return {"success": False, "error": "ReAct Loop not initialized"}
+
+        if not self.state:
+            self.state = reset_state(target)
+
+        self.console.print(
+            f"\n🧠 Starting ReAct Loop for {target}...",
+            style=self.STYLE_MAGENTA,
+        )
+        self.console.print(
+            "   [dim]LLM decides each step dynamically based on observations[/dim]",
+        )
+
+        result = self.react_loop.run(
+            goal=f"Pentest {target} — discover services, find vulnerabilities, attempt exploitation",
+            target=target,
+            agent_state=self.state,
+        )
+
+        # Display result
+        if result.get("success"):
+            self.console.print(
+                f"\n✅ ReAct completed in {result.get('steps_taken', 0)} steps",
+                style="green",
+            )
+        else:
+            self.console.print(
+                f"\n⚠️ ReAct stopped after {result.get('steps_taken', 0)} steps",
+                style="yellow",
+            )
+
+        if result.get("final_answer"):
+            self.console.print(f"   📋 {result['final_answer'][:500]}", style="dim")
+
+        tools_used = result.get("tools_used", [])
+        if tools_used:
+            self.console.print(f"   🔧 Tools used: {', '.join(tools_used)}", style="dim")
+
+        return result
 
     def stop(self) -> None:
         """Stop the agent."""
