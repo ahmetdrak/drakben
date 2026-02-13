@@ -28,7 +28,7 @@ class WebResearcher:
 
     def __init__(self) -> None:
         # Initialize Persistent Stealth Session (Chrome 120 Fingerprint)
-        if StealthSession is not requests.Session:
+        if StealthSession is not requests.Session:  # type: ignore[comparison-overlap]
             self.session = StealthSession(impersonate="chrome120", randomize_behavior=True)
         else:
             self.session = StealthSession()
