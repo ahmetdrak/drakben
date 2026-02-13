@@ -218,6 +218,7 @@ def _register_agent_endpoints(app) -> None:
                 "foothold_method": state.foothold_method,
             }
         except Exception:
+            logger.debug("Agent state retrieval failed", exc_info=True)
             return {"error": "Failed to retrieve agent state"}
 
     @app.get("/api/v1/plan")
@@ -236,6 +237,7 @@ def _register_agent_endpoints(app) -> None:
             stop()
             return {"status": "stop_requested"}
         except Exception:
+            logger.debug("Agent stop failed", exc_info=True)
             return {"status": "error", "message": "Failed to stop agent"}
 
 

@@ -76,9 +76,9 @@ class TestE2EConfigToAgentBootstrap:
         state = AgentState()
         engine = LLMEngine()
 
-        assert cfg is not None
-        assert state is not None
-        assert engine
+        assert isinstance(cfg, ConfigManager)
+        assert isinstance(state, AgentState)
+        assert isinstance(engine, LLMEngine)
 
 
 # ═══════════════════════════════════════════════════════════

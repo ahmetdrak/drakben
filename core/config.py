@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -222,11 +222,11 @@ class DrakbenConfig:
 
     # LLM Settings (backward compat — delegated to LLMConfig internally)
     llm_provider: str = "auto"  # auto, openrouter, ollama, openai
-    openrouter_api_key: str | None = None
+    openrouter_api_key: str | None = field(default=None, repr=False)
     openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
     ollama_url: str = _DEFAULT_OLLAMA_URL
     ollama_model: str = _DEFAULT_OLLAMA_MODEL
-    openai_api_key: str | None = None
+    openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str = "gpt-4o-mini"
 
     # Setup

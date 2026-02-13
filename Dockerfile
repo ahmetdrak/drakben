@@ -2,7 +2,7 @@
 # Multi-stage build for optimized image size
 
 # ==================== DRAKBEN RUNTIME ====================
-FROM kalilinux/kali-rolling:latest
+FROM kalilinux/kali-rolling:latest  # NOSONAR — kali-rolling uses a rolling-release model; no stable pinned tags
 
 LABEL maintainer="DRAKBEN Team"
 LABEL description="DRAKBEN - Autonomous Pentest AI Framework"
