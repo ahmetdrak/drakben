@@ -326,7 +326,60 @@ class ToolSelector:
                 ],
                 risk_level="critical",
                 priority=100,  # Max priority
-                description="Modify system code or create new tools. Args: action='create_tool'|'modify_file', target='name/path', instruction='...'",
+                description=(
+                    "Modify system code or create new tools. "
+                    "Args: action='create_tool'|'modify_file', target='name/path', instruction='...'"
+                ),
+            ),
+            # WAF BYPASS ENGINE
+            "waf_bypass": ToolSpec(
+                name="waf_bypass",
+                category=ToolCategory.EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN, AttackPhase.EXPLOIT],
+                risk_level="medium",
+                system_tool="",
+                description="WAF detection and adaptive bypass via mutation engine (SQLi/XSS/RCE)",
+            ),
+            # C2 FRAMEWORK
+            "c2_beacon": ToolSpec(
+                name="c2_beacon",
+                category=ToolCategory.POST_EXPLOIT,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.POST_EXPLOIT, AttackPhase.FOOTHOLD],
+                risk_level="high",
+                system_tool="",
+                description="C2 beacon setup with domain fronting, DNS tunneling, and encrypted channels",
+            ),
+            # SUBDOMAIN ENUMERATION (Python)
+            "subdomain_enum": ToolSpec(
+                name="subdomain_enum",
+                category=ToolCategory.RECON,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.INIT, AttackPhase.RECON],
+                risk_level="low",
+                system_tool="",
+                description="Python-based subdomain enumeration with multiple techniques",
+            ),
+            # CVE DATABASE LOOKUP
+            "cve_lookup": ToolSpec(
+                name="cve_lookup",
+                category=ToolCategory.VULN_SCAN,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN, AttackPhase.RECON],
+                risk_level="low",
+                system_tool="",
+                description="Search CVE database for known vulnerabilities by product/version/CVE-ID",
+            ),
+            # NUCLEI SCANNER (Python)
+            "nuclei_scan": ToolSpec(
+                name="nuclei_scan",
+                category=ToolCategory.VULN_SCAN,
+                command_template="INTERNAL_MODULE",
+                phase_allowed=[AttackPhase.VULN_SCAN],
+                risk_level="medium",
+                system_tool="",
+                description="Python-based Nuclei vulnerability scanner with custom templates",
             ),
         }
 
@@ -476,21 +529,28 @@ class ToolSelector:
         # Check if we have remaining attack surface
         remaining = state.get_available_attack_surface()
 
-        # 1. Try to scan remaining surfaces
+        # 1. INIT phase → always start with port scan
+        if state.phase == AttackPhase.INIT:
+            return ("scan", "nmap_port_scan", {})
+
+        # 2. Try to scan remaining surfaces
         if remaining and state.phase in [AttackPhase.RECON, AttackPhase.VULN_SCAN]:
             scan_action = self._recommend_surface_scan(state, remaining[0])
             if scan_action:
                 return scan_action
 
-        # 2. Check if we should move to next phase
-        if not remaining:
-            transition = self._recommend_phase_transition(state)
-            if transition:
-                return transition
+        # 3. Check if we should move to next phase
+        transition = self._recommend_phase_transition(state)
+        if transition:
+            return transition
 
-        # 3. Check if we have exploitable vulns
+        # 4. Check if we have exploitable vulns
         if state.phase == AttackPhase.EXPLOIT:
             return self._recommend_exploit(state)
+
+        # 5. Post-exploit phase
+        if state.phase == AttackPhase.POST_EXPLOIT:
+            return ("complete", "report", {"next_phase": AttackPhase.COMPLETE})
 
         return None
 
@@ -511,22 +571,56 @@ class ToolSelector:
         state: AgentState,
     ) -> tuple[str, str, dict] | None:
         """Recommend a phase transition if applicable."""
-        # No more surfaces to test in current phase
+        # INIT → RECON (always after first scan)
+        if state.phase == AttackPhase.INIT and state.open_services:
+            return (
+                "phase_transition",
+                "recon",
+                {"next_phase": AttackPhase.RECON},
+            )
+
+        # RECON → VULN_SCAN
         if state.phase == AttackPhase.RECON and state.open_services:
-            # Move to vuln scan
             return (
                 "phase_transition",
                 "vuln_scan",
                 {"next_phase": AttackPhase.VULN_SCAN},
             )
 
+        # VULN_SCAN → EXPLOIT (when vulns found)
         if state.phase == AttackPhase.VULN_SCAN and state.vulnerabilities:
-            # Move to exploit
             return (
                 "phase_transition",
                 "exploit",
                 {"next_phase": AttackPhase.EXPLOIT},
             )
+
+        # VULN_SCAN → COMPLETE (no vulns found, scan finished)
+        if state.phase == AttackPhase.VULN_SCAN and not state.get_available_attack_surface():
+            return (
+                "phase_transition",
+                "complete",
+                {"next_phase": AttackPhase.COMPLETE},
+            )
+
+        # EXPLOIT → POST_EXPLOIT (foothold gained)
+        if state.phase == AttackPhase.EXPLOIT and state.has_foothold:
+            return (
+                "phase_transition",
+                "post_exploit",
+                {"next_phase": AttackPhase.POST_EXPLOIT},
+            )
+
+        # EXPLOIT → COMPLETE (all exploits attempted, no foothold)
+        if state.phase == AttackPhase.EXPLOIT:
+            all_attempted = all(v.exploit_attempted for v in state.vulnerabilities)
+            if all_attempted:
+                return (
+                    "phase_transition",
+                    "complete",
+                    {"next_phase": AttackPhase.COMPLETE},
+                )
+
         return None
 
     def _recommend_exploit(self, state: AgentState) -> tuple[str, str, dict] | None:

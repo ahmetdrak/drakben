@@ -10,7 +10,7 @@ import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from threading import RLock
-from typing import Optional, Self
+from typing import Any, Optional, Self
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -22,9 +22,9 @@ MAX_CONSECUTIVE_SAME_TOOL = 3
 MAX_HALLUCINATION_FLAGS = 10
 MAX_OBSERVATION_LENGTH = 500
 MAX_TOOL_CALL_HISTORY = 10
-MAX_STATE_CHANGES_HISTORY = 5
+MAX_STATE_CHANGES_HISTORY = 15
 PHASE_TOLERANCE = 1
-STAGNATION_CHECK_WINDOW = 3
+STAGNATION_CHECK_WINDOW = 8
 MAX_HALLUCINATIONS_THRESHOLD = 3
 
 # Thread-safe singleton implementation - MUST be defined BEFORE AgentState class
@@ -94,7 +94,7 @@ class AgentState:
     5. State pollution = SYSTEM HALT
     """
 
-    def __new__(cls, *args, **kwargs) -> Self:
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         """Ensure singleton instance."""
         global _state_instance
         if _state_instance is None:
@@ -104,7 +104,7 @@ class AgentState:
                     instance = super().__new__(cls)
                     _state_instance = instance
                     return instance
-        return _state_instance
+        return _state_instance  # type: ignore[return-value]
 
     def __init__(self, target: str | None = None) -> None:
         """Initialize agent state.
@@ -132,16 +132,13 @@ class AgentState:
                         self.target = target
                 return
 
-            self._lock: RLock = threading.RLock()
+            self._lock: RLock = _state_lock
 
             # Core state
-            self.target: str | None = target
+            self.target: str | None = target  # type: ignore[assignment]
             self.phase: AttackPhase = AttackPhase.INIT
             self.iteration_count: int = 0
             self.max_iterations: int = MAX_ITERATIONS
-
-            # Mark as initialized BEFORE populating state
-            self._initialized = True
 
             # Attack surface tracking
             self.open_services: dict[int, ServiceInfo] = {}  # port -> ServiceInfo
@@ -168,6 +165,7 @@ class AgentState:
 
             # Invariant violation tracking
             self.invariant_violations: list[str] = []
+            self._current_violations: list[str] = []
             self._max_invariant_violations: int = MAX_INVARIANT_VIOLATIONS
 
             # Agentic loop protection
@@ -177,6 +175,9 @@ class AgentState:
             self.max_consecutive_same_tool: int = MAX_CONSECUTIVE_SAME_TOOL
             self.hallucination_flags: list[str] = []  # Hallucination warnings
             self._max_hallucination_flags: int = MAX_HALLUCINATION_FLAGS
+
+            # Mark as initialized AFTER all attributes are set
+            self._initialized = True
 
     def clear(self, new_target: str | None = None) -> None:
         """Clear state for new run - preserves singleton reference.
@@ -188,7 +189,7 @@ class AgentState:
         """
         with self._lock:
             # Core state
-            self.target = new_target
+            self.target = new_target  # type: ignore[assignment]
             self.phase = AttackPhase.INIT
             self.iteration_count = 0
 
@@ -298,15 +299,29 @@ class AgentState:
 
     def _merge_service(self, svc: ServiceInfo) -> None:
         """Merge a service into open_services with smart rules."""
+        # Validate port range
+        if not (1 <= svc.port <= 65535):
+            logger.warning("Invalid port number %s — skipping service", svc.port)
+            return
+
         if svc.port not in self.open_services:
             self.open_services[svc.port] = svc
             return
 
         existing: ServiceInfo = self.open_services[svc.port]
+        old_name = existing.service
+
         if self._should_skip_unknown_service(svc, existing):
             return
 
-        self.open_services[svc.port] = self._select_best_service(svc, existing)
+        best = self._select_best_service(svc, existing)
+        self.open_services[svc.port] = best
+
+        # Clean up stale surface keys when service name changes
+        if best.service != old_name:
+            stale_key = f"{svc.port}:{old_name}"
+            self.remaining_attack_surface.discard(stale_key)
+            self.tested_attack_surface.discard(stale_key)
 
     def _should_skip_unknown_service(
         self,
@@ -579,9 +594,9 @@ class AgentState:
             if self.iteration_count >= self.max_iterations:
                 return True, "Max iteration reached"
 
-            # Invariant violation
-            if self.invariant_violations:
-                return True, f"Invariant violation: {self.invariant_violations[0]}"
+            # Invariant violation (only current iteration, not accumulated history)
+            if self._current_violations:
+                return True, f"Invariant violation: {self._current_violations[0]}"
 
             # State stagnation check
             if len(self.state_changes_history) >= STAGNATION_CHECK_WINDOW:
@@ -629,8 +644,15 @@ class AgentState:
             violations.extend(self._check_surface_invariants())
             violations.extend(self._check_limits_invariants())
 
+            # Track current violations separately from history
+            self._current_violations = violations
+
+            # Append to accumulated history for debugging
+            self.invariant_violations.extend(violations)
+            # Trim to prevent unbounded growth
+            if len(self.invariant_violations) > self._max_invariant_violations * 2:
+                self.invariant_violations = self.invariant_violations[-self._max_invariant_violations:]
             if violations:
-                self.invariant_violations.extend(violations)
                 logger.error("State invariant violations: %s", violations)
                 return False
             return True
@@ -706,7 +728,7 @@ class AgentState:
 
         return violations
 
-    def _record_change(self, change_type: str, data) -> None:
+    def _record_change(self, change_type: str, data: Any) -> None:
         """Record state change (last N changes).
 
         Args:
@@ -759,10 +781,36 @@ class AgentState:
             data: Dict representation of state
 
         """
-        self.target = data.get("target")
+        self.target = data.get("target")  # type: ignore[assignment]
         self.phase = AttackPhase(data.get("phase", "init"))
         self.iteration_count = data.get("iteration_count", 0)
-        # Other fields as needed for future session recovery
+
+        # Restore discovery data
+        from core.agent.state import CredentialInfo, ServiceInfo, VulnerabilityInfo
+        for port, svc in data.get("open_services", {}).items():
+            try:
+                self.open_services[int(port)] = ServiceInfo(**svc) if isinstance(svc, dict) else svc
+            except (TypeError, ValueError):
+                pass
+        self.tested_attack_surface = set(data.get("tested_attack_surface", []))
+        self.remaining_attack_surface = set(data.get("remaining_attack_surface", []))
+        # Clear existing lists before loading to prevent duplicates on re-load
+        self.vulnerabilities.clear()
+        for v in data.get("vulnerabilities", []):
+            try:
+                self.vulnerabilities.append(VulnerabilityInfo(**v) if isinstance(v, dict) else v)
+            except (TypeError, ValueError):
+                pass
+        # Clear existing credentials before loading to prevent duplicates on re-load
+        self.credentials.clear()
+        for c in data.get("credentials", []):
+            try:
+                self.credentials.append(CredentialInfo(**c) if isinstance(c, dict) else c)
+            except (TypeError, ValueError):
+                pass
+        self.has_foothold = data.get("has_foothold", False)
+        self.foothold_method = data.get("foothold_method")
+        self.post_exploit_completed = set(data.get("post_exploit_completed", []))
 
 
 # NOTE: _state_lock and _state_instance are defined at module top (before AgentState class)

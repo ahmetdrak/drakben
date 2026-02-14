@@ -4,6 +4,7 @@
 
 import json
 import logging
+import threading
 import time
 from typing import Any
 
@@ -39,6 +40,18 @@ from core.intelligence.self_refining_engine import (
 from core.security.security_utils import audit_command
 from core.storage.structured_logger import DrakbenLogger
 from core.tools.tool_parsers import normalize_error_message
+from core.ui.transparency import get_transparency
+
+# Intelligence v2 imports (optional — graceful degradation)
+_SelfReflectionEngine = None
+_ReActLoop = None
+try:
+    from core.intelligence.react_loop import ReActLoop as _ReActLoop  # type: ignore[assignment]
+    from core.intelligence.self_reflection import (  # type: ignore[assignment]
+        SelfReflectionEngine as _SelfReflectionEngine,
+    )
+except ImportError:
+    pass
 
 # Setup logger
 logger: logging.Logger = logging.getLogger(__name__)
@@ -66,9 +79,13 @@ class RefactoredDrakbenAgent(
     # Constant for assertion messages (SonarCloud: avoid duplicate literals)
     MSG_STATE_NOT_NONE = "self.state is not None"
 
+    # Track self-healing attempts to prevent infinite loops
+    MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
+
     def __init__(self, config_manager: ConfigManager) -> None:
         self.config: ConfigManager = config_manager
         self.console = Console()
+        self.transparency = get_transparency(self.console)
         self.logger = DrakbenLogger()  # NEW: Structured Logging
 
         # Core Components
@@ -84,6 +101,33 @@ class RefactoredDrakbenAgent(
         self.coder: AICoder = AICoder(self.brain)
         self.healer = SelfHealer(self.executor, self.console)  # Error recovery
 
+        # Intelligence v2: Self-Reflection Engine
+        self.reflector = None
+        if _SelfReflectionEngine is not None:
+            try:
+                self.reflector = _SelfReflectionEngine(
+                    llm_client=config_manager.llm_client,
+                    reflect_interval=5,
+                )
+                logger.info("Self-Reflection Engine initialized (every 5 steps)")
+            except Exception as e:
+                logger.debug("SelfReflectionEngine init failed: %s", e)
+
+        # Intelligence v2: ReAct Loop (available as alternative to plan-based loop)
+        self.react_loop = None
+        if _ReActLoop is not None:
+            try:
+                self.react_loop = _ReActLoop(
+                    brain=self.brain,
+                    executor=self.executor,
+                    tool_selector=self.tool_selector,
+                    evolution=self.evolution,
+                    max_steps=25,
+                )
+                logger.info("ReAct Loop initialized (available via /react command)")
+            except Exception as e:
+                logger.debug("ReActLoop init failed: %s", e)
+
         # Additional Modules for Full System Test
         try:
             from modules.ad_attacks import ActiveDirectoryAttacker
@@ -93,7 +137,7 @@ class RefactoredDrakbenAgent(
             logger.warning(
                 "ActiveDirectoryAttacker could not be initialized (missing imports).",
             )
-            self.ad_attacker = None
+            self.ad_attacker = None  # type: ignore[assignment]
 
         # Runtime state
         self.running = False
@@ -141,6 +185,7 @@ class RefactoredDrakbenAgent(
 
         try:
             self._reset_and_evolve_state(target)
+            self._check_tool_availability()
             target_type: str = self._classify_target(target)
 
             if not self._select_and_filter_profile(target):
@@ -161,6 +206,48 @@ class RefactoredDrakbenAgent(
                 style="yellow",
             )
             self._fallback_mode = True
+
+    def _check_tool_availability(self) -> None:
+        """Check which pentest tools are installed and warn user about missing ones."""
+        import shutil
+
+        required_tools = {
+            "nmap": "Port scanning (critical)",
+            "nikto": "Web vulnerability scanning",
+            "sqlmap": "SQL injection testing",
+            "searchsploit": "Exploit search",
+            "hydra": "Credential brute-forcing",
+            "metasploit-framework": "Exploitation framework",
+        }
+        # Metasploit is detected via msfconsole binary
+        binary_map = {
+            "metasploit-framework": "msfconsole",
+        }
+
+        found: list[str] = []
+        missing: list[str] = []
+
+        for tool, desc in required_tools.items():
+            binary = binary_map.get(tool, tool)
+            if shutil.which(binary):
+                found.append(tool)
+            else:
+                missing.append(f"{tool} ({desc})")
+
+        if found:
+            self.console.print(
+                f"✅ Tools available: {', '.join(found)}",
+                style="green",
+            )
+
+        if missing:
+            self.console.print(
+                f"⚠️  Missing tools: {', '.join(missing)}",
+                style="yellow",
+            )
+            self.console.print(
+                "   [dim]Install with: apt install <tool> or use /install command[/dim]",
+            )
 
     def _setup_scan_mode(self, mode: str, target: str) -> None:
         """Setup scan mode and display initialization message."""
@@ -237,8 +324,12 @@ class RefactoredDrakbenAgent(
                 stealth_profiles,
                 key=lambda p: p.aggressiveness,
             )[0]
+            try:
+                agg = float(self.current_profile.aggressiveness)
+            except (TypeError, ValueError):
+                agg = 0.0
             self.console.print(
-                f"🥷 Switched to stealth profile (aggression: {self.current_profile.aggressiveness:.2f})",
+                f"🥷 Switched to stealth profile (aggression: {agg:.2f})",
                 style="green",
             )
 
@@ -261,8 +352,12 @@ class RefactoredDrakbenAgent(
                 aggressive_profiles,
                 key=lambda p: -p.aggressiveness,
             )[0]
+            try:
+                agg = float(self.current_profile.aggressiveness)
+            except (TypeError, ValueError):
+                agg = 0.0
             self.console.print(
-                f"⚡ Switched to aggressive profile (aggression: {self.current_profile.aggressiveness:.2f})",
+                f"⚡ Switched to aggressive profile (aggression: {agg:.2f})",
                 style="yellow",
             )
 
@@ -276,11 +371,16 @@ class RefactoredDrakbenAgent(
             f"🧠 Selected Strategy: {self.current_strategy.name}",
             style=self.STYLE_MAGENTA,
         )
+        try:
+            sr = float(self.current_profile.success_rate)
+            agg = float(self.current_profile.aggressiveness)
+        except (TypeError, ValueError):
+            sr, agg = 0.0, 0.0
         self.console.print(
             f"🎭 Selected Profile: {self.current_profile.profile_id[:12]}... "
             f"(gen: {self.current_profile.mutation_generation}, "
-            f"success_rate: {self.current_profile.success_rate:.1%}, "
-            f"aggression: {self.current_profile.aggressiveness:.2f})",
+            f"success_rate: {sr:.1%}, "
+            f"aggression: {agg:.2f})",
             style=self.STYLE_CYAN,
         )
         self.console.print(
@@ -368,6 +468,23 @@ class RefactoredDrakbenAgent(
             "\n[*] Starting autonomous scan...\n",
             style=self.STYLE_GREEN,
         )
+
+        # Show LLM connection status so user knows what to expect
+        llm_client = getattr(self.brain, "llm_client", None)
+        if llm_client:
+            model = getattr(llm_client, "model", "unknown")
+            provider = getattr(llm_client, "provider", "unknown")
+            self.console.print(
+                f"   [bold green]🤖 LLM: {provider} / {model}[/bold green]",
+            )
+        else:
+            self.console.print(
+                "   [yellow]⚠️  LLM: Offline mode (rule-based analysis)[/yellow]",
+            )
+            self.console.print(
+                "   [dim]Tip: /llm komutuyla AI bağlantısı kurun[/dim]",
+            )
+
         self.console.print(
             "   [dim]Tip: Press Ctrl+C to stop[/dim]\n",
         )
@@ -404,19 +521,58 @@ class RefactoredDrakbenAgent(
             style=self.STYLE_CYAN,
         )
 
+        # Status dashboard for transparency
+        phase_name = self.state.phase.value.upper()
+        n_services = len(self.state.open_services)
+        n_vulns = len(self.state.vulnerabilities)
+        foothold = "✅" if self.state.has_foothold else "—"
+        self.console.print(
+            f"   📍 Phase: {phase_name} | Services: {n_services} | Vulns: {n_vulns} | Foothold: {foothold}",
+            style="dim",
+        )
+
         # 1. Stagnation Check
         if self._check_stagnation():
             return False
 
+        # 1.5 Self-Reflection Check (Intelligence v2)
+        if self.reflector and self.reflector.should_reflect(iteration):
+            self._run_self_reflection(iteration)
+
         # 2. Get Next Step
         step: PlanStep | None = self.planner.get_next_step()
         if not step:
-            self._handle_plan_completion()
-            return False
+            should_continue = self._handle_plan_completion()
+            if not should_continue:
+                return False
+            # Replan happened — increment iteration and try again next loop
+            if self.state:
+                self.state.increment_iteration()
+            return True
 
         self.console.print(
             f"[*] Step: {step.step_id} | Action: {step.action} | Tool: {step.tool}",
             style="cyan",
+        )
+
+        # Show WHY this tool was chosen (transparency)
+        target = self.state.target if self.state else "global"
+        penalty: float = self.evolution.get_tool_penalty(step.tool, target)
+        step_reason = self._build_tool_reason(step)
+        profile_info = "default"
+        if self.current_profile:
+            try:
+                pid = str(self.current_profile.profile_id)[:12]
+                agg = float(self.current_profile.aggressiveness)
+                profile_info = f"{pid}... (aggression: {agg:.2f})"
+            except (TypeError, ValueError):
+                profile_info = str(self.current_profile.profile_id)[:20]
+        self.transparency.show_tool_reasoning(
+            tool_name=step.tool,
+            action=step.action,
+            reason=step_reason,
+            penalty=penalty,
+            profile_info=profile_info,
         )
 
         # 3. Check Penalty & Execute
@@ -439,11 +595,20 @@ class RefactoredDrakbenAgent(
         """
         self.planner.mark_step_executing(step.step_id)
 
+        # ── APPROVAL CHECK for dangerous operations ──
+        if not self._check_dangerous_operation(step):
+            if self.state is not None:
+                self.state.increment_iteration()
+            return True
+
         # Show what we're about to do with context
-        self.console.print(f"\n[>] [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
-        if step.params:
-            params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
-            self.console.print(f"   Params: {params_display}", style="dim")
+        self._show_step_info(step)
+
+        # ── Intelligence v3: Adversarial Adapter — apply evasion args ──
+        self._apply_evasion_args(step)
+
+        # ── Intelligence v3: Exploit Predictor — predict before attempting ──
+        self._predict_exploit_outcome(step)
 
         # Execute with progress indicator and timeout handling
         execution_result = self._execute_tool_with_progress(step.tool, step.params)
@@ -458,15 +623,15 @@ class RefactoredDrakbenAgent(
         # Handle Result
         if success:
             self._handle_step_success(step, execution_result)
+            self._analyze_and_show_output(step.tool, execution_result)
         elif not self._handle_step_failure(step, execution_result):
             return False
 
-        # 7. Update State
+        # Update State
         observation: str = f"{step.tool}: {'success' if success else 'failed'}"
         self._update_state_from_result(step.tool, execution_result, observation)
 
-        # 8. Validation & Halt Limit
-        # 8. Validation & Halt Limit
+        # Validation & Halt Limit
         if not self._validate_loop_state():
             return False
 
@@ -475,6 +640,393 @@ class RefactoredDrakbenAgent(
             raise AssertionError(self.MSG_STATE_NOT_NONE)
         self.state.increment_iteration()
         return True
+
+    def _show_step_info(self, step: PlanStep) -> None:
+        """Display step info to console before execution."""
+        self.console.print(f"\n[>] [bold yellow]Executing: {step.tool}[/bold yellow]", style="yellow")
+        if step.params:
+            params_display = ", ".join(f"{k}={v}" for k, v in list(step.params.items())[:3])
+            self.console.print(f"   Params: {params_display}", style="dim")
+
+    def _apply_evasion_args(self, step: PlanStep) -> None:
+        """Apply adversarial evasion arguments to step params."""
+        adversarial = getattr(self.brain, "adversarial", None) if self.brain else None
+        if not adversarial or step.params is None:
+            return
+        try:
+            modifier = adversarial.get_tool_args_modifier(step.tool)
+            if not modifier:
+                return
+            extra_args = modifier.get("extra_args", {})
+            if extra_args:
+                step.params.update(extra_args)
+                self.console.print(
+                    f"   🛡\ufe0f Evasion active: +{len(extra_args)} stealth args",
+                    style="bold red",
+                )
+            delay = modifier.get("delay", 0)
+            if delay > 0:
+                self.console.print(
+                    f"   ⏱\ufe0f Stealth delay: {delay}s between requests",
+                    style="dim red",
+                )
+        except Exception:
+            pass  # graceful degradation
+
+    def _predict_exploit_outcome(self, step: PlanStep) -> None:
+        """Run exploit predictor for exploit steps."""
+        if step.action not in ("exploit", "execute_exploit", "sqlmap_exploit"):
+            return
+        predictor = getattr(self.brain, "exploit_predictor", None) if self.brain else None
+        if not predictor:
+            return
+        try:
+            exploit_name = step.params.get("exploit", step.tool) if step.params else step.tool
+            svc = step.params.get("service", "") if step.params else ""
+            ver = step.params.get("version", "") if step.params else ""
+            target = self.state.target if self.state else ""
+            prediction = predictor.predict(
+                exploit_name=exploit_name, service=svc, version=ver, target=target,
+            )
+            self.console.print(
+                f"   🎯 Exploit prediction: {prediction.probability:.0%} success"
+                f" ({prediction.reasoning})",
+                style="bold cyan",
+            )
+            if prediction.alternatives:
+                alt_str = ", ".join(prediction.alternatives[:3])
+                self.console.print(f"   💡 Alternatives: {alt_str}", style="dim cyan")
+        except Exception:
+            pass
+
+    def _build_tool_reason(self, step: PlanStep) -> str:
+        """Build a human-readable reason for why this tool was selected."""
+        reasons: list[str] = []
+
+        # Phase-based reasoning
+        if self.state:
+            phase = self.state.phase.value
+            if "port_scan" in step.tool:
+                reasons.append(f"Phase is {phase} — need to discover open ports first")
+            elif "service" in step.tool or "nikto" in step.tool:
+                n_ports = len(self.state.open_services)
+                reasons.append(f"{n_ports} ports found — identifying services/vulnerabilities")
+            elif "vuln" in step.tool or "sqlmap" in step.tool:
+                reasons.append("Services identified — scanning for vulnerabilities")
+            elif "exploit" in step.tool:
+                n_vulns = len(self.state.vulnerabilities)
+                reasons.append(f"{n_vulns} vulnerabilities found — attempting exploitation")
+            else:
+                reasons.append(f"Step from profile plan for {phase} phase")
+
+        # Profile-based reasoning
+        if self.current_profile:
+            reasons.append(
+                f"Profile step_order: {self.current_profile.step_order[:60]}...",
+            )
+
+        # Expected outcome
+        if hasattr(step, "expected_outcome") and step.expected_outcome:
+            reasons.append(f"Expected: {step.expected_outcome}")
+
+        return " | ".join(reasons) if reasons else "Automatic selection from plan"
+
+    def _analyze_and_show_output(self, tool_name: str, execution_result: dict) -> None:
+        """Ask the LLM to analyze tool output and show the analysis to the user."""
+        stdout = execution_result.get("stdout", "")
+        if not stdout or not stdout.strip():
+            return
+
+        llm_client = getattr(self.brain, "llm_client", None)
+
+        # LLM-powered analysis
+        if llm_client:
+            self._analyze_with_llm_transparency(tool_name, stdout, llm_client)
+            return
+
+        # Offline: rule-based analysis so user still sees SOMETHING
+        self._analyze_offline(tool_name, stdout)
+
+    # ── Dangerous operation categories requiring user approval ──
+    _DANGEROUS_ACTIONS: set[str] = {
+        "exploit", "get_shell", "brute_force", "credential_test",
+        "data_exfil", "sqlmap_exploit", "execute_exploit",
+    }
+    _DANGEROUS_TOOLS: set[str] = {
+        "sqlmap_scan", "hydra", "metasploit_exploit", "john",
+        "hashcat", "generate_payload", "data_exfil",
+    }
+
+    def _check_dangerous_operation(self, step: PlanStep) -> bool:
+        """Check if a step requires user approval before execution.
+
+        Exploit, shell access, brute-force, and data exfiltration steps
+        are considered dangerous. The user is prompted with a Y/n question.
+        If the scan is running non-interactively the step is auto-approved
+        (same behaviour as OpenInterpreter's auto_run=True).
+
+        Returns:
+            True if approved (proceed), False if denied (skip).
+        """
+        is_dangerous = (
+            step.action in self._DANGEROUS_ACTIONS
+            or step.tool in self._DANGEROUS_TOOLS
+        )
+        if not is_dangerous:
+            return True  # safe — auto-approve
+
+        risk_level = "HIGH" if step.action in ("exploit", "get_shell", "data_exfil") else "MEDIUM"
+
+        # Auto-approve if configured (equivalent to auto_run=True)
+        auto_approve = getattr(self.config, "auto_approve_dangerous", False)
+        if auto_approve:
+            self.transparency.show_approval_request(
+                step.tool, step.action, risk_level, approved=True,
+            )
+            return True
+
+        # Interactive approval
+        self.console.print()
+        self.console.print(
+            Panel(
+                f"[bold red]\u26a0\ufe0f  DANGEROUS OPERATION[/]\n\n"
+                f"Tool: [bold cyan]{step.tool}[/]\n"
+                f"Action: {step.action}\n"
+                f"Target: {step.target}\n"
+                f"Risk: [bold red]{risk_level}[/]",
+                title="\ud83d\udee1\ufe0f Approval Required",
+                border_style="bright_red",
+            ),
+        )
+
+        try:
+            answer = input("\n  Devam edilsin mi? / Proceed? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = "n"
+
+        approved = answer in ("", "y", "yes", "e", "evet")
+        self.transparency.show_approval_request(
+            step.tool, step.action, risk_level, approved=approved,
+        )
+
+        if not approved:
+            self.console.print("   \u26d4 Skipped by user", style="dim")
+            self.planner.mark_step_failed(step.step_id, "User denied approval")
+
+        return approved
+
+    def _analyze_with_llm_transparency(self, tool_name: str, stdout: str, llm_client: Any) -> None:
+        """LLM-powered output analysis that feeds suggestions back into the planner.
+
+        This is the core "LLM-in-the-loop" mechanism:
+        1. Send tool output to LLM for analysis
+        2. Parse structured response (findings, severity, suggested next steps)
+        3. Inject any suggested next steps into the live plan via planner
+        4. Show everything transparently to the user
+        """
+        try:
+            prompt = self._build_analysis_prompt(tool_name, stdout)
+            prompt = self._enhance_analysis_prompt(prompt, tool_name)
+
+            t0 = time.time()
+            response = llm_client.query(prompt, timeout=25)
+            duration = time.time() - t0
+
+            self.transparency.show_llm_thinking(
+                prompt_summary=f"Analyze {tool_name} output ({len(stdout)} chars)",
+                response=response[:500],
+                duration=duration,
+            )
+
+            analysis = self._parse_analysis_response(response)
+            self.transparency.show_output_analysis(tool_name, analysis)
+            self._inject_analysis_steps(analysis)
+
+        except Exception as e:
+            logger.debug("LLM analysis failed, falling back to offline: %s", e)
+            self._analyze_offline(tool_name, stdout)
+
+    def _build_analysis_prompt(self, tool_name: str, stdout: str) -> str:
+        """Build the LLM analysis prompt with current state context."""
+        target = self.state.target if self.state else "N/A"
+        phase = self.state.phase.value if self.state else "unknown"
+        n_services = len(self.state.open_services) if self.state else 0
+        n_vulns = len(self.state.vulnerabilities) if self.state else 0
+
+        return (
+            f"You are DRAKBEN's analysis engine. Analyze this {tool_name} output "
+            f"for target {target} (phase: {phase}, {n_services} services, {n_vulns} vulns).\n\n"
+            f"OUTPUT:\n{stdout[:4000]}\n\n"
+            f"Respond ONLY in JSON:\n"
+            f'{{"findings": ["finding1", ...], '
+            f'"summary": "2-3 sentence technical analysis", '
+            f'"severity": "info|low|medium|high|critical", '
+            f'"next_steps": ['
+            f'  {{"action": "action_name", "tool": "tool_name", "reason": "why"}}'
+            f']}}\n\n'
+            f"next_steps should recommend concrete follow-up scans based on what "
+            f"was discovered (e.g., web port open -> nikto, SMB -> enum4linux). "
+            f"Return empty list if no further action needed."
+        )
+
+    def _enhance_analysis_prompt(self, prompt: str, tool_name: str) -> str:
+        """Enhance analysis prompt with few-shot examples and KB context."""
+        phase = self.state.phase.value if self.state else "unknown"
+        target = self.state.target if self.state else "N/A"
+
+        few_shot = getattr(self.brain, "few_shot", None) if self.brain else None
+        if few_shot:
+            try:
+                prompt = few_shot.enhance_prompt(prompt, phase=phase, task_type="tool_analysis")
+            except Exception:
+                pass
+
+        kb = getattr(self.brain, "knowledge_base", None) if self.brain else None
+        if kb:
+            try:
+                service_hint = tool_name.split("_")[0] if "_" in tool_name else None
+                kb_context = kb.recall_for_context(target=target, service=service_hint)
+                if kb_context:
+                    prompt = f"{prompt}\n\n### PRIOR KNOWLEDGE\n{kb_context}"
+            except Exception:
+                pass
+
+        return prompt
+
+    def _parse_analysis_response(self, response: str) -> dict[str, Any]:
+        """Parse LLM analysis response using structured parser or fallback."""
+        output_parser = getattr(self.brain, "output_parser", None) if self.brain else None
+        if output_parser and type(output_parser).__name__ == "StructuredOutputParser":
+            try:
+                from core.intelligence.structured_output import ToolAnalysis as _TA
+                parsed = output_parser.parse(response, _TA)
+                if parsed and hasattr(parsed, "to_dict"):
+                    return parsed.to_dict()
+            except Exception:
+                pass
+        return self._parse_llm_json(response)
+
+    def _inject_analysis_steps(self, analysis: dict[str, Any]) -> None:
+        """Inject LLM-suggested next steps into the live plan."""
+        next_steps = analysis.get("next_steps") or []
+        if not next_steps and analysis.get("next_action"):
+            next_steps = [{"action": analysis["next_action"], "tool": analysis["next_action"]}]
+
+        if not next_steps or not self.state:
+            return
+
+        target = self.state.target or "unknown"
+        n_injected = self.planner.inject_dynamic_steps(
+            new_actions=next_steps, target=target, source="llm",
+        )
+        if n_injected > 0:
+            self.transparency.show_plan_injection(next_steps[:n_injected], source="llm")
+            self.console.print(
+                f"   \ud83e\udde0 LLM injected {n_injected} new step(s) into plan",
+                style=self.STYLE_MAGENTA,
+            )
+
+    @staticmethod
+    def _parse_llm_json(response: str) -> dict[str, Any]:
+        """Extract JSON from LLM response, tolerating markdown fences."""
+        import re as _re
+        # Try ```json ... ``` block first (supports nested braces via DOTALL)
+        m = _re.search(r"```(?:json)?\s*(\{.*\})\s*```", response, _re.DOTALL)
+        text = m.group(1) if m else response
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Try to find any JSON object in raw text
+            m2 = _re.search(r"(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})", response, _re.DOTALL)
+            if m2:
+                try:
+                    return json.loads(m2.group(1))
+                except json.JSONDecodeError:
+                    pass
+            return {"summary": response[:500], "findings": [], "severity": "info"}
+
+    def _analyze_offline(self, tool_name: str, stdout: str) -> None:
+        """Rule-based output analysis when LLM is unavailable."""
+        findings: list[str] = []
+        output_lower = stdout.lower()
+
+        # Port/service detection
+        import re
+        port_lines = re.findall(r"(\d+)/tcp\s+open\s+(\S+)", stdout)
+        for port, svc in port_lines:
+            findings.append(f"Port {port}/tcp open — {svc}")
+
+        # Vulnerability markers
+        vuln_findings, severity = self._extract_vuln_findings(stdout, output_lower)
+        findings.extend(vuln_findings)
+
+        # Service-specific suggestions → injectable steps
+        next_action, offline_next_steps = self._determine_offline_next_steps(port_lines)
+
+        if not findings:
+            findings.append(f"{tool_name} tamamland\u0131 \u2014 {len(stdout)} karakter \u00e7\u0131kt\u0131")
+
+        summary = f"{len(findings)} bulgu tespit edildi (offline analiz)"
+        analysis = {
+            "summary": summary,
+            "findings": findings[:10],
+            "severity": severity,
+            "next_action": next_action,
+        }
+        self.transparency.show_output_analysis(tool_name, analysis)
+
+        # Offline mode also injects steps into the plan (same as LLM path)
+        self._inject_offline_steps(offline_next_steps)
+
+    def _extract_vuln_findings(self, stdout: str, output_lower: str) -> tuple[list[str], str]:
+        """Scan output for vulnerability markers and extract matching lines."""
+        findings: list[str] = []
+        severity = "info"
+        vuln_markers = ["vulnerable", "cve-", "exploit", "injection", "xss", "rce"]
+        for marker in vuln_markers:
+            if marker in output_lower:
+                severity = "high" if marker in ("exploit", "rce") else "medium"
+                for line in stdout.splitlines():
+                    if marker in line.lower() and len(line.strip()) > 5:
+                        findings.append(line.strip()[:150])
+                        break
+        return findings, severity
+
+    def _determine_offline_next_steps(
+        self, port_lines: list[tuple[str, str]],
+    ) -> tuple[str | None, list[dict[str, str]]]:
+        """Determine next actions based on discovered ports."""
+        if not port_lines:
+            return None, []
+        next_action: str | None = None
+        steps: list[dict[str, str]] = []
+        ports_found = {int(p) for p, _ in port_lines}
+        if 80 in ports_found or 443 in ports_found:
+            next_action = "nikto_web_scan"
+            steps.append({"action": "web_vuln_scan", "tool": "nikto_web_scan", "reason": "HTTP port found"})
+        elif 3306 in ports_found:
+            next_action = "mysql_enum"
+            steps.append({"action": "db_enum", "tool": "db_enum", "reason": "MySQL port 3306 open"})
+        elif 445 in ports_found:
+            next_action = "enum4linux"
+            steps.append({"action": "smb_enum", "tool": "enum4linux", "reason": "SMB port 445 open"})
+        return next_action, steps
+
+    def _inject_offline_steps(self, offline_next_steps: list[dict[str, str]]) -> None:
+        """Inject offline-discovered steps into the plan."""
+        if not offline_next_steps or not self.state:
+            return
+        n_injected = self.planner.inject_dynamic_steps(
+            new_actions=offline_next_steps,
+            target=self.state.target or "",
+            source="offline",
+        )
+        if n_injected > 0:
+            self.transparency.show_plan_injection(offline_next_steps[:n_injected], source="offline")
+            self.console.print(
+                f"   \ud83d\udcdd Offline analysis injected {n_injected} step(s) into plan",
+                style="yellow",
+            )
 
     def _check_stagnation(self) -> bool:
         """Check for stagnation and triggering replan if needed. Returns True if halt required."""
@@ -488,7 +1040,7 @@ class RefactoredDrakbenAgent(
                 self.planner.replan(current_step.step_id)
             self.stagnation_counter += 1
 
-            if self.stagnation_counter >= 3:
+            if self.stagnation_counter >= 6:
                 self.console.print(
                     "🛑 HALT: Too many stagnations",
                     style=self.STYLE_RED,
@@ -496,16 +1048,40 @@ class RefactoredDrakbenAgent(
                 return True
         return False
 
-    def _handle_plan_completion(self) -> None:
-        """Handle case where no steps are left."""
+    def _handle_plan_completion(self) -> bool:
+        """Handle case where no steps are left. Returns True if agent should continue."""
         if self.planner.is_plan_complete():
             self.console.print("✅ Plan complete!", style=self.STYLE_GREEN)
             if self.state:
                 self.state.phase = AttackPhase.COMPLETE
             self.running = False
-        else:
-            self.console.print("❓ No executable step found", style="yellow")
+            return False
+
+        # Not complete but no executable step — try replan before giving up
+        self.console.print("⚠️  No executable step found — attempting replan...", style="yellow")
+
+        # Try replanning from the first pending/failed step
+        replan_done = False
+        for step in self.planner.steps:
+            if step.status in (StepStatus.PENDING, StepStatus.FAILED):
+                replan_done = self.planner.replan(step.step_id)
+                break
+
+        if replan_done:
+            self.console.print("🔄 Replan successful — continuing scan", style="green")
+            return True  # Continue scanning
+
+        self.stagnation_counter += 1
+        if self.stagnation_counter >= 6:
+            self.console.print("🛑 Cannot continue — no viable steps remaining", style="red")
             self.running = False
+            return False
+
+        self.console.print(
+            f"⏳ Waiting for dependencies to resolve (attempt {self.stagnation_counter}/6)",
+            style="dim",
+        )
+        return True  # Let the loop continue to try again
 
     def _check_tool_blocked(self, step: PlanStep) -> bool:
         """Check if tool is blocked by evolution penalty (Per-Target)."""
@@ -599,49 +1175,193 @@ class RefactoredDrakbenAgent(
         return "unknown"
 
     def _attempt_tool_recovery(self, tool_name: str) -> bool:
-        """Attempt to install missing tool. Returns True if successful."""
+        """Attempt to install a missing tool with user-visible progress.
+
+        Shows the user exactly what is being installed, via which package
+        manager, and whether it succeeded — no silent force installs.
+        """
         try:
             from core.intelligence.universal_adapter import get_universal_adapter
             adapter = get_universal_adapter()
             if not adapter:
                 return False
 
-            install_result = adapter.install_tool(tool_name, force=True)
-            if install_result["success"]:
-                self.console.print(f"✅ Tool {tool_name} installed/recovered!", style="green")
+            # Step 1: Tell the user what we're about to do
+            self.console.print(
+                f"\n   \ud83d\udce6 [bold yellow]Tool '{tool_name}' not found \u2014 attempting install...[/]",
+            )
+
+            # Step 2: Check if it's in the registry (known tool)
+            from core.intelligence.universal_adapter import TOOL_REGISTRY
+            tool_def = TOOL_REGISTRY.get(tool_name)
+            if tool_def:
+                pm = adapter.resolver.package_manager
+                method = pm.value if pm else "auto"
+                self.console.print(
+                    f"   \ud83d\udce6 Install method: [cyan]{method}[/] ({tool_def.description})",
+                    style="dim",
+                )
+
+            # Step 3: Attempt installation
+            install_result = adapter.resolver.install_tool(tool_name, force=True)
+            success = install_result.get("success", False)
+            method = install_result.get("method", "unknown")
+
+            # Step 4: Show result transparently
+            self.transparency.show_tool_install(tool_name, method, success)
+
+            if success:
+                self.console.print(
+                    f"   \u2705 [bold green]{tool_name} installed via {method}![/]",
+                )
                 return True
 
             if install_result.get("requires_approval"):
-                logger.warning("Tool %s requires manual approval: %s", tool_name, install_result["message"])
+                # Dynamic discovery found it but needs explicit approval
+                proposal = install_result.get("proposal", {})
+                self.console.print(
+                    f"   \u26a0\ufe0f  Found on {proposal.get('source', '?')}: {proposal.get('description', '')}",
+                    style="yellow",
+                )
+                self.console.print(
+                    f"   \ud83d\udcac Install command: {proposal.get('install_cmd', '?')}",
+                    style="dim",
+                )
+                try:
+                    answer = input("   Install? [Y/n]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    answer = "n"
 
-            self.console.print(f"❌ Recovery failed: {install_result['message']}", style="red")
+                if answer in ("", "y", "yes", "e", "evet"):
+                    force_result = adapter.resolver.install_tool(tool_name, force=True)
+                    if force_result.get("success"):
+                        self.console.print(f"   \u2705 {tool_name} installed!", style="green")
+                        return True
+
+            self.console.print(
+                f"   \u274c Install failed: {install_result.get('message', 'Unknown')}",
+                style="red",
+            )
             return False
         except Exception as e:
             logger.exception("Dynamic recovery crashed: %s", e)
             return False
+
+    def _attempt_llm_recovery(
+        self, step: PlanStep, error_msg: str,
+    ) -> list[dict[str, str]]:
+        """Ask the LLM how to recover from a tool failure.
+
+        Instead of relying purely on pattern-matching ("connection refused" ->
+        hardcoded recovery), we send the error to the LLM and let it suggest
+        concrete recovery steps that get injected into the plan.
+
+        Returns:
+            List of recovery action dicts, empty if LLM unavailable or failed.
+        """
+        llm_client = getattr(self.brain, "llm_client", None)
+        if not llm_client:
+            return []
+
+        try:
+            target = self.state.target if self.state else "N/A"
+            phase = self.state.phase.value if self.state else "unknown"
+
+            prompt = (
+                f"Tool '{step.tool}' (action: {step.action}) failed on target {target} "
+                f"(phase: {phase}).\n"
+                f"ERROR: {error_msg[:500]}\n\n"
+                f"Suggest 1-3 alternative recovery steps. Respond ONLY in JSON:\n"
+                f'[{{"action": "action_name", "tool": "tool_name", "reason": "why this helps"}}]\n\n'
+                f"Available tools: nmap_port_scan, nmap_service_scan, nmap_vuln_scan, "
+                f"nikto_web_scan, gobuster, sqlmap_scan, hydra, searchsploit, ffuf, "
+                f"enum4linux, passive_recon. "
+                f"Only suggest tools that could actually help recover from this error."
+            )
+
+            t0 = time.time()
+            response = llm_client.query(prompt, timeout=15)
+            duration = time.time() - t0
+
+            self.transparency.show_llm_thinking(
+                prompt_summary=f"Recovery for {step.tool} failure",
+                response=response[:400],
+                duration=duration,
+            )
+
+            # Parse the JSON array response
+            import re as _re
+            m = _re.search(r"```(?:json)?\s*(\[[^\]]*\])\s*```", response, _re.DOTALL)
+            text = m.group(1) if m else response
+            try:
+                steps_list = json.loads(text)
+                if isinstance(steps_list, list):
+                    # Show recovery suggestion to user
+                    suggestion_text = "; ".join(
+                        f"{s.get('action', '?')} ({s.get('reason', '')})"
+                        for s in steps_list[:3]
+                    )
+                    self.transparency.show_llm_recovery(step.tool, error_msg[:200], suggestion_text)
+                    return steps_list[:3]
+            except json.JSONDecodeError:
+                pass
+
+            # Fallback: if response is plain text, show it anyway
+            self.transparency.show_llm_recovery(step.tool, error_msg[:200], response[:300])
+
+        except Exception as e:
+            logger.debug("LLM recovery attempt failed: %s", e)
+
+        return []
 
     def _handle_step_failure(
         self,
         step: PlanStep,
         execution_result: dict[str, Any],
     ) -> bool:
-        """Handle failed step execution. Returns False if critical failure loop break needed."""
+        """Handle failed step execution with intelligent recovery.
+
+        Recovery priority:
+        1. Tool missing -> attempt install (with user visibility)
+        2. LLM available -> ask LLM what to do, inject suggestions into plan
+        3. Fallback -> pattern-match replan
+        """
         stderr_msg = execution_result.get("stderr", _ERR_UNKNOWN)
         should_replan: bool = self.planner.mark_step_failed(step.step_id, stderr_msg[:200])
-        self.console.print(f"❌ Step failed: {stderr_msg[:200]}", style="red")
+        self.console.print(f"\u274c Step failed: {stderr_msg[:200]}", style="red")
 
         error_type = self._categorize_error(stderr_msg[:100])
 
+        # Priority 1: Tool missing → install
         if error_type == "tool_missing":
-            self.console.print(f"⚠️ Tool '{step.tool}' miss, attempting Auto-Recovery...", style=self.STYLE_YELLOW)
+            self.console.print(
+                f"\u26a0\ufe0f Tool '{step.tool}' missing, attempting install...",
+                style=self.STYLE_YELLOW,
+            )
             if self._attempt_tool_recovery(step.tool):
                 self.planner.replan(step.step_id)
                 return True
-            self.console.print(f"🛑 CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
+            self.console.print(f"\ud83d\uded1 CRITICAL: Tool '{step.tool}' irreparably missing.", style=self.STYLE_RED)
             self.running = False
             return False
 
-        # Record failure to database
+        # Priority 2: Ask LLM for smart recovery
+        llm_recovery_steps = self._attempt_llm_recovery(step, stderr_msg)
+        if llm_recovery_steps and self.state:
+            n_injected = self.planner.inject_dynamic_steps(
+                new_actions=llm_recovery_steps,
+                target=self.state.target or "",
+                source="llm_recovery",
+            )
+            if n_injected > 0:
+                self.transparency.show_plan_injection(llm_recovery_steps[:n_injected], source="llm_recovery")
+                self.console.print(
+                    f"   \ud83e\udde0 LLM suggested {n_injected} recovery step(s)",
+                    style="bold yellow",
+                )
+                return True
+
+        # Priority 3: Record failure + pattern-based replan
         if self.current_profile:
             self._record_failure_learning(step, error_type, stderr_msg)
 
@@ -670,7 +1390,7 @@ class RefactoredDrakbenAgent(
         )
         if policy_id:
             self.console.print(
-                f"📚 Learned new policy: {policy_id[:12]}...",
+                f"📚 Learned: avoid {step.tool} for {error_type} errors",
                 style="dim",
             )
 
@@ -682,8 +1402,9 @@ class RefactoredDrakbenAgent(
             )
         )
         if retired_profile:
+            strategy_name = self.current_strategy.name if self.current_strategy else "unknown"
             self.console.print(
-                f"⚠️  Profile {retired_profile.profile_id[:12]}... RETIRED. Emergency re-selection...",
+                f"⚠️  Strategy '{strategy_name}' underperforming — switching to alternative...",
                 style="yellow",
             )
             # LOGIC FIX: Don't keep using a retired profile. Resync immediately.
@@ -778,36 +1499,42 @@ class RefactoredDrakbenAgent(
 
     def _execute_tool_with_progress(self, tool_name: str, args: dict) -> dict:
         """Execute tool with progress indicator and timeout handling."""
-        import threading
-        import time as time_module
-
         result_container: dict = {}
         execution_done = threading.Event()
 
         def run_execution():
-            result_container["result"] = self._execute_tool(tool_name, args)
-            execution_done.set()
+            try:
+                result_container["result"] = self._execute_tool(tool_name, args)
+            except Exception as exc:
+                result_container["result"] = {
+                    "success": False,
+                    "error": f"Thread exception: {exc}",
+                    "args": args,
+                }
+            finally:
+                execution_done.set()
 
         # Start execution in thread
         exec_thread = threading.Thread(target=run_execution, daemon=True)
         exec_thread.start()
 
-        # Show progress while waiting
-        wait_start = time_module.time()
-        max_display_wait = 120  # Show progress for max 2 minutes
-        feedback_interval = 15  # Give feedback every 15 seconds
+        # Dynamic timeout based on tool type
+        slow_tools = {"nmap_port_scan", "nmap_service_scan", "nmap_vuln_scan", "sqlmap_scan", "nikto_web_scan"}
+        max_display_wait = 600 if tool_name in slow_tools else 180  # 10min for scanners, 3min for others
+        feedback_interval = 30 if tool_name in slow_tools else 15
+        wait_start = time.time()
         last_feedback = wait_start
 
         while not execution_done.is_set():
-            elapsed = time_module.time() - wait_start
+            elapsed = time.time() - wait_start
 
             # Periodic feedback to user
-            if time_module.time() - last_feedback >= feedback_interval:
+            if time.time() - last_feedback >= feedback_interval:
                 self.console.print(
                     f"   [~] Running... ({int(elapsed)}s)",
                     style="dim",
                 )
-                last_feedback = time_module.time()
+                last_feedback = time.time()
 
             # Check for very long execution
             if elapsed > max_display_wait:
@@ -822,6 +1549,10 @@ class RefactoredDrakbenAgent(
                 # Wait a bit more but don't spam
                 execution_done.wait(timeout=30)
                 if not execution_done.is_set():
+                    logger.warning(
+                        "Tool %s timed out after %ss — daemon thread may still be running",
+                        tool_name, int(elapsed),
+                    )
                     self.console.print(
                         f"   [!] [red]Timeout: {tool_name} not responding.[/red]",
                         style="red",
@@ -839,52 +1570,16 @@ class RefactoredDrakbenAgent(
         return result_container.get("result", {"success": False, "error": _ERR_UNKNOWN})
 
     def _execute_tool(self, tool_name: str, args: dict) -> dict:
-        """Execute tool with error handling and retry logic."""
-        # 1. Check if tool is blocked
-        if self.tool_selector.is_tool_blocked(tool_name):
-            return {
-                "success": False,
-                "error": f"Tool {tool_name} blocked due to repeated failures",
-                "args": args,
-            }
+        """Execute tool via Strategy Pattern dispatcher.
 
-        # 2. SYSTEM EVOLUTION (Meta-tool)
-        if tool_name == "system_evolution":
-            return self._handle_system_evolution(args)
+        Uses ToolDispatcher for O(1) dispatch instead of if/elif chains.
+        Custom tool types can be registered at runtime.
+        """
+        if not hasattr(self, "_dispatcher"):
+            from core.agent.tool_dispatch import ToolDispatcher
+            self._dispatcher = ToolDispatcher(self)
 
-        # 3. Metasploit special case
-        # 3. Metasploit special case
-        if tool_name == "metasploit_exploit":
-            return self._execute_metasploit(args)
-
-        # 3.1 AD Attacks Special Case
-        if tool_name.startswith("ad_"):
-            return self._execute_ad_attacks(tool_name, args)
-
-        # 3.5 Hive Mind Special Case
-        # 3.5 Hive Mind Special Case
-        if tool_name.startswith("hive_mind"):
-            return self._execute_hive_mind(tool_name, args)
-
-        # 3.6 Weapon Foundry Special Case
-        if tool_name == "generate_payload":
-            return self._execute_weapon_foundry(args)
-
-        # 3.7 Singularity Special Case
-        if tool_name == "synthesize_code":
-            return self._execute_singularity(args)
-
-        # 3.8 OSINT Special Case
-        if tool_name.startswith("osint_"):
-            return self._execute_osint(tool_name, args)
-
-        # 4. Get tool spec
-        tool_spec: ToolSpec | None = self.tool_selector.tools.get(tool_name)
-        if not tool_spec:
-            return {"success": False, "error": "Tool not found", "args": args}
-
-        # 5. Execute system tool
-        return self._run_system_tool(tool_name, tool_spec, args)
+        return self._dispatcher.dispatch(tool_name, args)
 
     def _handle_system_evolution(self, args: dict) -> dict:
         """Handle the system_evolution meta-tool."""
@@ -1001,19 +1696,67 @@ class RefactoredDrakbenAgent(
 
         return {"success": False, "error": "No code generated"}
 
+    def _enrich_tool_args(self, tool_name: str, tool_spec: "ToolSpec", args: dict) -> dict:
+        """Auto-fill missing command template params from agent state.
+
+        Resolves the common issue where plan steps have empty params but the
+        command template requires {ports}, {port}, {url}, etc.
+        """
+        args = dict(args)  # Don't mutate original
+        template = tool_spec.command_template or ""
+        self._fill_ports_arg(template, args)
+        self._fill_port_arg(template, args)
+        self._fill_url_arg(template, args)
+        return args
+
+    def _fill_ports_arg(self, template: str, args: dict) -> None:
+        """Auto-fill {ports} — comma-separated list of discovered open ports."""
+        if "{ports}" not in template or "ports" in args:
+            return
+        if self.state and self.state.open_services:
+            args["ports"] = ",".join(str(p) for p in sorted(self.state.open_services.keys()))
+        else:
+            args["ports"] = "1-1000"  # Fallback: scan common range
+
+    def _fill_port_arg(self, template: str, args: dict) -> None:
+        """Auto-fill {port} — single port (first open, or 80 fallback)."""
+        if "{port}" not in template or "port" in args:
+            return
+        if self.state and self.state.open_services:
+            for preferred in [80, 443, 8080, 8443]:
+                if preferred in self.state.open_services:
+                    args["port"] = str(preferred)
+                    return
+            args["port"] = str(next(iter(sorted(self.state.open_services.keys()))))
+        else:
+            args["port"] = "80"
+
+    def _fill_url_arg(self, template: str, args: dict) -> None:
+        """Auto-fill {url} — full URL for web scanners."""
+        if "{url}" not in template or "url" in args:
+            return
+        target = self.state.target if self.state else "localhost"
+        port = args.get("port", "80")
+        scheme = "https" if port in ("443", "8443") else "http"
+        args["url"] = f"{scheme}://{target}:{port}"
+
     def _run_system_tool(self, tool_name: str, tool_spec: "ToolSpec", args: dict) -> dict:
         """Run a standard system tool."""
+        # Auto-fill missing template parameters from agent state
+        args = self._enrich_tool_args(tool_name, tool_spec, args)
+
+        target = self.state.target if self.state else "localhost"
+
         # Build command from template
         try:
             command = tool_spec.command_template.format(
-                target=self.state.target,
+                target=target,
                 **args,
             )
         except KeyError as e:
             return {"success": False, "error": f"Missing argument: {e}", "args": args}
 
         # ====== KOMUTU KULLANICIYA GÖSTER ======
-        from rich.panel import Panel
         self.console.print(
             Panel(
                 f"[bold cyan]{command}[/bold cyan]",
@@ -1060,12 +1803,9 @@ class RefactoredDrakbenAgent(
         if result.exit_code != 0:
             return self._handle_tool_failure(tool_name, command, result, args)
 
-        return self._format_tool_result(result, args)
+        return self._format_tool_result(result, args, tool_name=tool_name)
 
-    # Track self-healing attempts to prevent infinite loops
-    MAX_SELF_HEAL_PER_TOOL = 2  # Maximum self-heal attempts per tool per session
-
-    def _format_tool_result(self, result: Any, args: dict) -> dict:
+    def _format_tool_result(self, result: Any, args: dict, tool_name: str = "unknown") -> dict:
         """Format execution result dictionary with standardized errors."""
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
@@ -1092,10 +1832,7 @@ class RefactoredDrakbenAgent(
 
         # Log to structured log
         self.logger.log_action(
-            tool=args.get(
-                "tool_name",
-                "unknown",
-            ),  # args might need to contain tool name?
+            tool=tool_name,
             args=args,
             result=final_result,
         )
@@ -1104,6 +1841,10 @@ class RefactoredDrakbenAgent(
 
     def _show_final_report(self) -> None:
         """Show final execution report."""
+        if not self.state:
+            self.console.print("\n[yellow]No state available for report.[/yellow]")
+            return
+
         self.console.print("\n" + "=" * 60, style="bold")
         self.console.print("📊 FINAL REPORT", style=self.STYLE_GREEN)
         self.console.print("=" * 60, style="bold")
@@ -1127,6 +1868,120 @@ class RefactoredDrakbenAgent(
                 report.append(f"   - {violation}\n", style="red")
 
         self.console.print(Panel(report, border_style="green", title="Summary"))
+
+    def _run_self_reflection(self, iteration: int) -> None:
+        """Run periodic self-reflection checkpoint (Intelligence v2)."""
+        if not self.reflector or not self.state:
+            return
+
+        try:
+            recent_actions = self._gather_recent_actions()
+
+            entry = self.reflector.reflect(
+                step=iteration,
+                goal=f"Pentest {self.state.target}",
+                recent_actions=recent_actions,
+                agent_state=self.state,
+            )
+
+            self._display_reflection(iteration, entry)
+            self._act_on_reflection(entry)
+
+        except Exception as e:
+            logger.debug("Self-reflection failed: %s", e)
+
+    def _gather_recent_actions(self) -> list[dict[str, Any]]:
+        """Gather recent actions from evolution memory for reflection."""
+        if not self.evolution:
+            return []
+        recent_actions: list[dict[str, Any]] = []
+        for r in self.evolution.get_recent_actions(count=8):
+            recent_actions.append({
+                "tool": r.tool if hasattr(r, "tool") else str(r),
+                "success": (r.outcome == "success") if hasattr(r, "outcome") else False,
+                "output": r.error_message[:100] if hasattr(r, "error_message") else "",
+            })
+        return recent_actions
+
+    def _display_reflection(self, iteration: int, entry: Any) -> None:
+        """Display self-reflection result to console."""
+        verdict_style = {
+            "continue": "green", "pivot": "yellow", "escalate": "red",
+        }.get(entry.verdict, "dim")
+
+        self.console.print(
+            f"\n🪞 Self-Reflection (Step {iteration}): "
+            f"[{verdict_style}]{entry.verdict.upper()}[/{verdict_style}]",
+            style="bold",
+        )
+        if entry.reasoning:
+            self.console.print(f"   💭 {entry.reasoning[:200]}", style="dim")
+        if entry.blind_spots:
+            self.console.print(f"   🔍 Blind spots: {', '.join(entry.blind_spots[:3])}", style="dim")
+        if entry.suggested_changes:
+            self.console.print(f"   💡 Suggestions: {', '.join(entry.suggested_changes[:3])}", style="dim")
+
+    def _act_on_reflection(self, entry: Any) -> None:
+        """Act on reflection verdict if strategy change is needed."""
+        if entry.verdict != "pivot" or not self.current_strategy:
+            return
+        self.console.print(
+            "   🔄 Reflection suggests strategy change — triggering replan",
+            style="yellow",
+        )
+        current_step = self.planner.get_next_step()
+        if current_step:
+            self.planner.replan(current_step.step_id)
+
+    def run_react_loop(self, target: str) -> dict:
+        """Run the ReAct loop as an alternative to plan-based scanning.
+
+        This uses tight Observe→Think→Act cycles where the LLM
+        decides EVERY step based on real tool output.
+
+        Usage from menu: /react <target>
+        """
+        if not self.react_loop:
+            self.console.print("❌ ReAct Loop not available", style="red")
+            return {"success": False, "error": "ReAct Loop not initialized"}
+
+        if not self.state:
+            self.state = reset_state(target)
+
+        self.console.print(
+            f"\n🧠 Starting ReAct Loop for {target}...",
+            style=self.STYLE_MAGENTA,
+        )
+        self.console.print(
+            "   [dim]LLM decides each step dynamically based on observations[/dim]",
+        )
+
+        result = self.react_loop.run(
+            goal=f"Pentest {target} — discover services, find vulnerabilities, attempt exploitation",
+            target=target,
+            agent_state=self.state,
+        )
+
+        # Display result
+        if result.get("success"):
+            self.console.print(
+                f"\n✅ ReAct completed in {result.get('steps_taken', 0)} steps",
+                style="green",
+            )
+        else:
+            self.console.print(
+                f"\n⚠️ ReAct stopped after {result.get('steps_taken', 0)} steps",
+                style="yellow",
+            )
+
+        if result.get("final_answer"):
+            self.console.print(f"   📋 {result['final_answer'][:500]}", style="dim")
+
+        tools_used = result.get("tools_used", [])
+        if tools_used:
+            self.console.print(f"   🔧 Tools used: {', '.join(tools_used)}", style="dim")
+
+        return result
 
     def stop(self) -> None:
         """Stop the agent."""

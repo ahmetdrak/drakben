@@ -2,6 +2,7 @@
 # DRAKBEN Report Generator - PDF/HTML/Markdown/JSON Export
 # Professional penetration test report generation
 
+import html as _html
 import json
 import logging
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ try:
     from contextlib import redirect_stderr, redirect_stdout
 
     # Silence WeasyPrint noise on import (especially on Windows)
-    with open(os.devnull, "w") as fnull:
+    with open(os.devnull, "w", encoding="utf-8") as fnull:
         with redirect_stderr(fnull), redirect_stdout(fnull):
             from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
@@ -246,13 +247,17 @@ class ReportGenerator:
         """Generate HTML report with Chart.js visualization."""
         stats = self.get_statistics()
         findings_html = self._build_findings_list_html()
+        esc_title = _html.escape(self.config.title)
+        esc_author = _html.escape(self.config.author)
+        esc_classification = _html.escape(self.config.classification)
+        esc_target = _html.escape(self.target)
 
         return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{self.config.title}</title>
+    <title>{esc_title}</title>
     <!-- Chart.js for Visual Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -489,16 +494,16 @@ class ReportGenerator:
     <div class="container">
         <!-- Header Section -->
         <div class="header">
-            <h1>{self.config.title}</h1>
-            <p>{self.config.author}</p>
-            <div class="classification">{self.config.classification}</div>
+            <h1>{esc_title}</h1>
+            <p>{esc_author}</p>
+            <div class="classification">{esc_classification}</div>
         </div>
 
         <!-- Meta Info Grid -->
         <div class="meta-info">
             <div class="meta-card">
                 <h3>Target</h3>
-                <p>{self.target}</p>
+                <p>{esc_target}</p>
             </div>
             <div class="meta-card">
                 <h3>Date</h3>
@@ -523,11 +528,16 @@ class ReportGenerator:
                 </div>
                 <div style="flex: 1; min-width: 300px;">
                      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));">
-                        <div class="stat-card critical"><div class="stat-number">{stats["severity_breakdown"]["critical"]}</div><div>Critical</div></div>
-                        <div class="stat-card high"><div class="stat-number">{stats["severity_breakdown"]["high"]}</div><div>High</div></div>
-                        <div class="stat-card medium"><div class="stat-number">{stats["severity_breakdown"]["medium"]}</div><div>Medium</div></div>
-                        <div class="stat-card low"><div class="stat-number">{stats["severity_breakdown"]["low"]}</div><div>Low</div></div>
-                        <div class="stat-card info"><div class="stat-number">{stats["severity_breakdown"]["info"]}</div><div>Info</div></div>
+                        <div class="stat-card critical"><div class="stat-number">\
+{stats["severity_breakdown"]["critical"]}</div><div>Critical</div></div>
+                        <div class="stat-card high"><div class="stat-number">\
+{stats["severity_breakdown"]["high"]}</div><div>High</div></div>
+                        <div class="stat-card medium"><div class="stat-number">\
+{stats["severity_breakdown"]["medium"]}</div><div>Medium</div></div>
+                        <div class="stat-card low"><div class="stat-number">\
+{stats["severity_breakdown"]["low"]}</div><div>Low</div></div>
+                        <div class="stat-card info"><div class="stat-number">\
+{stats["severity_breakdown"]["info"]}</div><div>Info</div></div>
                      </div>
                 </div>
             </div>
@@ -593,17 +603,17 @@ class ReportGenerator:
     def _build_finding_body_html(self, finding: "Finding") -> str:
         """Build the HTML body content for a single finding."""
         body = (
-            f"<p><strong>Affected Asset:</strong> {finding.affected_asset}</p>"
-            f"<p><strong>Description:</strong> {finding.description}</p>"
+            f"<p><strong>Affected Asset:</strong> {_html.escape(finding.affected_asset)}</p>"
+            f"<p><strong>Description:</strong> {_html.escape(finding.description)}</p>"
         )
         if finding.cve_id:
-            body += f"<p><strong>CVE:</strong> {finding.cve_id} (CVSS: {finding.cvss_score})</p>"
+            body += f"<p><strong>CVE:</strong> {_html.escape(finding.cve_id)} (CVSS: {finding.cvss_score})</p>"
         if finding.evidence:
-            body += f'<div class="evidence"><strong>Evidence:</strong><pre>{finding.evidence}</pre></div>'
+            body += f'<div class="evidence"><strong>Evidence:</strong><pre>{_html.escape(finding.evidence)}</pre></div>'
         if finding.screenshots:
             body += self._build_screenshots_html(finding.screenshots)
         if finding.remediation:
-            body += f"<p><strong>Remediation:</strong> {finding.remediation}</p>"
+            body += f"<p><strong>Remediation:</strong> {_html.escape(finding.remediation)}</p>"
         return body
 
     def _build_screenshots_html(self, screenshots: list[str]) -> str:
@@ -617,8 +627,16 @@ class ReportGenerator:
                 if ss_file.exists():
                     data = base64.b64encode(ss_file.read_bytes()).decode()
                     ext = ss_file.suffix.lower().lstrip(".")
-                    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif"}.get(ext, "image/png")
-                    html += f'<img src="data:{mime};base64,{data}" style="max-width:100%;margin:8px 0;border:1px solid #444;border-radius:4px;" alt="{ss_file.name}"><br>'
+                    mime = {
+                        "png": "image/png", "jpg": "image/jpeg",
+                        "jpeg": "image/jpeg", "gif": "image/gif",
+                    }.get(ext, "image/png")
+                    html += (
+                        f'<img src="data:{mime};base64,{data}"'
+                        f' style="max-width:100%;margin:8px 0;'
+                        f'border:1px solid #444;border-radius:4px;"'
+                        f' alt="{ss_file.name}"><br>'
+                    )
             except Exception:
                 html += f'<p style="color:#666;">[Screenshot: {ss_path}]</p>'
         html += "</div>"
@@ -641,7 +659,7 @@ class ReportGenerator:
             <div class="finding {severity_class}">
                 <div class="finding-header" onclick="this.parentElement.classList.toggle('active')">
                     <span class="finding-number">#{i}</span>
-                    <span class="finding-title">{finding.title}</span>
+                    <span class="finding-title">{_html.escape(finding.title)}</span>
                     <span class="severity-badge {severity_class}">{finding.severity.value.upper()}</span>
                     <span class="toggle-icon">&#9660;</span>
                 </div>
@@ -727,7 +745,7 @@ class ReportGenerator:
                     "<div style='margin-top: 15px; padding: 10px; "
                     "background-color: #2a2a40; border-left: 3px solid #bd93f9;'>"
                     "<strong>🤖 AI Strategic Analysis (C-Level):</strong><br>"
-                    f"{llm_text.strip()}</div>"
+                    f"{_html.escape(llm_text.strip())}</div>"
                 )
                 return insight
         except Exception:
@@ -744,7 +762,8 @@ class ReportGenerator:
             insight += (
                 "Detected vulnerabilities pose an <em>imminent threat</em> to business continuity. "
                 "Immediate resource allocation is required to mitigate potential data breaches and regulatory fines. "
-                "<strong>Recommendation:</strong> Freeze feature development and focus engineering teams on remediation."
+                "<strong>Recommendation:</strong> Freeze feature development "
+                "and focus engineering teams on remediation."
             )
         elif risk > 50:
             insight += (

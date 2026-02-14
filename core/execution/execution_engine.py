@@ -507,7 +507,7 @@ class SmartTerminal:
                 self._sandbox_container_id = container.container_id
 
             # Execute in sandbox
-            sandbox_result: ExecutionResult = sandbox.execute_in_sandbox(
+            sandbox_result: ExecutionResult = sandbox.execute_in_sandbox(  # type: ignore[assignment]
                 self._sandbox_container_id,
                 command,
                 timeout=timeout,
@@ -560,7 +560,7 @@ class SmartTerminal:
         command: str,
         shell: bool,
         skip_sanitization: bool,
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, str | list[str]]:
         """Prepare command for execution: sanitize and split."""
         # SECURITY: Sanitize command before execution
         if not skip_sanitization:
@@ -571,11 +571,12 @@ class SmartTerminal:
         if risk_level in ("high", "critical"):
             logger.warning("Executing %s risk command: %s...", risk_level, command[:100])
 
+        cmd_args: str | list[str]
         if shell:
             logger.warning("Shell execution enabled - this is a security risk")
-            cmd_args: str = command
+            cmd_args = command
         else:
-            cmd_args: list[str] = shlex.split(command)
+            cmd_args = shlex.split(command)
 
         return command, cmd_args
 
@@ -596,13 +597,13 @@ class SmartTerminal:
             popen_kwargs["start_new_session"] = True
 
         if capture_output:
-            popen_kwargs["stdout"] = subprocess.PIPE
-            popen_kwargs["stderr"] = subprocess.PIPE
+            popen_kwargs["stdout"] = subprocess.PIPE  # type: ignore[assignment]
+            popen_kwargs["stderr"] = subprocess.PIPE  # type: ignore[assignment]
         else:
-            popen_kwargs["stdout"] = subprocess.DEVNULL
-            popen_kwargs["stderr"] = subprocess.DEVNULL
+            popen_kwargs["stdout"] = subprocess.DEVNULL  # type: ignore[assignment]
+            popen_kwargs["stderr"] = subprocess.DEVNULL  # type: ignore[assignment]
 
-        process = subprocess.Popen(cmd_args, **popen_kwargs)
+        process = subprocess.Popen(cmd_args, **popen_kwargs)  # type: ignore[call-overload]
 
         # Register with global stop controller
         try:

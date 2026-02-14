@@ -18,7 +18,9 @@ class SelfCorrection:
             Corrected decision
 
         """
-        corrected = decision.copy()
+        import copy
+
+        corrected = copy.deepcopy(decision)
         corrections = []
 
         # Check for dangerous commands
@@ -44,11 +46,14 @@ class SelfCorrection:
             corrected["corrections"] = corrections
             self.correction_history.append(
                 {
-                    "original": decision,
-                    "corrected": corrected,
-                    "corrections": corrections,
+                    "original": decision,  # type: ignore[dict-item]
+                    "corrected": corrected,  # type: ignore[dict-item]
+                    "corrections": corrections,  # type: ignore[dict-item]
                 },
             )
+            # Prevent unbounded memory growth
+            if len(self.correction_history) > 100:
+                self.correction_history = self.correction_history[-100:]
 
         return corrected
 
@@ -125,15 +130,29 @@ class SelfCorrection:
     )
 
     def _check_prerequisites(self, decision: dict) -> list[str]:
-        """Check for missing prerequisites."""
+        """Check for missing prerequisites by inspecting tool availability."""
+        import shutil
+
         prereqs: list[str] = []
 
-        # Check if tools are available
+        # Strategy 1: Check explicitly listed required_tools (if caller sets them)
         required_tools = decision.get("required_tools", [])
-        prereqs.extend(
-            tool for tool in required_tools
-            if not decision.get("tools_available", {}).get(tool)
-        )
+        tools_available = decision.get("tools_available", {})
+        if required_tools and tools_available:
+            prereqs.extend(
+                tool for tool in required_tools
+                if not tools_available.get(tool)
+            )
+
+        # Strategy 2: Extract tool names from steps and verify they exist on the system
+        steps = decision.get("steps", [])
+        for step in steps:
+            if isinstance(step, dict):
+                tool_name = step.get("tool")
+                if tool_name and isinstance(tool_name, str):
+                    # Check if the tool binary exists on PATH
+                    if not shutil.which(tool_name):
+                        prereqs.append(f"{tool_name} (not found on PATH)")
 
         return prereqs
 

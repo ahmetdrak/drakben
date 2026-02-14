@@ -83,7 +83,7 @@ class SREMutationMixin:
                 now,
             ),
         )
-        conn.commit()
+        # Note: commit is handled by the caller's _db_operation() context manager
 
         return StrategyProfile(
             profile_id=mutated_profile["profile_id"],

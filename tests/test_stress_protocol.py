@@ -24,6 +24,10 @@ def agent():
 
     agent = RefactoredDrakbenAgent(config)
 
+    # Close the real EvolutionMemory DB connection before replacing with mock
+    if hasattr(agent, "evolution") and hasattr(agent.evolution, "close"):
+        agent.evolution.close()
+
     # Mock Executor
     agent.executor = MagicMock()
     mock_result = MagicMock()
@@ -50,6 +54,7 @@ def agent():
 
     # Critical: Set running flags
     agent.running = True
+    agent.config.auto_approve_dangerous = True  # Tests run non-interactively
     agent.current_profile = MagicMock()
     agent.current_profile.profile_id = "test_profile_id"
     agent.current_profile.step_order = ["recon", "vuln", "exploit"]

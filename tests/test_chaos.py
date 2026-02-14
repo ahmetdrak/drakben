@@ -19,7 +19,7 @@ def test_state_stability() -> None:
         state.increment_iteration()
         state.compute_state_hash()
         if i % 25 == 0:
-            logger.info(f"Iteration {i} stable.")
+            logger.info("Iteration %s stable.", i)
 
 
 if __name__ == "__main__":
@@ -29,8 +29,8 @@ if __name__ == "__main__":
     start_time = time.time()
     try:
         test_state_stability()
-        logger.info(f"Chaos Test PASSED in {time.time() - start_time:.2f}s.")
+        logger.info("Chaos Test PASSED in %.2fs.", time.time() - start_time)
         sys.exit(0)
     except Exception as e:
-        logger.exception(f"Chaos Test FAILED: {e}")
+        logger.exception("Chaos Test FAILED: %s", e)
         sys.exit(1)

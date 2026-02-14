@@ -511,6 +511,7 @@ class TestVectorStoreRoundtrip:
             assert "443" in results[0]["text"]
 
             # Explicitly release ChromaDB resources
+            store.close()
             del store
         except ImportError:
             pytest.skip("ChromaDB import failed")
@@ -528,6 +529,7 @@ class TestVectorStoreRoundtrip:
             store = VectorStore(persist_dir=tmpdir)
             results = store.search("anything", n_results=5)
             assert results == []
+            store.close()
             del store
         except ImportError:
             pytest.skip("ChromaDB import failed")

@@ -21,7 +21,9 @@ Each tool has:
 
 import asyncio
 import logging
+import shlex
 import subprocess
+import threading as _tr_threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -370,6 +372,46 @@ class ToolRegistry:
             timeout=120,
         ))
 
+        # WAF Bypass Engine
+        self.register(Tool(
+            name="waf_bypass",
+            type=ToolType.PYTHON,
+            description="WAF detection and adaptive bypass via mutation engine",
+            phase=PentestPhase.EXPLOIT,
+            python_func=self._run_waf_bypass,
+            timeout=120,
+        ))
+
+        # Subdomain Enumeration (Python)
+        self.register(Tool(
+            name="subdomain_enum",
+            type=ToolType.PYTHON,
+            description="Python-based subdomain enumeration with multiple techniques",
+            phase=PentestPhase.RECON,
+            python_func=self._run_subdomain_enum,
+            timeout=300,
+        ))
+
+        # Nuclei Scanner (Python)
+        self.register(Tool(
+            name="nuclei_scan",
+            type=ToolType.PYTHON,
+            description="Python-based Nuclei vulnerability scanner",
+            phase=PentestPhase.VULN_SCAN,
+            python_func=self._run_nuclei_scan,
+            timeout=300,
+        ))
+
+        # CVE Database Lookup
+        self.register(Tool(
+            name="cve_lookup",
+            type=ToolType.PYTHON,
+            description="Search CVE database for known vulnerabilities",
+            phase=PentestPhase.VULN_SCAN,
+            python_func=self._run_cve_lookup,
+            timeout=60,
+        ))
+
     def register(self, tool: Tool) -> None:
         """Register a tool."""
         self._tools[tool.name] = tool
@@ -441,7 +483,8 @@ class ToolRegistry:
 
     async def _async_execute_shell(self, tool: Tool, target: str = "", **kwargs: Any) -> dict:
         """Execute shell tool asynchronously."""
-        command = tool.command_template.format(target=target, **kwargs)
+        safe_target = shlex.quote(target) if target else ""
+        command = tool.command_template.format(target=safe_target, **kwargs)
 
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -498,7 +541,8 @@ class ToolRegistry:
 
     def _execute_shell(self, tool: Tool, target: str, live_output: bool = True, **kwargs: Any) -> dict:
         """Execute a shell tool."""
-        command = tool.command_template.format(target=target, **kwargs)
+        safe_target = shlex.quote(target) if target else ""
+        command = tool.command_template.format(target=safe_target, **kwargs)
 
         logger.info("Executing: %s", command)
 
@@ -542,6 +586,13 @@ class ToolRegistry:
             }
 
         except subprocess.TimeoutExpired:
+            # Kill the process to prevent resource leaks
+            if live_output:
+                try:
+                    process.kill()
+                    process.wait(timeout=5)
+                except Exception:
+                    pass
             return {"success": False, "error": "Timeout", "tool": tool.name}
         except Exception as e:
             return {"success": False, "error": str(e), "tool": tool.name}
@@ -558,9 +609,10 @@ class ToolRegistry:
                 try:
                     result = asyncio.run(result)
                 except RuntimeError:
-                    # Already in an async context - get existing loop
-                    loop = asyncio.get_event_loop()
-                    result = loop.run_until_complete(result)
+                    # Already in an async context - use a new thread to run it
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(asyncio.run, result).result(timeout=120)
             return {
                 "success": True,
                 "output": result,
@@ -597,7 +649,7 @@ class ToolRegistry:
         """Run passive_recon from modules/recon.py - returns coroutine."""
         from modules.recon import passive_recon
         # Return the coroutine directly, let _async_execute_python await it
-        return passive_recon(target)
+        return passive_recon(target)  # type: ignore[return-value]
 
     def _run_sqli_test(self, target: str, **kwargs: Any) -> dict:
         """Run SQL injection test from modules/exploit"""
@@ -662,6 +714,7 @@ class ToolRegistry:
                 ADAnalyzer,
                 CredentialHarvester,
                 LateralMover,
+                NetworkHost,
                 NetworkMapper,
             )
 
@@ -673,7 +726,8 @@ class ToolRegistry:
             # Build discovered hosts for path calculation
             local_ips = mapper.get_local_interfaces()
             source = local_ips[0] if local_ips else "127.0.0.1"
-            hosts = {source: (mapper.quick_scan(source) or type(host)(ip=source, ports=[]))}
+            source_host = mapper.quick_scan(source) or NetworkHost(ip=source, ports=[])
+            hosts = {source: source_host}
             if host:
                 hosts[target] = host
 
@@ -736,13 +790,13 @@ class ToolRegistry:
             foundry = WeaponFoundry()
             payload = foundry.forge(
                 shell_type=shell, lhost=lhost, lport=lport,
-                encryption=enc, format=fmt,
+                encryption=enc, output_format=fmt,
             )
 
             return {
                 "target": target,
                 "shell_type": payload.metadata.get("shell_type", shell.value),
-                "format": payload.format.value,
+                "format": payload.output_format.value,
                 "encryption": payload.encryption.value,
                 "size_bytes": len(payload.payload),
                 "capabilities": foundry.list_capabilities(),
@@ -819,14 +873,92 @@ class ToolRegistry:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _run_waf_bypass(self, target: str, **kwargs: Any) -> dict:
+        """Run WAF bypass engine against *target*."""
+        try:
+            from modules.waf_bypass_engine import WAFBypassEngine
+
+            engine = WAFBypassEngine()
+            payload = kwargs.get("payload", "' OR 1=1 --")
+            aggressiveness = int(kwargs.get("aggressiveness", 2))
+
+            bypasses = engine.bypass_sql(payload, aggressiveness=aggressiveness)
+
+            return {
+                "target": target,
+                "bypass_count": len(bypasses),
+                "top_bypasses": bypasses[:10],
+                "note": "Use fingerprint_waf() with response headers for targeted bypass",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _run_subdomain_enum(self, target: str, **kwargs: Any) -> dict:
+        """Run Python-based subdomain enumeration for *target*."""
+        try:
+            from modules.subdomain import SubdomainEnumerator
+
+            enumerator = SubdomainEnumerator()
+            results = asyncio.run(enumerator.enumerate(target))
+            subdomains = [str(r) for r in results] if results else []
+
+            return {
+                "target": target,
+                "subdomains_found": len(subdomains),
+                "subdomains": subdomains[:100],
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _run_nuclei_scan(self, target: str, **kwargs: Any) -> dict:
+        """Run Python Nuclei scanner against *target*."""
+        try:
+            from modules.nuclei import NucleiScanner
+
+            scanner = NucleiScanner()
+            results = asyncio.run(scanner.scan(target))  # type: ignore[arg-type]
+            findings = [str(r) for r in results] if results else []
+
+            return {
+                "target": target,
+                "findings_count": len(findings),
+                "findings": findings[:50],
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _run_cve_lookup(self, target: str, **kwargs: Any) -> dict:
+        """Search CVE database for vulnerabilities related to *target*."""
+        try:
+            from modules.cve_database import CVEDatabase
+
+            db = CVEDatabase()
+            query = kwargs.get("query", target)
+            results = asyncio.run(db.search_cves(query))
+            entries = [
+                {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
+                for r in results
+            ] if results else []
+
+            return {
+                "query": query,
+                "cve_count": len(entries),
+                "entries": entries[:20],
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
 
 # Singleton instance
 _registry: ToolRegistry | None = None
+_registry_lock = _tr_threading.Lock()
 
 
 def get_registry() -> ToolRegistry:
     """Get the global tool registry instance."""
     global _registry
     if _registry is None:
-        _registry = ToolRegistry()
+        with _registry_lock:
+            if _registry is None:
+                _registry = ToolRegistry()
     return _registry

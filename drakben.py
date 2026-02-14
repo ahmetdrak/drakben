@@ -12,12 +12,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from rich.console import Console
 
-from core.config import ConfigManager
-from core.logging_config import get_logger, setup_logging
-
-# Add project root to path
+# Add project root to path (must precede local imports)
 PROJECT_ROOT: Path = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.config import ConfigManager  # noqa: E402
+from core.logging_config import get_logger, setup_logging  # noqa: E402
 
 # Anti-Forensics: Prevent creation of .pyc files
 sys.dont_write_bytecode = True
@@ -39,7 +39,7 @@ logger: logging.Logger = get_logger("main")
 
 
 def global_exception_handler(exc_type, exc_value, exc_traceback) -> None:
-    """# noqa: RUF001Global exception handler to capture unhandled exceptions (Crash Reporter).
+    """Global exception handler to capture unhandled exceptions (Crash Reporter).
     Prevents 'Silent Death' by generating a detailed crash dump.
     """
     if issubclass(exc_type, KeyboardInterrupt):
@@ -95,6 +95,7 @@ def global_exception_handler(exc_type, exc_value, exc_traceback) -> None:
             border_style="red",
         ),
     )
+    cleanup_resources()
     sys.exit(1)
 
 
@@ -124,7 +125,7 @@ def cleanup_resources(_signum: int | None = None, _frame: object = None) -> None
             # For a cleaner approach, main components register cleanup hooks.
             pass
         except Exception as e:
-            logger.debug(f"Cleanup error (non-critical): {e}")
+            logger.debug("Cleanup error (non-critical): %s", e)
 
         # Flush logs
         logging.shutdown()
@@ -136,7 +137,7 @@ def cleanup_resources(_signum: int | None = None, _frame: object = None) -> None
             sys.exit(0)
 
     except Exception as e:
-        logger.debug(f"Cleanup error (non-critical): {e}")
+        logger.debug("Cleanup error (non-critical): %s", e)
         sys.exit(1)
 
 
@@ -147,10 +148,6 @@ signal.signal(signal.SIGTERM, cleanup_resources)
 
 def check_environment() -> None:
     """Check basic environment requirements."""
-    Console()
-
-    # Check Python version
-
     # Check required directories
     required_dirs = ["core", "llm", "config", "logs", "sessions"]
     for dir_name in required_dirs:
@@ -202,18 +199,9 @@ def main() -> None:
         config_manager.prompt_llm_setup_if_needed()
 
         # Boot log
-        console = Console()
         logger.info("DRAKBEN initialized successfully")
 
-        # Initialize Plugins
-        from core.plugin_loader import PluginLoader
-
-        plugin_loader = PluginLoader("plugins")
-        console.print(
-            f"[dim]Plugins directory: {plugin_loader.plugin_dir.absolute()}[/dim]",
-        )
-
-        # Start interactive menu system
+        # Start interactive menu system (menu loads plugins internally)
         from core.ui.menu import DrakbenMenu
 
         menu = DrakbenMenu(config_manager)
@@ -226,7 +214,7 @@ def main() -> None:
         sys.exit(0)
 
     except Exception as e:
-        logger.exception(f"Fatal error: {e}")
+        logger.exception("Fatal error: %s", e)
         console = Console()
         console.print(f"\n❌ Fatal error: {e}", style="bold red")
         import traceback

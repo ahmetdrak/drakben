@@ -127,6 +127,7 @@ class RetrieveModule:
         focal_point: str,
         target: str | None = None,
         phase: str | None = None,
+        budget: ContextBudget | None = None,
     ) -> RetrievedContext:
         """Retrieve context for decision making.
 
@@ -138,6 +139,7 @@ class RetrieveModule:
             focal_point: Current situation/query (what to focus on)
             target: Target IP/domain
             phase: Current attack phase
+            budget: Optional budget override (defaults to self._budget)
 
         Returns:
             RetrievedContext ready for LLM
@@ -161,7 +163,7 @@ class RetrieveModule:
             )
 
         # Categorize retrieved nodes
-        context = self._categorize_and_budget(result, focal_point)
+        context = self._categorize_and_budget(result, focal_point, budget=budget)
 
         # Build context string
         context.context_string = self._format_context_string(context)
@@ -176,10 +178,18 @@ class RetrieveModule:
         self,
         result: RetrievalResult,
         focal_point: str,
+        budget: ContextBudget | None = None,
     ) -> RetrievedContext:
-        """Categorize nodes and apply budget constraints."""
+        """Categorize nodes and apply budget constraints.
+
+        Args:
+            result: Retrieval result with scored nodes
+            focal_point: Current focal point (reserved for future use)
+            budget: Optional budget override (defaults to self._budget)
+        """
         # Note: focal_point kept for future weighting/prioritization
         _ = focal_point  # Acknowledge parameter for SonarQube
+        active_budget = budget if budget is not None else self._budget
         context = RetrievedContext()
 
         # Separate by node type
@@ -202,19 +212,19 @@ class RetrieveModule:
         # Apply budget to each category
         context.critical_findings = self._apply_budget(
             findings,
-            self._budget.critical_findings,
+            active_budget.critical_findings,
         )
         context.recent_events = self._apply_budget(
             events,
-            self._budget.recent_events,
+            active_budget.recent_events,
         )
         context.reasoning = self._apply_budget(
             thoughts,
-            self._budget.reasoning,
+            active_budget.reasoning,
         )
         context.insights = self._apply_budget(
             reflections,
-            self._budget.insights,
+            active_budget.insights,
         )
 
         context.total_nodes = (
@@ -321,16 +331,13 @@ class RetrieveModule:
             reserved=int(max_tokens * 0.3),
         )
 
-        original_budget = self._budget
-        self._budget = adjusted_budget
-
+        # Thread-safe: pass budget directly instead of swapping self._budget
         context = self.retrieve_for_decision(
             focal_point=user_input,
             target=target,
             phase=phase,
+            budget=adjusted_budget,
         )
-
-        self._budget = original_budget
 
         return context.context_string
 

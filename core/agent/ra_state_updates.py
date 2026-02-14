@@ -47,6 +47,11 @@ class RAStateUpdatesMixin:
         # 1. Record Result Execution (Success/Failure)
         self._record_execution_outcome(tool_name, result)
 
+        # Record a meaningful state change even on failure so stagnation
+        # detection doesn't see only "iteration" entries.
+        change_type = "tool_success" if result.get("success") else "tool_failure"
+        self.state._record_change(change_type, {"tool": tool_name})
+
         if not result.get("success"):
             return
 
@@ -64,30 +69,134 @@ class RAStateUpdatesMixin:
         self.brain.observe(tool=tool_name, output=output, success=success)
 
     def _dispatch_state_update(self, tool_name: str, result: dict) -> None:
-        """Dispatch state update based on tool type."""
+        """Dispatch state update based on tool type and advance phase."""
         if "nmap_port_scan" in tool_name:
             self._update_state_nmap_port_scan(result)
+            self._advance_phase_recon()
         elif "nmap_service_scan" in tool_name or "nikto" in tool_name:
             self._update_state_service_completion(result)
+            self._advance_phase_vuln_scan()
         elif "vuln" in tool_name or "sqlmap" in tool_name:
             observation = result.get("stdout", "")
             self._process_vulnerability_result(tool_name, result, observation)
+            self._advance_phase_exploit()
         elif "exploit" in tool_name:
             self._process_exploit_result(tool_name, result)
+            self._advance_phase_post_exploit()
+
+    # ---- Phase advancement helpers (reduce cognitive complexity) ----
+
+    def _get_transparency(self):
+        """Get transparency dashboard (lazy import to avoid circular deps)."""
+        try:
+            from core.ui.transparency import get_transparency
+            return get_transparency(getattr(self, "console", None))
+        except ImportError:
+            return None
+
+    def _advance_phase_recon(self) -> None:
+        """Advance to RECON after successful port scan."""
+        from core.agent.state import AttackPhase
+
+        if self.state.phase in (AttackPhase.INIT, AttackPhase.RECON):
+            old_phase = self.state.phase.value
+            self.state.phase = AttackPhase.RECON
+            self.state._record_change("phase_advance", "recon")
+            logger.info("Phase advanced → RECON")
+            td = self._get_transparency()
+            if td:
+                td.show_phase_transition(old_phase, "RECON", "Port scan completed — moving to reconnaissance")
+
+    def _advance_phase_vuln_scan(self) -> None:
+        """Advance to VULN_SCAN after service/web scan."""
+        from core.agent.state import AttackPhase
+
+        if self.state.phase in (AttackPhase.INIT, AttackPhase.RECON):
+            old_phase = self.state.phase.value
+            self.state.phase = AttackPhase.VULN_SCAN
+            self.state._record_change("phase_advance", "vuln_scan")
+            logger.info("Phase advanced → VULN_SCAN")
+            td = self._get_transparency()
+            if td:
+                td.show_phase_transition(old_phase, "VULN_SCAN", "Services identified — scanning for vulnerabilities")
+
+    def _advance_phase_exploit(self) -> None:
+        """Advance to EXPLOIT or VULN_SCAN after vulnerability assessment."""
+        from core.agent.state import AttackPhase
+
+        early = (AttackPhase.INIT, AttackPhase.RECON, AttackPhase.VULN_SCAN)
+        if self.state.phase not in early:
+            return
+        old_phase = self.state.phase.value
+        if self.state.vulnerabilities:
+            self.state.phase = AttackPhase.EXPLOIT
+            self.state._record_change("phase_advance", "exploit")
+            logger.info("Phase advanced → EXPLOIT (vulns found)")
+            td = self._get_transparency()
+            if td:
+                n_vulns = len(self.state.vulnerabilities)
+                td.show_phase_transition(
+                    old_phase, "EXPLOIT",
+                    f"{n_vulns} vulnerabilities found — attempting exploitation",
+                )
+        elif self.state.phase != AttackPhase.VULN_SCAN:
+            self.state.phase = AttackPhase.VULN_SCAN
+            self.state._record_change("phase_advance", "vuln_scan")
+            td = self._get_transparency()
+            if td:
+                td.show_phase_transition(old_phase, "VULN_SCAN", "No vulns yet — continuing vulnerability scan")
+
+    def _advance_phase_post_exploit(self) -> None:
+        """Advance to POST_EXPLOIT or EXPLOIT after exploitation attempt."""
+        from core.agent.state import AttackPhase
+
+        old_phase = self.state.phase.value
+        if self.state.has_foothold:
+            self.state.phase = AttackPhase.POST_EXPLOIT
+            self.state._record_change("phase_advance", "post_exploit")
+            logger.info("Phase advanced → POST_EXPLOIT (foothold gained)")
+            td = self._get_transparency()
+            if td:
+                td.show_phase_transition(old_phase, "POST_EXPLOIT", "Foothold gained — post-exploitation phase")
+        elif self.state.phase in (AttackPhase.INIT, AttackPhase.RECON, AttackPhase.VULN_SCAN):
+            self.state.phase = AttackPhase.EXPLOIT
+            self.state._record_change("phase_advance", "exploit")
+
+    # Positive evidence patterns for foothold detection
+    _FOOTHOLD_POSITIVE = [
+        "session opened", "meterpreter", "shell session",
+        "command shell", "reverse shell", "bind shell",
+        "successfully exploited", "access granted",
+        "root@", "www-data@", "uid=", "whoami",
+    ]
+    # Negative evidence that overrides positive matches
+    _FOOTHOLD_NEGATIVE = [
+        "unsuccessful", "not vulnerable", "failed",
+        "no session", "exploit completed but no session",
+        "success rate: 0", "0 sessions opened",
+    ]
 
     def _process_exploit_result(self, tool_name: str, result: dict) -> None:
-        """Helper to process exploit results."""
+        """Helper to process exploit results with robust evidence checking."""
         if self.state is None:
             raise AssertionError(self.MSG_STATE_NOT_NONE)
-        observation = result.get("stdout", "") + "\n" + result.get("stderr", "")
-        # Check if exploit succeeded based on output evidence
-        if (
-            "success" in observation.lower()
-            or "shell" in observation.lower()
-        ):
+        observation = (result.get("stdout", "") + "\n" + result.get("stderr", "")).lower()
+
+        # Check for negative evidence first (overrides any positive match)
+        has_negative = any(neg in observation for neg in self._FOOTHOLD_NEGATIVE)
+        if has_negative:
+            self.state.set_observation(f"Exploit {tool_name} did not succeed (negative evidence found)")
+            return
+
+        # Check for positive evidence of shell/foothold
+        has_positive = any(pos in observation for pos in self._FOOTHOLD_POSITIVE)
+        if has_positive:
             self.state.set_foothold(tool_name)
+            td = self._get_transparency()
+            if td:
+                td.show_state_change("foothold_gained", f"{tool_name} — shell/access obtained")
         else:
-            self.state.set_observation("Exploit did not succeed; foothold not set")
+            self.state.set_observation(f"Exploit {tool_name} completed but no clear foothold evidence")
 
     def _update_state_nmap_port_scan(self, result: dict) -> None:
         """Update state from Nmap port scan results."""
@@ -111,36 +220,100 @@ class RAStateUpdatesMixin:
                 for svc_dict in parsed_services
             ]
             self.state.update_services(services)
+
+            # Show discovered services to user (transparency)
+            td = self._get_transparency()
+            if td and self.state.open_services:
+                td.show_discovered_services(self.state.open_services)
         else:
-            # Fallback to mock if parsing failed (for testing)
-            self._apply_mock_services()
-
-    def _apply_mock_services(self) -> None:
-        """Apply mock services for testing or fallback."""
-        if self.state is None:
-            raise AssertionError(self.MSG_STATE_NOT_NONE)
-        from core.agent.state import ServiceInfo
-
-        services: list[ServiceInfo] = [
-            ServiceInfo(port=80, protocol="tcp", service="http"),
-            ServiceInfo(port=443, protocol="tcp", service="https"),
-            ServiceInfo(port=22, protocol="tcp", service="ssh"),
-        ]
-        self.state.update_services(services)
+            # Log warning instead of injecting fake data
+            logger.warning(
+                "Nmap output parsing returned no services. "
+                "Raw output (first 500 chars): %s",
+                stdout[:500],
+            )
+            self.state.set_observation(
+                "Nmap parsing failed — no services extracted from output. "
+                "Consider re-running the scan or checking target reachability.",
+            )
+            td = self._get_transparency()
+            if td:
+                td.show_state_change(
+                    "parse_failure",
+                    "Nmap output could not be parsed — no mock data injected",
+                )
 
     def _update_state_service_completion(self, result: dict) -> None:
-        """Mark service as tested."""
+        """Mark service as tested.
+
+        Tries multiple strategies to identify the port:
+        1. From args dict (if LLM provided port param)
+        2. From the command string (e.g. 'nmap -p 80 ...')
+        3. From stdout (service scan output)
+        """
         if self.state is None:
             raise AssertionError(self.MSG_STATE_NOT_NONE)
 
+        # Strategy 1: From args
         args_port = result.get("args", {}).get("port")
+
+        # Strategy 2: Extract from command string
         if not args_port:
-            self.state.set_observation("Missing port in tool args; state not updated")
+            args_port = self._extract_port_from_command(result)
+
+        # Strategy 3: Try to extract from stdout (may handle multi-port)
+        if not args_port and self._try_mark_ports_from_stdout(result):
             return
 
-        if args_port in self.state.open_services:
-            service_info: ServiceInfo = self.state.open_services[args_port]
-            self.state.mark_surface_tested(args_port, service_info.service)
+        if not args_port:
+            self.state.set_observation("Service scan completed but could not determine port from result")
+            return
+
+        self._validate_and_mark_port(args_port)
+
+    def _extract_port_from_command(self, result: dict) -> int | None:
+        """Extract port number from command string in result."""
+        import re
+
+        command = result.get("command", "") or result.get("args", {}).get("command", "")
+        if not command:
+            return None
+        port_match = re.search(r"-p\s*(\d{1,5})", str(command))
+        if port_match:
+            port_num = int(port_match.group(1))
+            if 1 <= port_num <= 65535:
+                return port_num
+        return None
+
+    def _try_mark_ports_from_stdout(self, result: dict) -> bool:
+        """Try to extract and mark ports from stdout. Returns True if handled."""
+        import re
+
+        stdout = result.get("stdout", "")
+        if not stdout:
+            return False
+        # Look for nmap-style "PORT/tcp open" lines
+        port_matches = re.findall(r"(\d{1,5})/(?:tcp|udp)\s+open", stdout)
+        if not port_matches:
+            return False
+        for port_str in port_matches:
+            port_num = int(port_str)
+            if port_num in self.state.open_services:
+                svc = self.state.open_services[port_num]
+                self.state.mark_surface_tested(port_num, svc.service)
+        return True
+
+    def _validate_and_mark_port(self, args_port: object) -> None:
+        """Validate port value and mark the service as tested."""
+        try:
+            port_int = int(args_port)  # type: ignore[call-overload]
+        except (ValueError, TypeError):
+            self.state.set_observation(f"Invalid port value: {args_port}")
+            return
+
+        if port_int in self.state.open_services:
+            service_info: ServiceInfo = self.state.open_services[port_int]
+            self.state.mark_surface_tested(port_int, service_info.service)
 
     def _process_vulnerability_result(
         self,
@@ -185,29 +358,42 @@ class RAStateUpdatesMixin:
         # Hybrid parsing with LLM fallback
         _ = parse_sqlmap_output(stdout, llm_client=self.brain.llm_client)
 
-        # 3. Process findings (if any)
-        if result.get("success") and "findings" in result:
-            for finding in result["findings"]:
-                if self.state:
-                    from core.agent.state import VulnerabilityInfo
+        # Process findings (if any)
+        if not (result.get("success") and "findings" in result):
+            return
 
-                    # Adapt finding dict to VulnerabilityInfo dataclass
-                    severity_str: str = str(finding.get("severity", "medium")).lower()
+        for finding in result["findings"]:
+            if self.state:
+                self._record_single_vulnerability(finding)
 
-                    vuln = VulnerabilityInfo(
-                        vuln_id=f"VULN-{int(time.time())}-{secrets.randbelow(9000) + 1000}",
-                        service=finding.get("service", "unknown"),
-                        port=int(finding.get("port", 0)),
-                        severity=severity_str,
-                        exploitable=True,
-                        exploit_attempted=False,
-                        exploit_success=False,
-                    )
+    def _record_single_vulnerability(self, finding: dict) -> None:
+        """Create a VulnerabilityInfo from a finding dict and add to state."""
+        from core.agent.state import VulnerabilityInfo
 
-                    if hasattr(self.state, "add_vulnerability"):
-                        self.state.add_vulnerability(vuln)
-                    elif hasattr(self.state, "vulnerabilities") and isinstance(
-                        self.state.vulnerabilities,
-                        list,
-                    ):
-                        self.state.vulnerabilities.append(vuln)
+        severity_str: str = str(finding.get("severity", "medium")).lower()
+
+        vuln = VulnerabilityInfo(
+            vuln_id=f"VULN-{int(time.time())}-{secrets.randbelow(9000) + 1000}",
+            service=finding.get("service", "unknown"),
+            port=int(finding.get("port", 0)),
+            severity=severity_str,
+            exploitable=True,
+            exploit_attempted=False,
+            exploit_success=False,
+        )
+
+        if hasattr(self.state, "add_vulnerability"):
+            self.state.add_vulnerability(vuln)
+        elif hasattr(self.state, "vulnerabilities") and isinstance(
+            self.state.vulnerabilities,
+            list,
+        ):
+            self.state.vulnerabilities.append(vuln)
+
+        # Notify user about discovered vulnerability
+        td = self._get_transparency()
+        if td:
+            td.show_state_change(
+                "vulnerability_found",
+                f"{vuln.vuln_id} — {vuln.service}:{vuln.port} ({vuln.severity})",
+            )

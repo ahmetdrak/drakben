@@ -43,8 +43,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     """
 
     # Thresholds
-    PROFILE_RETIRE_THRESHOLD = 0.25  # Retire if success_rate < 25%
-    MIN_USAGE_FOR_RETIRE = 3  # Minimum uses before retirement
+    PROFILE_RETIRE_THRESHOLD = 0.15  # Retire if success_rate < 15%
+    MIN_USAGE_FOR_RETIRE = 8  # Minimum uses before retirement eligible
     MUTATION_PARAM_CHANGE = 0.2  # How much to change params on mutation
 
     def __init__(self, db_path: str | None = None) -> None:
@@ -53,15 +53,20 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
             # Check if drakben_evolution.db exists (for compatibility)
             import os
 
-            if os.path.exists("drakben_evolution.db"):
-                self.db_path = "drakben_evolution.db"
+            _project_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+            compat_path = os.path.join(_project_root, "drakben_evolution.db")
+            if os.path.exists(compat_path):
+                self.db_path = compat_path
             else:
-                self.db_path = "evolution.db"
+                self.db_path = os.path.join(_project_root, "evolution.db")
         else:
             self.db_path = db_path
         self._lock = threading.RLock()  # Reentrant lock to prevent deadlocks
         self._initialized = False
         self._init_lock = threading.RLock()  # Reentrant lock
+        self._init_attempts = 0  # Track retry attempts
 
         # LAZY INITIALIZATION: Don't initialize database in __init__
         # This prevents blocking during object creation
@@ -83,20 +88,16 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
         if self._initialized:
             return
 
-        # Track retry attempts to prevent infinite loops
-        if not hasattr(self, "_init_attempts"):
-            self._init_attempts = 0
-
-        # Max 3 retry attempts
-        if self._init_attempts >= 3:
-            logger.warning(
-                "Max initialization attempts reached, skipping database init",
-            )
-            return
-
         with self._init_lock:
             # Double-check after acquiring lock
             if self._initialized:
+                return
+
+            # Max 3 retry attempts
+            if self._init_attempts >= 3:
+                logger.warning(
+                    "Max initialization attempts reached, skipping database init",
+                )
                 return
 
             self._init_attempts += 1
@@ -229,7 +230,11 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     def _handle_schema_migration(self, conn: sqlite3.Connection) -> None:
         """Check and migrate old schema conservatively (LOGIC FIX: Don't drop data)."""
         cursor = conn.execute("PRAGMA user_version")
-        version = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if not row:
+            logger.error("Failed to get database version")
+            return
+        version = row[0]
 
         if version == 1:
             logger.info(
@@ -315,7 +320,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
     def _strategies_exist(self, conn: "sqlite3.Connection") -> bool:
         """Check if strategies table is populated."""
         cursor = conn.execute("SELECT COUNT(*) FROM strategies")
-        return cursor.fetchone()[0] > 0
+        row = cursor.fetchone()
+        return row and row[0] > 0
 
     def _get_default_strategy_definitions(self) -> list[dict]:
         """Return list of default strategies."""
@@ -906,11 +912,12 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 # Add retired profile to failed list to avoid infinite loop
                 failed_profiles.append(selected.profile_id)
                 # Check if we've exceeded time or retried too many times
-                if time.time() - start_time > max_duration:
-                    logger.warning("TOCTOU retry exceeded timeout, returning None")
+                remaining_profiles = [p for p in profiles if p.profile_id not in failed_profiles]
+                if not remaining_profiles or time.time() - start_time > max_duration:
+                    logger.warning("TOCTOU retry exceeded timeout or no profiles left, returning None")
                     return None
-                # Recursively try again with retired profile excluded
-                return self._select_profile(strategy, context, start_time, max_duration)
+                # Return next best profile instead of recursing
+                return remaining_profiles[0]
 
         return selected
 
@@ -944,29 +951,34 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategies WHERE is_active = 1",
                 )
-                status["active_strategies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_strategies"] = row[0] if row else 0
 
                 # Profiles
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 0",
                 )
-                status["active_profiles"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_profiles"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM strategy_profiles WHERE retired = 1",
                 )
-                status["retired_profiles"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["retired_profiles"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT MAX(mutation_generation) FROM strategy_profiles",
                 )
-                status["max_mutation_generation"] = cursor.fetchone()[0] or 0
+                row = cursor.fetchone()
+                status["max_mutation_generation"] = row[0] if row and row[0] else 0
 
                 # Policies
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM policies WHERE is_active = 1",
                 )
-                status["active_policies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["active_policies"] = row[0] if row else 0
 
                 cursor = conn.execute("""
                     SELECT priority_tier, COUNT(*) FROM policies
@@ -978,12 +990,14 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
 
                 # Failures
                 cursor = conn.execute("SELECT COUNT(*) FROM failure_contexts")
-                status["total_failures"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["total_failures"] = row[0] if row else 0
 
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM failure_contexts WHERE policy_generated = 1",
                 )
-                status["failures_with_policies"] = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                status["failures_with_policies"] = row[0] if row else 0
 
                 return status
             finally:

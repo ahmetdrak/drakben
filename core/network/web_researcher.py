@@ -28,7 +28,10 @@ class WebResearcher:
 
     def __init__(self) -> None:
         # Initialize Persistent Stealth Session (Chrome 120 Fingerprint)
-        self.session = StealthSession(impersonate="chrome120", randomize_behavior=True)
+        if StealthSession is not requests.Session:  # type: ignore[comparison-overlap]
+            self.session = StealthSession(impersonate="chrome120", randomize_behavior=True)
+        else:
+            self.session = StealthSession()
 
         # Note: Headers are mostly handled by curl_cffi, but we add some semantic ones
         self.session.headers.update(
@@ -53,7 +56,8 @@ class WebResearcher:
 
             if resp.status_code != 200:
                 logger.warning(
-                    f"DDG HTML failed ({resp.status_code}), trying Bing fallback.",
+                    "DDG HTML failed (%s), trying Bing fallback.",
+                    resp.status_code,
                 )
                 return self._search_bing_fallback(query, max_results)
 
@@ -122,7 +126,7 @@ class WebResearcher:
                 if p_tag:
                     snippet = p_tag.get_text(strip=True)
 
-                results.append({"title": title, "href": href, "body": snippet})
+                results.append({"title": title, "href": href, "body": snippet})  # type: ignore[dict-item]
 
             return results
         except Exception as e:

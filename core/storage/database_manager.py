@@ -6,20 +6,24 @@ Thread-safe singleton pattern.
 import logging
 import sqlite3
 import threading
+from abc import ABC, abstractmethod
 from contextlib import suppress
 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseProvider:
+class DatabaseProvider(ABC):
     """Abstract Base Class for Database Providers (Future-proofing)."""
 
+    @abstractmethod
     def connect(self) -> None:
         raise NotImplementedError
 
+    @abstractmethod
     def close(self) -> None:
         raise NotImplementedError
 
+    @abstractmethod
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         raise NotImplementedError
 
@@ -27,13 +31,15 @@ class DatabaseProvider:
 class SQLiteProvider(DatabaseProvider):
     """Robust SQLite Provider with Connection Pooling logic (One per thread)."""
 
-    _instance = None
-    _lock = threading.Lock()
     DB_NAME = "drakben.db"
 
     def __init__(self, db_path: str = DB_NAME) -> None:
         self.db_path = db_path
         self._local = threading.local()  # Thread-local storage for connections
+
+    def connect(self) -> None:
+        """Establish connection for current thread (lazy via _get_conn)."""
+        self._get_conn()
 
     def _get_conn(self) -> sqlite3.Connection:
         """Get thread-specific connection."""

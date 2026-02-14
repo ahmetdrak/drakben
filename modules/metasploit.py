@@ -23,7 +23,11 @@ except ImportError:
     logger.info("msgpack not installed - using JSON fallback")
 
 # Optional requests for HTTP API
-REQUESTS_AVAILABLE = False
+try:
+    import requests  # noqa: F401
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
 
 
 class SessionType(Enum):
@@ -166,7 +170,7 @@ class MetasploitRPC:
         """Connect to Metasploit RPC server."""
         self.host = host
         self.port = port
-        logger.info(f"Connecting to Metasploit RPC at {host}:%s", port)
+        logger.info("Connecting to Metasploit RPC at %s:%s", host, port)
 
         try:
             protocol = "https" if self.use_ssl else "http"

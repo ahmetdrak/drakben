@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -134,18 +134,99 @@ class NetworkConfig:
 # Export for easy import
 NETWORK_CONFIG = NetworkConfig()
 
+# -- Default LLM constants (avoids duplicated literals) --
+_DEFAULT_OLLAMA_URL = "http://localhost:11434"
+_DEFAULT_OLLAMA_MODEL = "llama3.1"
+
+
+@dataclass
+class LLMConfig:
+    """LLM-specific settings (SRP: separated from main config).
+
+    Note: API keys are NOT stored here.  The LLM clients read keys
+    directly from environment variables (OPENROUTER_API_KEY, OPENAI_API_KEY).
+    The boolean flags below only indicate whether a valid key was detected.
+    """
+
+    provider: str = "auto"  # auto, openrouter, ollama, openai
+    openrouter_key_set: bool = False
+    openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
+    ollama_url: str = _DEFAULT_OLLAMA_URL
+    ollama_model: str = _DEFAULT_OLLAMA_MODEL
+    openai_key_set: bool = False
+    openai_model: str = "gpt-4o-mini"
+    setup_complete: bool = False
+
+    # Per-agent model selection (inspired by PentAGI)
+    model_overrides: dict[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.model_overrides is None:
+            self.model_overrides = {}
+
+    def get_model_for_role(self, role: str) -> str | None:
+        """Get model override for a specific agent role.
+
+        Roles: reasoning, parsing, coding, scanning, reporting.
+        Returns None if no override → use default model.
+        """
+        if self.model_overrides:
+            return self.model_overrides.get(role)
+        return None
+
+
+@dataclass
+class SecurityConfig:
+    """Security-specific settings (SRP: separated from main config)."""
+
+    auto_approve: bool = False  # First command needs approval
+    approved_once: bool = False
+    ssl_verify: bool = True
+    allow_self_signed_certs: bool = False
+
+
+@dataclass
+class UIConfig:
+    """UI-specific settings (SRP: separated from main config)."""
+
+    language: str = "en"  # tr, en
+    use_colors: bool = True
+    verbose: bool = False
+
+
+@dataclass
+class SessionConfig:
+    """Session-specific settings (SRP: separated from main config)."""
+
+    target: str | None = None
+    session_dir: str = "sessions"
+    log_dir: str = "logs"
+
+
+@dataclass
+class EngineConfig:
+    """Engine-specific settings (SRP: separated from main config)."""
+
+    stealth_mode: bool = False
+    max_threads: int = 4
+    timeout: int = 30
+
 
 @dataclass
 class DrakbenConfig:
-    """DRAKBEN configuration."""
+    """DRAKBEN configuration.
 
-    # LLM Settings
+    Backward-compatible: all original fields remain as top-level attributes.
+    New code should use the sub-config objects (llm, security, ui, etc.).
+    """
+
+    # LLM Settings (backward compat — delegated to LLMConfig internally)
     llm_provider: str = "auto"  # auto, openrouter, ollama, openai
-    openrouter_api_key: str | None = None
+    openrouter_api_key: str | None = field(default=None, repr=False)
     openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1"
-    openai_api_key: str | None = None
+    ollama_url: str = _DEFAULT_OLLAMA_URL
+    ollama_model: str = _DEFAULT_OLLAMA_MODEL
+    openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str = "gpt-4o-mini"
 
     # Setup
@@ -178,9 +259,73 @@ class DrakbenConfig:
     # System Settings (Added to match config.json)
     system: dict[str, Any] | None = None
 
-    def __post_init__(self) -> Any:
+    # Per-agent model selection
+    model_overrides: dict[str, str] | None = None
+
+    def __post_init__(self) -> None:
         if self.tools_available is None:
             self.tools_available = {}
+        if self.model_overrides is None:
+            self.model_overrides = {}
+
+    # --- Sub-config accessors (new code should use these) ---
+
+    @property
+    def llm(self) -> LLMConfig:
+        """Get LLM sub-configuration.
+
+        Note: API keys are sourced from environment variables or a local
+        api.env file.  They must be passed in-memory to the LLM client;
+        this does **not** persist them beyond what the user already stored.
+        """
+        return LLMConfig(
+            provider=self.llm_provider,
+            openrouter_key_set=bool(self.openrouter_api_key),
+            openrouter_model=self.openrouter_model,
+            ollama_url=self.ollama_url,
+            ollama_model=self.ollama_model,
+            openai_key_set=bool(self.openai_api_key),
+            openai_model=self.openai_model,
+            setup_complete=self.llm_setup_complete,
+            model_overrides=self.model_overrides,
+        )
+
+    @property
+    def security(self) -> SecurityConfig:
+        """Get security sub-configuration."""
+        return SecurityConfig(
+            auto_approve=self.auto_approve,
+            approved_once=self.approved_once,
+            ssl_verify=self.ssl_verify,
+            allow_self_signed_certs=self.allow_self_signed_certs,
+        )
+
+    @property
+    def ui(self) -> UIConfig:
+        """Get UI sub-configuration."""
+        return UIConfig(
+            language=self.language,
+            use_colors=self.use_colors,
+            verbose=self.verbose,
+        )
+
+    @property
+    def session(self) -> SessionConfig:
+        """Get session sub-configuration."""
+        return SessionConfig(
+            target=self.target,
+            session_dir=self.session_dir,
+            log_dir=self.log_dir,
+        )
+
+    @property
+    def engine(self) -> EngineConfig:
+        """Get engine sub-configuration."""
+        return EngineConfig(
+            stealth_mode=self.stealth_mode,
+            max_threads=self.max_threads,
+            timeout=self.timeout,
+        )
 
 
 class ConfigManager:
@@ -225,10 +370,12 @@ class ConfigManager:
         else:
             self.config.openai_api_key = None
 
-        if os.getenv("LOCAL_LLM_URL"):
-            self.config.ollama_url = os.getenv("LOCAL_LLM_URL")
-        if os.getenv("LOCAL_LLM_MODEL"):
-            self.config.ollama_model = os.getenv("LOCAL_LLM_MODEL")
+        local_url = os.getenv("LOCAL_LLM_URL")
+        if local_url:
+            self.config.ollama_url = local_url
+        local_model = os.getenv("LOCAL_LLM_MODEL")
+        if local_model:
+            self.config.ollama_model = local_model
 
         # Mark setup complete only if a REAL provider is configured
         if any(
@@ -256,7 +403,7 @@ class ConfigManager:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
-            values[key.strip()] = value.strip()
+            values[key.strip()] = value.strip().strip("\"'")
 
         return values
 
@@ -274,8 +421,8 @@ class ConfigManager:
             f"OPENAI_API_KEY={values.get('OPENAI_API_KEY', '')}",
             f"OPENAI_MODEL={values.get('OPENAI_MODEL', 'gpt-4o-mini')}",
             "",
-            f"LOCAL_LLM_URL={values.get('LOCAL_LLM_URL', 'http://localhost:11434')}",
-            f"LOCAL_LLM_MODEL={values.get('LOCAL_LLM_MODEL', 'llama3.1')}",
+            f"LOCAL_LLM_URL={values.get('LOCAL_LLM_URL', _DEFAULT_OLLAMA_URL)}",
+            f"LOCAL_LLM_MODEL={values.get('LOCAL_LLM_MODEL', _DEFAULT_OLLAMA_MODEL)}",
             "",
             "# Leave keys empty to stay in offline mode",
         ]
@@ -339,7 +486,7 @@ class ConfigManager:
         self.config.llm_setup_complete = True
         self.save_config()
 
-    def _prompt_user_consent(self, console) -> bool:
+    def _prompt_user_consent(self, console: Any) -> bool:
         """Ask user if they want to configure LLM."""
         console.print("\n[bold cyan]Configure LLM now? (y/n)[/]")
         choice = input("> ").strip().lower()
@@ -349,7 +496,8 @@ class ConfigManager:
         """Configure specific provider based on user choice."""
         if choice == "1":
             self.config.llm_provider = "openrouter"
-            api_key = input("OpenRouter API key: ").strip()
+            import getpass as _getpass
+            api_key = _getpass.getpass("OpenRouter API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
             if api_key:
                 env_values["OPENROUTER_API_KEY"] = api_key
@@ -361,7 +509,8 @@ class ConfigManager:
 
         if choice == "2":
             self.config.llm_provider = "openai"
-            api_key = input("OpenAI API key: ").strip()
+            import getpass as _getpass
+            api_key = _getpass.getpass("OpenAI API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
             if api_key:
                 env_values["OPENAI_API_KEY"] = api_key
@@ -373,15 +522,15 @@ class ConfigManager:
 
         if choice == "3":
             self.config.llm_provider = "ollama"
-            url = input("Ollama URL (leave empty: http://localhost:11434): ").strip()
-            model = input("Ollama model (leave empty: llama3.1): ").strip()
+            url = input(f"Ollama URL (leave empty: {_DEFAULT_OLLAMA_URL}): ").strip()
+            model = input(f"Ollama model (leave empty: {_DEFAULT_OLLAMA_MODEL}): ").strip()
             env_values["LOCAL_LLM_URL"] = url or env_values.get(
                 "LOCAL_LLM_URL",
-                "http://localhost:11434",
+                _DEFAULT_OLLAMA_URL,
             )
             env_values["LOCAL_LLM_MODEL"] = model or env_values.get(
                 "LOCAL_LLM_MODEL",
-                "llama3.1",
+                _DEFAULT_OLLAMA_MODEL,
             )
             self.config.ollama_url = env_values["LOCAL_LLM_URL"]
             self.config.ollama_model = env_values["LOCAL_LLM_MODEL"]
@@ -401,14 +550,14 @@ class ConfigManager:
                 try:
                     from llm.openrouter_client import OpenRouterClient
 
-                    self._llm_client = OpenRouterClient()
+                    self._llm_client = OpenRouterClient()  # type: ignore[assignment]
                 except Exception as e:
-                    logger.exception("Failed to initialize LLM client: %s", e)
+                    logger.warning("Failed to initialize LLM client: %s", e)
                     self._llm_client = None
             return self._llm_client
 
     @llm_client.setter
-    def llm_client(self, value) -> None:
+    def llm_client(self, value: Any) -> None:
         """Allow setting LLM client (useful for testing/mocking)."""
         with self._lock:
             self._llm_client = value
@@ -433,6 +582,10 @@ class ConfigManager:
                             data["allow_self_signed_certs"] = security.get(
                                 "allow_self_signed_certs", False,
                             )
+                        # Filter unknown keys to avoid TypeError on DrakbenConfig init
+                        import dataclasses as _dc
+                        valid_fields = {f.name for f in _dc.fields(DrakbenConfig)}
+                        data = {k: v for k, v in data.items() if k in valid_fields}
                         return DrakbenConfig(**data)
                 except Exception as e:
                     logger.exception("Config load error: %s", e)
@@ -484,15 +637,26 @@ class ConfigManager:
             self.save_config()
 
     def get_llm_config(self) -> dict[str, Any]:
-        """Get LLM configuration (thread-safe)."""
+        """Get LLM configuration (thread-safe).
+
+        API keys are redacted for safety. Use _get_raw_llm_config()
+        internally when full keys are needed.
+        """
         with self._lock:
+            def _redact(key: str | None) -> str | None:
+                if not key:
+                    return None
+                if len(key) <= 8:
+                    return "****"
+                return key[:4] + "****" + key[-4:]
+
             return {
                 "provider": self.config.llm_provider,
-                "openrouter_api_key": self.config.openrouter_api_key,
+                "openrouter_api_key": _redact(self.config.openrouter_api_key),
                 "openrouter_model": self.config.openrouter_model,
                 "ollama_url": self.config.ollama_url,
                 "ollama_model": self.config.ollama_model,
-                "openai_api_key": self.config.openai_api_key,
+                "openai_api_key": _redact(self.config.openai_api_key),
                 "openai_model": self.config.openai_model,
             }
 

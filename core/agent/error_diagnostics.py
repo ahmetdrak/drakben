@@ -99,13 +99,14 @@ class ErrorDiagnosticsMixin:
             "no such command",
             "unknown command",
             "is not recognized as",
-            "bash:",
-            "sh:",
-            "zsh:",
-            "cmd:",
-            "powershell:",
         ]
-        if any(x in output_lower for x in patterns):
+        # Shell prefixes: require ': ' after shell name to avoid false positives
+        shell_patterns = [
+            "bash: ",
+            "sh: ",
+            "zsh: ",
+        ]
+        if any(x in output_lower for x in patterns) or any(x in output_lower for x in shell_patterns):
             match = re.search(
                 r"['\"]?(\w+)['\"]?[:\s]*(command )?not found",
                 output_lower,
@@ -183,7 +184,9 @@ class ErrorDiagnosticsMixin:
             "no route to host",
             "econnrefused",
             "ssl error",
-            "tls",
+            "tls handshake",
+            "tls error",
+            "certificate verify failed",
         ]
         if any(x in output_lower for x in patterns):
             return {"type": "connection_error", "type_tr": "Bağlantı hatası"}
@@ -272,11 +275,13 @@ class ErrorDiagnosticsMixin:
             "authentication failed",
             "invalid credentials",
             "unauthorized",
-            "401",
             "403 forbidden",
             "login failed",
         ]
         if any(x in output_lower for x in patterns):
+            return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
+        # Use word boundary regex for numeric HTTP status codes
+        if re.search(r"\b401\b", output_lower):
             return {"type": "auth_error", "type_tr": "Kimlik doğrulama hatası"}
         return None
 
@@ -345,32 +350,42 @@ class ErrorDiagnosticsMixin:
             return {"type": "version_error", "type_tr": "Sürüm uyumsuzluğu"}
         return None
 
+    _RATE_LIMIT_TR = "İstek limiti aşıldı"
+
     def _check_rate_limit_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for rate limiting errors."""
         patterns = [
             "rate limit",
             "too many requests",
-            "429",
             "throttled",
             "quota exceeded",
             "istek limiti",
         ]
         if any(x in output_lower for x in patterns):
-            return {"type": "rate_limit", "type_tr": "İstek limiti aşıldı"}
+            return {"type": "rate_limit", "type_tr": self._RATE_LIMIT_TR}
+        # Check HTTP 429 with context to avoid false positives
+        if re.search(r"\b429\b.*(?:too many|rate|limit|throttl)", output_lower):
+            return {"type": "rate_limit", "type_tr": self._RATE_LIMIT_TR}
+        if re.search(r"HTTP[/ ]\d\.\d\s+429\b", output_lower):
+            return {"type": "rate_limit", "type_tr": self._RATE_LIMIT_TR}
         return None
 
     def _check_firewall_error(self, output_lower: str) -> dict[str, Any] | None:
         """Check for firewall/WAF blocked errors."""
         patterns = [
-            "blocked",
-            "firewall",
-            "waf",
-            "forbidden",
-            "filtered",
+            "blocked by firewall",
+            "blocked by waf",
+            "firewall denied",
+            "waf detected",
+            "waf blocked",
+            "filtered by waf",
             "connection reset by peer",
             "güvenlik duvarı",
         ]
         if any(x in output_lower for x in patterns):
+            return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
+        # Check 403 with context (HTTP response, not port or IP)
+        if re.search(r"\b403\s+forbidden\b", output_lower):
             return {"type": "firewall_blocked", "type_tr": "Güvenlik duvarı engeli"}
         return None
 
@@ -390,10 +405,10 @@ class ErrorDiagnosticsMixin:
     def _check_exit_code_error(
         self,
         exit_code: int,
-        output: str,
+        _output: str,
     ) -> dict[str, Any] | None:
-        """Check for exit code based errors."""
-        if exit_code != 0 and not output.strip():
+        """Check for exit code based errors (also works with partial output)."""
+        if exit_code != 0:
             exit_code_map = {
                 1: {"type": "general_error", "type_tr": "Genel hata"},
                 2: {"type": "invalid_argument", "type_tr": "Geçersiz argüman"},

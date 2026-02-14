@@ -38,10 +38,10 @@ class ReviewStatus(Enum):
 class RiskLevel(Enum):
     """Risk level of code changes."""
 
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
 
 
 @dataclass
@@ -445,6 +445,48 @@ class CodeReviewMiddleware:
 
     def __init__(self, review_system: CodeReview) -> None:
         self.review = review_system
+
+    def intercept(self, code: str, description: str = "", author: str = "ai") -> dict:
+        """Intercept code before execution, run review, and return verdict.
+
+        Args:
+            code: The code to review before execution.
+            description: Description of what the code does.
+            author: Who wrote the code (e.g. 'ai', 'user').
+
+        Returns:
+            Dict with 'approved' (bool), 'issues' (list), 'risk' (str).
+        """
+        # Use CodeAnalyzer for risk analysis
+        risk_level, concerns = CodeAnalyzer.analyze_code(code)
+
+        # Create proper change through the review system
+        change = self.review.create_change(
+            file_path="<runtime>",
+            new_content=code,
+            description=description or "Runtime code review",
+            change_type="create",
+        )
+        change.reviewed_by = author
+
+        # Determine approval based on risk level
+        has_critical = risk_level == RiskLevel.CRITICAL
+        has_high = risk_level.value >= RiskLevel.HIGH.value
+
+        approved = not has_critical
+        if has_critical:
+            risk = "critical"
+        elif has_high:
+            risk = "high"
+        else:
+            risk = "low"
+
+        return {
+            "approved": approved,
+            "issues": concerns,
+            "risk": risk,
+            "session_id": id(change),
+        }
 
 
 if __name__ == "__main__":

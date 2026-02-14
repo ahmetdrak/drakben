@@ -72,6 +72,7 @@ ignore = [
     "S102",    # exec-builtin — needed in singularity engine
     "S108",    # hardcoded-temp-file — acceptable in pentest
     "S105",    # hardcoded-password — false positives from test mocks
+    "S106",    # hardcoded-password-arguments — false positives (token_type, etc)
     "RUF001",  # Türkçe unicode characters in strings — intentional
     "RUF002",  # Türkçe unicode in docstrings — intentional
     "RUF003",  # Türkçe unicode in comments — intentional
@@ -176,6 +177,8 @@ unfixable = []
 # Modules may need subprocess/exec for pentest tooling
 "modules/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
 "modules/**/*.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507"]
+# weapon_foundry has long lines inside multiline HTA template strings (cannot use inline noqa)
+"modules/weapon_foundry.py" = ["S602", "S603", "S604", "S605", "S607", "T201", "S324", "S104", "S507", "E501"]
 # Core execution needs subprocess
 "core/execution/*.py" = ["S602", "S603", "S604", "S605", "S607"]
 # Core agent/network may use insecure hashing for pentest

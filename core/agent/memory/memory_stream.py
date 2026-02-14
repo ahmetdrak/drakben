@@ -105,7 +105,7 @@ class MemoryStream:
         """Initialize SQLite persistence layer."""
         try:
             # M-6 FIX: Resolve path at init time to avoid CWD sensitivity
-            db_path = str(Path(self._persist_path).resolve())
+            db_path = str(Path(self._persist_path).resolve())  # type: ignore[arg-type]
             self._db_conn = sqlite3.connect(
                 db_path,
                 timeout=10.0,
@@ -361,6 +361,13 @@ class MemoryStream:
                     )
                 except Exception:
                     pass
+
+        # Commit eviction deletes to persist them
+        if self._db_conn:
+            try:
+                self._db_conn.commit()
+            except Exception:
+                pass
 
         logger.info("Evicted %d low-importance nodes", min(to_remove, len(candidates)))
 
@@ -703,7 +710,7 @@ class MemoryStream:
                 (NodeType.REFLECTION, "\n=== INSIGHTS ===\n", 3),
             ]
             for node_type, header, n in typed_specs:
-                sec, current_chars = self._build_typed_section(
+                sec, current_chars = self._build_typed_section(  # type: ignore[assignment]
                     node_type, header, n, target,
                     include_types, current_chars, max_chars,
                 )
@@ -770,7 +777,7 @@ class MemoryStream:
 
 # Global singleton instance
 _memory_stream: MemoryStream | None = None
-_memory_stream_lock = threading.Lock()
+_memory_stream_lock = threading.RLock()
 
 
 def get_memory_stream(

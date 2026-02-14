@@ -19,6 +19,8 @@ class DecisionEngine:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.decision_history: list[dict] = []
+        # Instance-level copy to prevent shared mutable state across instances
+        self._tool_registry = dict(self._DEFAULT_TOOL_REGISTRY)
 
     def decide(self, analysis: dict, context: ExecutionContext) -> dict:
         """Make a decision based on analysis with scoring.
@@ -91,6 +93,34 @@ class DecisionEngine:
         # First-time execution: ask once
         return bool(not context.history)
 
+    @staticmethod
+    def _collect_failed_tools(context: ExecutionContext) -> set[str]:
+        """Collect tool names that have failed from execution history."""
+        failed: set[str] = set()
+        for entry in (context.history or []):
+            if isinstance(entry, dict) and not entry.get("success", True):
+                failed.add(entry.get("tool", ""))
+        return failed
+
+    def _score_step(self, step: dict, failed_tools: set[str]) -> float:
+        """Calculate a score for a single plan step."""
+        score = 0.5  # Base score
+
+        # Penalize already-failed tools
+        tool = step.get("tool", "")
+        if tool in failed_tools:
+            score -= 0.3
+
+        # Boost based on tool registry metadata
+        action = step.get("action", "unknown")
+        registry_entry = self._tool_registry.get(action, {})
+        risk_val = registry_entry.get("risk", 5)
+        stealth_val = registry_entry.get("stealth", 5)
+        # Lower risk + higher stealth = better score
+        score += (10 - risk_val) * 0.03  # type: ignore[operator]  # 0-0.3 bonus for low risk
+        score += stealth_val * 0.02  # type: ignore[operator]  # 0-0.2 bonus for stealth
+        return score
+
     def _select_action_scored(
         self, steps: list[dict], context: ExecutionContext,
     ) -> tuple[str, float]:
@@ -109,46 +139,32 @@ class DecisionEngine:
         if current_step >= len(steps):
             return ("complete", 1.0)
 
-        # Look at remaining steps and try to find the best one
         remaining = steps[current_step:]
+        failed_tools = self._collect_failed_tools(context)
+
         if len(remaining) == 1:
-            return (remaining[0].get("action", "unknown"), 0.8)
+            action = remaining[0].get("action", "unknown")
+            tool = remaining[0].get("tool", "")
+            base = 0.8
+            if tool in failed_tools:
+                base -= 0.3
+            return (action, base)
 
-        # Score each remaining step
-        failed_tools = set()
-        for entry in (context.history or []):
-            if isinstance(entry, dict) and not entry.get("success", True):
-                failed_tools.add(entry.get("tool", ""))
-
+        # Score each remaining step and pick the best
         best_action = remaining[0].get("action", "unknown")
         best_score = 0.0
 
         for step in remaining:
-            action = step.get("action", "unknown")
-            score = 0.5  # Base score
-
-            # Penalize already-failed tools
-            tool = step.get("tool", "")
-            if tool in failed_tools:
-                score -= 0.3
-
-            # Boost based on tool registry metadata
-            registry_entry = self._TOOL_REGISTRY.get(action, {})
-            risk_val = registry_entry.get("risk", 5)
-            stealth_val = registry_entry.get("stealth", 5)
-            # Lower risk + higher stealth = better score
-            score += (10 - risk_val) * 0.03  # 0-0.3 bonus for low risk
-            score += stealth_val * 0.02  # 0-0.2 bonus for stealth
-
+            score = self._score_step(step, failed_tools)
             if score > best_score:
                 best_score = score
-                best_action = action
+                best_action = step.get("action", "unknown")
 
         return (best_action, round(best_score, 3))
 
     # Tool registry mapping (action, context) → command template
     # Each entry: {"cmd": template, "risk": 0-10, "stealth": 0-10, "speed": 0-10}
-    _TOOL_REGISTRY: dict[str, dict[str, str | int]] = {
+    _DEFAULT_TOOL_REGISTRY: dict[str, dict[str, str | int]] = {
         # Reconnaissance
         "port_scan": {"cmd": "nmap -sS -T3 {target}", "risk": 2, "stealth": 7},
         "port_scan_fast": {"cmd": "nmap -F -T4 {target}", "risk": 1, "stealth": 5},
@@ -180,8 +196,8 @@ class DecisionEngine:
         "exploit_search": {"cmd": "searchsploit {target}", "risk": 0, "stealth": 10},
         # General
         "check_tools": {"cmd": "which nmap nikto gobuster ffuf sqlmap hydra nuclei 2>/dev/null", "risk": 0, "stealth": 10},
-        "analyze_results": {"cmd": None, "risk": 0, "stealth": 10},
-        "analyze_vulns": {"cmd": None, "risk": 0, "stealth": 10},
+        "analyze_results": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
+        "analyze_vulns": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
     }
 
     def _generate_command(self, action: str, context: ExecutionContext) -> str | None:
@@ -194,7 +210,7 @@ class DecisionEngine:
         if not target:
             return None
 
-        entry = self._TOOL_REGISTRY.get(action)
+        entry = self._tool_registry.get(action)
         if entry:
             cmd_template = entry.get("cmd")
             if cmd_template:

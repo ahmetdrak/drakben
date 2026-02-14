@@ -352,14 +352,14 @@ class SubdomainEnumerator:
             return []
 
         try:
-            url = "https://www.virustotal.com/vtapi/v2/domain/report"
-            params = {"apikey": self.vt_api_key, "domain": domain}
+            url = f"https://www.virustotal.com/api/v3/domains/{domain}/subdomains"
+            headers = {"x-apikey": self.vt_api_key}
 
             async with (
                 aiohttp.ClientSession() as session,
                 session.get(
                     url,
-                    params=params,
+                    headers=headers,
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as resp,
             ):
@@ -374,11 +374,15 @@ class SubdomainEnumerator:
             return []
 
     def _parse_virustotal_data(self, data: dict) -> list[SubdomainResult]:
-        """Parse VirusTotal API response."""
-        results = [
-            SubdomainResult(subdomain=sub, source="virustotal")
-            for sub in data.get("subdomains", [])
-        ]
+        """Parse VirusTotal API v3 response."""
+        results = []
+        for entry in data.get("data", []):
+            sub_id = entry.get("id", "")
+            if sub_id:
+                results.append(SubdomainResult(subdomain=sub_id, source="virustotal"))
+        # Fallback for v2-style response
+        for sub in data.get("subdomains", []):
+            results.append(SubdomainResult(subdomain=sub, source="virustotal"))
         return results
 
     async def _web_archive_enum(self, domain: str) -> list[SubdomainResult]:
@@ -407,7 +411,9 @@ class SubdomainEnumerator:
         """Parse Web Archive JSON data."""
         results = []
         seen = set()
-        for entry in data[1:]:  # Skip header
+        # Skip header row if present; guard against empty data
+        rows = data[1:] if len(data) > 1 else data
+        for entry in rows:
             host = self._extract_host_from_entry(entry, domain)
             if host and host not in seen:
                 seen.add(host)
@@ -564,7 +570,7 @@ class SubdomainEnumerator:
         """Check a single subdomain."""
         fqdn = f"{sub}.{domain}"
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, resolver.resolve, fqdn, "A")
             return SubdomainResult(subdomain=fqdn, source="bruteforce", resolved=True)
         except Exception as e:
@@ -630,7 +636,7 @@ class SubdomainEnumerator:
     async def _resolve_a_record(self, result: SubdomainResult, resolver) -> None:
         """Resolve A record for subdomain."""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             answers = await loop.run_in_executor(
                 None,
                 resolver.resolve,
@@ -646,7 +652,7 @@ class SubdomainEnumerator:
     async def _resolve_cname_record(self, result: SubdomainResult, resolver) -> None:
         """Resolve CNAME record for subdomain."""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             answers = await loop.run_in_executor(
                 None,
                 resolver.resolve,

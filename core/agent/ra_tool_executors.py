@@ -1,7 +1,9 @@
 """Refactored Agent — Tool Executor Mixin.
 
 Provides specialized tool execution methods for weapon foundry,
-singularity, OSINT, hive mind, metasploit, and AD attacks.
+singularity, OSINT, hive mind, metasploit, AD attacks,
+WAF bypass engine, C2 framework, subdomain enumeration,
+Nuclei scanning, and CVE database lookup.
 
 Extracted from refactored_agent.py for maintainability.
 """
@@ -35,12 +37,10 @@ class RAToolExecutorsMixin:
 
             foundry = WeaponFoundry()
 
-            payload_type = args.get("format", "python")
+            payload_type = args.get("format") or args.get("type") or "python"
             lhost = args.get("lhost")
             lport = args.get("lport", 4444)
-            # Args from Agent LLM might call it 'type' instead of 'format'
-            if not payload_type and "type" in args:
-                payload_type = args["type"]
+            encryption = args.get("encryption", "aes")
 
             if not lhost:
                 lhost = "127.0.0.1"
@@ -51,8 +51,8 @@ class RAToolExecutorsMixin:
             artifact: GeneratedPayload = foundry.forge(
                 lhost=lhost,
                 lport=int(lport),
-                format=payload_type,
-                encryption="aes",
+                output_format=payload_type,  # type: ignore[arg-type]
+                encryption=encryption,
                 iterations=5,
             )
 
@@ -101,7 +101,10 @@ class RAToolExecutorsMixin:
             if getattr(result, "success", False):
                 return {
                     "success": True,
-                    "output": f"Code Synthesized: {result.file_path}\nContent Preview:\n{result.content[:300] if result.content else ''}",
+                    "output": (
+                        f"Code Synthesized: {result.file_path}\nContent Preview:\n"
+                        f"{result.content[:300] if result.content else ''}"
+                    ),
                 }
             return {
                 "success": False,
@@ -150,7 +153,10 @@ class RAToolExecutorsMixin:
                 hosts: list[NetworkHost] = hive.scan_network(subnet)
                 hosts_data: list[str] = [str(h) for h in hosts]
 
-                observation: str = f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
+                observation: str = (
+                    f"Hive Mind Intelligence:\nInitialized: {init_res}"
+                    f"\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
+                )
                 self.console.print(observation, style="cyan")
 
                 return {
@@ -177,7 +183,10 @@ class RAToolExecutorsMixin:
                 return {
                     "success": result["success"],
                     "hops": result["hops_completed"],
-                    "output": f"Movement result: {'Success' if result['success'] else 'Failed'}. Final Position: {result['final_position']}",
+                    "output": (
+                        f"Movement result: {'Success' if result['success'] else 'Failed'}."
+                        f" Final Position: {result['final_position']}"
+                    ),
                 }
 
             return {"success": False, "error": "Unknown Hive Mind tool"}
@@ -278,3 +287,189 @@ class RAToolExecutorsMixin:
         except Exception as e:
             logger.exception("AD Attack error")
             return {"success": False, "error": f"AD Attack failed: {e}"}
+
+    def _execute_waf_bypass(self, args: dict) -> dict:
+        """Execute WAF Bypass Engine for WAF detection and evasion."""
+        try:
+            from modules.waf_bypass_engine import PayloadType, WAFBypassEngine
+
+            engine = WAFBypassEngine()
+            target = args.get("target") or getattr(self.state, "target", None)
+
+            if not target:
+                return {"success": False, "error": "Target required for WAF bypass"}
+
+            self.console.print(f"🛡️ WAF Bypass Engine → {target}", style="cyan")
+
+            results: dict[str, Any] = {"target": target, "waf_detected": "unknown"}
+
+            # If response headers provided, fingerprint WAF
+            headers = args.get("headers", {})
+            body = args.get("body", "")
+            status_code = args.get("status_code", 403)
+            if headers:
+                waf_type = engine.fingerprint_waf(headers, body, status_code)
+                results["waf_detected"] = waf_type.name
+
+            # Generate bypass payloads for requested type
+            payload = args.get("payload", "' OR 1=1 --")
+            payload_type = args.get("payload_type", "sqli")
+            aggressiveness = int(args.get("aggressiveness", 2))
+
+            type_map = {
+                "sqli": PayloadType.SQLI,
+                "xss": PayloadType.XSS,
+                "rce": PayloadType.RCE,
+            }
+            p_type = type_map.get(payload_type, PayloadType.SQLI)
+
+            if p_type == PayloadType.SQLI:
+                bypasses = engine.bypass_sql(payload, aggressiveness=aggressiveness)
+            elif p_type == PayloadType.XSS:
+                bypasses = engine.bypass_xss(payload)
+            else:
+                bypasses = engine.bypass_rce(payload)
+
+            results["payload_type"] = payload_type
+            results["bypass_count"] = len(bypasses)
+            results["bypasses"] = bypasses[:10]  # Top 10
+
+            self.console.print(
+                f"   Generated {len(bypasses)} bypass payloads", style="green",
+            )
+
+            return {"success": True, "output": json.dumps(results, indent=2), "data": results}
+
+        except ImportError:
+            return {"success": False, "error": "modules.waf_bypass_engine not found"}
+        except Exception as e:
+            logger.exception("WAF Bypass error: %s", e)
+            return {"success": False, "error": f"WAF Bypass error: {e}"}
+
+    def _execute_c2(self, args: dict) -> dict:
+        """Execute C2 Framework for beacon communication setup."""
+        try:
+            from modules.c2_framework import C2Channel, C2Config, C2Protocol
+
+            target = args.get("target") or getattr(self.state, "target", None)
+            if not target:
+                return {"success": False, "error": "Target required for C2 beacon"}
+
+            self.console.print(f"📡 C2 Framework → {target}", style="red")
+
+            protocol_name = args.get("protocol", "https")
+            protocol = C2Protocol(protocol_name)
+            config = C2Config(protocol=protocol, actual_host=target)
+            channel = C2Channel(config)
+
+            results = {
+                "target": target,
+                "protocol": protocol.value,
+                "beacon_status": channel.status.value,
+                "encryption_key_len": len(channel.encryption_key),
+                "available_protocols": [p.value for p in C2Protocol],
+            }
+
+            self.console.print(
+                f"   Beacon: {channel.status.value} | Protocol: {protocol.value}",
+                style="green",
+            )
+
+            return {"success": True, "output": json.dumps(results, indent=2), "data": results}
+
+        except ImportError:
+            return {"success": False, "error": "modules.c2_framework not found"}
+        except Exception as e:
+            logger.exception("C2 Framework error: %s", e)
+            return {"success": False, "error": f"C2 Framework error: {e}"}
+
+    def _execute_subdomain_enum(self, args: dict) -> dict:
+        """Execute Python-based subdomain enumeration."""
+        try:
+            import asyncio
+
+            from modules.subdomain import SubdomainEnumerator
+
+            target = args.get("target") or getattr(self.state, "target", None)
+            if not target:
+                return {"success": False, "error": "Target domain required"}
+
+            self.console.print(f"🔍 Subdomain Enumeration → {target}", style="blue")
+
+            enumerator = SubdomainEnumerator()
+            results = asyncio.run(enumerator.enumerate(target))
+            subdomains = [str(r) for r in results] if results else []
+
+            return {
+                "success": True,
+                "output": f"Found {len(subdomains)} subdomains:\n" + "\n".join(subdomains[:50]),
+                "data": {"target": target, "count": len(subdomains), "subdomains": subdomains[:100]},
+            }
+
+        except ImportError:
+            return {"success": False, "error": "modules.subdomain not found"}
+        except Exception as e:
+            logger.exception("Subdomain enumeration error: %s", e)
+            return {"success": False, "error": f"Subdomain error: {e}"}
+
+    def _execute_nuclei_scan(self, args: dict) -> dict:
+        """Execute Python Nuclei scanner."""
+        try:
+            import asyncio
+
+            from modules.nuclei import NucleiScanner
+
+            target = args.get("target") or getattr(self.state, "target", None)
+            if not target:
+                return {"success": False, "error": "Target required for Nuclei scan"}
+
+            self.console.print(f"☢️ Nuclei Scan → {target}", style="yellow")
+
+            scanner = NucleiScanner()
+            results = asyncio.run(scanner.scan(target))
+            findings = [str(r) for r in results] if results else []
+
+            return {
+                "success": True,
+                "output": f"Nuclei found {len(findings)} issues:\n" + "\n".join(findings[:20]),
+                "data": {"target": target, "findings_count": len(findings)},
+            }
+
+        except ImportError:
+            return {"success": False, "error": "modules.nuclei not found"}
+        except Exception as e:
+            logger.exception("Nuclei scan error: %s", e)
+            return {"success": False, "error": f"Nuclei scan error: {e}"}
+
+    def _execute_cve_lookup(self, args: dict) -> dict:
+        """Execute CVE database lookup."""
+        try:
+            import asyncio
+
+            from modules.cve_database import CVEDatabase
+
+            query = args.get("query") or args.get("product") or args.get("cve_id", "")
+            if not query:
+                return {"success": False, "error": "Query or product name required for CVE lookup"}
+
+            self.console.print(f"🔎 CVE Lookup → {query}", style="cyan")
+
+            db = CVEDatabase()
+            results = asyncio.run(db.search_cves(query))
+            entries = [
+                {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
+                for r in results
+            ] if results else []
+
+            return {
+                "success": True,
+                "output": f"Found {len(entries)} CVEs for '{query}':\n"
+                    + "\n".join(f"  {e['id']}: {e['description']}" for e in entries[:10]),
+                "data": {"query": query, "count": len(entries), "entries": entries[:20]},
+            }
+
+        except ImportError:
+            return {"success": False, "error": "modules.cve_database not found"}
+        except Exception as e:
+            logger.exception("CVE lookup error: %s", e)
+            return {"success": False, "error": f"CVE lookup error: {e}"}

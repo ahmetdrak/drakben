@@ -78,30 +78,50 @@ class CodeValidator(IValidator):
                     logger.error("Syntax error in code: %s", e)
                     return False
 
-            # Step 2: Execute in sandbox
-            result = self.sandbox.execute_in_sandbox(  # type: ignore[call-arg]
-                code=snippet.code,
-                language=snippet.language,
-                timeout=self.timeout,
+            # Step 2: Create a sandbox container
+            container_info = self.sandbox.create_sandbox(
+                name=f"validate-{os.getpid()}",
             )
+            if container_info is None:
+                logger.warning("Could not create sandbox container, falling back")
+                return self._validate_subprocess(snippet)
 
-            # Step 3: Check execution result
-            if result is None:
-                logger.warning("Sandbox returned None result")
-                return False
+            container_id = container_info.container_id
 
-            # Handle different result types
-            if isinstance(result, dict):
-                success = result.get("success", False)
+            try:
+                # Step 3: Build the execution command based on language
+                import shlex
+                lang = snippet.language.lower()
+                if lang == "python":
+                    # Use python -c with the code (safely quoted for shell)
+                    command = f"python3 -c {shlex.quote(snippet.code)}"
+                elif lang == "bash":
+                    command = f"bash -c {shlex.quote(snippet.code)}"
+                else:
+                    logger.warning("Unsupported language for docker validation: %s", lang)
+                    return self._validate_subprocess(snippet)
+
+                # Step 4: Execute in sandbox with correct API
+                result = self.sandbox.execute_in_sandbox(
+                    container_id=container_id,
+                    command=command,
+                    timeout=self.timeout,
+                )
+
+                # Step 5: Check execution result
+                if result is None:
+                    logger.warning("Sandbox returned None result")
+                    return False
+
+                success = getattr(result, "success", False)
                 if not success:
-                    error = result.get("error", "Unknown error")
-                    logger.error("Docker validation failed: %s", error)
+                    stderr = getattr(result, "stderr", "Unknown error")
+                    logger.error("Docker validation failed: %s", stderr)
                 return success
-            elif isinstance(result, bool):
-                return result
-            else:
-                # Assume string output means success
-                return True
+
+            finally:
+                # Always clean up the container
+                self.sandbox.cleanup_sandbox(container_id)
 
         except TimeoutError:
             logger.error("Docker validation timed out after %ss", self.timeout)
@@ -133,37 +153,47 @@ class CodeValidator(IValidator):
 
     def _check_ast_node(self, node: ast.AST) -> bool:
         """Check a single AST node for dangerous patterns."""
-        # Block dangerous calls
         if isinstance(node, ast.Call):
-            func_name = ""
-            if isinstance(node.func, ast.Name):
-                func_name = node.func.id
-            elif isinstance(node.func, ast.Attribute):
-                func_name = node.func.attr
+            return self._check_call_node(node)
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return self._check_import_node(node)
+        return True
 
-            forbidden = {
-                "system",
-                "popen",
-                "spawn",
-                "exec",
-                "eval",
-                "open",
-                "remove",
-                "rmdir",
-                "unlink",
-            }
-            if func_name in forbidden:
-                logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)
-                return False
+    def _check_call_node(self, node: ast.Call) -> bool:
+        """Block dangerous function calls."""
+        func_name = ""
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            func_name = node.func.attr
 
-        # Block sensitive imports
-        if isinstance(node, ast.Import | ast.ImportFrom):
+        forbidden = {
+            "system", "popen", "spawn", "exec", "eval",
+            "open", "remove", "rmdir", "unlink",
+        }
+        if func_name in forbidden:
+            logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)
+            return False
+        return True
+
+    def _check_import_node(self, node: ast.Import | ast.ImportFrom) -> bool:
+        """Block sensitive imports."""
+        _blocked_modules = {"os", "subprocess", "shutil", "requests", "socket"}
+        if isinstance(node, ast.Import):
             for name in node.names:
-                if name.name in {"os", "subprocess", "shutil", "requests", "socket"}:
+                if name.name in _blocked_modules:
                     logger.error(
-                        f"SECURITY ALERT: Blocked sensitive import '{name.name}'",
+                        "SECURITY ALERT: Blocked sensitive import '%s'",
+                        name.name,
                     )
                     return False
+        if isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split(".")[0] in _blocked_modules:
+                logger.error(
+                    "SECURITY ALERT: Blocked sensitive 'from %s' import",
+                    node.module,
+                )
+                return False
         return True
 
     def _run_code_safety(self, snippet: CodeSnippet) -> bool:

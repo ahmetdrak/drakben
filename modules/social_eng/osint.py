@@ -68,7 +68,7 @@ class OSINTSpider:
         if self._session is None:
             try:
                 import requests
-                self._session = requests.Session()
+                self._session = requests.Session()  # type: ignore[assignment]
                 self._session.headers.update({
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -417,16 +417,20 @@ class OSINTSpider:
             parts = full_name.lower().split()
             if len(parts) >= 2:
                 first, last = parts[0], parts[-1]
-                f_initial, l_initial = first[0], last[0]
+                # Check that first/last have at least one character
+                if first and last:
+                    f_initial, l_initial = first[0], last[0]
 
-                return format_str.format(
-                    first=first,
-                    last=last,
-                    f=f_initial,
-                    l=l_initial,
-                    domain=domain,
-                )
-            return f"{parts[0]}@{domain}"
+                    return format_str.format(
+                        first=first,
+                        last=last,
+                        f=f_initial,
+                        l=l_initial,
+                        domain=domain,
+                    )
+            if parts and parts[0]:
+                return f"{parts[0]}@{domain}"
+            return f"user@{domain}"
         except Exception as e:
             logger.exception("Email prediction error: %s", e)
             return ""

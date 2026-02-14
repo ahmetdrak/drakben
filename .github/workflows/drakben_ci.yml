@@ -1,71 +1,237 @@
-name: DRAKBEN MASTER CI
+name: DRAKBEN CI — Quality & Security Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
-  ultimate-audit:
-    name: Comprehensive Security & Integrity Audit
+
+  # ════════════════════════════════════════════════════════
+  # Stage 1: Static Analysis (fast, parallel)
+  # ════════════════════════════════════════════════════════
+  lint:
+    name: "Lint & Format (Ruff)"
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Ruff
+        run: pip install ruff==0.15.0
+
+      - name: Ruff Lint Check
+        run: python -m ruff check . --config ruff.toml --output-format=github
+
+      - name: Ruff Format Check
+        run: python -m ruff format --check . --config ruff.toml
+        continue-on-error: true
+
+  type-check:
+    name: "Type Safety (MyPy)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mypy types-requests
+
+      - name: MyPy Strict Type Check
+        run: python -m mypy core/ --config-file mypy.ini
+
+  security-scan:
+    name: "Security Audit (Bandit)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Bandit Security Scan
+        run: python -m bandit -r core/ modules/ -ll -f json -o bandit-report.json
+        continue-on-error: true  # Pentest tool — some findings are expected
+
+      - name: Upload Bandit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+
+  # ════════════════════════════════════════════════════════
+  # Stage 2: Tests (matrix, depends on lint)
+  # ════════════════════════════════════════════════════════
+  test:
+    name: "Tests (Python ${{ matrix.python-version }})"
+    needs: [lint]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: pip
-        
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-asyncio pytest-cov ruff==0.15.0 bandit mypy
-        
-    - name: Static Analysis (Ruff)
-      run: python -m ruff check . --config ruff.toml --output-format=concise
-      
-    - name: Security Deep Scan (Bandit)
-      run: python -m bandit -r core/ modules/ -ll -f txt
-      continue-on-error: true  # Pentest tool — security findings are expected
+      - uses: actions/checkout@v4
 
-    - name: Type Integrity Check (MyPy)
-      run: python -m mypy core/ --config-file mypy.ini
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
-    - name: Run All Tests with Coverage
-      run: |
-        python -m pytest tests/ -v --tb=short --disable-warnings \
-          --cov=core --cov=modules --cov-report=xml --cov-report=term-missing
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-mock
 
-    - name: Upload Coverage to Codecov
-      if: matrix.python-version == '3.13'
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: coverage.xml
-        fail_ci_if_error: false
+      - name: Run Full Test Suite
+        run: |
+          python -m pytest tests/ -v --tb=short --disable-warnings \
+            --cov=core --cov=modules --cov=llm \
+            --cov-report=xml:coverage-${{ matrix.python-version }}.xml \
+            --cov-report=term-missing \
+            --junitxml=test-results-${{ matrix.python-version }}.xml
 
-    - name: Upload Audit Reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: drakben-audit-reports-${{ matrix.python-version }}
-        path: |
-          coverage.xml
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            test-results-${{ matrix.python-version }}.xml
+            coverage-${{ matrix.python-version }}.xml
 
-    - name: SonarCloud Scan
-      if: env.SONAR_TOKEN != ''
-      uses: SonarSource/sonarcloud-github-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+      - name: Upload Coverage to Codecov
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-3.13.xml
+          flags: unittests
+          fail_ci_if_error: false
+
+  # ════════════════════════════════════════════════════════
+  # Stage 3: Integration Tests (after unit tests pass)
+  # ════════════════════════════════════════════════════════
+  integration-test:
+    name: "E2E Integration Tests"
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-mock
+
+      - name: Run E2E Tests
+        run: |
+          python -m pytest tests/test_e2e_integration.py tests/test_integration.py \
+            -v --tb=short --disable-warnings
+
+  # ════════════════════════════════════════════════════════
+  # Stage 4: SonarCloud (after all tests)
+  # ════════════════════════════════════════════════════════
+  sonar:
+    name: "SonarCloud Analysis"
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-3.13
+          path: .
+
+      - name: SonarCloud Scan
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+
+  # ════════════════════════════════════════════════════════
+  # Stage 5: Docker Build Validation
+  # ════════════════════════════════════════════════════════
+  docker-build:
+    name: "Docker Build Check"
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: drakben:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ════════════════════════════════════════════════════════
+  # Final Gate: All checks must pass
+  # ════════════════════════════════════════════════════════
+  ci-gate:
+    name: "CI Gate ✓"
+    needs: [lint, type-check, security-scan, test, integration-test, docker-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.type-check.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "❌ One or more CI checks failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

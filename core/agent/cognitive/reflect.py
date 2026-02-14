@@ -255,7 +255,10 @@ class ReflectModule:
         if not patterns_found:
             return None
 
-        description = f"VULNERABILITY CORRELATION: Multiple {', '.join(patterns_found)} detected. Consider combined exploitation."
+        description = (
+            f"VULNERABILITY CORRELATION: Multiple {', '.join(patterns_found)} "
+            "detected. Consider combined exploitation."
+        )
 
         return create_reflection_node(
             description=description,

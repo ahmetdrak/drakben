@@ -5,12 +5,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from core.intelligence.evolution_memory import get_evolution_memory
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from core.intelligence.evolution_memory import EvolutionMemory
@@ -99,6 +102,8 @@ class Planner:
         self.steps: list[PlanStep] = []
         self.current_step_index: int = 0
         self.current_strategy_name: str | None = None
+        self._replan_counts: dict[str, int] = {}
+        self._total_replans: int = 0
 
     def create_plan_from_strategy(
         self,
@@ -215,10 +220,11 @@ class Planner:
             logging.getLogger(__name__).warning(
                 f"Step {failed_step_id} exceeded replan limit ({step_replan_count}/{self.MAX_REPLAN_PER_STEP})",
             )
-            return self._skip_step(
+            self._skip_step(
                 step,
                 f"Replan limit exceeded ({step_replan_count}x)",
             )
+            return False  # Replan failed — limits exceeded
 
         if self._total_replans >= self.MAX_REPLAN_PER_SESSION:
             import logging
@@ -226,10 +232,11 @@ class Planner:
             logging.getLogger(__name__).warning(
                 f"Session replan limit exceeded ({self._total_replans}/{self.MAX_REPLAN_PER_SESSION})",
             )
-            return self._skip_step(
+            self._skip_step(
                 step,
                 f"Session replan limit exceeded ({self._total_replans}x)",
             )
+            return False  # Replan failed — limits exceeded
 
         # Increment counters
         self._replan_counts[failed_step_id] = step_replan_count + 1
@@ -289,11 +296,11 @@ class Planner:
         return True
 
     def _skip_step(self, step: PlanStep, reason: str) -> bool:
-        """Mark step as skipped."""
+        """Mark step as skipped. Returns False to indicate replanning failed."""
         step.status = StepStatus.SKIPPED
         step.error = f"{reason}. Original error: {step.error}"
         self._persist_steps()
-        return True
+        return False
 
     def _format_replan_reason(self, context: dict) -> str:
         """Format human-readable reason for replan."""
@@ -304,11 +311,76 @@ class Planner:
         return "Adaptive Replan: "
 
     def _penalize_tool(self) -> None:
-        """Increase penalty for a failed tool."""
-        if not self.memory:
+        """Record replan event via EvolutionMemory penalty system."""
+        if self.memory is None:
             return
-        current = self.memory.get_heuristic("penalty_increment")
-        self.memory.set_heuristic("penalty_increment", min(20.0, current + 1.0))
+        # Find the tool that was just switched away from (the last failed step)
+        for step in reversed(self.steps):
+            if step.status == StepStatus.FAILED:
+                target = step.target or "global"
+                self.memory.update_penalty(step.tool, success=False, target=target)
+                logger.debug("Penalized tool %s for target %s via EvolutionMemory", step.tool, target)
+                return
+
+    def inject_dynamic_steps(
+        self,
+        new_actions: list[dict[str, str]],
+        target: str,
+        source: str = "llm",
+    ) -> int:
+        """Inject new steps into the plan based on LLM analysis of tool output.
+
+        This is the key mechanism that makes DRAKBEN's scan loop adaptive:
+        after each tool execution, the LLM analyzes the output and may suggest
+        additional actions (e.g., "web service found → run nikto"). Those
+        suggestions are injected here as real plan steps.
+
+        Args:
+            new_actions: List of dicts with 'action', 'tool', and optional 'reason'
+            target: Target IP/URL for the new steps
+            source: Who requested the injection (llm, recovery, user)
+
+        Returns:
+            Number of steps actually injected (duplicates are skipped)
+
+        """
+        if not new_actions or not self.current_plan_id:
+            return 0
+
+        # Deduplicate: skip actions that already exist in the plan (any status)
+        existing_actions = {(s.action, s.tool) for s in self.steps}
+        injected = 0
+
+        for act in new_actions:
+            action = act.get("action", "")
+            tool = self.ACTION_TO_TOOL.get(action, act.get("tool", action))
+            if not action or (action, tool) in existing_actions:
+                continue
+
+            step_num = len(self.steps) + 1
+            step_dict = {
+                "step_id": f"{self.current_plan_id}_dyn_{step_num}",
+                "action": action,
+                "tool": tool,
+                "target": target,
+                "params": {},
+                "depends_on": [],
+                "status": StepStatus.PENDING.value,
+                "max_retries": 2,
+                "retry_count": 0,
+                "expected_outcome": act.get("reason", f"complete_{action}"),
+                "actual_outcome": "",
+                "error": "",
+                "source": source,
+            }
+            self.steps.append(self._dict_to_step(step_dict))
+            existing_actions.add((action, tool))
+            injected += 1
+
+        if injected:
+            self._persist_steps()
+
+        return injected
 
     def _generate_steps_from_profile(
         self,
@@ -582,9 +654,12 @@ class Planner:
             if not deps_satisfied:
                 if self._handle_failed_dependencies(step):
                     continue
-            else:
-                self.current_step_index = i
-                return step
+                # Dependencies are pending (not failed) - don't skip past this step
+                # so we can retry it on the next call
+                break
+
+            self.current_step_index = i
+            return step
 
         return None  # Plan complete
 

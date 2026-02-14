@@ -114,7 +114,7 @@ Your goal is to write highly optimized, stealthy, and functional security tools.
             elif isinstance(node, ast.Attribute):
                 root = node
                 while isinstance(root, ast.Attribute):
-                    root = root.value
+                    root = root.value  # type: ignore[assignment]
                 if isinstance(root, ast.Name):
                     used_names.add(root.id)
         return used_names
@@ -264,7 +264,7 @@ Remember: Output ONLY the code, no markdown, no explanations."""
                 "def check_headers(url: str) -> dict[str, str | None]:\n"
                 "    p = urlparse(url)\n"
                 "    conn = (http.client.HTTPSConnection if p.scheme == 'https' else\n"
-                "            http.client.HTTPConnection)(p.hostname, p.port or 443, timeout=10)\n"
+                "            http.client.HTTPConnection)(p.hostname, p.port or (443 if p.scheme == 'https' else 80), timeout=10)\n"
                 "    try:\n"
                 "        conn.request('HEAD', p.path or '/')\n"
                 "        hdrs = dict(conn.getresponse().getheaders())\n"
@@ -279,7 +279,7 @@ Remember: Output ONLY the code, no markdown, no explanations."""
                 "def dir_bruteforce(base_url: str, paths: list[str] | None = None) -> list[dict]:\n"
                 "    p = urlparse(base_url)\n"
                 "    conn = (http.client.HTTPSConnection if p.scheme == 'https' else\n"
-                "            http.client.HTTPConnection)(p.hostname, p.port or 443, timeout=10)\n"
+                "            http.client.HTTPConnection)(p.hostname, p.port or (443 if p.scheme == 'https' else 80), timeout=10)\n"
                 "    found = []\n"
                 "    try:\n"
                 "        for path in (paths or WORDLIST):\n"

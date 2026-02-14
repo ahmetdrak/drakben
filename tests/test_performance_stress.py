@@ -114,7 +114,7 @@ class TestPerformanceStress(unittest.TestCase):
         result = reasoning.analyze(user_input, context)
         duration = time.time() - start
 
-        logger.info(f"Analysis Duration: {duration:.4f}s")
+        logger.info("Analysis Duration: %.4fs", duration)
 
         # Assertions
         assert result.get("success"), "Brain failed to process request without LLM"

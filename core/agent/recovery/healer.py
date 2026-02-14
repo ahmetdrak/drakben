@@ -187,8 +187,8 @@ class SelfHealer:
 
         # Security: Sanitize module name to prevent command injection
         import re
-        if not re.match(r"^[a-zA-Z0-9_\-\.]+$", module_name):
-            logger.warning("Suspicious module name rejected: %s", module_name)
+        if not re.match(r"^[a-zA-Z0-9_-]+$", module_name):
+            logger.warning("Invalid module name format: %s", module_name)
             return False, None
 
         # Security: Whitelist of known-safe pentest-related packages
@@ -201,12 +201,6 @@ class SelfHealer:
             "pyyaml", "toml", "jinja2", "markdown",
             "pillow", "python-whois", "netaddr", "ipaddress",
         })
-
-        # H-5 FIX: Validate module name format to prevent injection
-        import re as _re
-        if not _re.match(r"^[a-zA-Z0-9_-]+$", module_name):
-            logger.warning("Invalid module name format: %s", module_name)
-            return False, None
 
         if module_name.lower() not in _SAFE_PACKAGES:
             logger.warning(
@@ -344,6 +338,11 @@ class SelfHealer:
 
     def _get_port_kill_cmd(self, port: str) -> str:
         """Get command to kill process using a port."""
+        # Validate port is numeric to prevent command injection
+        if not str(port).isdigit():
+            logger.warning("Invalid port value: %s", port)
+            return "echo 'Invalid port'"
+        port = str(port)
         if platform.system().lower() == "windows":
             return f'for /f "tokens=5" %a in (\'netstat -aon ^| find ":{port}"\') do taskkill /F /PID %a'
         return f"sudo fuser -k {port}/tcp 2>/dev/null || sudo lsof -ti:{port} | xargs -r sudo kill -9"
@@ -370,7 +369,7 @@ class SelfHealer:
         """Get cleanup command based on OS."""
         if platform.system().lower() == "windows":
             return "del /q/f/s %TEMP%\\* 2>nul"
-        return "sudo apt-get clean 2>/dev/null; rm -rf /tmp/* 2>/dev/null; rm -rf ~/.cache/* 2>/dev/null"
+        return "sudo apt-get clean 2>/dev/null; rm -rf /tmp/drakben* 2>/dev/null; rm -rf ~/.cache/drakben* 2>/dev/null"
 
     def _heal_firewall_blocked(
         self,

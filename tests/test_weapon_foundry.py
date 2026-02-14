@@ -167,10 +167,10 @@ class TestWeaponFoundry(unittest.TestCase):
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.NONE,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
         )
         assert isinstance(payload, GeneratedPayload)
-        assert payload.format == PayloadFormat.PYTHON
+        assert payload.output_format == PayloadFormat.PYTHON
 
     def test_forge_with_xor(self) -> None:
         """Test payload with XOR encryption."""
@@ -178,7 +178,7 @@ class TestWeaponFoundry(unittest.TestCase):
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.XOR,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
         )
         assert payload.key is not None
         assert "exec" in payload.decoder_stub
@@ -189,7 +189,7 @@ class TestWeaponFoundry(unittest.TestCase):
             lhost="10.0.0.1",
             lport=4444,
             encryption=EncryptionMethod.RC4,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
         )
         assert payload.key is not None
 
@@ -199,7 +199,7 @@ class TestWeaponFoundry(unittest.TestCase):
             lhost="10.0.0.1",
             lport=4444,
             anti_sandbox=True,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
         )
         assert payload.metadata["anti_sandbox"]
 
@@ -208,7 +208,7 @@ class TestWeaponFoundry(unittest.TestCase):
         generated = self.foundry.forge(
             lhost="10.0.0.1",
             lport=4444,
-            format=PayloadFormat.PYTHON,
+            output_format=PayloadFormat.PYTHON,
         )
         final = self.foundry.get_final_payload(generated)
         assert "_e=" in final
@@ -218,7 +218,7 @@ class TestWeaponFoundry(unittest.TestCase):
         generated = self.foundry.forge(
             lhost="10.0.0.1",
             lport=4444,
-            format=PayloadFormat.POWERSHELL,
+            output_format=PayloadFormat.POWERSHELL,
         )
         final = self.foundry.get_final_payload(generated)
         assert "$e=" in final
@@ -240,7 +240,7 @@ class TestWeaponFoundry(unittest.TestCase):
             p = self.foundry.forge(
                 lhost="10.0.0.1",
                 lport=4444,
-                format=PayloadFormat.PYTHON,
+                output_format=PayloadFormat.PYTHON,
                 encryption=EncryptionMethod.NONE,  # Even without encryption, variables should be randomized
             )
             final_code = self.foundry.get_final_payload(p)
@@ -270,7 +270,7 @@ class TestWeaponFoundry(unittest.TestCase):
                 lhost="10.0.0.1",
                 lport=4444,
                 encryption=enc,
-                format=fmt,
+                output_format=fmt,
                 anti_sandbox=True,
             )
             final_code = self.foundry.get_final_payload(payload)

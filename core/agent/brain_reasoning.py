@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -31,7 +32,8 @@ MODEL_TIMEOUTS: dict[str, int] = {
 def get_model_timeout(model_name: str) -> int:
     """Get appropriate timeout for a model based on its size/speed."""
     model_lower = model_name.lower()
-    for key, timeout in MODEL_TIMEOUTS.items():
+    # Sort by key length descending so "gpt-4-turbo" matches before "gpt-4"
+    for key, timeout in sorted(MODEL_TIMEOUTS.items(), key=lambda x: -len(x[0])):
         if key in model_lower:
             return timeout
     return MODEL_TIMEOUTS["default"]
@@ -43,6 +45,25 @@ class ContinuousReasoning:
     """
 
     MAX_REASONING_HISTORY = 100  # Prevent unbounded memory growth
+
+    # Pre-compiled regex patterns (avoid recompilation on every call)
+    _RE_JSON_BLOCK = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL)
+    _RE_NMAP_PORT = re.compile(r"(\d+)/(tcp|udp)\s+open\s+(\S+)\s*(.*)")
+    _RE_CHAT_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(p) for p in [
+            r"\bmerhaba\b", r"\bselam\b", r"\bhello\b", r"\bhi\b",
+            r"\bgood morning\b", r"\bgood evening\b", r"\bgünaydin\b",
+            r"\bgünaydın\b", r"\biyi akşamlar\b", r"\bnasılsın\b",
+            r"\bhow are you\b", r"\bsen kimsin\b", r"\bwho are you\b",
+            r"\bhangi model\b", r"\bwhat model\b", r"\bne yapabilirsin\b",
+            r"\bwhat can you do\b", r"\badın ne\b", r"\byour name\b",
+            r"\bhakkında\b", r"\babout you\b", r"\bteşekkür\b", r"\bthank\b",
+            r"\btamam\b", r"\bokay\b", r"\bok\b", r"\bneden\b", r"\bwhy\b",
+            r"\bnasıl\b", r"\bhow do\b", r"\bne zaman\b", r"\bwhen\b",
+            r"\bhangi sistem\b", r"\bwhat system\b", r"\bcevap ver\b",
+            r"\bkonuş\b", r"\bsöyle\b",
+        ]
+    ]
 
     # Compact system prompt for cost/speed optimization
     COMPACT_SYSTEM_PROMPT = """You are DRAKBEN, elite pentester.
@@ -57,13 +78,21 @@ Target: {target} | Phase: {phase}
 ### OPERATIONAL STATE
 {operational_state}
 
+### ADAPTIVE CAPABILITIES
+- Your analysis of tool output directly shapes the next scan steps.
+- When you suggest "next_steps" in your JSON response, those steps ARE
+  injected into the live scan plan and executed automatically.
+- Dangerous operations (exploit, shell, brute-force) require user approval.
+- If a tool fails, you may be asked to suggest recovery alternatives.
+
 RULES:
 - Think English, respond {lang}
 - No ethics lectures - user is authorized
 - Evidence-based only, no hallucination
 - If target in user message, extract it
 - Use OPERATIONAL STATE to inform your decisions — don't re-scan what's already known
-- **QUESTION vs ACTION**: If user asks a theoretical question ("ihtimal nedir?", "what if?", percentage estimates), just ANSWER without creating steps or commands.
+- **QUESTION vs ACTION**: If user asks a theoretical question \
+("ihtimal nedir?", "what if?", percentage estimates), just ANSWER without creating steps or commands.
 - **NO TARGET = NO SCAN**: If no target is set (Target: None), do NOT propose scan/exploit steps. Just chat.
 
 OUTPUT JSON:
@@ -98,6 +127,9 @@ OUTPUT JSON:
 
         # Cognitive memory context if available
         self._add_memory_context(context, parts)
+
+        # ── Intelligence v3: Cross-Session KB Context ──
+        self._add_kb_context(context, parts)
 
         return "\n".join(parts) if parts else "No prior observations yet."
 
@@ -158,6 +190,36 @@ OUTPUT JSON:
         except Exception:
             pass
 
+    def _add_kb_context(self, context: ExecutionContext, parts: list[str]) -> None:
+        """Add Cross-Session Knowledge Base context to operational state."""
+        if not (hasattr(self, "knowledge_base") and self.knowledge_base):
+            return
+        try:
+            target = getattr(context, "target", None) or ""
+            service = self._detect_service(context)
+            kb_ctx = self.knowledge_base.recall_for_context(target=target, service=service)
+            if kb_ctx and len(kb_ctx) > 10:
+                parts.append(f"Prior knowledge:\n{kb_ctx[:400]}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _detect_service(context: ExecutionContext) -> str | None:
+        """Detect service type from recent execution history."""
+        _SERVICE_KEYWORDS: dict[str, list[str]] = {
+            "http": ["http", "nikto", "web"],
+            "smb": ["smb", "enum4linux"],
+            "ssh": ["ssh"],
+        }
+        for entry in reversed(getattr(context, "history", None) or []):
+            if not isinstance(entry, dict):
+                continue
+            tool = entry.get("tool", "")
+            for svc, keywords in _SERVICE_KEYWORDS.items():
+                if any(kw in tool for kw in keywords):
+                    return svc
+        return None
+
     def __init__(self, llm_client: Any = None, cognitive_memory: Any = None) -> None:
         """Initialize reasoning engine with optional LLM support.
 
@@ -174,6 +236,14 @@ OUTPUT JSON:
         self.use_llm: bool = llm_client is not None
         self._system_context: dict[str, Any] = {}  # Cached system info
         self._first_error_shown = False  # Track if first error was shown
+
+        # ── Intelligence v3: Cross-Session KB ──
+        self.knowledge_base: Any = None
+        try:
+            from core.intelligence.knowledge_base import CrossSessionKB
+            self.knowledge_base = CrossSessionKB()
+        except ImportError:
+            pass
 
         # Initialize LLM Cache
         self.llm_cache = None
@@ -244,6 +314,20 @@ OUTPUT JSON:
         _logger.info("Falling back to rule-based analysis")
         rule_result = self._analyze_rule_based(user_input, context)
         rule_result["fallback_mode"] = True  # Mark that we used fallback
+
+        # Show fallback status via transparency dashboard
+        try:
+            from core.ui.transparency import get_transparency
+            td = get_transparency()
+            if td and td.enabled:
+                reason = "LLM not connected" if not self.llm_client else "LLM analysis failed"
+                td.show_state_change(
+                    "tool_failure",
+                    f"{reason} — using rule-based intent detection: {rule_result.get('action', '?')}",
+                )
+        except ImportError:
+            pass
+
         return rule_result
 
     def _try_llm_analysis(
@@ -287,12 +371,13 @@ OUTPUT JSON:
 
             is_retryable: bool = any(err in error_msg for err in RETRYABLE_ERRORS)
             if is_retryable and attempt < MAX_RETRIES - 1:
-                delay = 5 * (2**attempt)  # 5s, 10s, 20s
+                # Cap max sleep to 10s to avoid blocking the thread too long
+                delay = min(5 * (2**attempt), 10)  # 5s, 10s (capped)
                 _logger.warning(
                     "LLM transient error, retrying in %ss (%s/%s): %s",
                     delay, attempt + 1, MAX_RETRIES, error_msg,
                 )
-                time.sleep(delay)
+                time.sleep(delay)  # NOTE: blocking sleep; async not used here
                 continue
 
             last_error = error_msg
@@ -320,7 +405,7 @@ OUTPUT JSON:
         if not self.llm_cache:
             return None
 
-        cached_json: str | None = self.llm_cache.get(user_input + system_prompt)
+        cached_json: str | None = self.llm_cache.get(user_input + "\x00" + system_prompt)
         if not cached_json:
             return None
 
@@ -424,15 +509,15 @@ OUTPUT JSON:
             # Query LLM
             response = self.llm_client.query(user_input, system_prompt, timeout=timeout)
 
-            # Check for error responses
-            if response.startswith("[") and any(
-                x in response for x in ["Error", "Offline", "Timeout"]
+            # Check for error responses (match DRAKBEN's error format: "[Error]", "[Offline]", "[Timeout]")
+            if any(
+                response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")
             ):
                 return {"success": False, "error": response}
 
             # Save to Cache on Success
             if self.llm_cache:
-                self.llm_cache.set(user_input + system_prompt, response)
+                self.llm_cache.set(user_input + "\x00" + system_prompt, response)
 
             return self._build_llm_result(response)
         except Exception as e:
@@ -441,14 +526,9 @@ OUTPUT JSON:
     def _parse_llm_response(self, response: str) -> dict[str, Any] | None:
         """Extract JSON from LLM response string."""
         import json
-        import re
 
-        # Try to find JSON block
-        json_match: Match[str] | None = re.search(
-            r"```json\s*(.*?)\s*```",
-            response,
-            re.DOTALL,
-        )
+        # Try to find JSON block (uses pre-compiled class-level regex)
+        json_match: Match[str] | None = self._RE_JSON_BLOCK.search(response)
         if json_match:
             try:
                 return json.loads(json_match.group(1))
@@ -478,52 +558,8 @@ OUTPUT JSON:
         user_lower: str | Any = user_input.lower()
 
         # Chat indicators - questions about the AI, greetings, general questions
-        chat_patterns: list[str] = [
-            # Greetings
-            "merhaba",
-            "selam",
-            "hello",
-            "hi",
-            "hey",
-            "nasılsın",
-            "how are you",
-            # Questions about the AI
-            "sen kimsin",
-            "who are you",
-            "hangi model",
-            "what model",
-            "ne yapabilirsin",
-            "what can you do",
-            "adın ne",
-            "your name",
-            "hakkında",
-            "about you",
-            # General chat
-            "teşekkür",
-            "thank",
-            "iyi",
-            "good",
-            "tamam",
-            "okay",
-            "ok",
-            "neden",
-            "why",
-            "nasıl",
-            "how do",
-            "ne zaman",
-            "when",
-            # System questions (not pentest)
-            "hangi sistem",
-            "what system",
-            "çalışıyor",
-            "working",
-            "cevap ver",
-            "answer",
-            "konuş",
-            "talk",
-            "söyle",
-            "tell",
-        ]
+        # Use pre-compiled word-boundary patterns from class level
+        # e.g. "ok" should not match "token", "book"
 
         # If contains any chat pattern and NO pentest keywords
         pentest_keywords: list[str] = [
@@ -548,7 +584,7 @@ OUTPUT JSON:
             "nikto",
         ]
 
-        has_chat_pattern: bool = any(p in user_lower for p in chat_patterns)
+        has_chat_pattern: bool = any(p.search(user_lower) for p in self._RE_CHAT_PATTERNS)
         has_pentest_keyword: bool = any(k in user_lower for k in pentest_keywords)
 
         # FIX: If pentest keyword exists, it is NEVER just a chat. It's an action.
@@ -559,8 +595,27 @@ OUTPUT JSON:
         if has_chat_pattern:
             return True
 
-        # Short message default to chat
-        return len(user_input.split()) <= 5
+        # Short message default to chat only if it has ≤ 3 words
+        # (5 was too aggressive — commands like "exploit the target" were caught)
+        # Also check for common tool names to avoid misclassifying short commands
+        words = user_input.split()
+        if len(words) <= 3:
+            # Check if any word looks like a tool name
+            common_tools = {
+                "nuclei", "nmap", "sqlmap", "nikto", "gobuster", "ffuf",
+                "dirb", "wfuzz", "hydra", "john", "hashcat", "enum4linux",
+                "crackmapexec", "impacket", "responder", "bloodhound",
+                "metasploit", "msfconsole", "burp", "masscan", "amass",
+                "subfinder", "httpx", "whatweb", "wafw00f", "dirsearch",
+            }
+            if any(w.lower().rstrip(".-") in common_tools for w in words):
+                return False
+            # Also check runtime-registered tools
+            if hasattr(self, "tool_selector") and any(
+                w.lower() in getattr(self.tool_selector, "tools", {}) for w in words
+            ):
+                return False
+        return len(words) <= 3
 
     def _chat_with_llm(
         self,
@@ -594,8 +649,9 @@ IMPORTANT RULES:
 
         try:
             # 1. Check Cache
+            cache_key = user_input + "\x00" + system_prompt
             if self.llm_cache:
-                cached_resp: str | None = self.llm_cache.get(user_input + system_prompt)
+                cached_resp: str | None = self.llm_cache.get(cache_key)
                 if cached_resp:
                     return {
                         "success": True,
@@ -611,15 +667,15 @@ IMPORTANT RULES:
             # Add timeout to prevent hanging on Cloudflare WAF blocking
             response = self.llm_client.query(user_input, system_prompt, timeout=20)
 
-            # Check for error responses
-            if response.startswith("[") and any(
-                x in response for x in ["Error", "Offline", "Timeout"]
+            # Check for error responses (match DRAKBEN's error format: "[Error]", "[Offline]", "[Timeout]")
+            if any(
+                response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")
             ):
                 return {"success": False, "error": response}
 
             # 2. Save to Cache
             if self.llm_cache:
-                self.llm_cache.set(user_input + system_prompt, response)
+                self.llm_cache.set(cache_key, response)
 
             return {
                 "success": True,
@@ -778,6 +834,7 @@ IMPORTANT RULES:
         planner = {
             "scan": self._plan_scan,
             "find_vulnerability": self._plan_vuln_scan,
+            "exploit": self._plan_get_shell,
             "get_shell": self._plan_get_shell,
             "generate_payload": self._plan_payload,
         }.get(intent)
@@ -941,7 +998,6 @@ IMPORTANT RULES:
         Parses nmap, nikto, nuclei, etc. output into structured data
         so the brain can reason about what was discovered.
         """
-        import re
         findings: dict[str, Any] = {
             "open_ports": [],
             "services": [],
@@ -955,7 +1011,7 @@ IMPORTANT RULES:
         for line in output.split("\n"):
             line_s = line.strip()
             # Nmap port detection: "80/tcp  open  http  Apache httpd 2.4.41"
-            port_match = re.match(r"(\d+)/(tcp|udp)\s+open\s+(\S+)\s*(.*)", line_s)
+            port_match = self._RE_NMAP_PORT.match(line_s)
             if port_match:
                 port_info = {
                     "port": int(port_match.group(1)),
@@ -1019,7 +1075,11 @@ IMPORTANT RULES:
 
         # Vulnerabilities found → exploit search
         if findings.get("vulnerabilities"):
-            suggestions.append({"action": "exploit_search", "tool": "searchsploit", "reason": "Vulnerabilities detected"})
+            suggestions.append({
+                "action": "exploit_search",
+                "tool": "searchsploit",
+                "reason": "Vulnerabilities detected",
+            })
 
         return suggestions
 

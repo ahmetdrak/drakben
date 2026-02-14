@@ -78,7 +78,7 @@ class ShadowCloner:
             src = img.get("src")
             if src and not src.startswith("data:"):
                 abs_url = urljoin(base_url, src)
-                b64_data = self._download_as_b64(abs_url)
+                b64_data = self._download_as_b64(abs_url)  # type: ignore[arg-type]
                 if b64_data:
                     img["src"] = b64_data
 
@@ -87,7 +87,7 @@ class ShadowCloner:
             href = link.get("href")
             if href:
                 abs_url = urljoin(base_url, href)
-                css_content = self._fetch_text(abs_url)
+                css_content = self._fetch_text(abs_url)  # type: ignore[arg-type]
                 if css_content:
                     # Replace <link> with <style>
                     new_style = soup.new_tag("style")
@@ -241,6 +241,15 @@ class PhishingGenerator:
             logger.error("SMTP not configured — set SMTP_HOST and SMTP_USER env vars")
             return {"success": False, "error": "SMTP not configured", "sent": 0, "failed": 0}
 
+        if not smtp_pass:
+            logger.warning("SMTP_PASS is empty — authentication may fail")
+
+        # Security: never log SMTP credentials
+        logger.info(
+            "SMTP campaign: host=%s, port=%s, user=%s, from=%s",
+            smtp_host, smtp_port, smtp_user, smtp_from,
+        )
+
         # Load HTML template
         template_path = os.path.join(self.output_dir, template_name, "index.html")
         if not os.path.exists(template_path):
@@ -281,9 +290,9 @@ class PhishingGenerator:
                     logger.warning("Failed to send to %s: %s", target_email, mail_err)
 
             server.quit()
-        except smtplib.SMTPException as e:
-            logger.exception("SMTP connection failed: %s", e)
-            return {"success": False, "error": str(e), "sent": sent, "failed": failed}
+        except smtplib.SMTPException:
+            logger.exception("SMTP connection failed (credentials redacted)")
+            return {"success": False, "error": "SMTP connection failed", "sent": sent, "failed": failed}
 
         logger.info("Campaign complete: %d sent, %d failed", sent, failed)
         return {"success": True, "sent": sent, "failed": failed}

@@ -34,6 +34,10 @@ pycryptodome>=3.20.0      # Cryptography (AES-GCM, RSA)
 keyring>=25.0.0           # Secure credential storage
 curl_cffi>=0.7.0          # TLS fingerprint impersonation (bypass WAF)
 
+# ========== LLM INFRASTRUCTURE ==========
+tiktoken>=0.7.0           # Token counting (OpenAI tokenizer)
+pydantic>=2.6.0           # Output validation & structured models
+
 # ========== UTILITIES ==========
 packaging>=23.0           # Version parsing
 

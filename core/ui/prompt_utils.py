@@ -124,10 +124,10 @@ class EnhancedPrompt:
         if self.enable_history:
             history = FileHistory(str(self.history_file))
         else:
-            history = InMemoryHistory()
+            history = InMemoryHistory()  # type: ignore[assignment]
 
         # Session
-        self.session = PromptSession(
+        self.session = PromptSession(  # type: ignore[assignment]
             completer=self.completer,
             auto_suggest=AutoSuggestFromHistory(),
             history=history,
@@ -213,7 +213,7 @@ class StatusDisplay:
 
     def start(self) -> None:
         """Start live display."""
-        self._live = Live(
+        self._live = Live(  # type: ignore[assignment]
             self._generate_table(),
             console=self.console,
             refresh_per_second=4,

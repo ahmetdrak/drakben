@@ -214,10 +214,13 @@ class SyscallLoader:
 
 # Singleton
 _loader = None
+_loader_lock = __import__("threading").Lock()
 
 
 def get_syscall_loader() -> SyscallLoader:
     global _loader
     if _loader is None:
-        _loader = SyscallLoader()
+        with _loader_lock:
+            if _loader is None:
+                _loader = SyscallLoader()
     return _loader

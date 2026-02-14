@@ -17,11 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # State integration
-try:
-    STATE_AVAILABLE = True
-except ImportError:
-    STATE_AVAILABLE = False
-    logger.warning("State module not available")
+STATE_AVAILABLE = True
 
 # Optional imports with fallback
 try:
@@ -62,7 +58,9 @@ class AsyncRetry:
         self.base_delay = base_delay
 
     def __call__(self, func) -> Any:
+        import functools
 
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             last_exception = None
             for attempt in range(self.max_retries):
@@ -294,7 +292,7 @@ async def _perform_external_lookups(domain: str, result: dict[str, Any]) -> None
     """Perform DNS and WHOIS lookups."""
     # DNS Records
     if DNS_AVAILABLE:
-        result["dns_records"] = await asyncio.get_event_loop().run_in_executor(
+        result["dns_records"] = await asyncio.get_running_loop().run_in_executor(
             None,
             get_dns_records,
             domain,
@@ -304,7 +302,7 @@ async def _perform_external_lookups(domain: str, result: dict[str, Any]) -> None
 
     # WHOIS
     if WHOIS_AVAILABLE:
-        result["whois"] = await asyncio.get_event_loop().run_in_executor(
+        result["whois"] = await asyncio.get_running_loop().run_in_executor(
             None,
             get_whois_info,
             domain,
@@ -344,13 +342,17 @@ def detect_cms(html: str, headers: dict[str, str]) -> str | None:
             return cms
 
     # Check headers for CMS hints
-    _ = headers.get("Server", "").lower()
+    server = headers.get("Server", "").lower()
     x_powered = headers.get("X-Powered-By", "").lower()
 
     if "wp" in x_powered or "wordpress" in x_powered:
         return "WordPress"
     if "drupal" in x_powered:
         return "Drupal"
+    if "nginx" in server:
+        pass  # nginx is not a CMS
+    if "apache" in server and "coyote" in server:
+        return "Apache Tomcat"
 
     return None
 
@@ -550,13 +552,17 @@ def scan_ports_sync(
 ) -> dict[str, Any]:
     """Synchronous wrapper for :func:`scan_ports`."""
     try:
-        loop = asyncio.get_event_loop()
+        return asyncio.run(
+            scan_ports(host, ports, connect_timeout, concurrency, state),
+        )
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(
-        scan_ports(host, ports, connect_timeout, concurrency, state),
-    )
+        # Already in an async context - use a new event loop in a thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(
+                asyncio.run,
+                scan_ports(host, ports, connect_timeout, concurrency, state),
+            ).result(timeout=300)
 
 
 def _guess_service(port: int) -> str:

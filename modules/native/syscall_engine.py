@@ -176,10 +176,13 @@ class SyscallEngine:
 
 # Singleton
 _syscall_engine = None
+_syscall_engine_lock = __import__("threading").Lock()
 
 
 def get_syscall_engine() -> SyscallEngine:
     global _syscall_engine
     if _syscall_engine is None:
-        _syscall_engine = SyscallEngine()
+        with _syscall_engine_lock:
+            if _syscall_engine is None:
+                _syscall_engine = SyscallEngine()
     return _syscall_engine

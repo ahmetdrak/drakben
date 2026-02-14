@@ -313,7 +313,7 @@ class TestNucleiIntegration:
         ]
 
         # Group by severity
-        by_severity = {}
+        by_severity: dict[str, list] = {}
         for r in results:
             sev = r.severity.value
             if sev not in by_severity:

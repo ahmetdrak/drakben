@@ -191,13 +191,13 @@ class NLPPayloadEngine:
         scores = dict.fromkeys(CognitiveBias, 0.0)
 
         for bias, data in self.bias_anchors.items():
-            intersection = word_set.intersection(data["keywords"])
-            score = len(intersection) * data["weight"]
+            intersection = word_set.intersection(data["keywords"])  # type: ignore[arg-type]
+            score = len(intersection) * data["weight"]  # type: ignore[operator]
 
             if bias == CognitiveBias.AUTHORITY and "chief" in text:
-                score += 2.0
+                score += 2.0  # type: ignore[assignment]
             if bias == CognitiveBias.SCARCITY and "urgent" in text:
-                score += 2.0
+                score += 2.0  # type: ignore[assignment]
 
             scores[bias] = score
 
@@ -240,11 +240,11 @@ class NLPPayloadEngine:
         # Select Top 2
         sorted_biases = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         primary = (
-            sorted_biases[0][0] if sorted_biases[0][1] > 0 else CognitiveBias.CURIOSITY
+            sorted_biases[0][0] if (len(sorted_biases) > 0 and sorted_biases[0][1] > 0) else CognitiveBias.CURIOSITY
         )
         secondary = (
             sorted_biases[1][0]
-            if sorted_biases[1][1] > 0
+            if len(sorted_biases) > 1 and sorted_biases[1][1] > 0
             else CognitiveBias.SOCIAL_PROOF
         )
 
@@ -333,7 +333,7 @@ class PsychoProfiler:
             spoof_sender = "executive-assist@corp.com"
 
         return {
-            "to": target.email,
+            "to": target.email,  # type: ignore[dict-item]
             "subject": subject,
             "body": body,
             "from_spoof": spoof_sender,
@@ -344,14 +344,22 @@ class PsychoProfiler:
     # SYNTHETIC PRETEXT TEMPLATES (Dynamic)
     # =========================================================================
 
+    def _get_first_name(self, full_name: str) -> str:
+        """Safely extract first name from full name."""
+        if not full_name:
+            return "there"
+        parts = full_name.strip().split()
+        return parts[0] if parts else full_name
+
     def _tmpl_dev_ticket(self, target, ticket_id) -> str:
+        first_name = self._get_first_name(target.full_name)
         return f"""
 <div style="font-family: Arial; border-left: 4px solid #d04437; padding-left: 10px;">
     <h3>JIRA Software</h3>
     <p><b>{target.full_name}</b>, you were mentioned in a ticket:</p>
     <a href="{{link}}"><b>{ticket_id}: NullPointer Exception in Auth Module</b></a>
     <br>
-    <p><i>"@ {target.full_name.split()[0]} can you check this? It's blocking the release. CI/CD is failing."</i></p>
+    <p><i>"@ {first_name} can you check this? It's blocking the release. CI/CD is failing."</i></p>
     <br>
     <button style="background: #0052cc; color: white; border: none; padding: 10px;">View Issue</button>
 </div>
@@ -382,8 +390,9 @@ class PsychoProfiler:
 """
 
     def _tmpl_generic_vip(self, target) -> str:
+        first_name = self._get_first_name(target.full_name)
         return f"""
-<p>Hi {target.full_name.split()[0]},</p>
+<p>Hi {first_name},</p>
 <p>The Director asked me to schedule a quick sync with you regarding the Q3 goals.</p>
 <p>Are you free next Tuesday? I've shared the tentative agenda below.</p>
 <p><a href="{{link}}">View Agenda.docx</a> (SharePoint)</p>

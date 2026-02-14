@@ -68,7 +68,11 @@ class LLMCache:
                         logger.debug("Cache HIT for query hash: %s", query_hash[:8])
                         return response
                     logger.debug("Cache EXPIRED for query hash: %s", query_hash[:8])
-                    # Süresi dolmuş kaydı temizle (isteğe bağlı, sonraki set zaten ezecek)
+                    # Clean up expired entry
+                    conn.execute(
+                        "DELETE FROM llm_cache WHERE query_hash = ?",
+                        (query_hash,),
+                    )
                     return None
         except Exception as e:
             logger.exception("Cache read error: %s", e)
@@ -106,7 +110,7 @@ class LLMCache:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO llm_cache (query_hash, prompt, response, timestamp) VALUES (?, ?, ?, ?)",
-                    (query_hash, query, response, timestamp),
+                    (query_hash, "[redacted]", response, timestamp),
                 )
             logger.debug("Cache SET for query hash: %s", query_hash[:8])
         except Exception as e:

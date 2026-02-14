@@ -42,8 +42,20 @@ class CognitiveMemoryManager:
             from core.agent.cognitive import PerceiveModule, ReflectModule, RetrieveModule
             from core.agent.memory import MemoryStream, RetrievalEngine
 
-            # Initialize core components
-            self._memory_stream = MemoryStream(persist_path=db_path)
+            # Try to initialize VectorStore for semantic embeddings
+            vector_store = None
+            try:
+                from core.storage.vector_store import VectorStore
+                vector_store = VectorStore()
+                logger.debug("VectorStore initialized for semantic embeddings")
+            except Exception as vs_err:
+                logger.debug("VectorStore not available (optional): %s", vs_err)
+
+            # Initialize core components with optional VectorStore
+            self._memory_stream = MemoryStream(
+                persist_path=db_path,
+                vector_store=vector_store,
+            )
             self._retrieval_engine = RetrievalEngine(memory_stream=self._memory_stream)
 
             # Initialize cognitive modules
@@ -103,7 +115,7 @@ class CognitiveMemoryManager:
             )
             return nodes
         except Exception as e:
-            logger.debug("Failed to perceive tool output: %s", e)
+            logger.warning("Failed to perceive tool output: %s", e, exc_info=True)
             return []
 
     def get_context_for_llm(
@@ -143,7 +155,7 @@ class CognitiveMemoryManager:
             )
             return retrieved_ctx.context_string
         except Exception as e:
-            logger.debug("Failed to retrieve context: %s", e)
+            logger.warning("Failed to retrieve context: %s", e, exc_info=True)
             return ""
 
     def generate_reflections(
@@ -174,7 +186,7 @@ class CognitiveMemoryManager:
             reflections = self._reflect.reflect(target=target, force=force)
             return reflections
         except Exception as e:
-            logger.debug("Failed to generate reflections: %s", e)
+            logger.warning("Failed to generate reflections: %s", e, exc_info=True)
             return []
 
     def get_stats(self) -> dict[str, Any]:

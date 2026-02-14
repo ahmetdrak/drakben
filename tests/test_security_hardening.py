@@ -174,7 +174,7 @@ class TestHealerWhitelist:
 
     def test_no_module_name(self):
         healer = self._make_healer()
-        diagnosis = {}
+        diagnosis: dict[str, str] = {}
         result, _ = healer._heal_python_module_missing(
             "test_tool", "import ???", diagnosis,
         )

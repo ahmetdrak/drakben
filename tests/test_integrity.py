@@ -32,7 +32,7 @@ def check_required_files():
     missing = []
     for f in REQUIRED_FILES:
         if not Path(f).exists():
-            logger.error(f"Missing core file: {f}")
+            logger.error("Missing core file: %s", f)
             missing.append(f)
     return missing
 
@@ -50,11 +50,11 @@ def _scan_file_for_leaks(path: Path) -> list[str]:
             content = f.read()
             for pattern in SENSITIVE_PATTERNS:
                 if pattern in content and "your_key_here" not in content:
-                    logger.warning(f"Potential leak in {path}: Found '{pattern}'")
+                    logger.warning("Potential leak in %s: Found '%s'", path, pattern)
                     leaks.append(str(path))
                     break  # Only report file once
     except Exception as e:
-        logger.debug(f"Could not read {path}: {e}")
+        logger.debug("Could not read %s: %s", path, e)
     return leaks
 
 
@@ -84,7 +84,7 @@ def test_integrity() -> None:
 
     leaks = check_sensitive_leaks()
     if leaks:
-        logger.warning(f"Potential leaks detected in: {leaks}")
+        logger.warning("Potential leaks detected in: %s", leaks)
 
 
 if __name__ == "__main__":
@@ -92,5 +92,5 @@ if __name__ == "__main__":
         test_integrity()
         logger.info("Integrity check PASSED.")
     except AssertionError as e:
-        logger.exception(f"Integrity check FAILED: {e}")
+        logger.exception("Integrity check FAILED: %s", e)
         sys.exit(1)

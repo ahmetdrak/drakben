@@ -2,6 +2,7 @@
 # DRAKBEN Security Utilities
 # Credential storage, audit logging, and proxy support
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -204,14 +205,28 @@ class CredentialStore:
             return {}
 
     def _save_file(self, credentials: dict[str, str], password: str) -> None:
-        """Save credentials to encrypted file."""
+        """Save credentials to encrypted file (atomic write)."""
+        import tempfile
+
         salt = secrets.token_bytes(16)
         key = self._derive_key(password, salt)
         encrypted = self._encrypt(json.dumps(credentials), key)
 
-        with open(self.storage_path, "wb") as f:
-            f.write(salt)
-            f.write(encrypted)
+        # Atomic write: write to temp file, then rename
+        dir_path = self.storage_path.parent
+        tmp_path = None
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=str(dir_path))
+            with os.fdopen(fd, "wb") as f:
+                f.write(salt)
+                f.write(encrypted)
+            os.replace(tmp_path, self.storage_path)  # noqa: PTH105
+        except Exception:
+            # Clean up temp file on failure
+            if tmp_path is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_path)
+            raise
 
 
 # =========================================
@@ -357,7 +372,8 @@ class AuditLogger:
                 conn.execute(
                     """
                     INSERT INTO audit_log
-                    (timestamp, event_type, user, source_ip, target, action, details, success, risk_level, hash, prev_hash)
+                    (timestamp, event_type, user, source_ip, target, action,
+                    details, success, risk_level, hash, prev_hash)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
@@ -441,11 +457,13 @@ class AuditLogger:
             params.append(end_time)
 
         if target:
-            query += " AND target LIKE ?"
-            params.append(f"%{target}%")
+            query += " AND target LIKE ? ESCAPE '\\'"
+            # Escape SQL LIKE wildcards in user-provided target
+            safe_target = target.replace("%", "\\%").replace("_", "\\_")
+            params.append(f"%{safe_target}%")
 
         query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
+        params.append(limit)  # type: ignore[arg-type]
 
         results: list[dict] = []
         conn = self._get_connection()
@@ -507,6 +525,7 @@ class ProxyManager:
 
     def _check_tor(self) -> bool:
         """Check if Tor is available."""
+        test_socket = None
         try:
             import socks
 
@@ -515,10 +534,13 @@ class ProxyManager:
             test_socket.set_proxy(socks.SOCKS5, "127.0.0.1", 9050)
             test_socket.settimeout(5)
             test_socket.connect(("check.torproject.org", 80))
-            test_socket.close()
             return True
-        except (OSError, socks.ProxyConnectionError):
+        except OSError:
             return False
+        finally:
+            if test_socket is not None:
+                with contextlib.suppress(Exception):
+                    test_socket.close()
 
     def test_proxy(self, proxy: ProxyConfig, timeout: int = 10) -> bool:
         """Test proxy connectivity.

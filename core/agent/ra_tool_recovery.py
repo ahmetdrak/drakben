@@ -65,7 +65,7 @@ class RAToolRecoveryMixin:
                 style="yellow",
             )
             self.tool_selector.record_tool_failure(tool_name)
-            return self._format_tool_result(result, args)
+            return self._format_tool_result(result, args, tool_name=tool_name)
 
         stdout_str = result.stdout or ""
         stderr_str = result.stderr or ""
@@ -134,13 +134,13 @@ class RAToolRecoveryMixin:
         """Finalize healing result and return formatted output."""
         if healed and retry_result:
             self.console.print("✅ Hata otomatik olarak düzeltildi!", style="green")
-            return self._format_tool_result(retry_result, args)
+            return self._format_tool_result(retry_result, args, tool_name=tool_name)
 
         if result.exit_code != 0:
             self.tool_selector.record_tool_failure(tool_name)
 
         # FIX: Return formatted result instead of recursive call
-        return self._format_tool_result(result, args)
+        return self._format_tool_result(result, args, tool_name=tool_name)
 
     def _llm_assisted_error_fix(
         self,

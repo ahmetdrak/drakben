@@ -18,7 +18,6 @@ import random
 import secrets
 import string
 import threading
-import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -191,11 +190,14 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Track function/class definitions
         self.defined_names: set[str] = set()
 
+        # Track imported names — these must NOT be obfuscated
+        self._protected_names: set[str] = set()
+
         # Counter for unique name generation
         self._name_counter = 0
 
         # Seed for reproducible obfuscation (optional)
-        self._seed = int(time.time())
+        self._seed = int.from_bytes(secrets.token_bytes(4), "big")
         self._rng = random.Random(self._seed)  # Use local RNG to avoid global state pollution
 
     def transform(self, code: str) -> str:
@@ -220,6 +222,11 @@ class PolymorphicTransformer(ast.NodeTransformer):
         # Second pass: apply transformations
         transformed_tree = self.visit(tree)
 
+        # Inject `import base64 as _b64` if string encryption is used
+        if self.encrypt_strings and isinstance(transformed_tree, ast.Module):
+            b64_import = ast.Import(names=[ast.alias(name="base64", asname="_b64")])
+            transformed_tree.body.insert(0, b64_import)
+
         # Third pass: inject dead code if enabled
         if self.inject_dead_code:
             transformed_tree = self._inject_dead_code_blocks(transformed_tree)
@@ -237,8 +244,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
         """Protect imported module/alias names from obfuscation."""
         for alias in node.names:
             name_to_protect = alias.asname or alias.name
-            self.defined_names.add(name_to_protect)
-            # Note: Do NOT add to global BUILTIN_NAMES to avoid cross-call pollution
+            self._protected_names.add(name_to_protect)
 
     def _collect_function_names(self, node: ast.FunctionDef) -> None:
         """Collect function and argument names."""
@@ -281,6 +287,9 @@ class PolymorphicTransformer(ast.NodeTransformer):
         if original in PYTHON_KEYWORDS or original in BUILTIN_NAMES:
             return original
 
+        if original in self._protected_names:
+            return original  # Never rename imported module names
+
         if original.startswith("__") and original.endswith("__"):
             return original  # Preserve dunder methods
 
@@ -297,17 +306,31 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # pylint: disable=invalid-name
         """Transform function definitions."""
-        # Preserve docstring if configured
-        if (
+        has_docstring = (
             self.preserve_docstrings
             and node.body
             and isinstance(node.body[0], ast.Expr)
             and isinstance(node.body[0].value, ast.Constant)
             and isinstance(node.body[0].value.value, str)
-        ):
-            pass  # Docstring logic placeholder
+        )
 
-        # Obfuscate function name (except main and special methods)
+        saved_docstring = None
+        if has_docstring:
+            saved_docstring = node.body[0]
+            node.body = node.body[1:]
+
+        self._obfuscate_func_name(node)
+        self._obfuscate_func_args(node)
+
+        node = self.generic_visit(node)  # type: ignore[assignment]
+
+        if saved_docstring is not None:
+            node.body.insert(0, saved_docstring)
+
+        return node  # type: ignore[return-value]
+
+    def _obfuscate_func_name(self, node: ast.FunctionDef) -> None:
+        """Obfuscate function name if applicable."""
         if (
             self.obfuscate_names
             and not node.name.startswith("__")
@@ -315,14 +338,12 @@ class PolymorphicTransformer(ast.NodeTransformer):
         ):
             node.name = self._get_obfuscated_name(node.name)
 
-        # Obfuscate argument names
+    def _obfuscate_func_args(self, node: ast.FunctionDef) -> None:
+        """Obfuscate function argument names."""
         if self.obfuscate_names:
             for arg in node.args.args:
                 if arg.arg not in ("self", "cls"):
                     arg.arg = self._get_obfuscated_name(arg.arg)
-
-        # Visit children
-        return self.generic_visit(node)  # type: ignore[return-value]
 
     def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:  # pylint: disable=invalid-name
         """Transform class definitions."""
@@ -714,6 +735,7 @@ class SecureMemory:
         """Attempt to wipe a string buffer at given memory address.
 
         Note: This is best-effort due to Python's memory management.
+        Python strings are immutable, so this is inherently unreliable.
 
         Args:
             buffer_id: Memory address (from id())
@@ -725,9 +747,20 @@ class SecureMemory:
         """
         try:
             import ctypes
+            import sys as _sys
 
-            # String object header is typically 48 bytes in CPython
-            ctypes.memset(buffer_id + 48, 0, length)
+            # Compute CPython string object header size dynamically
+            # Use the difference between sizes of 1-char and 0-char strings
+            # to validate our header size estimate
+            header_size = _sys.getsizeof("")
+            if header_size < 32 or header_size > 128:
+                header_size = 49  # Common CPython 3.12+ compact ASCII header
+
+            # Safety check: don't write beyond reasonable bounds
+            if length <= 0 or length > 10_000_000:
+                return False
+
+            ctypes.memset(buffer_id + header_size, 0, length)
             return True
         except (OSError, ValueError, TypeError) as e:
             logger.debug("Memory wipe failed: %s", e)
@@ -772,14 +805,42 @@ class RAMCleaner:
         ba = bytearray(data.encode("utf-8"))
         self._sensitive_refs.append(ba)
 
+    def wipe_all(self) -> int:
+        """Wipe all registered sensitive data from memory.
+
+        Returns:
+            Number of buffers wiped.
+        """
+        count = 0
+        for ba in self._sensitive_refs:
+            for i in range(len(ba)):
+                ba[i] = 0
+            count += 1
+        self._sensitive_refs.clear()
+        # Force garbage collection to help reclaim memory
+        import gc
+        gc.collect()
+        logger.info("RAMCleaner: Wiped %d sensitive buffers", count)
+        return count
+
+    def __del__(self) -> None:
+        """Wipe on destruction."""
+        try:
+            self.wipe_all()
+        except Exception:
+            pass
+
 
 # Singleton
 _ram_cleaner = None  # pylint: disable=invalid-name
+_ram_cleaner_lock = threading.Lock()
 
 
 def get_ram_cleaner() -> RAMCleaner:
     """Get singleton RAMCleaner instance."""
     global _ram_cleaner  # pylint: disable=global-statement
     if _ram_cleaner is None:
-        _ram_cleaner = RAMCleaner()
+        with _ram_cleaner_lock:
+            if _ram_cleaner is None:
+                _ram_cleaner = RAMCleaner()
     return _ram_cleaner
