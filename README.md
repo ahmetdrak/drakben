@@ -29,7 +29,7 @@ You: "Scan the target for open ports and check for web vulnerabilities"
 DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 potential issues...
 ```
 
-**v2.5.0** — 234 tracked files · 105 core modules · 42 attack modules · 53 test suites · 34 registered tools · 21 intelligence modules
+**v2.5.0** — 234 tracked files · 105 core modules · 38 attack modules · 53 test suites · 34 registered tools · 21 intelligence modules
 
 ### Key Differentiators
 
@@ -359,7 +359,7 @@ drakben> attempt lateral movement to DC
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  ┌──────────┐  ┌──────────┐ │
 │  │  Agent   │  │ Planner  │  │Intelligence  │  │ Executor │  │  Tools   │ │
 │  │ (Brain)  │──│(Strategy)│──│(21 modules)  │──│ (Engine) │──│(34 tools)│ │
-│  │ 19 files │  │          │  │  v2 + v3     │  │ sandbox  │  │ registry │ │
+│  │ 28 files │  │          │  │  v2 + v3     │  │ sandbox  │  │ registry │ │
 │  └──────────┘  └──────────┘  └──────────────┘  └──────────┘  └──────────┘ │
 │       │              │              │                  │            │       │
 │       ▼              ▼              ▼                  ▼            ▼       │
@@ -372,12 +372,12 @@ drakben> attempt lateral movement to DC
 │  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────────┐              │
 │  │  LLM     │  │ Events    │  │Observ-   │  │ Knowledge    │              │
 │  │ Engine   │  │ Bus(pub/  │  │ability   │  │ Graph        │              │
-│  │ 6 files  │  │  sub)     │  │(tracing) │  │ (SQLite BFS) │              │
+│  │ 8 files  │  │  sub)     │  │(tracing) │  │ (SQLite BFS) │              │
 │  └──────────┘  └───────────┘  └──────────┘  └──────────────┘              │
 │                                                                             │
 │                           core/ — 105 Python files                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                          ATTACK MODULES (42 files)                          │
+│                          ATTACK MODULES (38 files)                          │
 │                                                                             │
 │  ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ │
 │  │ Recon  │ │Exploit  │ │ Payload │ │   C2    │ │Hive Mind │ │AD Attack│ │
@@ -398,10 +398,10 @@ drakben> attempt lateral movement to DC
 
 | Package | Files | Purpose |
 |---------|-------|---------|
-| `core/agent/` | 19 + 3 sub-dirs | Brain, planner, state, memory, cognitive, recovery |
+| `core/agent/` | 28 (incl. 3 sub-pkgs) | Brain, planner, state, memory, cognitive, recovery |
 | `core/intelligence/` | 21 | Self-refining engine, ReAct loop, context compression, v2 + v3 AI |
 | `core/execution/` | — | Execution engine, sandbox manager, tool selector |
-| `core/llm/` | 6 | LLM engine, token counter, multi-turn, RAG pipeline, async client |
+| `core/llm/` | 8 | LLM engine, token counter, multi-turn, RAG pipeline, async client |
 | `core/network/` | — | Web researcher, stealth client |
 | `core/security/` | — | Ghost protocol, credential store, command sanitization |
 | `core/singularity/` | — | Code synthesis, AST mutation, chaos engine |
@@ -528,7 +528,7 @@ Tag-triggered release pipeline:
 drakben/
 ├── drakben.py                       # Main entry point
 ├── core/                            # Core engine (105 files)
-│   ├── agent/                       # Agent subsystem (19 files + 3 sub-pkgs)
+│   ├── agent/                       # Agent subsystem (28 files incl. sub-pkgs)
 │   │   ├── brain.py                 # MasterOrchestrator — central reasoning hub
 │   │   ├── brain_*.py               # Brain decomposition (cognitive, context, decision, reasoning, self-correction)
 │   │   ├── state.py                 # AgentState singleton — single source of truth
@@ -538,6 +538,9 @@ drakben/
 │   │   ├── tool_dispatch.py         # Centralized tool routing with error isolation
 │   │   ├── multi_agent.py           # Parallel agent orchestration
 │   │   ├── error_diagnostics.py     # 18+ error pattern matching (TR/EN)
+│   │   ├── ra_tool_executors.py     # Refactored agent tool execution handlers
+│   │   ├── ra_tool_recovery.py      # Tool failure recovery strategies
+│   │   ├── ra_state_updates.py      # Agent state transition logic
 │   │   ├── cognitive/               # Generative Memory (perceive → retrieve → reflect)
 │   │   ├── memory/                  # Tool effectiveness & strategy evolution
 │   │   └── recovery/                # Error recovery & automatic retry
@@ -557,13 +560,14 @@ drakben/
 │   │   ├── self_refining_engine.py  # Policy engine + strategy mutation
 │   │   ├── coder.py                 # Code generation assistant
 │   │   └── ...                      # SRE sub-modules, universal adapter
-│   ├── llm/                         # LLM abstraction layer (6 files)
+│   ├── llm/                         # LLM abstraction layer (8 files)
 │   │   ├── llm_engine.py            # Unified LLM interface with caching & retry
 │   │   ├── token_counter.py         # Per-model token counting (tiktoken)
 │   │   ├── multi_turn.py            # Conversation history with sliding window
 │   │   ├── output_models.py         # Pydantic-based output validation
 │   │   ├── rag_pipeline.py          # Retrieval-Augmented Generation
-│   │   └── async_client.py          # Non-blocking LLM calls
+│   │   ├── async_client.py          # Non-blocking LLM calls
+│   │   └── local_provider.py        # Local LLM provider (Ollama) integration
 │   ├── execution/                   # Command execution & tool selection
 │   ├── network/                     # Stealth HTTP client, web research
 │   ├── security/                    # Ghost protocol, credential store, sanitization
@@ -577,7 +581,7 @@ drakben/
 │   ├── config.py                    # Configuration management (dataclass)
 │   ├── plugin_loader.py             # Dynamic plugin loading system
 │   └── stop_controller.py           # Graceful shutdown controller
-├── modules/                         # Attack modules (42 files)
+├── modules/                         # Attack modules (38 files)
 │   ├── recon.py                     # Reconnaissance (nmap, DNS, WHOIS)
 │   ├── exploit/                     # Exploitation package (6 files)
 │   │   ├── common.py                # SQLi, XSS, CSRF, SSTI, LFI, SSRF, brute-force
@@ -608,7 +612,7 @@ drakben/
 │   └── openrouter_client.py         # OpenRouter API client
 ├── tests/                           # Test suite (53 test files, 1609+ tests)
 │   ├── conftest.py                  # Shared fixtures (tmp_path, mock LLM, etc.)
-│   ├── test_e2e_integration.py      # 40+ end-to-end cross-module tests
+│   ├── test_e2e_integration.py      # 35 end-to-end cross-module tests
 │   ├── test_exploit_modules.py      # 50+ exploit sub-module tests
 │   ├── test_architecture_improvements.py  # 93 architecture tests
 │   └── ...                          # Unit tests per module
@@ -622,10 +626,13 @@ drakben/
 │   └── drakben_cd.yml               # Tag-triggered release pipeline
 ├── docker-compose.yml               # Docker orchestration
 ├── Dockerfile                       # Kali Linux container image
-├── requirements.txt                 # Core dependencies (17 packages)
+├── requirements.txt                 # Core + test dependencies (21 packages)
 ├── requirements-extra.txt           # Optional dependencies
 ├── ruff.toml                        # Ruff linter (35 rule groups, line-length 120)
 ├── mypy.ini                         # MyPy strict type checking
+├── tools.json                       # Tool definitions (16 entries)
+├── scripts/                         # Utility scripts
+│   └── update_imports.py            # Import path updater
 ├── sonar-project.properties         # SonarCloud analysis config
 ├── API.md                           # REST API documentation
 ├── ARCHITECTURE.md                  # Detailed architecture document
@@ -706,7 +713,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 **DRAKBEN v2.5.0** — *Autonomous Pentesting, Simplified.*
 
-234 files · 105 core modules · 42 attack modules · 34 tools · 21 AI modules · 1609 tests
+234 files · 105 core modules · 38 attack modules · 34 tools · 21 AI modules · 1609 tests
 
 Made with 🧛 by [@ahmetdrak](https://github.com/ahmetdrak)
 
