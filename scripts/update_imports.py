@@ -4,7 +4,6 @@ import os
 REPLACEMENTS = {
     "from core.agent.brain import": "from core.agent.brain import",
     "from core.intelligence.coder import": "from core.intelligence.coder import",
-    "from core.intelligence.code_review import": "from core.intelligence.code_review import",
     "from core.agent.state import": "from core.agent.state import",
     "from core.agent.planner import": "from core.agent.planner import",
     "from core.agent.refactored_agent import": "from core.agent.refactored_agent import",

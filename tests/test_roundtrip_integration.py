@@ -413,77 +413,7 @@ class TestPhishingCampaign:
 
 
 # ---------------------------------------------------------------------------
-# 7. SRE Evolution: Multi-step lifecycle
-# ---------------------------------------------------------------------------
-
-class TestSREEvolution:
-    """Test SelfRefiningEngine strategy lifecycle."""
-
-    def test_initialization(self):
-        """SRE should initialize with default strategies."""
-        from core.intelligence.self_refining_engine import SelfRefiningEngine
-
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        try:
-            sre = SelfRefiningEngine(db_path=db_path)
-            sre._ensure_initialized()
-
-            # Test that a known default strategy exists
-            sre.get_strategy("web_recon")
-            # At minimum, initialization should not crash
-            assert sre._initialized or sre._init_attempts > 0
-        finally:
-            try:
-                os.unlink(db_path)
-            except OSError:
-                pass
-
-    def test_select_strategy_and_profile(self):
-        """select_strategy_and_profile should return results for known target types."""
-        from core.intelligence.self_refining_engine import SelfRefiningEngine
-
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        try:
-            sre = SelfRefiningEngine(db_path=db_path)
-            sre._ensure_initialized()
-
-            # Try selecting for a web target
-            strategy, _profile = sre.select_strategy_and_profile("https://example.com")
-            # Even if none found, should not crash
-            # strategy may be None if DB is empty/timing issue
-            assert strategy is None or hasattr(strategy, "name")
-        finally:
-            try:
-                os.unlink(db_path)
-            except OSError:
-                pass
-
-    def test_classify_target(self):
-        """Target classification should identify common patterns."""
-        from core.intelligence.self_refining_engine import SelfRefiningEngine
-
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        try:
-            sre = SelfRefiningEngine(db_path=db_path)
-
-            assert sre.classify_target("https://example.com") == "web_app"
-            assert sre.classify_target("https://api.example.com/v1") == "api_endpoint"
-            assert sre.classify_target("192.168.1.1") == "network_host"
-        finally:
-            try:
-                os.unlink(db_path)
-            except OSError:
-                pass
-
-
-# ---------------------------------------------------------------------------
-# 8. VectorStore: Write → Search roundtrip
+# 7. VectorStore: Write → Search roundtrip
 # ---------------------------------------------------------------------------
 
 class TestVectorStoreRoundtrip:

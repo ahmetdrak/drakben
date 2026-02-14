@@ -7,6 +7,7 @@ from core.agent.state import (
     AgentState,
     AttackPhase,
     ServiceInfo,
+    reset_state,
 )
 
 
@@ -268,3 +269,14 @@ class TestValidate:
         snap = s.snapshot()
         assert snap["target"] == "10.0.0.1"
         assert snap["phase"] == "init"
+
+
+# ── rapid reset stress (was test_chaos.py) ───────────────────
+
+class TestStateStability:
+    def test_rapid_reset_stability(self) -> None:
+        """Rapidly reset and update state to check for race conditions."""
+        for i in range(100):
+            state = reset_state(f"target_{i}")
+            state.increment_iteration()
+            state.compute_state_hash()

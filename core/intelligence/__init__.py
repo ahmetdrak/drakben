@@ -1,7 +1,6 @@
 # core/intelligence/__init__.py
 """Intelligence module - AI, learning, and code generation."""
 
-from core.intelligence.code_review import CodeReview, CodeReviewMiddleware
 from core.intelligence.coder import AICoder, ASTSecurityChecker
 from core.intelligence.evolution_memory import ActionRecord, EvolutionMemory, PlanRecord
 from core.intelligence.self_refining_engine import (
@@ -17,8 +16,6 @@ __all__ = [
     "AICoder",
     "ASTSecurityChecker",
     "ActionRecord",
-    "CodeReview",
-    "CodeReviewMiddleware",
     "EvolutionMemory",
     "PlanRecord",
     "Policy",

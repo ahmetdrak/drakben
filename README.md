@@ -29,7 +29,7 @@ You: "Scan the target for open ports and check for web vulnerabilities"
 DRAKBEN: Executing nmap → Analyzing services → Running nikto → Found 3 potential issues...
 ```
 
-**v2.5.0** — 234 tracked files · 105 core modules · 38 attack modules · 53 test suites · 34 registered tools · 21 intelligence modules
+**v2.5.0** — 228 tracked files · 104 core modules · 38 attack modules · 48 test suites · 34 registered tools · 20 intelligence modules
 
 ### Key Differentiators
 
@@ -358,7 +358,7 @@ drakben> attempt lateral movement to DC
 │                                                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  ┌──────────┐  ┌──────────┐ │
 │  │  Agent   │  │ Planner  │  │Intelligence  │  │ Executor │  │  Tools   │ │
-│  │ (Brain)  │──│(Strategy)│──│(21 modules)  │──│ (Engine) │──│(34 tools)│ │
+│  │ (Brain)  │──│(Strategy)│──│(20 modules)  │──│ (Engine) │──│(34 tools)│ │
 │  │ 28 files │  │          │  │  v2 + v3     │  │ sandbox  │  │ registry │ │
 │  └──────────┘  └──────────┘  └──────────────┘  └──────────┘  └──────────┘ │
 │       │              │              │                  │            │       │
@@ -375,7 +375,7 @@ drakben> attempt lateral movement to DC
 │  │ 8 files  │  │  sub)     │  │(tracing) │  │ (SQLite BFS) │              │
 │  └──────────┘  └───────────┘  └──────────┘  └──────────────┘              │
 │                                                                             │
-│                           core/ — 105 Python files                          │
+│                           core/ — 104 Python files                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                          ATTACK MODULES (38 files)                          │
 │                                                                             │
@@ -399,7 +399,7 @@ drakben> attempt lateral movement to DC
 | Package | Files | Purpose |
 |---------|-------|---------|
 | `core/agent/` | 28 (incl. 3 sub-pkgs) | Brain, planner, state, memory, cognitive, recovery |
-| `core/intelligence/` | 21 | Self-refining engine, ReAct loop, context compression, v2 + v3 AI |
+| `core/intelligence/` | 20 | Self-refining engine, ReAct loop, context compression, v2 + v3 AI |
 | `core/execution/` | — | Execution engine, sandbox manager, tool selector |
 | `core/llm/` | 8 | LLM engine, token counter, multi-turn, RAG pipeline, async client |
 | `core/network/` | — | Web researcher, stealth client |
@@ -505,7 +505,7 @@ Every push and pull request triggers the full quality pipeline:
 | Job | Tool | Scope |
 |-----|------|-------|
 | **Lint & Format** | Ruff (35 rule groups) | All Python files |
-| **Type Safety** | MyPy (strict mode) | `core/` (105 files) |
+| **Type Safety** | MyPy (strict mode) | `core/` (104 files) |
 | **Security Audit** | Bandit | `core/` + `modules/` |
 | **Tests** | pytest (1609+ tests) | Python 3.11, 3.12, 3.13 matrix |
 | **E2E Integration** | pytest | Cross-module integration flows |
@@ -527,7 +527,7 @@ Tag-triggered release pipeline:
 ```
 drakben/
 ├── drakben.py                       # Main entry point
-├── core/                            # Core engine (105 files)
+├── core/                            # Core engine (104 files)
 │   ├── agent/                       # Agent subsystem (28 files incl. sub-pkgs)
 │   │   ├── brain.py                 # MasterOrchestrator — central reasoning hub
 │   │   ├── brain_*.py               # Brain decomposition (cognitive, context, decision, reasoning, self-correction)
@@ -544,7 +544,7 @@ drakben/
 │   │   ├── cognitive/               # Generative Memory (perceive → retrieve → reflect)
 │   │   ├── memory/                  # Tool effectiveness & strategy evolution
 │   │   └── recovery/                # Error recovery & automatic retry
-│   ├── intelligence/                # AI modules (21 files)
+│   ├── intelligence/                # AI modules (20 files)
 │   │   ├── react_loop.py            # ReAct: Thought → Action → Observation
 │   │   ├── structured_output.py     # LLM output parsing (JSON, tables, KV)
 │   │   ├── tool_output_analyzer.py  # Tool result classification & data extraction
@@ -610,7 +610,7 @@ drakben/
 │   └── social_eng/                  # OSINT spider, phishing, social profiling
 ├── llm/                             # LLM integration
 │   └── openrouter_client.py         # OpenRouter API client
-├── tests/                           # Test suite (53 test files, 1609+ tests)
+├── tests/                           # Test suite (48 test files, 1609+ tests)
 │   ├── conftest.py                  # Shared fixtures (tmp_path, mock LLM, etc.)
 │   ├── test_e2e_integration.py      # 35 end-to-end cross-module tests
 │   ├── test_exploit_modules.py      # 50+ exploit sub-module tests
@@ -713,7 +713,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 **DRAKBEN v2.5.0** — *Autonomous Pentesting, Simplified.*
 
-234 files · 105 core modules · 38 attack modules · 34 tools · 21 AI modules · 1609 tests
+228 files · 104 core modules · 38 attack modules · 34 tools · 20 AI modules · 1609 tests
 
 Made with 🧛 by [@ahmetdrak](https://github.com/ahmetdrak)
 

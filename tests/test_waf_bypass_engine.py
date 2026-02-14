@@ -3,6 +3,8 @@
 import contextlib
 import time
 
+import pytest
+
 from modules.waf_bypass_engine import (
     WAF_SIGNATURES,
     AdaptiveMutationMemory,
@@ -18,6 +20,13 @@ from modules.waf_bypass_engine import (
     create_engine,
     fingerprint_waf,
 )
+from modules.waf_evasion import WAFEvasion
+
+try:
+    from modules.stealth_client import StealthSession
+    _CURL_AVAILABLE = True
+except ImportError:
+    _CURL_AVAILABLE = False
 
 
 class TestWAFFingerprinting:
@@ -685,3 +694,34 @@ class TestIntegration:
             if os.path.exists(db_path):
                 with contextlib.suppress(PermissionError):
                     os.remove(db_path)
+
+
+# ── Basic WAFEvasion obfuscation (was test_power.py) ─────────
+
+class TestBasicWAFEvasionObfuscation:
+    """Basic WAFEvasion SQL/XSS/shell mutation tests."""
+
+    def test_waf_sql_mutation(self) -> None:
+        waf = WAFEvasion()
+        raw = "UNION SELECT password FROM users"
+        obfuscated = waf.obfuscate_sql(raw)
+        assert obfuscated != raw
+
+    def test_waf_xss_mutation(self) -> None:
+        waf = WAFEvasion()
+        raw = "<script>alert(1)</script>"
+        obfuscated = waf.obfuscate_xss(raw)
+        assert obfuscated != raw
+
+    def test_waf_shell_mutation(self) -> None:
+        waf = WAFEvasion()
+        raw = "cat /etc/passwd"
+        obfuscated = waf.obfuscate_shell(raw)
+        assert obfuscated != raw
+
+    def test_stealth_session_instantiation(self) -> None:
+        if not _CURL_AVAILABLE:
+            pytest.skip("curl_cffi not installed")
+        session = StealthSession(impersonate="chrome120")
+        ua = session.headers.get("User-Agent", "")
+        assert "Chrome" in ua or ua != ""

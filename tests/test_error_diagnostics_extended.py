@@ -1,5 +1,5 @@
 # tests/test_error_diagnostics_extended.py
-"""Extended tests covering the 8 previously untested error checkers."""
+"""Comprehensive tests for ErrorDiagnosticsMixin — basic + extended checkers."""
 
 import pytest
 
@@ -13,6 +13,54 @@ class DiagnosticsHelper(ErrorDiagnosticsMixin):
 @pytest.fixture()
 def diag() -> DiagnosticsHelper:
     return DiagnosticsHelper()
+
+
+# ── Basic error categories (was test_error_diagnostics.py) ────
+
+class TestBasicDiagnostics:
+    """Basic _diagnose_error coverage for common error types."""
+
+    def test_missing_tool(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("bash: nmap: command not found", 127)
+        assert result["type"] == "missing_tool"
+        assert result["tool"] == "nmap"
+
+    def test_permission_denied(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Permission denied", 1)
+        assert result["type"] == "permission_denied"
+
+    def test_timeout(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Connection timed out", 1)
+        assert result["type"] == "timeout"
+
+    def test_network_error(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Connection refused", 1)
+        assert result["type"] == "connection_error"
+
+    def test_python_module_missing(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error(
+            "ModuleNotFoundError: No module named 'requests'", 1,
+        )
+        assert result["type"] == "python_module_missing"
+        assert result["module"] == "requests"
+
+    def test_file_not_found(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error(
+            "No such file or directory: config.json", 1,
+        )
+        assert result["type"] == "file_not_found"
+
+    def test_unknown_error(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Something weird happened xyz123", 99)
+        assert result["type"] == "unknown"
+
+    def test_rate_limit(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Error 429: Too many requests", 1)
+        assert result["type"] == "rate_limit"
+
+    def test_firewall(self, diag: DiagnosticsHelper) -> None:
+        result = diag._diagnose_error("Request filtered by WAF", 1)
+        assert result["type"] == "firewall_blocked"
 
 
 # ── _check_library_error ──────────────────────────────────────

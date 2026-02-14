@@ -69,6 +69,23 @@ class TestSelfRefiningEngine(unittest.TestCase):
         loaded = engine2.get_profile(profile_id)
         assert loaded is not None, f"Profile {profile_id} should persist across instances"
 
+    def test_classify_target(self) -> None:
+        """Target classification should identify common patterns."""
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+        try:
+            sre = SelfRefiningEngine(db_path=db_path)
+            assert sre.classify_target("https://example.com") == "web_app"
+            assert sre.classify_target("https://api.example.com/v1") == "api_endpoint"
+            assert sre.classify_target("192.168.1.1") == "network_host"
+        finally:
+            try:
+                os.unlink(db_path)
+            except OSError:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()

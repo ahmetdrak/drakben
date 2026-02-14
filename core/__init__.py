@@ -40,8 +40,6 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "SandboxManager": ("core.execution.sandbox_manager", "SandboxManager"),
     "ToolSelector": ("core.execution.tool_selector", "ToolSelector"),
     # Intelligence module
-    "CodeReview": ("core.intelligence.code_review", "CodeReview"),
-    "CodeReviewMiddleware": ("core.intelligence.code_review", "CodeReviewMiddleware"),
     "AICoder": ("core.intelligence.coder", "AICoder"),
     "ASTSecurityChecker": ("core.intelligence.coder", "ASTSecurityChecker"),
     "ActionRecord": (_M_EVOMEM, "ActionRecord"),
