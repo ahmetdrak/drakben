@@ -5,6 +5,7 @@ Covers:
 2. AgentProtocol mixin base (TYPE_CHECKING-only Protocol)
 3. OpenTelemetry bridge in observability module
 """
+
 from __future__ import annotations
 
 import importlib
@@ -62,6 +63,7 @@ class TestErrorHandlingSpecificity:
             side_effect=RuntimeError("no db"),
         ):
             from core.agent.planner import Planner
+
             p = Planner()
             assert p.memory is None
 
@@ -72,12 +74,14 @@ class TestErrorHandlingSpecificity:
             side_effect=TypeError("bad arg"),
         ):
             from core.agent.planner import Planner
+
             with pytest.raises(TypeError, match="bad arg"):
                 Planner()
 
     def test_health_checker_catches_os_error(self):
         """HealthChecker._check_disk catches OSError."""
         from core.health import HealthChecker
+
         checker = HealthChecker()
         with patch("shutil.disk_usage", side_effect=OSError("perm")):
             healthy, msg, _details = checker._check_disk()
@@ -87,6 +91,7 @@ class TestErrorHandlingSpecificity:
     def test_stop_controller_catches_import_error(self):
         """StopController.graceful_shutdown catches ImportError for cleanup."""
         from core.stop_controller import StopController
+
         sc = StopController()
         sc._stop_event.set()
         # Shouldn't raise — ImportError is caught internally
@@ -104,21 +109,30 @@ class TestAgentProtocol:
     def test_protocol_importable(self):
         """AgentProtocol can be imported."""
         from core.agent._agent_protocol import AgentProtocol
+
         assert AgentProtocol is not None
 
     def test_protocol_has_core_attributes(self):
         """AgentProtocol declares required core attributes."""
 
         from core.agent._agent_protocol import AgentProtocol
+
         hints = {}
         for cls in AgentProtocol.__mro__:
             if hasattr(cls, "__annotations__"):
                 hints.update(cls.__annotations__)
 
         required = [
-            "console", "state", "brain", "tool_selector", "executor",
-            "running", "stagnation_counter", "current_strategy",
-            "MSG_STATE_NOT_NONE", "STYLE_GREEN",
+            "console",
+            "state",
+            "brain",
+            "tool_selector",
+            "executor",
+            "running",
+            "stagnation_counter",
+            "current_strategy",
+            "MSG_STATE_NOT_NONE",
+            "STYLE_GREEN",
         ]
         for attr in required:
             assert attr in hints, f"Missing attribute: {attr}"
@@ -126,6 +140,7 @@ class TestAgentProtocol:
     def test_protocol_has_cross_mixin_methods(self):
         """AgentProtocol declares cross-mixin method signatures."""
         from core.agent._agent_protocol import AgentProtocol
+
         assert hasattr(AgentProtocol, "_diagnose_error")
         assert hasattr(AgentProtocol, "_format_tool_result")
         assert hasattr(AgentProtocol, "_handle_tool_failure")
@@ -133,11 +148,10 @@ class TestAgentProtocol:
     def test_mixin_inherits_protocol_at_typecheck_only(self):
         """Mixins inherit from _MixinBase which is object at runtime."""
         from core.agent.ra_tool_executors import RAToolExecutorsMixin
+
         # At runtime, the base should be plain object (not AgentProtocol)
         bases = RAToolExecutorsMixin.__bases__
-        assert object in bases or all(
-            b.__name__ in ("object", "_MixinBase") for b in bases
-        )
+        assert object in bases or all(b.__name__ in ("object", "_MixinBase") for b in bases)
 
     def test_all_mixins_have_mixin_base(self):
         """All 8 RA mixins use _MixinBase pattern."""
@@ -160,6 +174,7 @@ class TestAgentProtocol:
         """RefactoredDrakbenAgent still composes all mixins."""
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "test"}):
             from core.agent.refactored_agent import RefactoredDrakbenAgent
+
             mro_names = [c.__name__ for c in RefactoredDrakbenAgent.__mro__]
             expected_mixins = [
                 "RAToolExecutorsMixin",
@@ -182,6 +197,7 @@ class TestOpenTelemetryBridge:
     def test_tracer_works_without_otel(self):
         """Tracer works normally when OTEL is not installed."""
         from core.observability import Tracer
+
         Tracer.reset()
         tracer = Tracer()
 
@@ -197,12 +213,14 @@ class TestOpenTelemetryBridge:
     def test_otel_bridge_flag_exists(self):
         """Module exposes _OTEL_AVAILABLE flag."""
         from core import observability
+
         assert hasattr(observability, "_OTEL_AVAILABLE")
         assert isinstance(observability._OTEL_AVAILABLE, bool)
 
     def test_mirror_to_otel_noop_without_otel(self):
         """_mirror_to_otel is no-op when OTEL is absent."""
         from core.observability import Span, Tracer
+
         Tracer.reset()
         sp = Span(name="test", attributes={"a": 1})
         sp.end_time = sp.start_time + 0.1
@@ -225,6 +243,7 @@ class TestOpenTelemetryBridge:
         mock_status.ERROR = "ERROR"
 
         import core.observability as obs
+
         orig_available = obs._OTEL_AVAILABLE
         orig_tracer = obs._otel_tracer
         orig_status = getattr(obs, "OtelStatusCode", None)
@@ -263,6 +282,7 @@ class TestOpenTelemetryBridge:
         mock_status.ERROR = "ERROR"
 
         import core.observability as obs
+
         orig = (obs._OTEL_AVAILABLE, obs._otel_tracer, getattr(obs, "OtelStatusCode", None))
 
         try:
@@ -285,6 +305,7 @@ class TestOpenTelemetryBridge:
     def test_metrics_still_work(self):
         """MetricsCollector continues to work with OTEL changes."""
         from core.observability import MetricsCollector
+
         MetricsCollector.reset()
         mc = MetricsCollector()
 
@@ -311,10 +332,12 @@ class TestMixinIntegration:
     def test_mixin_base_does_not_affect_runtime_behavior(self):
         """_MixinBase = object at runtime, so no method resolution change."""
         from core.agent.ra_tool_executors import _MixinBase
+
         assert _MixinBase is object
 
     def test_protocol_is_protocol_type(self):
         """AgentProtocol is a typing.Protocol subclass."""
         from core.agent._agent_protocol import AgentProtocol
+
         # Protocol classes have _is_protocol attribute
         assert getattr(AgentProtocol, "_is_protocol", False) is True

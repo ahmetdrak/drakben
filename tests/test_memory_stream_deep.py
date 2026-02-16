@@ -258,9 +258,7 @@ class TestEviction:
 
         # Add 50 low-poignancy nodes
         for i in range(50):
-            ms.add(
-                _make_node(description=f"low-{i}", poignancy=3.0, target="evict-test")
-            )
+            ms.add(_make_node(description=f"low-{i}", poignancy=3.0, target="evict-test"))
         assert ms.count() == 50
 
         # Add one more — should trigger eviction
@@ -330,9 +328,7 @@ class TestSemanticSearch:
         ms.add(node)
 
         # Mock search results
-        mock_store.search.return_value = [
-            {"metadata": {"node_id": node.node_id}, "distance": 0.1}
-        ]
+        mock_store.search.return_value = [{"metadata": {"node_id": node.node_id}, "distance": 0.1}]
 
         results = ms.search_semantic("SQL injection", n=5)
         assert len(results) == 1
@@ -496,11 +492,13 @@ class TestBuildContextAdvanced:
         """build_context respects max_tokens limit."""
         ms = MemoryStream(persist_path=None)
         for i in range(20):
-            ms.add(_make_node(
-                description=f"Event {i}: " + "A" * 200,
-                node_type=NodeType.EVENT,
-                poignancy=5.0,
-            ))
+            ms.add(
+                _make_node(
+                    description=f"Event {i}: " + "A" * 200,
+                    node_type=NodeType.EVENT,
+                    poignancy=5.0,
+                )
+            )
 
         # Very small token limit
         context = ms.build_context(max_tokens=50)
@@ -511,18 +509,27 @@ class TestBuildContextAdvanced:
     def test_build_context_include_types_filter(self) -> None:
         """build_context with include_types only includes those types."""
         ms = MemoryStream(persist_path=None)
-        ms.add(_make_node(
-            description="An event", node_type=NodeType.EVENT,
-            relevance=PentestRelevance.SERVICE_INFO,
-        ))
-        ms.add(_make_node(
-            description="A thought", node_type=NodeType.THOUGHT,
-            relevance=PentestRelevance.SERVICE_INFO,
-        ))
-        ms.add(_make_node(
-            description="A reflection", node_type=NodeType.REFLECTION,
-            relevance=PentestRelevance.SERVICE_INFO,
-        ))
+        ms.add(
+            _make_node(
+                description="An event",
+                node_type=NodeType.EVENT,
+                relevance=PentestRelevance.SERVICE_INFO,
+            )
+        )
+        ms.add(
+            _make_node(
+                description="A thought",
+                node_type=NodeType.THOUGHT,
+                relevance=PentestRelevance.SERVICE_INFO,
+            )
+        )
+        ms.add(
+            _make_node(
+                description="A reflection",
+                node_type=NodeType.REFLECTION,
+                relevance=PentestRelevance.SERVICE_INFO,
+            )
+        )
 
         # Only events
         context = ms.build_context(include_types=[NodeType.EVENT])
@@ -573,10 +580,13 @@ class TestFullClear:
         ms = MemoryStream(persist_path=None)
         ms.add(_make_node(description="n1", target="A"))
         ms.add(_make_node(description="n2", target="B"))
-        ms.add(_make_node(
-            description="n3", target="C",
-            spo=SPOTriple(subject="C", predicate="has", obj="thing"),
-        ))
+        ms.add(
+            _make_node(
+                description="n3",
+                target="C",
+                spo=SPOTriple(subject="C", predicate="has", obj="thing"),
+            )
+        )
         assert ms.count() == 3
 
         ms.clear()
@@ -650,11 +660,13 @@ class TestEdgeCases:
         types = [NodeType.EVENT, NodeType.THOUGHT, NodeType.FINDING]
 
         for i in range(30):
-            ms.add(_make_node(
-                description=f"node-{i}",
-                target=targets[i % 3],
-                node_type=types[i % 3],
-            ))
+            ms.add(
+                _make_node(
+                    description=f"node-{i}",
+                    target=targets[i % 3],
+                    node_type=types[i % 3],
+                )
+            )
 
         assert ms.count() == 30
         assert len(ms.get_by_type(NodeType.EVENT)) == 10
@@ -669,9 +681,11 @@ class TestEdgeCases:
     def test_query_spo_after_clear(self) -> None:
         """SPO index is cleared after full clear."""
         ms = MemoryStream(persist_path=None)
-        ms.add(_make_node(
-            spo=SPOTriple(subject="host", predicate="runs", obj="nginx"),
-        ))
+        ms.add(
+            _make_node(
+                spo=SPOTriple(subject="host", predicate="runs", obj="nginx"),
+            )
+        )
         assert len(ms.query_spo(subject="host")) == 1
 
         ms.clear()

@@ -97,10 +97,7 @@ class RAGPipeline:
             results = self._vector_store.search(query, n_results=count)
 
             # Filter by relevance threshold
-            relevant = [
-                r for r in results
-                if r.get("distance", 999) < self.RELEVANCE_THRESHOLD
-            ]
+            relevant = [r for r in results if r.get("distance", 999) < self.RELEVANCE_THRESHOLD]
 
             if relevant:
                 self._stats["hits"] += 1

@@ -24,6 +24,7 @@ from modules.waf_evasion import WAFEvasion
 
 try:
     from modules.stealth_client import StealthSession
+
     _CURL_AVAILABLE = True
 except ImportError:
     _CURL_AVAILABLE = False
@@ -97,11 +98,7 @@ class TestWAFFingerprinting:
 
     def test_fingerprint_function(self) -> None:
         """Test convenience fingerprint function."""
-        waf = fingerprint_waf(
-            {"cf-ray": "123", "server": "cloudflare"},
-            "Ray ID:",
-            403
-        )
+        waf = fingerprint_waf({"cf-ray": "123", "server": "cloudflare"}, "Ray ID:", 403)
         assert waf == WAFType.CLOUDFLARE
 
 
@@ -697,6 +694,7 @@ class TestIntegration:
 
 
 # ── Basic WAFEvasion obfuscation (was test_power.py) ─────────
+
 
 class TestBasicWAFEvasionObfuscation:
     """Basic WAFEvasion SQL/XSS/shell mutation tests."""

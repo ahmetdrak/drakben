@@ -40,36 +40,36 @@ class AgentRole(enum.Enum):
     """
 
     # Core roles
-    REASONING = "reasoning"      # Main reasoning / planning (~expensive model)
-    PARSING = "parsing"          # Output parsing / summarization (~cheap model)
-    CODING = "coding"            # Code generation / review (~mid-tier model)
-    SCANNING = "scanning"        # Scan result analysis (~cheap model)
-    REPORTING = "reporting"      # Report generation (~mid-tier model)
+    REASONING = "reasoning"  # Main reasoning / planning (~expensive model)
+    PARSING = "parsing"  # Output parsing / summarization (~cheap model)
+    CODING = "coding"  # Code generation / review (~mid-tier model)
+    SCANNING = "scanning"  # Scan result analysis (~cheap model)
+    REPORTING = "reporting"  # Report generation (~mid-tier model)
 
     # Advanced roles
-    RESEARCHER = "researcher"    # Exploit research / CVE analysis
-    ADVISER = "adviser"          # Strategic recommendations
-    REFLECTOR = "reflector"      # Self-reflection / improvement
-    ENRICHER = "enricher"        # Data enrichment / OSINT
-    INSTALLER = "installer"     # Tool installation / setup
+    RESEARCHER = "researcher"  # Exploit research / CVE analysis
+    ADVISER = "adviser"  # Strategic recommendations
+    REFLECTOR = "reflector"  # Self-reflection / improvement
+    ENRICHER = "enricher"  # Data enrichment / OSINT
+    INSTALLER = "installer"  # Tool installation / setup
 
     # Default
-    DEFAULT = "default"          # Fallback for unspecified roles
+    DEFAULT = "default"  # Fallback for unspecified roles
 
 
 # Default model tiers (users override via config.model_overrides)
 DEFAULT_MODEL_TIERS: dict[AgentRole, str] = {
-    AgentRole.REASONING: "expensive",    # GPT-4o, Claude-3.5-Sonnet
-    AgentRole.PARSING: "cheap",          # Llama-3.1-8B, GPT-4o-mini
-    AgentRole.CODING: "mid",             # DeepSeek-Coder, GPT-4o-mini
-    AgentRole.SCANNING: "cheap",         # Llama-3.1-8B
-    AgentRole.REPORTING: "mid",          # GPT-4o-mini
-    AgentRole.RESEARCHER: "expensive",   # GPT-4o
-    AgentRole.ADVISER: "mid",            # GPT-4o-mini
-    AgentRole.REFLECTOR: "mid",          # GPT-4o-mini
-    AgentRole.ENRICHER: "cheap",         # Llama-3.1-8B
-    AgentRole.INSTALLER: "cheap",        # Llama-3.1-8B
-    AgentRole.DEFAULT: "mid",            # Default tier
+    AgentRole.REASONING: "expensive",  # GPT-4o, Claude-3.5-Sonnet
+    AgentRole.PARSING: "cheap",  # Llama-3.1-8B, GPT-4o-mini
+    AgentRole.CODING: "mid",  # DeepSeek-Coder, GPT-4o-mini
+    AgentRole.SCANNING: "cheap",  # Llama-3.1-8B
+    AgentRole.REPORTING: "mid",  # GPT-4o-mini
+    AgentRole.RESEARCHER: "expensive",  # GPT-4o
+    AgentRole.ADVISER: "mid",  # GPT-4o-mini
+    AgentRole.REFLECTOR: "mid",  # GPT-4o-mini
+    AgentRole.ENRICHER: "cheap",  # Llama-3.1-8B
+    AgentRole.INSTALLER: "cheap",  # Llama-3.1-8B
+    AgentRole.DEFAULT: "mid",  # Default tier
 }
 
 # System prompts per role
@@ -90,8 +90,7 @@ ROLE_SYSTEM_PROMPTS: dict[AgentRole, str] = {
         "Follow secure coding practices. Never use shell=True."
     ),
     AgentRole.SCANNING: (
-        "You are a vulnerability scanner analyst. "
-        "Analyze scan results, identify false positives, prioritize findings."
+        "You are a vulnerability scanner analyst. Analyze scan results, identify false positives, prioritize findings."
     ),
     AgentRole.REPORTING: (
         "You are a professional penetration testing report writer. "
@@ -110,16 +109,12 @@ ROLE_SYSTEM_PROMPTS: dict[AgentRole, str] = {
         "Analyze past actions, identify mistakes, suggest improvements."
     ),
     AgentRole.ENRICHER: (
-        "You are an OSINT specialist. "
-        "Enrich target data with publicly available information from various sources."
+        "You are an OSINT specialist. Enrich target data with publicly available information from various sources."
     ),
     AgentRole.INSTALLER: (
-        "You are a system administrator. "
-        "Help install and configure security tools on Linux/Kali systems."
+        "You are a system administrator. Help install and configure security tools on Linux/Kali systems."
     ),
-    AgentRole.DEFAULT: (
-        "You are a helpful penetration testing assistant."
-    ),
+    AgentRole.DEFAULT: ("You are a helpful penetration testing assistant."),
 }
 
 
@@ -176,6 +171,7 @@ class MultiAgentOrchestrator:
         """
         try:
             from core.llm.prompt_registry import get_prompt
+
             registry_key = f"role.{role.value}"
             prompt = get_prompt(registry_key)
             if prompt:
@@ -256,7 +252,11 @@ class MultiAgentOrchestrator:
             if qr.success:
                 self._call_counts[role] += 1
                 return self._make_result(
-                    True, qr.response, role, qr.provider_used, t0,
+                    True,
+                    qr.response,
+                    role,
+                    qr.provider_used,
+                    t0,
                 )
         except (OSError, ValueError, RuntimeError):
             logger.debug("FallbackChain unavailable, falling back to direct client")
@@ -281,16 +281,20 @@ class MultiAgentOrchestrator:
         )
         self._delegation_history.append(record)
         if len(self._delegation_history) > self._max_history:
-            self._delegation_history = self._delegation_history[-self._max_history:]
+            self._delegation_history = self._delegation_history[-self._max_history :]
 
         # Emit event (best-effort)
         try:
             from core.events import EventType, get_event_bus
-            get_event_bus().publish(EventType.TOOL_COMPLETE, {
-                "tool": f"multi_agent.{role.value}",
-                "success": success,
-                "latency_ms": latency_ms,
-            })
+
+            get_event_bus().publish(
+                EventType.TOOL_COMPLETE,
+                {
+                    "tool": f"multi_agent.{role.value}",
+                    "success": success,
+                    "latency_ms": latency_ms,
+                },
+            )
         except (ImportError, AttributeError, RuntimeError):
             pass
 
@@ -306,10 +310,7 @@ class MultiAgentOrchestrator:
         """Get usage statistics per role."""
         total = len(self._delegation_history)
         successes = sum(1 for r in self._delegation_history if r.success)
-        avg_latency = (
-            sum(r.latency_ms for r in self._delegation_history) / total
-            if total > 0 else 0.0
-        )
+        avg_latency = sum(r.latency_ms for r in self._delegation_history) / total if total > 0 else 0.0
         return {
             "call_counts": {r.value: c for r, c in self._call_counts.items() if c > 0},
             "model_overrides": self._model_overrides,

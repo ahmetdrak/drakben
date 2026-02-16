@@ -1,7 +1,6 @@
 # tests/test_lazy_imports.py
 """Tests for the lazy-import mechanism in modules/__init__.py."""
 
-
 import pytest
 
 import modules
@@ -68,12 +67,16 @@ class TestDirectImport:
 
     def test_from_import(self) -> None:
         from modules import ReportFormat
+
         assert hasattr(ReportFormat, "HTML")
 
     def test_from_import_finding(self) -> None:
         from modules import Finding
+
         f = Finding(
-            title="t", severity=modules.__getattr__("FindingSeverity").LOW,
-            description="d", affected_asset="a",
+            title="t",
+            severity=modules.__getattr__("FindingSeverity").LOW,
+            description="d",
+            affected_asset="a",
         )
         assert f.title == "t"

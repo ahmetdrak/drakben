@@ -23,9 +23,9 @@ class ReflectionEntry:
 
     step: int
     timestamp: float
-    verdict: str           # continue, pivot, escalate
+    verdict: str  # continue, pivot, escalate
     reasoning: str
-    progress_pct: float    # Estimated progress (0.0-1.0)
+    progress_pct: float  # Estimated progress (0.0-1.0)
     blind_spots: list[str] = field(default_factory=list)
     suggested_changes: list[str] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
@@ -54,9 +54,9 @@ class SelfReflectionEngine:
 
     """
 
-    REFLECT_EVERY_N_STEPS = 5     # How often to reflect
-    MAX_REFLECTIONS = 50          # History limit
-    STAGNATION_THRESHOLD = 3      # Same action repeated N times = stagnation
+    REFLECT_EVERY_N_STEPS = 5  # How often to reflect
+    MAX_REFLECTIONS = 50  # History limit
+    STAGNATION_THRESHOLD = 3  # Same action repeated N times = stagnation
 
     def __init__(
         self,
@@ -318,7 +318,7 @@ class SelfReflectionEngine:
         """Record reflection in history."""
         self.history.append(entry)
         if len(self.history) > self.MAX_REFLECTIONS:
-            self.history = self.history[-self.MAX_REFLECTIONS:]
+            self.history = self.history[-self.MAX_REFLECTIONS :]
 
     @staticmethod
     def _parse_json(text: str) -> dict[str, Any] | None:

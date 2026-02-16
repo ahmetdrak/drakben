@@ -45,8 +45,7 @@ def _check_cargo() -> str:
     cargo = shutil.which("cargo")
     if cargo is None:
         print(
-            "ERROR: 'cargo' not found on PATH. Install the Rust toolchain:\n"
-            "  https://rustup.rs/",
+            "ERROR: 'cargo' not found on PATH. Install the Rust toolchain:\n  https://rustup.rs/",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -90,7 +89,9 @@ def build(*, release: bool = True) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build Drakben Rust Syscall Engine")
     parser.add_argument(
-        "--debug", action="store_true", help="Build in debug mode (unoptimised)",
+        "--debug",
+        action="store_true",
+        help="Build in debug mode (unoptimised)",
     )
     args = parser.parse_args()
     build(release=not args.debug)

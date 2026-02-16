@@ -120,25 +120,32 @@ class DrakbenBrain:
 
         # Initialize Stanford-style Cognitive Memory System FIRST
         self.cognitive_memory: CognitiveMemoryManager | None = self._init_cognitive_memory(
-            self.llm_client, use_cognitive_memory,
+            self.llm_client,
+            use_cognitive_memory,
         )
 
         # Initialize modules via DI container (fall back to direct new)
         self.orchestrator = self._resolve_or_create(
-            "orchestrator", MasterOrchestrator,
+            "orchestrator",
+            MasterOrchestrator,
         )
         self.reasoning = self._resolve_or_create(
-            "reasoning", ContinuousReasoning,
-            self.llm_client, self.cognitive_memory,
+            "reasoning",
+            ContinuousReasoning,
+            self.llm_client,
+            self.cognitive_memory,
         )
         self.context_mgr = self._resolve_or_create(
-            "context_manager", ContextManager,
+            "context_manager",
+            ContextManager,
         )
         self.self_correction = self._resolve_or_create(
-            "self_correction", SelfCorrection,
+            "self_correction",
+            SelfCorrection,
         )
         self.decision_engine = self._resolve_or_create(
-            "decision_engine", DecisionEngine,
+            "decision_engine",
+            DecisionEngine,
         )
 
         # Connect modules
@@ -195,7 +202,8 @@ class DrakbenBrain:
 
     @staticmethod
     def _init_cognitive_memory(
-        llm_client: Any, use_cognitive_memory: bool,
+        llm_client: Any,
+        use_cognitive_memory: bool,
     ) -> CognitiveMemoryManager | None:
         """Initialize Stanford-style cognitive memory system."""
         if not use_cognitive_memory:
@@ -224,50 +232,39 @@ class DrakbenBrain:
     def _init_intelligence_modules(self, llm_client: Any) -> None:
         """Initialize all Intelligence v2 + v3 modules via DI or _safe_init."""
         # v2 modules
-        self.output_analyzer = (
-            self._container.try_resolve("output_analyzer")
-            or self._safe_init(
-                _ToolOutputAnalyzer, llm_client=llm_client, label="Tool Output Analyzer",
-            )
+        self.output_analyzer = self._container.try_resolve("output_analyzer") or self._safe_init(
+            _ToolOutputAnalyzer,
+            llm_client=llm_client,
+            label="Tool Output Analyzer",
         )
-        self.context_compressor = (
-            self._container.try_resolve("context_compressor")
-            or self._safe_init(
-                _ContextCompressor, llm_client=llm_client, label="Context Compressor",
-            )
+        self.context_compressor = self._container.try_resolve("context_compressor") or self._safe_init(
+            _ContextCompressor,
+            llm_client=llm_client,
+            label="Context Compressor",
         )
-        self.output_parser = (
-            self._container.try_resolve("output_parser")
-            or self._safe_init(
-                _StructuredOutputParser, llm_client=llm_client, label="Structured Output Parser",
-            )
+        self.output_parser = self._container.try_resolve("output_parser") or self._safe_init(
+            _StructuredOutputParser,
+            llm_client=llm_client,
+            label="Structured Output Parser",
         )
         # v3 modules
-        self.few_shot = (
-            self._container.try_resolve("few_shot")
-            or self._safe_init(_FewShotEngine, label="Few-Shot Engine")
+        self.few_shot = self._container.try_resolve("few_shot") or self._safe_init(
+            _FewShotEngine, label="Few-Shot Engine"
         )
-        self.correlator = (
-            self._container.try_resolve("correlator")
-            or self._safe_init(_CrossCorrelator, label="Cross-Correlator")
+        self.correlator = self._container.try_resolve("correlator") or self._safe_init(
+            _CrossCorrelator, label="Cross-Correlator"
         )
-        self.adversarial = (
-            self._container.try_resolve("adversarial")
-            or self._safe_init(_AdversarialAdapter, label="Adversarial Adapter")
+        self.adversarial = self._container.try_resolve("adversarial") or self._safe_init(
+            _AdversarialAdapter, label="Adversarial Adapter"
         )
-        self.exploit_predictor = (
-            self._container.try_resolve("exploit_predictor")
-            or self._safe_init(_ExploitPredictor, label="Exploit Predictor")
+        self.exploit_predictor = self._container.try_resolve("exploit_predictor") or self._safe_init(
+            _ExploitPredictor, label="Exploit Predictor"
         )
-        self.knowledge_base = (
-            self._container.try_resolve("knowledge_base")
-            or self._safe_init(_CrossSessionKB, label="Cross-Session KB")
+        self.knowledge_base = self._container.try_resolve("knowledge_base") or self._safe_init(
+            _CrossSessionKB, label="Cross-Session KB"
         )
         # Model Router needs special init
-        self.model_router = (
-            self._container.try_resolve("model_router")
-            or self._init_model_router(llm_client)
-        )
+        self.model_router = self._container.try_resolve("model_router") or self._init_model_router(llm_client)
 
     def _init_model_router(self, llm_client: Any) -> Any:
         """Initialize model router with auto-detection."""
@@ -376,9 +373,7 @@ class DrakbenBrain:
         # Fallback: raw client
         if self.llm_client:
             return self.llm_client.query(message)
-        return (
-            "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
-        )
+        return "[Offline Mode] LLM bağlantısı yok. config/api.env dosyasını kontrol edin."
 
     def stream_think(
         self,
@@ -485,7 +480,10 @@ class DrakbenBrain:
             analyzed = self.output_analyzer.analyze(tool, output, success=success)
             logger.debug(
                 "Analyzed %s: %d ports, %d vulns, severity=%s",
-                tool, len(analyzed.ports), len(analyzed.vulnerabilities), analyzed.severity,
+                tool,
+                len(analyzed.ports),
+                len(analyzed.vulnerabilities),
+                analyzed.severity,
             )
             return analyzed
         except (ValueError, TypeError, KeyError, AttributeError) as e:
@@ -493,7 +491,11 @@ class DrakbenBrain:
             return None
 
     def _observe_engine_feed(
-        self, tool: str, output: str, success: bool, analyzed: Any,
+        self,
+        tool: str,
+        output: str,
+        success: bool,
+        analyzed: Any,
     ) -> None:
         """Feed observation into LLM engine history and RAG."""
         if not self.engine:
@@ -508,14 +510,21 @@ class DrakbenBrain:
         self.engine.ingest_tool_output(tool, output, target=target or "")
 
     def _observe_context_update(
-        self, tool: str, output: str, success: bool, analyzed: Any,
+        self,
+        tool: str,
+        output: str,
+        success: bool,
+        analyzed: Any,
     ) -> None:
         """Update context manager with observation data."""
         if not self.context_mgr:
             return
         entry = {
-            "type": "observation", "tool": tool,
-            "output": output, "success": success, "timestamp": "recent",
+            "type": "observation",
+            "tool": tool,
+            "output": output,
+            "success": success,
+            "timestamp": "recent",
         }
         self.context_mgr.context_history.append(entry)
 
@@ -535,14 +544,20 @@ class DrakbenBrain:
         self.context_mgr.update(current_update)
 
     def _observe_cognitive_memory(
-        self, tool: str, output: str, success: bool,
+        self,
+        tool: str,
+        output: str,
+        success: bool,
     ) -> None:
         """Feed observation into cognitive memory system."""
         if not self.cognitive_memory:
             return
         target = self.context_mgr.get("target") if self.context_mgr else None
         self.cognitive_memory.perceive_tool_output(
-            tool_name=tool, tool_output=output, target=target, success=success,
+            tool_name=tool,
+            tool_output=output,
+            target=target,
+            success=success,
         )
 
     def _observe_cross_correlate(self, tool: str, output: str, analyzed: Any) -> None:
@@ -553,7 +568,10 @@ class DrakbenBrain:
             target = self.context_mgr.get("target") if self.context_mgr else ""
             parsed_data = analyzed.to_dict() if analyzed else None
             self.correlator.ingest(
-                tool, output, target=target or "unknown", parsed_data=parsed_data,
+                tool,
+                output,
+                target=target or "unknown",
+                parsed_data=parsed_data,
             )
         except (ValueError, TypeError, KeyError) as e:
             logger.debug("Cross-correlation failed: %s", e)
@@ -573,7 +591,11 @@ class DrakbenBrain:
             logger.debug("Adversarial analysis failed: %s", e)
 
     def _observe_kb_learn(
-        self, tool: str, _output: str, success: bool, analyzed: Any,
+        self,
+        tool: str,
+        _output: str,
+        success: bool,
+        analyzed: Any,
     ) -> None:
         """Feed observation into cross-session knowledge base."""
         if not self.knowledge_base:
@@ -642,9 +664,7 @@ class DrakbenBrain:
         try:
             # Add timeout to prevent hanging
             response = self.llm_client.query("Merhaba, çalışıyor musun?", timeout=15)
-            is_error = response.startswith("[") and any(
-                x in response for x in ["Error", "Offline", "Timeout"]
-            )
+            is_error = response.startswith("[") and any(x in response for x in ["Error", "Offline", "Timeout"])
             return {
                 "connected": not is_error,
                 "provider": self.llm_client.get_provider_info(),

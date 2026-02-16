@@ -139,12 +139,16 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
             llm_client = None
             try:
                 from llm.openrouter_client import OpenRouterClient
+
                 llm_client = OpenRouterClient()
                 # Check if API key is configured and not a placeholder
                 api_key = getattr(llm_client, "api_key", None)
                 if not api_key or api_key in (
-                    "your_key_here", "your-key-here", "YOUR_KEY_HERE",
-                    "sk-xxx", "sk-your-key",
+                    "your_key_here",
+                    "your-key-here",
+                    "YOUR_KEY_HERE",
+                    "sk-xxx",
+                    "sk-your-key",
                 ):
                     llm_client = None
             except (ImportError, OSError, AttributeError):
@@ -154,6 +158,7 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
             self.orchestrator.context.language = self.config.language
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f"Orchestrator init failed: {e}")
             self.orchestrator = None
 
@@ -179,7 +184,7 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
 
         # Gradient: Cyan (#8BE9FD) -> Purple (#BD93F9) - Dracula theme
         color_start = (139, 233, 253)  # Cyan RGB
-        color_end = (189, 147, 249)    # Purple RGB
+        color_end = (189, 147, 249)  # Purple RGB
         total_lines: int = len(lines)
 
         for y, line in enumerate(lines):
@@ -327,11 +332,7 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
             True to continue, False to exit
         """
         self.console.print("\n")
-        confirm_msg = (
-            "Çıkmak istiyor musunuz? (e/h)"
-            if lang == "tr"
-            else "Do you want to exit? (y/n)"
-        )
+        confirm_msg = "Çıkmak istiyor musunuz? (e/h)" if lang == "tr" else "Do you want to exit? (y/n)"
         try:
             response = Prompt.ask(confirm_msg, choices=["e", "h", "y", "n"], default="h")
             if response.lower() in ["e", "y"]:
@@ -362,11 +363,7 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
             plugins: dict[str, ToolSpec] = loader.load_plugins()
 
             if plugins:
-                msg: str = (
-                    f"🔌 {len(plugins)} Plugin Yüklendi"
-                    if lang == "tr"
-                    else f"🔌 {len(plugins)} Plugins Loaded"
-                )
+                msg: str = f"🔌 {len(plugins)} Plugin Yüklendi" if lang == "tr" else f"🔌 {len(plugins)} Plugins Loaded"
                 self.console.print(f"[dim green]{msg}[/dim]")
 
                 # Enterprise Plugin Registration (No Monkey Patching)
@@ -389,8 +386,7 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
                 )
             else:
                 prompt_text = HTML(
-                    '<style fg="#8BE9FD" bg="" bold="true">drakben</style>'
-                    '<style fg="#F8F8F2">&gt; </style>',
+                    '<style fg="#8BE9FD" bg="" bold="true">drakben</style><style fg="#F8F8F2">&gt; </style>',
                 )
             try:
                 return pt_prompt(prompt_text)
@@ -425,12 +421,9 @@ class DrakbenMenu(MenuAIProcessingMixin, MenuCommandsMixin, MenuConfigMixin):
             self._commands[cmd](args)
         else:
             lang: str = self.config.language
-            msg: str = (
-                "Bilinmeyen komut. /help yazın."
-                if lang == "tr"
-                else "Unknown command. Type /help."
-            )
+            msg: str = "Bilinmeyen komut. /help yazın." if lang == "tr" else "Unknown command. Type /help."
             self.console.print(f"❌ {msg}", style="red")
+
 
 def run_menu() -> None:
     """Menüyü başlat."""

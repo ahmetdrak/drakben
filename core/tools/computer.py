@@ -46,9 +46,7 @@ class Computer:
     def check_availability(self) -> None:
         """Check if dependencies are available."""
         if not COMPUTER_AVAILABLE:
-            msg = (
-                "Computer control dependencies (pyautogui, mss, opencv) not installed."
-            )
+            msg = "Computer control dependencies (pyautogui, mss, opencv) not installed."
             raise ComputerError(
                 msg,
             )
@@ -56,7 +54,11 @@ class Computer:
     # ============ MOUSE ============
 
     def click(
-        self, x: int | str, y: int = 0, button: str = "left", clicks: int = 1,
+        self,
+        x: int | str,
+        y: int = 0,
+        button: str = "left",
+        clicks: int = 1,
     ) -> None:
         """Click at coordinates or on an image/text match.
 
@@ -73,6 +75,7 @@ class Computer:
             # Visual element clicking: try to find element by text on screen
             try:
                 import pyautogui
+
                 location = pyautogui.locateOnScreen(x, confidence=0.8)
                 if location:
                     center = pyautogui.center(location)
@@ -86,13 +89,10 @@ class Computer:
 
             # Fallback: log a helpful warning instead of crashing
             logger.warning(
-                "Visual clicking for '%s' could not locate element on screen. "
-                "Use coordinates instead: click(x, y)", x,
+                "Visual clicking for '%s' could not locate element on screen. Use coordinates instead: click(x, y)",
+                x,
             )
-            msg = (
-                f"Could not locate '{x}' on screen. "
-                f"Use coordinates instead: click(x, y)"
-            )
+            msg = f"Could not locate '{x}' on screen. Use coordinates instead: click(x, y)"
             raise ComputerError(msg)
 
         # At this point x must be int
@@ -102,10 +102,7 @@ class Computer:
         try:
             # Bounds check
             if not self._is_on_screen(target_x, target_y):
-                msg = (
-                    f"Coordinates ({target_x}, {target_y}) are out of bounds "
-                    f"({self.width}x{self.height})"
-                )
+                msg = f"Coordinates ({target_x}, {target_y}) are out of bounds ({self.width}x{self.height})"
                 raise ComputerError(
                     msg,
                 )

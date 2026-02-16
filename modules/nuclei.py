@@ -272,5 +272,3 @@ def _cleanup_nuclei_temp_file(targets_file: str) -> None:
     """Clean up temporary targets file."""
     with contextlib.suppress(OSError):
         os.unlink(targets_file)
-
-

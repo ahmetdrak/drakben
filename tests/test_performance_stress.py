@@ -92,9 +92,7 @@ class TestPerformanceStress(unittest.TestCase):
         # IF it's not robust enough. We MUST mock validation to simulate "Detection of Bad Code".
         # We are testing the ENGINE'S reaction to failed validation, not the validator itself here.
         engine.validator = MagicMock()
-        engine.validator.validate.return_value = (
-            False  # Explicitly say "This code is bad"
-        )
+        engine.validator.validate.return_value = False  # Explicitly say "This code is bad"
 
         # This should return None because validation failed (masked by our mock)
         result = engine.create_capability("broken scan", "python")
@@ -139,9 +137,7 @@ class TestPerformanceStress(unittest.TestCase):
             except SecurityError:
                 blocked_count += 1
 
-        assert blocked_count == len(dangerous_commands), (
-            "Some dangerous commands were not blocked!"
-        )
+        assert blocked_count == len(dangerous_commands), "Some dangerous commands were not blocked!"
 
 
 if __name__ == "__main__":

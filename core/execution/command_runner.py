@@ -82,6 +82,7 @@ class CommandRunner:
         """Check if stop controller requests cancellation."""
         try:
             from core.stop_controller import check_stop
+
             return check_stop()
         except ImportError:
             return False
@@ -91,6 +92,7 @@ class CommandRunner:
         """Register process with stop controller for cleanup."""
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.register_process(process)
         except (ImportError, AttributeError):
             pass

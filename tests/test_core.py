@@ -295,9 +295,7 @@ class TestExecutionEngine(unittest.TestCase):
             except SecurityError:
                 pass  # This is what we want
 
-        assert failure_count == 0, (
-            f"Failed to block {failure_count} dangerous commands!"
-        )
+        assert failure_count == 0, f"Failed to block {failure_count} dangerous commands!"
 
     def test_fuzzing_execution(self) -> None:
         """Fuzz testing for execution engine input handling."""
@@ -377,9 +375,7 @@ class TestExecutionEngine(unittest.TestCase):
 
         # Dangerous characters (', ;, |) should be removed from the URL
         # This prevents the shell from interpreting ; as a command separator
-        assert (
-            "'; rm" not in cmd
-        )  # Single quote + semicolon injection should be sanitized
+        assert "'; rm" not in cmd  # Single quote + semicolon injection should be sanitized
         assert ";" not in cmd  # No semicolons should remain
 
         # Valid URL should still work
@@ -492,8 +488,6 @@ class TestLogging(unittest.TestCase):
         logger = get_logger("test")
 
         assert logger is not None
-
-
 
 
 class TestI18n(unittest.TestCase):

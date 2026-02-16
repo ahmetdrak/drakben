@@ -25,6 +25,7 @@ except ImportError:
 # Optional requests for HTTP API
 try:
     import requests  # noqa: F401
+
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
@@ -337,7 +338,6 @@ class MetasploitRPC:
 
         return sessions
 
-
     # ------------------------------------------------------------------
     # Module inspection
     # ------------------------------------------------------------------
@@ -433,7 +433,10 @@ class MetasploitRPC:
 
         t0 = _time.monotonic()
         logger.info(
-            "Launching exploit %s against %s (payload=%s)", exploit_name, target_host, payload,
+            "Launching exploit %s against %s (payload=%s)",
+            exploit_name,
+            target_host,
+            payload,
         )
 
         # Snapshot existing sessions so we can detect new ones
@@ -457,7 +460,11 @@ class MetasploitRPC:
         logger.info("Exploit job %s submitted, polling for session…", job_id)
 
         new_session = await self._poll_for_session(
-            job_id, pre_sessions, poll_interval, max_wait, t0,
+            job_id,
+            pre_sessions,
+            poll_interval,
+            max_wait,
+            t0,
         )
 
         duration = _time.monotonic() - t0
@@ -524,7 +531,8 @@ class MetasploitRPC:
             Raw output from the session, or an error string.
         """
         result = await self._call(
-            "session.shell_write", [session_id, command + "\n"],
+            "session.shell_write",
+            [session_id, command + "\n"],
         )
         if "error" in result:
             return f"Error: {result['error']}"

@@ -77,9 +77,7 @@ class SmartTerminal:
         self.current_process: subprocess.Popen | None = None
         self.sanitizer = CommandSanitizer()
         self._history_lock = threading.Lock()  # Thread safety for history
-        self._confirmation_callback: Callable[[str, str], bool] | None = (
-            confirmation_callback
-        )
+        self._confirmation_callback: Callable[[str, str], bool] | None = confirmation_callback
         self._auto_approve = False  # Set True to skip confirmations (dangerous!)
         self._sandbox_container_id: str | None = None  # Active sandbox container
 
@@ -287,8 +285,7 @@ class SmartTerminal:
                 container: ContainerInfo | None = sandbox.create_sandbox(name)
                 if container is None:
                     logger.warning(
-                        "SECURITY: Failed to create sandbox container — "
-                        "falling back to unsandboxed execution.",
+                        "SECURITY: Failed to create sandbox container — falling back to unsandboxed execution.",
                     )
                     return self.execute(command, timeout=timeout)
                 self._sandbox_container_id = container.container_id
@@ -301,11 +298,7 @@ class SmartTerminal:
             )
 
             # Convert to our ExecutionResult format
-            status: ExecutionStatus = (
-                ExecutionStatus.SUCCESS
-                if sandbox_result.success
-                else ExecutionStatus.FAILED
-            )
+            status: ExecutionStatus = ExecutionStatus.SUCCESS if sandbox_result.success else ExecutionStatus.FAILED
             result = ExecutionResult(
                 command=command,
                 status=status,
@@ -395,6 +388,7 @@ class SmartTerminal:
         # Register with global stop controller
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.register_process(process)
         except ImportError:
             pass
@@ -417,9 +411,7 @@ class SmartTerminal:
 
             # Process finished naturally
             exit_code: int = process.returncode  # type: ignore[assignment]
-            status: ExecutionStatus = (
-                ExecutionStatus.SUCCESS if exit_code == 0 else ExecutionStatus.FAILED
-            )
+            status: ExecutionStatus = ExecutionStatus.SUCCESS if exit_code == 0 else ExecutionStatus.FAILED
             return stdout or "", stderr or "", exit_code, status
 
         except subprocess.TimeoutExpired:

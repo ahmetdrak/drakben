@@ -189,8 +189,11 @@ class CVEDatabase:
     CACHE_EXPIRY_DAYS = 7
 
     def __init__(
-        self, db_path: str = "nvd_cache.db", api_key: str | None = None,
-        *, auto_update: bool = True,
+        self,
+        db_path: str = "nvd_cache.db",
+        api_key: str | None = None,
+        *,
+        auto_update: bool = True,
     ) -> None:
         """Initialize CVE Database.
 
@@ -351,9 +354,7 @@ class CVEDatabase:
         for config in cve_data.get("configurations", []):
             for node in config.get("nodes", []):
                 cpe_matches.extend(
-                    match.get("criteria", "")
-                    for match in node.get("cpeMatch", [])
-                    if match.get("vulnerable", False)
+                    match.get("criteria", "") for match in node.get("cpeMatch", []) if match.get("vulnerable", False)
                 )
         return cpe_matches
 
@@ -362,9 +363,7 @@ class CVEDatabase:
         weaknesses: list[str] = []
         for weakness in cve_data.get("weaknesses", []):
             weaknesses.extend(
-                desc.get("value", "")
-                for desc in weakness.get("description", [])
-                if desc.get("lang") == "en"
+                desc.get("value", "") for desc in weakness.get("description", []) if desc.get("lang") == "en"
             )
         return weaknesses
 
@@ -740,5 +739,3 @@ class VulnerabilityMatcher:
         """
         self.cve_db = cve_db
         logger.info("VulnerabilityMatcher initialized")
-
-

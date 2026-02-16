@@ -335,15 +335,21 @@ class SubdomainEnumerator:
                         return await resp.json()
                     logger.warning(
                         "%s returned HTTP %d (attempt %d/%d)",
-                        url, resp.status, attempt + 1, max_retries,
+                        url,
+                        resp.status,
+                        attempt + 1,
+                        max_retries,
                     )
             except (TimeoutError, aiohttp.ClientError) as exc:
                 logger.warning(
                     "%s failed (attempt %d/%d): %s",
-                    url, attempt + 1, max_retries, exc,
+                    url,
+                    attempt + 1,
+                    max_retries,
+                    exc,
                 )
             if attempt < max_retries - 1:
-                await asyncio.sleep(base_delay * (2 ** attempt))
+                await asyncio.sleep(base_delay * (2**attempt))
         return None
 
     async def _crtsh_enum(self, domain: str) -> list[SubdomainResult]:
@@ -686,4 +692,3 @@ class SubdomainEnumerator:
             result.cname = str(answers[0])
         except Exception as e:
             logger.debug("CNAME lookup error: %s", e)
-

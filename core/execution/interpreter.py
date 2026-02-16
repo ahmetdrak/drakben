@@ -148,6 +148,7 @@ class UniversalInterpreter:
         def safe_open(path, mode="r", *args, **kwargs) -> Any:
             """Restricted file open - blocks dangerous paths."""
             import os as _os
+
             dangerous_paths = [
                 "/etc/passwd",
                 "/etc/shadow",
@@ -164,8 +165,7 @@ class UniversalInterpreter:
                     raise PermissionError(msg)
             # Block write to system directories
             if any(c in mode for c in "wa+") and any(
-                path_str.startswith(p)
-                for p in ["/etc", "/usr", "/bin", "/sbin", "C:\\Windows"]
+                path_str.startswith(p) for p in ["/etc", "/usr", "/bin", "/sbin", "C:\\Windows"]
             ):
                 msg = "Write access to system directories is blocked"
                 raise PermissionError(msg)
@@ -212,6 +212,7 @@ class UniversalInterpreter:
         import random
         import re
         import time
+
         self.locals["math"] = math
         self.locals["json"] = json
         self.locals["time"] = time
@@ -247,14 +248,22 @@ class UniversalInterpreter:
 
     def _check_code_security(self, code: str) -> None:
         """Check code for blocked introspection attributes (sandbox escape prevention)."""
-        _BLOCKED_ATTRS = frozenset({
-            "__class__", "__bases__", "__subclasses__",
-            "__mro__", "__globals__", "__code__",
-            "__builtins__", "__import__",
-        })
+        _BLOCKED_ATTRS = frozenset(
+            {
+                "__class__",
+                "__bases__",
+                "__subclasses__",
+                "__mro__",
+                "__globals__",
+                "__code__",
+                "__builtins__",
+                "__import__",
+            }
+        )
         # AST-based check to prevent string concatenation bypass
         try:
             import ast as _ast
+
             tree = _ast.parse(code)
             for node in _ast.walk(tree):
                 if isinstance(node, _ast.Attribute) and node.attr in _BLOCKED_ATTRS:
@@ -324,9 +333,7 @@ class UniversalInterpreter:
         risk = sanitizer.get_risk_level(command)
 
         if risk == "critical":
-            blocked_msg = (
-                f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
-            )
+            blocked_msg = f"CRITICAL: Command '{command[:50]}...' is forbidden by security policy"
             logger.warning("SECURITY BLOCKED: %s", blocked_msg)
             return None
 

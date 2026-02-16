@@ -219,16 +219,18 @@ class TestGenerateHTML:
         rg = ReportGenerator()
         rg.set_target("10.0.0.1")
         rg.start_assessment()
-        rg.add_finding(Finding(
-            title="SQL Injection",
-            severity=FindingSeverity.CRITICAL,
-            description="id param vulnerable",
-            affected_asset="10.0.0.1/login",
-            evidence="' OR 1=1--",
-            remediation="Use parameterized queries",
-            cve_id="CVE-2024-0001",
-            cvss_score=9.8,
-        ))
+        rg.add_finding(
+            Finding(
+                title="SQL Injection",
+                severity=FindingSeverity.CRITICAL,
+                description="id param vulnerable",
+                affected_asset="10.0.0.1/login",
+                evidence="' OR 1=1--",
+                remediation="Use parameterized queries",
+                cve_id="CVE-2024-0001",
+                cvss_score=9.8,
+            )
+        )
         rg.end_assessment()
 
         output = str(tmp_path / "report.html")
@@ -256,11 +258,16 @@ class TestGenerateMarkdown:
     def test_generate_md_report(self, tmp_path):
         rg = ReportGenerator()
         rg.set_target("10.0.0.1")
-        rg.add_finding(Finding(
-            "XSS", FindingSeverity.HIGH, "Reflected XSS", "10.0.0.1/search",
-            evidence="<script>alert(1)</script>",
-            remediation="Sanitize user input",
-        ))
+        rg.add_finding(
+            Finding(
+                "XSS",
+                FindingSeverity.HIGH,
+                "Reflected XSS",
+                "10.0.0.1/search",
+                evidence="<script>alert(1)</script>",
+                remediation="Sanitize user input",
+            )
+        )
         output = str(tmp_path / "report.md")
         result = rg.generate(ReportFormat.MARKDOWN, output)
         content = Path(result).read_text(encoding="utf-8")
@@ -272,10 +279,16 @@ class TestGenerateMarkdown:
     def test_md_with_cve(self, tmp_path):
         rg = ReportGenerator()
         rg.set_target("target.com")
-        rg.add_finding(Finding(
-            "CVE Test", FindingSeverity.CRITICAL, "desc", "asset",
-            cve_id="CVE-2024-9999", cvss_score=10.0,
-        ))
+        rg.add_finding(
+            Finding(
+                "CVE Test",
+                FindingSeverity.CRITICAL,
+                "desc",
+                "asset",
+                cve_id="CVE-2024-9999",
+                cvss_score=10.0,
+            )
+        )
         output = str(tmp_path / "report_cve.md")
         rg.generate(ReportFormat.MARKDOWN, output)
         content = Path(output).read_text(encoding="utf-8")
@@ -299,10 +312,15 @@ class TestGenerateJSON:
     def test_json_round_trip(self, tmp_path):
         rg = ReportGenerator()
         rg.set_target("target.com")
-        rg.add_finding(Finding(
-            "Test", FindingSeverity.MEDIUM, "desc", "asset",
-            references=["ref1", "ref2"],
-        ))
+        rg.add_finding(
+            Finding(
+                "Test",
+                FindingSeverity.MEDIUM,
+                "desc",
+                "asset",
+                references=["ref1", "ref2"],
+            )
+        )
         output = str(tmp_path / "report.json")
         rg.generate(ReportFormat.JSON, output)
         data = json.loads(Path(output).read_text(encoding="utf-8"))
@@ -402,6 +420,7 @@ class TestScreenshots:
         img_path = tmp_path / "screenshot.png"
         # Minimal 1x1 red PNG
         import base64
+
         png_data = base64.b64decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
         )
@@ -409,13 +428,15 @@ class TestScreenshots:
 
         rg = ReportGenerator()
         rg.set_target("10.0.0.1")
-        rg.add_finding(Finding(
-            "With Screenshot",
-            FindingSeverity.HIGH,
-            "desc",
-            "asset",
-            screenshots=[str(img_path)],
-        ))
+        rg.add_finding(
+            Finding(
+                "With Screenshot",
+                FindingSeverity.HIGH,
+                "desc",
+                "asset",
+                screenshots=[str(img_path)],
+            )
+        )
         output = str(tmp_path / "screenshot.html")
         rg.generate(ReportFormat.HTML, output)
         content = Path(output).read_text(encoding="utf-8")
@@ -424,13 +445,15 @@ class TestScreenshots:
     def test_missing_screenshot_graceful(self, tmp_path):
         rg = ReportGenerator()
         rg.set_target("10.0.0.1")
-        rg.add_finding(Finding(
-            "Missing SS",
-            FindingSeverity.LOW,
-            "desc",
-            "asset",
-            screenshots=["/nonexistent/path.png"],
-        ))
+        rg.add_finding(
+            Finding(
+                "Missing SS",
+                FindingSeverity.LOW,
+                "desc",
+                "asset",
+                screenshots=["/nonexistent/path.png"],
+            )
+        )
         output = str(tmp_path / "no_ss.html")
         rg.generate(ReportFormat.HTML, output)
         content = Path(output).read_text(encoding="utf-8")

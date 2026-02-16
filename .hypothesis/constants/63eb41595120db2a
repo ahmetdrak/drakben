@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\knowledge_graph.py
-# hypothesis_version: 6.151.6
-
-[1.0, 100, 10000, ':memory:', 'AUTHENTICATES', 'BELONGS_TO', 'CHILD_OF', 'CONNECTS_TO', 'CONTAINS', 'DELETE FROM entities', 'DISCOVERED_BY', 'ESCALATES_TO', 'EXPLOITED_BY', 'LEADS_TO', 'MEMBER_OF', 'RUNS', 'VULNERABLE_TO', '_persistent_conn', 'both', 'c', 'confidence', 'created_at', 'credential', 'domain', 'drakben_knowledge.db', 'entities', 'entity_id', 'entity_type', 'entity_type = ?', 'finding', 'foothold', 'host', 'id', 'incoming', 'network', 'outgoing', 'properties', 'props', 'relation_type', 'relations', 'service', 'session', 'session_id', 'session_id = ?', 'source', 'source_id', 'target', 'target_id', 'tool_result', 'type', 'types', 'updated_at', 'url', 'user', 'utf-8', 'vulnerability']

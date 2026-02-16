@@ -85,6 +85,7 @@ class Span:
 
     def __post_init__(self) -> None:
         import uuid
+
         if not self.span_id:
             self.span_id = uuid.uuid4().hex[:16]
 
@@ -100,11 +101,13 @@ class Span:
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add a timestamped event to the span."""
-        self.events.append({
-            "name": name,
-            "timestamp": time.time(),
-            "attributes": attributes or {},
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": time.time(),
+                "attributes": attributes or {},
+            }
+        )
 
     @property
     def duration_ms(self) -> float:
@@ -202,7 +205,7 @@ class Tracer:
                 if sp.parent_id is None:
                     self._traces.append(sp)
                     if len(self._traces) > self.MAX_TRACES:
-                        self._traces = self._traces[-self.MAX_TRACES:]
+                        self._traces = self._traces[-self.MAX_TRACES :]
             # Mirror to OpenTelemetry if available
             self._mirror_to_otel(sp)
 
@@ -220,8 +223,7 @@ class Tracer:
             otel_span = _otel_tracer.start_span(
                 sp.name,
                 attributes={
-                    k: str(v) if not isinstance(v, (bool, int, float, str)) else v
-                    for k, v in sp.attributes.items()
+                    k: str(v) if not isinstance(v, (bool, int, float, str)) else v for k, v in sp.attributes.items()
                 },
             )
             for ev in sp.events:

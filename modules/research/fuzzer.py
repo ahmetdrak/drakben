@@ -96,4 +96,3 @@ class SmartFuzzer:
                 mutable_data = bytearray(magic)  # Replace completely
 
         return bytes(mutable_data)
-

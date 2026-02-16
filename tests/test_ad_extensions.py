@@ -2,8 +2,6 @@
 # Test suite for modules/ad_extensions.py
 """Tests for AD Extensions module - BloodHound integration & Token Impersonation."""
 
-
-
 from modules.ad_extensions import (
     AttackChain,
     BloodHoundAnalyzer,
@@ -337,11 +335,13 @@ class TestAttackPaths:
         analyzer.add_user("user-sid", "compromised_user", "DOMAIN")
         analyzer.add_user("admin-sid", "domain_admin", "DOMAIN", high_value=True)
 
-        analyzer.add_edge(BloodHoundEdge(
-            "user-sid",
-            "admin-sid",
-            BloodHoundRelationship.ADMIN_TO,
-        ))
+        analyzer.add_edge(
+            BloodHoundEdge(
+                "user-sid",
+                "admin-sid",
+                BloodHoundRelationship.ADMIN_TO,
+            )
+        )
 
         # Verify graph structure
         assert len(analyzer._adjacency["user-sid"]) == 1

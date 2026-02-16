@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\sre_mutation.py
-# hypothesis_version: 6.151.6
-
-[0.0, 0.2, 0.5, 1.0, 100.0, 100000.0, 200, 200000, 'aggressiveness', 'failure_count', 'mut_', 'mutation_generation', 'parameters', 'profile_id', 'retired', 'step_order', 'success_count', 'usage_count']

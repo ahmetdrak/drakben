@@ -51,14 +51,16 @@ class DistributedStateManager:
             self.connected = True
             logger.info(
                 "Connected to Redis Distributed State (%s:%s)",
-                self.redis_host, self.redis_port,
+                self.redis_host,
+                self.redis_port,
             )
         except ImportError:
             logger.warning("Redis library not installed. Running in standalone mode.")
             self.connected = False
         except OSError as e:
             logger.warning(
-                "Redis connection failed: %s. Running in standalone mode.", e,
+                "Redis connection failed: %s. Running in standalone mode.",
+                e,
             )
             self.connected = False
 

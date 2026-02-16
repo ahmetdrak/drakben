@@ -388,6 +388,7 @@ class ImpacketWrapper:
         # Check if in PATH
         try:
             import shutil
+
             found = shutil.which(ImpacketTool.PSEXEC.value)
             if found:
                 return os.path.dirname(found)
@@ -444,7 +445,9 @@ class TokenImpersonator:
         try:
             # Use PowerShell to inspect process token info
             cmd = [
-                "powershell", "-NoProfile", "-Command",
+                "powershell",
+                "-NoProfile",
+                "-Command",
                 f"Get-Process -Id {pid} | Select-Object Id,ProcessName,SessionId | ConvertTo-Json",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
@@ -453,6 +456,7 @@ class TokenImpersonator:
                 return None
 
             import json
+
             proc_info = json.loads(result.stdout)
             token = TokenInfo(
                 username=proc_info.get("ProcessName", "unknown"),
@@ -482,7 +486,9 @@ class TokenImpersonator:
 
         try:
             cmd = [
-                "powershell", "-NoProfile", "-Command",
+                "powershell",
+                "-NoProfile",
+                "-Command",
                 f"Get-Process -Name '{process_name}' -ErrorAction SilentlyContinue | "
                 f"Select-Object -First 1 Id | ConvertTo-Json",
             ]
@@ -492,6 +498,7 @@ class TokenImpersonator:
                 return None
 
             import json
+
             data = json.loads(result.stdout)
             pid = data.get("Id")
             if pid:
@@ -520,7 +527,11 @@ class TokenImpersonator:
                 pipe_name,
                 win32pipe.PIPE_ACCESS_DUPLEX,
                 win32pipe.PIPE_TYPE_MESSAGE | win32pipe.PIPE_WAIT,
-                1, 1024, 1024, 0, None,
+                1,
+                1024,
+                1024,
+                0,
+                None,
             )
             logger.info("Waiting for pipe connection on %s...", pipe_name)
             win32pipe.ConnectNamedPipe(pipe, None)

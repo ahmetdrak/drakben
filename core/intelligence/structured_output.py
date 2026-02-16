@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # ─────────────────────── Output Models ───────────────────────
 
+
 class ActionIntent(Enum):
     """What the agent intends to do."""
 
@@ -285,7 +286,10 @@ class StructuredOutputParser:
 
     @staticmethod
     def _try_parse_regex(
-        pattern: re.Pattern[str], text: str, *, group: int,
+        pattern: re.Pattern[str],
+        text: str,
+        *,
+        group: int,
     ) -> dict | list | None:
         """Try parsing JSON from a regex match."""
         match = pattern.search(text)
@@ -333,6 +337,7 @@ class StructuredOutputParser:
 
 
 # ─────────────────────── Prompt Templates ───────────────────────
+
 
 class PromptTemplates:
     """Standardized prompt templates that guide LLMs toward structured output.
@@ -426,6 +431,7 @@ class PromptTemplates:
 
 
 # ─────────────────────── Utilities ───────────────────────
+
 
 def _safe_float(value: Any, default: float = 0.5) -> float:
     """Safely convert value to float with bounds."""

@@ -85,48 +85,51 @@ class SelfCorrection:
 
     # Expanded dangerous pattern list — configurable via subclass override
     # NOTE: These are LITERAL substring matches. Regex patterns use _DANGEROUS_REGEX.
-    _DANGEROUS_PATTERNS: frozenset[str] = frozenset({
-        # Destructive filesystem operations
-        "rm -rf /",
-        "rm -rf /*",
-        "dd if=",
-        "mkfs",
-        "format c:",
-        "> /dev/sda",
-        "shred ",
-        "wipefs",
-        # Permission escalation
-        "chmod 777",
-        "chmod -R 777",
-        "chown root",
-        # Fork-bomb / resource exhaustion
-        ":(){ :|:& };:",
-        "%0|%0",
-        # Direct exfiltration
-        "nc -e",
-        "ncat -e",
-        # Credential dumping / shadow access
-        "cat /etc/shadow",
-        "cat /etc/passwd",
-        # Kernel / boot manipulation
-        "insmod ",
-        "modprobe ",
-        "grub-install",
-        # Windows destructive
-        "del /f /s /q",
-        "rd /s /q",
-        "format d:",
-    })
+    _DANGEROUS_PATTERNS: frozenset[str] = frozenset(
+        {
+            # Destructive filesystem operations
+            "rm -rf /",
+            "rm -rf /*",
+            "dd if=",
+            "mkfs",
+            "format c:",
+            "> /dev/sda",
+            "shred ",
+            "wipefs",
+            # Permission escalation
+            "chmod 777",
+            "chmod -R 777",
+            "chown root",
+            # Fork-bomb / resource exhaustion
+            ":(){ :|:& };:",
+            "%0|%0",
+            # Direct exfiltration
+            "nc -e",
+            "ncat -e",
+            # Credential dumping / shadow access
+            "cat /etc/shadow",
+            "cat /etc/passwd",
+            # Kernel / boot manipulation
+            "insmod ",
+            "modprobe ",
+            "grub-install",
+            # Windows destructive
+            "del /f /s /q",
+            "rd /s /q",
+            "format d:",
+        }
+    )
 
     # Regex patterns for complex dangerous command detection
     import re as _re
+
     _DANGEROUS_REGEX: tuple = (
-        _re.compile(r"curl\s+.*\|\s*(ba)?sh"),       # curl ... | bash/sh
-        _re.compile(r"wget\s+.*\|\s*(ba)?sh"),       # wget ... | sh
+        _re.compile(r"curl\s+.*\|\s*(ba)?sh"),  # curl ... | bash/sh
+        _re.compile(r"wget\s+.*\|\s*(ba)?sh"),  # wget ... | sh
         _re.compile(r"curl\s+.*-o\s+/tmp/.*&&.*sh"),  # curl -o /tmp/x && sh /tmp/x
-        _re.compile(r"> /dev/sd[a-z]"),               # overwrite disk device
+        _re.compile(r"> /dev/sd[a-z]"),  # overwrite disk device
         _re.compile(r"python[23]?\s+-c\s+.*import\s+os"),  # python -c 'import os'
-        _re.compile(r"base64\s+-d.*\|\s*(ba)?sh"),    # base64 -d | sh (obfuscation)
+        _re.compile(r"base64\s+-d.*\|\s*(ba)?sh"),  # base64 -d | sh (obfuscation)
     )
 
     def _check_prerequisites(self, decision: dict) -> list[str]:
@@ -139,10 +142,7 @@ class SelfCorrection:
         required_tools = decision.get("required_tools", [])
         tools_available = decision.get("tools_available", {})
         if required_tools and tools_available:
-            prereqs.extend(
-                tool for tool in required_tools
-                if not tools_available.get(tool)
-            )
+            prereqs.extend(tool for tool in required_tools if not tools_available.get(tool))
 
         # Strategy 2: Extract tool names from steps and verify they exist on the system
         steps = decision.get("steps", [])

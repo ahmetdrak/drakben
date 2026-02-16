@@ -75,12 +75,9 @@ class ContextManager:
         self.context_history.append(self.current_context.copy())
         # Evict oldest entries to prevent memory leak
         if len(self.context_history) > self.MAX_HISTORY_SIZE:
-            self.context_history = self.context_history[-self.MAX_HISTORY_SIZE:]
+            self.context_history = self.context_history[-self.MAX_HISTORY_SIZE :]
         # Normalize ContextKey enums to their string values
-        normalized = {
-            (k.value if isinstance(k, ContextKey) else k): v
-            for k, v in new_context.items()
-        }
+        normalized = {(k.value if isinstance(k, ContextKey) else k): v for k, v in new_context.items()}
         self.current_context.update(normalized)
 
     def set(self, key: ContextKey | str, value: Any) -> None:

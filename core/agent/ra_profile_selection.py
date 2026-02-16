@@ -35,9 +35,7 @@ class RAProfileSelectionMixin(_MixinBase):
     def _select_and_filter_profile(self, target: str) -> bool:
         """Select strategy/profile and apply mode-based filtering. Returns False if failed."""
         try:
-            self.current_strategy, self.current_profile = (
-                self.refining_engine.select_strategy_and_profile(target)
-            )
+            self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(target)
             self._apply_mode_filtering()
         except (KeyError, ValueError, TypeError, RuntimeError) as e:
             self.console.print(f"\u274c Strategy selection failed: {e}", style="red")
@@ -66,12 +64,8 @@ class RAProfileSelectionMixin(_MixinBase):
         )
         if not self.current_strategy:
             return
-        profiles: list[StrategyProfile] = (
-            self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-        )
-        stealth_profiles: list[StrategyProfile] = [
-            p for p in profiles if p.aggressiveness <= 0.4
-        ]
+        profiles: list[StrategyProfile] = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        stealth_profiles: list[StrategyProfile] = [p for p in profiles if p.aggressiveness <= 0.4]
         if stealth_profiles:
             self.current_profile = sorted(
                 stealth_profiles,
@@ -94,12 +88,8 @@ class RAProfileSelectionMixin(_MixinBase):
         )
         if not self.current_strategy:
             return
-        profiles: list[StrategyProfile] = (
-            self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
-        )
-        aggressive_profiles: list[StrategyProfile] = [
-            p for p in profiles if p.aggressiveness >= 0.6
-        ]
+        profiles: list[StrategyProfile] = self.refining_engine.get_profiles_for_strategy(self.current_strategy.name)
+        aggressive_profiles: list[StrategyProfile] = [p for p in profiles if p.aggressiveness >= 0.6]
         if aggressive_profiles:
             self.current_profile = sorted(
                 aggressive_profiles,

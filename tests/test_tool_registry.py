@@ -80,6 +80,7 @@ class TestTool:
 
     def test_tool_creation_python(self) -> None:
         """Test python tool creation with callable."""
+
         def mock_func(target: str) -> dict:
             return {"result": target}
 
@@ -197,9 +198,7 @@ class TestToolExecution:
 
         with patch("asyncio.create_subprocess_shell") as mock_proc:
             mock_instance = AsyncMock()
-            mock_instance.communicate = AsyncMock(
-                return_value=(b"PORT   STATE SERVICE\n22/tcp open  ssh", b"")
-            )
+            mock_instance.communicate = AsyncMock(return_value=(b"PORT   STATE SERVICE\n22/tcp open  ssh", b""))
             mock_instance.returncode = 0
             mock_proc.return_value = mock_instance
 

@@ -27,21 +27,20 @@ class DrakbenLogger:
         self.verbose = verbose  # Show LLM decisions on console
 
     def log_action(
-        self, tool: str, args: dict[str, Any], result: dict[str, Any],
+        self,
+        tool: str,
+        args: dict[str, Any],
+        result: dict[str, Any],
     ) -> None:
         """Log a tool execution action and result."""
         # Clean result to avoid storing massive outputs
         cleaned_result = result.copy()
         if "stdout" in cleaned_result and isinstance(cleaned_result["stdout"], str):
             if len(cleaned_result["stdout"]) > 500:
-                cleaned_result["stdout"] = (
-                    cleaned_result["stdout"][:500] + "... (truncated)"
-                )
+                cleaned_result["stdout"] = cleaned_result["stdout"][:500] + "... (truncated)"
         if "stderr" in cleaned_result and isinstance(cleaned_result["stderr"], str):
             if len(cleaned_result["stderr"]) > 500:
-                cleaned_result["stderr"] = (
-                    cleaned_result["stderr"][:500] + "... (truncated)"
-                )
+                cleaned_result["stderr"] = cleaned_result["stderr"][:500] + "... (truncated)"
 
         entry = {
             "timestamp": datetime.fromtimestamp(time.time()).isoformat(),

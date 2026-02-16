@@ -46,6 +46,7 @@ class CognitiveMemoryManager:
             vector_store = None
             try:
                 from core.storage.vector_store import VectorStore
+
                 vector_store = VectorStore()
                 logger.debug("VectorStore initialized for semantic embeddings")
             except (ImportError, RuntimeError, OSError) as vs_err:
@@ -210,12 +211,14 @@ class CognitiveMemoryManager:
         try:
             if self._memory_stream:
                 stream_stats = self._memory_stream.get_stats()
-                stats.update({
-                    "total_nodes": stream_stats.get("total_nodes", 0),
-                    "observations": stream_stats.get("observations", 0),
-                    "reflections": stream_stats.get("reflections", 0),
-                    "avg_importance": stream_stats.get("avg_importance", 0.0),
-                })
+                stats.update(
+                    {
+                        "total_nodes": stream_stats.get("total_nodes", 0),
+                        "observations": stream_stats.get("observations", 0),
+                        "reflections": stream_stats.get("reflections", 0),
+                        "avg_importance": stream_stats.get("avg_importance", 0.0),
+                    }
+                )
         except (AttributeError, ValueError, TypeError) as e:
             logger.debug("Failed to get memory stats: %s", e)
 

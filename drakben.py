@@ -113,6 +113,7 @@ def cleanup_resources(_signum: int | None = None, _frame: object = None) -> None
         # GLOBAL STOP - Terminate all active processes
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.stop()
         except ImportError:
             pass

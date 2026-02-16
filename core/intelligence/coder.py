@@ -268,9 +268,7 @@ class ASTSecurityChecker(ast.NodeVisitor):
         """Check if subprocess call uses whitelisted tool AND forbids shell=True."""
         # BAN SHELL=TRUE
         for keyword in node.keywords:
-            if keyword.arg == "shell" and (
-                isinstance(keyword.value, ast.Constant) and keyword.value.value is True
-            ):
+            if keyword.arg == "shell" and (isinstance(keyword.value, ast.Constant) and keyword.value.value is True):
                 self.violations.append(
                     "Shell usage (shell=True) is FORBIDDEN in generated code",
                 )
@@ -347,7 +345,8 @@ class AICoder:
         """
         logger.info(
             "Creating alternative tool for failed: %s, action: %s",
-            failed_tool, action,
+            failed_tool,
+            action,
         )
 
         # Enforce MAX_CREATED_TOOLS limit
@@ -422,7 +421,8 @@ def run(target, args=None) -> Any:
             security_result: dict[str, Any] = self._security_check_ast(code)
             if not security_result["safe"]:
                 logger.warning(
-                    "Security check failed: %s", security_result["violations"],
+                    "Security check failed: %s",
+                    security_result["violations"],
                 )
                 return {
                     "success": False,

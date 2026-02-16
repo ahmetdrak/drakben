@@ -474,7 +474,6 @@ class RefactoredDrakbenAgent(
             return False
 
         if self.state is None:
-
             raise AssertionError(self.MSG_STATE_NOT_NONE)
         self.state.increment_iteration()
         return True
@@ -524,11 +523,13 @@ class RefactoredDrakbenAgent(
             ver = step.params.get("version", "") if step.params else ""
             target = self.state.target if self.state else ""
             prediction = predictor.predict(
-                exploit_name=exploit_name, service=svc, version=ver, target=target,
+                exploit_name=exploit_name,
+                service=svc,
+                version=ver,
+                target=target,
             )
             self.console.print(
-                f"   🎯 Exploit prediction: {prediction.probability:.0%} success"
-                f" ({prediction.reasoning})",
+                f"   🎯 Exploit prediction: {prediction.probability:.0%} success ({prediction.reasoning})",
                 style="bold cyan",
             )
             if prediction.alternatives:
@@ -571,12 +572,22 @@ class RefactoredDrakbenAgent(
 
     # ── Dangerous operation categories requiring user approval ──
     _DANGEROUS_ACTIONS: set[str] = {
-        "exploit", "get_shell", "brute_force", "credential_test",
-        "data_exfil", "sqlmap_exploit", "execute_exploit",
+        "exploit",
+        "get_shell",
+        "brute_force",
+        "credential_test",
+        "data_exfil",
+        "sqlmap_exploit",
+        "execute_exploit",
     }
     _DANGEROUS_TOOLS: set[str] = {
-        "sqlmap_scan", "hydra", "metasploit_exploit", "john",
-        "hashcat", "generate_payload", "data_exfil",
+        "sqlmap_scan",
+        "hydra",
+        "metasploit_exploit",
+        "john",
+        "hashcat",
+        "generate_payload",
+        "data_exfil",
     }
 
     def _check_dangerous_operation(self, step: PlanStep) -> bool:
@@ -590,10 +601,7 @@ class RefactoredDrakbenAgent(
         Returns:
             True if approved (proceed), False if denied (skip).
         """
-        is_dangerous = (
-            step.action in self._DANGEROUS_ACTIONS
-            or step.tool in self._DANGEROUS_TOOLS
-        )
+        is_dangerous = step.action in self._DANGEROUS_ACTIONS or step.tool in self._DANGEROUS_TOOLS
         if not is_dangerous:
             return True  # safe — auto-approve
 
@@ -603,7 +611,10 @@ class RefactoredDrakbenAgent(
         auto_approve = getattr(self.config, "auto_approve_dangerous", False)
         if auto_approve:
             self.transparency.show_approval_request(
-                step.tool, step.action, risk_level, approved=True,
+                step.tool,
+                step.action,
+                risk_level,
+                approved=True,
             )
             return True
 
@@ -628,7 +639,10 @@ class RefactoredDrakbenAgent(
 
         approved = answer in ("", "y", "yes", "e", "evet")
         self.transparency.show_approval_request(
-            step.tool, step.action, risk_level, approved=approved,
+            step.tool,
+            step.action,
+            risk_level,
+            approved=approved,
         )
 
         if not approved:
@@ -743,4 +757,3 @@ class RefactoredDrakbenAgent(
     def stop(self) -> None:
         """Stop the agent."""
         self.running = False
-

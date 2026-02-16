@@ -157,7 +157,10 @@ class StreamingToolsMixin:
 
         try:
             response = self._session.post(
-                self.base_url, headers=headers, json=payload, timeout=timeout,
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
             )
 
             if response.status_code != 200:
@@ -249,7 +252,10 @@ class StreamingToolsMixin:
 
         try:
             response = self._session.post(
-                self.base_url, headers=headers, json=payload, timeout=timeout,
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
             )
             if response.status_code != 200:
                 return f"[API Error] {response.status_code}: {response.text[:200]}"
@@ -284,13 +290,19 @@ class StreamingToolsMixin:
             return f"[Error] {exc!s}"
 
     def _stream_messages(
-        self, headers: dict, payload: dict, timeout: int,
+        self,
+        headers: dict,
+        payload: dict,
+        timeout: int,
     ) -> Generator[str, None, None]:
         """Stream response from a multi-turn message payload."""
         try:
             response = self._session.post(
-                self.base_url, headers=headers, json=payload,
-                timeout=timeout, stream=True,
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+                stream=True,
             )
             if response.status_code != 200:
                 yield f"[API Error] {response.status_code}: {response.text[:200]}"

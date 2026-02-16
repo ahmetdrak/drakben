@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\ui\commands.py
-# hypothesis_version: 6.151.6
-
-['?', 'Clear current target', 'Clear screen', "DRAKBEN'den çık", 'Ekranı temizle', 'Exit DRAKBEN', 'LLM configuration', 'LLM yapılandırması', 'List available tools', 'Otonom tarama başlat', 'Show help menu', 'Show system status', 'Switch to English', 'Switch to Turkish', "Türkçe'ye geç", 'amass', 'clear', 'cls', 'config', 'core', 'dirb', 'en', 'exit', 'ffuf', 'gobuster', 'h', 'help', 'hydra', 'llm', 'masscan', 'nikto', 'nmap', 'nuclei', 'pentest', 'q', 'quit', 'report', 'research', 'scan', 'shell', 'sqlmap', 'status', 'subfinder', 'target', 'tools', 'tr', 'untarget', 'util', 'wfuzz', 'whatweb', 'wpscan', "İngilizce'ye geç"]

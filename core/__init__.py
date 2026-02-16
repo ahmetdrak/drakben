@@ -106,6 +106,7 @@ def __getattr__(name: str) -> Any:
     if name in _LAZY_IMPORTS:
         module_path, symbol = _LAZY_IMPORTS[name]
         import importlib
+
         mod = importlib.import_module(module_path)
         value = getattr(mod, symbol)
         # Cache on the module so __getattr__ is not called again

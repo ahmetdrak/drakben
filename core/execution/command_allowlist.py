@@ -18,41 +18,113 @@ import shlex
 logger = logging.getLogger(__name__)
 
 # ── Tier 1: Core pentest tools (always allowed) ─────────────────────
-ALLOWED_BINARIES: frozenset[str] = frozenset({
-    # Recon
-    "nmap", "gobuster", "ffuf", "amass", "subfinder",
-    "feroxbuster", "whatweb", "enum4linux", "bloodhound-python",
-    "masscan", "theharvester", "dig", "host", "whois", "dnsrecon",
-    # Vuln scanning
-    "nikto", "nuclei", "wpscan", "testssl.sh", "sslscan",
-    # Exploitation
-    "sqlmap", "hydra", "crackmapexec", "responder",
-    "impacket-secretsdump", "impacket-psexec", "impacket-wmiexec",
-    "msfconsole", "msfvenom",
-    # Post-exploit
-    "mimikatz", "rubeus", "sharphound",
-    # Utility (needed by tool templates)
-    "tee", "grep", "cat", "head", "tail", "wc", "sort", "uniq",
-    "curl", "wget",
-    # System detection
-    "which", "where", "wsl",
-    # Network
-    "ping", "traceroute", "tracert", "arp", "netstat", "ss",
-})
+ALLOWED_BINARIES: frozenset[str] = frozenset(
+    {
+        # Recon
+        "nmap",
+        "gobuster",
+        "ffuf",
+        "amass",
+        "subfinder",
+        "feroxbuster",
+        "whatweb",
+        "enum4linux",
+        "bloodhound-python",
+        "masscan",
+        "theharvester",
+        "dig",
+        "host",
+        "whois",
+        "dnsrecon",
+        # Vuln scanning
+        "nikto",
+        "nuclei",
+        "wpscan",
+        "testssl.sh",
+        "sslscan",
+        # Exploitation
+        "sqlmap",
+        "hydra",
+        "crackmapexec",
+        "responder",
+        "impacket-secretsdump",
+        "impacket-psexec",
+        "impacket-wmiexec",
+        "msfconsole",
+        "msfvenom",
+        # Post-exploit
+        "mimikatz",
+        "rubeus",
+        "sharphound",
+        # Utility (needed by tool templates)
+        "tee",
+        "grep",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "sort",
+        "uniq",
+        "curl",
+        "wget",
+        # System detection
+        "which",
+        "where",
+        "wsl",
+        # Network
+        "ping",
+        "traceroute",
+        "tracert",
+        "arp",
+        "netstat",
+        "ss",
+    }
+)
 
 # ── Tier 2: Dangerous binaries (never allowed) ──────────────────────
-NEVER_ALLOWED: frozenset[str] = frozenset({
-    "rm", "rmdir", "mkfs", "dd", "fdisk", "parted",
-    "chmod", "chown", "chgrp",
-    "useradd", "userdel", "passwd",
-    "iptables", "ip6tables", "ufw",
-    "systemctl", "service",
-    "reboot", "shutdown", "halt", "poweroff", "init",
-    "bash", "sh", "zsh", "fish", "csh", "dash",
-    "python", "python3", "perl", "ruby", "node", "php",
-    "nc", "ncat", "socat",
-    "eval", "exec",
-})
+NEVER_ALLOWED: frozenset[str] = frozenset(
+    {
+        "rm",
+        "rmdir",
+        "mkfs",
+        "dd",
+        "fdisk",
+        "parted",
+        "chmod",
+        "chown",
+        "chgrp",
+        "useradd",
+        "userdel",
+        "passwd",
+        "iptables",
+        "ip6tables",
+        "ufw",
+        "systemctl",
+        "service",
+        "reboot",
+        "shutdown",
+        "halt",
+        "poweroff",
+        "init",
+        "bash",
+        "sh",
+        "zsh",
+        "fish",
+        "csh",
+        "dash",
+        "python",
+        "python3",
+        "perl",
+        "ruby",
+        "node",
+        "php",
+        "nc",
+        "ncat",
+        "socat",
+        "eval",
+        "exec",
+    }
+)
 
 # ── Tier 3: Injection patterns (defence in depth) ───────────────────
 _INJECTION_RE = re.compile(
@@ -90,11 +162,7 @@ def validate_command(command: str) -> None:
     except ValueError:
         tokens = stripped.split()
 
-    primary = (
-        tokens[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
-        if tokens
-        else ""
-    )
+    primary = tokens[0].rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower() if tokens else ""
 
     # 1. Check NEVER_ALLOWED
     if primary in NEVER_ALLOWED:
@@ -104,8 +172,7 @@ def validate_command(command: str) -> None:
     # 2. Check ALLOWED_BINARIES
     if primary not in ALLOWED_BINARIES:
         msg = (
-            f"Binary '{primary}' is not in the allowlist. "
-            f"Add it to ALLOWED_BINARIES if it's a legitimate pentest tool."
+            f"Binary '{primary}' is not in the allowlist. Add it to ALLOWED_BINARIES if it's a legitimate pentest tool."
         )
         raise CommandValidationError(msg)
 

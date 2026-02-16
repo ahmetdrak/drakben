@@ -127,6 +127,7 @@ class ToolDispatcher:
 # Handler functions (thin wrappers delegating to mixin methods)
 # ---------------------------------------------------------------------------
 
+
 def _handle_system_evolution(agent: RefactoredDrakbenAgent, args: dict[str, Any]) -> dict[str, Any]:
     return agent._handle_system_evolution(args)
 

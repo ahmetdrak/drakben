@@ -82,7 +82,8 @@ class RAToolRunnerMixin(_MixinBase):
                 if not execution_done.is_set():
                     logger.warning(
                         "Tool %s timed out after %ss \u2014 daemon thread may still be running",
-                        tool_name, int(elapsed),
+                        tool_name,
+                        int(elapsed),
                     )
                     self.console.print(
                         f"   [!] [red]Timeout: {tool_name} not responding.[/red]",
@@ -108,6 +109,7 @@ class RAToolRunnerMixin(_MixinBase):
         """
         if not hasattr(self, "_dispatcher"):
             from core.agent.tool_dispatch import ToolDispatcher
+
             self._dispatcher = ToolDispatcher(self)
 
         return self._dispatcher.dispatch(tool_name, args)
@@ -137,9 +139,7 @@ class RAToolRunnerMixin(_MixinBase):
                 "error": "Missing or invalid 'target' (tool name)",
             }
 
-        desc: str = (
-            instruction if isinstance(instruction, str) else "No description provided"
-        )
+        desc: str = instruction if isinstance(instruction, str) else "No description provided"
 
         # Dynamic tool creation via Coder
         result = self.coder.create_tool(
@@ -169,6 +169,7 @@ class RAToolRunnerMixin(_MixinBase):
 
         # Security: Validate path is within project directory
         from pathlib import Path
+
         try:
             target_path = Path(target).resolve()
             project_root = Path.cwd().resolve()
@@ -278,7 +279,6 @@ class RAToolRunnerMixin(_MixinBase):
     def _run_system_tool(self, tool_name: str, tool_spec: ToolSpec, args: dict) -> dict:
         """Run a standard system tool."""
         from rich.panel import Panel
-
 
         # Auto-fill missing template parameters from agent state
         args = self._enrich_tool_args(tool_name, tool_spec, args)

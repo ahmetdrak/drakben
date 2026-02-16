@@ -14,9 +14,7 @@ from modules.recon import (
 )
 
 # Suppress coroutine warnings from AsyncMock in these tests
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:coroutine.*was never awaited:RuntimeWarning"
-)
+pytestmark = pytest.mark.filterwarnings("ignore:coroutine.*was never awaited:RuntimeWarning")
 
 # =============================================================================
 # ReconError Tests
@@ -91,6 +89,7 @@ class TestAsyncRetry:
     @pytest.mark.asyncio
     async def test_retry_exhausted(self):
         """Test exception raised after retries exhausted."""
+
         @AsyncRetry(max_retries=2, base_delay=0.01)
         async def always_fails():
             raise TimeoutError("always fails")

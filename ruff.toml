@@ -38,7 +38,7 @@ select = [
     "N",      # pep8-naming
     "FBT",    # flake8-boolean-trap
     "A",      # flake8-builtins
-    "COM",    # flake8-commas
+    "COM",    # flake8-commas (excluding COM812 which conflicts with formatter)
     "DTZ",    # flake8-datetimez
     "EM",     # flake8-errmsg
     "Q",      # flake8-quotes
@@ -60,6 +60,7 @@ select = [
 # Ignore specific rules
 ignore = [
     "E501",    # Line too long - handled by line-length setting
+    "COM812",  # missing-trailing-comma — conflicts with ruff formatter
     "B008",    # Do not perform function call in argument defaults
     "B905",    # zip without strict
     "UP007",   # Use X | Y for Union types (FA102 equivalent)

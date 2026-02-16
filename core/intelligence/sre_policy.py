@@ -68,10 +68,7 @@ class SREPolicyMixin:
 
     def _condition_matches(self, condition: dict, context: dict) -> bool:
         """Check if a condition matches a context."""
-        return all(
-            self._check_condition_key(key, value, context)
-            for key, value in condition.items()
-        )
+        return all(self._check_condition_key(key, value, context) for key, value in condition.items())
 
     def _check_condition_key(self, key: str, value: Any, context: dict) -> bool:
         """Check if a single condition key matches context."""

@@ -81,12 +81,14 @@ class TransparencyDashboard:
         if duration > 0:
             content.append(f"\n\n⏱️ {duration:.1f}s", style="dim")
 
-        self.console.print(Panel(
-            content,
-            title="🧠 LLM Thinking",
-            border_style=self.BORDER_THINK,
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="🧠 LLM Thinking",
+                border_style=self.BORDER_THINK,
+                padding=(0, 1),
+            )
+        )
 
     # ── Tool Selection Reasoning ────────────────────────────
 
@@ -118,12 +120,14 @@ class TransparencyDashboard:
             content.append("🎭 Profile: ", style="bold")
             content.append(f"{profile_info}", style="dim")
 
-        self.console.print(Panel(
-            content,
-            title="🎯 Tool Decision",
-            border_style=self.BORDER_TOOL,
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="🎯 Tool Decision",
+                border_style=self.BORDER_TOOL,
+                padding=(0, 1),
+            )
+        )
 
     # ── LLM Analysis of Output ──────────────────────────────
 
@@ -165,12 +169,14 @@ class TransparencyDashboard:
             content.append("\n➡️  Suggested Next: ", style="bold")
             content.append(str(next_action), style="bright_cyan")
 
-        self.console.print(Panel(
-            content,
-            title=f"🤖 LLM Analysis — {tool_name}",
-            border_style=self.BORDER_ANALYSIS,
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title=f"🤖 LLM Analysis — {tool_name}",
+                border_style=self.BORDER_ANALYSIS,
+                padding=(0, 1),
+            )
+        )
 
     # ── Phase Transition ────────────────────────────────────
 
@@ -186,12 +192,14 @@ class TransparencyDashboard:
         if reason:
             content.append(f"\n💡 {reason}", style="dim")
 
-        self.console.print(Panel(
-            content,
-            title="📍 Phase Transition",
-            border_style=self.BORDER_PHASE,
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="📍 Phase Transition",
+                border_style=self.BORDER_PHASE,
+                padding=(0, 1),
+            )
+        )
 
     # ── State Change ────────────────────────────────────────
 
@@ -245,7 +253,9 @@ class TransparencyDashboard:
     # ── Dynamic Plan Injection ───────────────────────────────
 
     def show_plan_injection(
-        self, injected_steps: list[dict[str, str]], source: str = "llm",
+        self,
+        injected_steps: list[dict[str, str]],
+        source: str = "llm",
     ) -> None:
         """Show when new steps are injected into the plan by LLM or recovery."""
         if not self.enabled or not injected_steps:
@@ -266,17 +276,23 @@ class TransparencyDashboard:
                 content.append(f" — {reason}", style="bright_yellow")
             content.append("\n")
 
-        self.console.print(Panel(
-            content,
-            title="➕ Plan Adapted",
-            border_style="bright_magenta",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="➕ Plan Adapted",
+                border_style="bright_magenta",
+                padding=(0, 1),
+            )
+        )
 
     # ── Approval Request ────────────────────────────────────
 
     def show_approval_request(
-        self, tool_name: str, action: str, risk_level: str, approved: bool,
+        self,
+        tool_name: str,
+        action: str,
+        risk_level: str,
+        approved: bool,
     ) -> None:
         """Show approval decision for dangerous operations."""
         if not self.enabled:
@@ -295,17 +311,22 @@ class TransparencyDashboard:
         content.append("📌 Status: ", style="bold")
         content.append(status, style=status_style)
 
-        self.console.print(Panel(
-            content,
-            title="🛡️ Approval Check",
-            border_style="bright_red",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="🛡️ Approval Check",
+                border_style="bright_red",
+                padding=(0, 1),
+            )
+        )
 
     # ── LLM Error Recovery ──────────────────────────────────
 
     def show_llm_recovery(
-        self, tool_name: str, error_msg: str, llm_suggestion: str,
+        self,
+        tool_name: str,
+        error_msg: str,
+        llm_suggestion: str,
     ) -> None:
         """Show when LLM is consulted for error recovery."""
         if not self.enabled:
@@ -319,17 +340,22 @@ class TransparencyDashboard:
         content.append("🧠 LLM Recovery: ", style="bold")
         content.append(llm_suggestion[:500], style="bright_yellow")
 
-        self.console.print(Panel(
-            content,
-            title="🔄 Intelligent Recovery",
-            border_style="bright_yellow",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                content,
+                title="🔄 Intelligent Recovery",
+                border_style="bright_yellow",
+                padding=(0, 1),
+            )
+        )
 
     # ── Tool Installation ───────────────────────────────────
 
     def show_tool_install(
-        self, tool_name: str, method: str, success: bool,
+        self,
+        tool_name: str,
+        method: str,
+        success: bool,
     ) -> None:
         """Show tool installation progress and result."""
         if not self.enabled:

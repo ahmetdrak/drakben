@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\llm\multi_turn.py
-# hypothesis_version: 6.151.6
-
-[200, 1024, 'FAILED', 'SUCCESS', 'assistant', 'assistant_messages', 'content', 'created_at', 'has_system_prompt', 'role', 'session_id', 'system', 'timestamp', 'total_messages', 'total_tokens', 'user', 'user_messages']

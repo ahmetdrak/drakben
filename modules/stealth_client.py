@@ -11,6 +11,7 @@ from typing import Any
 
 try:
     from curl_cffi.requests import Session as CurlSession
+
     CURL_CFFI_AVAILABLE = True
 except ImportError:
     CurlSession = None  # type: ignore[misc, assignment]
@@ -104,9 +105,7 @@ class StealthSession(_BaseSession):
             # Init parent with proxy and impersonation
             super().__init__(  # type: ignore[call-arg, arg-type]
                 impersonate=self.impersonate_target,  # type: ignore[arg-type]
-                proxies={"http": self.current_proxy, "https": self.current_proxy}
-                if self.current_proxy
-                else None,
+                proxies={"http": self.current_proxy, "https": self.current_proxy} if self.current_proxy else None,
                 **kwargs,
             )
         else:
@@ -173,9 +172,7 @@ class StealthSession(_BaseSession):
             # LOGIC FIX: Global consistency for platform and brand
             headers["sec-ch-ua-platform"] = f'"{ua_data[1]}"'
             if ua_data[2] == "Chromium":
-                headers["sec-ch-ua"] = (
-                    '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
-                )
+                headers["sec-ch-ua"] = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
             else:
                 # Safari doesn't use sec-ch-ua headers typically
                 headers.pop("sec-ch-ua", None)
@@ -227,10 +224,7 @@ class StealthSession(_BaseSession):
 
             # WAF/Block Detection Logic
             if response.status_code in [403, 406, 429, 503]:
-                if any(
-                    x in response.text.lower()
-                    for x in ["cloudflare", "just a moment", "challenge"]
-                ):
+                if any(x in response.text.lower() for x in ["cloudflare", "just a moment", "challenge"]):
                     logger.warning(
                         f"Cloudflare Challenge Detected! ({response.status_code})",
                     )
@@ -246,4 +240,3 @@ class StealthSession(_BaseSession):
             logger.exception("Stealth Request Failed: %s", e)
             self.proxy_manager.mark_bad(self.current_proxy)  # type: ignore[arg-type]
             raise
-

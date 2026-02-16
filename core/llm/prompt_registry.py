@@ -245,20 +245,14 @@ _BUILTIN_PROMPTS: list[PromptTemplate] = [
         version=1,
         description="Default system prompt for LLM tool calls",
         tags=("tool", "default"),
-        template_en=(
-            "You are a penetration testing assistant. "
-            "Provide clear, actionable security advice."
-        ),
+        template_en=("You are a penetration testing assistant. Provide clear, actionable security advice."),
     ),
     PromptTemplate(
         name="tool.with_functions",
         version=1,
         description="System prompt when function calling is available",
         tags=("tool", "functions"),
-        template_en=(
-            "You are a penetration testing assistant. "
-            "Use the provided tools when appropriate."
-        ),
+        template_en=("You are a penetration testing assistant. Use the provided tools when appropriate."),
     ),
     # ── Utility ──
     PromptTemplate(
@@ -273,10 +267,7 @@ _BUILTIN_PROMPTS: list[PromptTemplate] = [
         version=1,
         description="Strategic reflection advisor",
         tags=("utility", "reflection"),
-        template_en=(
-            "You are a strategic pentest advisor. "
-            "Provide concise actionable insights."
-        ),
+        template_en=("You are a strategic pentest advisor. Provide concise actionable insights."),
     ),
     PromptTemplate(
         name="util.cot_prefix",

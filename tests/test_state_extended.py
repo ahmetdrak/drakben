@@ -1,8 +1,6 @@
 # tests/test_state_extended.py
 """Extended tests for core/agent/state.py — agentic protections & helpers."""
 
-
-
 from core.agent.state import (
     AgentState,
     AttackPhase,
@@ -26,6 +24,7 @@ def _fresh_state(target: str | None = None) -> AgentState:
 
 
 # ── record_tool_call & consecutive detection ─────────────────
+
 
 class TestRecordToolCall:
     def test_basic_record(self) -> None:
@@ -55,6 +54,7 @@ class TestRecordToolCall:
 
 # ── compute_state_hash ───────────────────────────────────────
 
+
 class TestComputeStateHash:
     def test_produces_string(self) -> None:
         s = _fresh_state()
@@ -75,6 +75,7 @@ class TestComputeStateHash:
 
 # ── check_state_changed ─────────────────────────────────────
 
+
 class TestCheckStateChanged:
     def test_first_call_always_true(self) -> None:
         s = _fresh_state()
@@ -93,6 +94,7 @@ class TestCheckStateChanged:
 
 
 # ── check_hallucination ─────────────────────────────────────
+
 
 class TestCheckHallucination:
     def test_exit_code_nonzero_claimed_success(self) -> None:
@@ -119,6 +121,7 @@ class TestCheckHallucination:
 
 # ── is_tool_allowed_for_phase ────────────────────────────────
 
+
 class TestToolAllowedForPhase:
     def test_recon_in_init(self) -> None:
         s = _fresh_state()
@@ -142,6 +145,7 @@ class TestToolAllowedForPhase:
 
 
 # ── should_halt ──────────────────────────────────────────────
+
 
 class TestShouldHalt:
     def test_no_halt_initially(self) -> None:
@@ -178,6 +182,7 @@ class TestShouldHalt:
 
 # ── clear ────────────────────────────────────────────────────
 
+
 class TestClear:
     def test_clears_target(self) -> None:
         s = _fresh_state("10.0.0.1")
@@ -207,6 +212,7 @@ class TestClear:
 
 
 # ── require_precondition ─────────────────────────────────────
+
 
 class TestRequirePrecondition:
     def test_has_foothold_false(self) -> None:
@@ -240,6 +246,7 @@ class TestRequirePrecondition:
 
 # ── set_observation ──────────────────────────────────────────
 
+
 class TestSetObservation:
     def test_stores_observation(self) -> None:
         s = _fresh_state()
@@ -253,6 +260,7 @@ class TestSetObservation:
 
 
 # ── validate ─────────────────────────────────────────────────
+
 
 class TestValidate:
     def test_valid_initial(self) -> None:
@@ -272,6 +280,7 @@ class TestValidate:
 
 
 # ── rapid reset stress (was test_chaos.py) ───────────────────
+
 
 class TestStateStability:
     def test_rapid_reset_stability(self) -> None:

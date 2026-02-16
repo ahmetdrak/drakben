@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\weapon_foundry.py
-# hypothesis_version: 6.151.6
-
-[b'__LHOST__', b'__LPORT__', 215, 219, 255, 256, 4444, 65535, ', ', '--platform', '-a', '-f', '-p', '.', '/* failed */', '127.0.0.1', '>H', 'BBBB', 'WeaponFoundry | None', '_sc', 'aes', 'anti_analysis', 'anti_debug', 'anti_sandbox', 'base64', 'bash', 'bind_tcp', 'buf', 'c', 'chacha20', 'csharp', 'debug_detection', 'dns_tunnel', 'domain_fronted', 'encryptions', 'formats', 'hta', 'iterations', 'keystone', 'lhost', 'linux', 'lport', 'msfvenom', 'msfvenom failed: %s', 'none', 'notepad.exe', 'process_injection', 'ps1', 'python', 'raw', 'rc4', 'reflective_dll', 'reverse_http', 'reverse_https', 'reverse_tcp', 'sandbox_evasion', 'shell/reverse_tcp', 'shell_type', 'shell_types', 'size', 'sleep_check', 'utf-8', 'vbs', 'vm_detection', 'windows', 'x64', 'xor', 'xor_multi']

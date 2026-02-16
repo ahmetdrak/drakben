@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\observability.py
-# hypothesis_version: 6.151.6
-
-[0.0, 0.95, 1.0, -1000, 500, 1000, ',', 'attributes', 'avg', 'children', 'count', 'counters', 'duration_ms', 'end_time', 'error', 'events', 'gauges', 'histograms', 'max', 'min', 'name', 'ok', 'p50', 'p95', 'parent_id', 'span_id', 'start_time', 'status', 'status_message', 'timestamp', 'unset', 'utf-8']

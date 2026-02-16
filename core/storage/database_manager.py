@@ -101,5 +101,3 @@ class SQLiteProvider(DatabaseProvider):
             msg = "Database operation failed without an error instance"
             raise sqlite3.OperationalError(msg)
         raise last_error
-
-

@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\context_compressor.py
-# hypothesis_version: 6.151.6
-
-[100, 120, 500, 800, 6000, 12000, ' | ', '#', '; ', 'CVE-\\d{4}-\\d+', 'Status:\\s*200', '[', '\\d+/(tcp|udp)\\s+open', '```', 'assistant', 'chars_saved', 'compressions', 'content', 'critical', 'findings', 'high severity', 'info', 'llm_summaries', 'output', 'ports', 'role', 'rule_summaries', 'severity', 'structured', 'success', 'system', 'tool', 'unknown', 'user', 'vulnerabilities', 'vulnerable', '✓', '✗']

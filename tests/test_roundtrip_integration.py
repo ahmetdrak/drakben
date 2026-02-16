@@ -23,6 +23,7 @@ import pytest
 # 1. Stego Transport: Embed → Extract roundtrip
 # ---------------------------------------------------------------------------
 
+
 class TestStegoRoundtrip:
     """Test steganographic data embedding/extraction cycle."""
 
@@ -85,6 +86,7 @@ class TestStegoRoundtrip:
 # 2. AES-256-GCM Encrypt → Decrypt roundtrip
 # ---------------------------------------------------------------------------
 
+
 class TestAESGCMRoundtrip:
     """Test AES-256-GCM encryption/decryption cycle used by C2Channel."""
 
@@ -114,11 +116,15 @@ class TestAESGCMRoundtrip:
         from modules.c2_framework import C2Channel, C2Config, C2Protocol
 
         config1 = C2Config(
-            primary_host="127.0.0.1", primary_port=443, protocol=C2Protocol.HTTPS,
+            primary_host="127.0.0.1",
+            primary_port=443,
+            protocol=C2Protocol.HTTPS,
             encryption_key=b"key_one",
         )
         config2 = C2Config(
-            primary_host="127.0.0.1", primary_port=443, protocol=C2Protocol.HTTPS,
+            primary_host="127.0.0.1",
+            primary_port=443,
+            protocol=C2Protocol.HTTPS,
             encryption_key=b"key_two",
         )
 
@@ -136,7 +142,9 @@ class TestAESGCMRoundtrip:
         from modules.c2_framework import C2Channel, C2Config, C2Protocol
 
         config = C2Config(
-            primary_host="127.0.0.1", primary_port=443, protocol=C2Protocol.HTTPS,
+            primary_host="127.0.0.1",
+            primary_port=443,
+            protocol=C2Protocol.HTTPS,
             encryption_key=b"bulk_test_key",
         )
         channel = C2Channel(config)
@@ -151,6 +159,7 @@ class TestAESGCMRoundtrip:
 # ---------------------------------------------------------------------------
 # 3. Singularity: Code generation templates produce valid Python
 # ---------------------------------------------------------------------------
+
 
 class TestSingularityTemplates:
     """Verify all mock LLM templates produce syntactically valid code."""
@@ -174,9 +183,7 @@ class TestSingularityTemplates:
         code = synth._mock_llm_call(prompt, "python")
 
         assert code, f"Template '{label}' returned empty code"
-        assert "# Placeholder code for:" not in code, (
-            f"Template '{label}' returned generic placeholder"
-        )
+        assert "# Placeholder code for:" not in code, f"Template '{label}' returned generic placeholder"
 
         # Must parse as valid Python
         try:
@@ -211,6 +218,7 @@ class TestSingularityTemplates:
 # ---------------------------------------------------------------------------
 # 4. Symbolic Executor: Heuristic boundary solver
 # ---------------------------------------------------------------------------
+
 
 class TestSymbolicHeuristic:
     """Verify boundary-aware heuristic solver produces correct values."""
@@ -299,6 +307,7 @@ class TestSymbolicHeuristic:
 # 5. CVE Fetcher: NVD integration path
 # ---------------------------------------------------------------------------
 
+
 class TestCVEFetcher:
     """Test exploit fetcher with known and unknown CVEs."""
 
@@ -363,6 +372,7 @@ class TestCVEFetcher:
 # 6. Phishing Campaign: Config validation
 # ---------------------------------------------------------------------------
 
+
 class TestPhishingCampaign:
     """Test generate_campaign validation (no real SMTP)."""
 
@@ -380,7 +390,8 @@ class TestPhishingCampaign:
 
             try:
                 result = gen.generate_campaign(
-                    ["test@example.com"], "nonexistent_template",
+                    ["test@example.com"],
+                    "nonexistent_template",
                 )
                 assert result["success"] is False
                 assert "SMTP not configured" in result["error"]
@@ -402,7 +413,8 @@ class TestPhishingCampaign:
 
             try:
                 result = gen.generate_campaign(
-                    ["test@example.com"], "missing_template",
+                    ["test@example.com"],
+                    "missing_template",
                 )
                 assert result["success"] is False
                 assert "Template not found" in result["error"]
@@ -415,6 +427,7 @@ class TestPhishingCampaign:
 # ---------------------------------------------------------------------------
 # 7. VectorStore: Write → Search roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestVectorStoreRoundtrip:
     """Test ChromaDB vector store write/search cycle."""
@@ -468,6 +481,7 @@ class TestVectorStoreRoundtrip:
 # ---------------------------------------------------------------------------
 # 9. DNS Tunneler: Chunk/reassemble roundtrip
 # ---------------------------------------------------------------------------
+
 
 class TestDNSChunking:
     """Test DNS tunneler data chunking logic."""

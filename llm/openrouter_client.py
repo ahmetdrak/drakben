@@ -297,6 +297,7 @@ class OpenRouterClient(OllamaMixin, APIClientMixin, StreamingToolsMixin):
         # Check for global stop signal
         try:
             from core.stop_controller import check_stop
+
             if check_stop():
                 return "[Stopped] Operation cancelled by user."
         except ImportError:
@@ -318,6 +319,7 @@ class OpenRouterClient(OllamaMixin, APIClientMixin, StreamingToolsMixin):
 
         # Route to appropriate provider
         import time as _time
+
         _t0 = _time.time()
 
         if self.provider == "ollama":
@@ -331,6 +333,7 @@ class OpenRouterClient(OllamaMixin, APIClientMixin, StreamingToolsMixin):
         if not result.startswith("["):
             try:
                 from core.ui.transparency import get_transparency
+
                 td = get_transparency()
                 td.log_llm_query(prompt[:200], result[:200], _duration)
             except (ImportError, AttributeError) as e:

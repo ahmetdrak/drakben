@@ -68,12 +68,15 @@ class OSINTSpider:
         if self._session is None:
             try:
                 import requests
+
                 self._session = requests.Session()  # type: ignore[assignment]
-                self._session.headers.update({
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                })
+                self._session.headers.update(
+                    {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.5",
+                    }
+                )
             except ImportError:
                 logger.warning("requests library not available")
                 return None
@@ -92,8 +95,9 @@ class OSINTSpider:
 
         # 1. DNS Reconnaissance
         domain_intel = self.dns_recon(domain)
-        logger.info("DNS Recon: %s MX records, %s nameservers",
-                   len(domain_intel.mx_records), len(domain_intel.name_servers))
+        logger.info(
+            "DNS Recon: %s MX records, %s nameservers", len(domain_intel.mx_records), len(domain_intel.name_servers)
+        )
 
         # 2. Detect email format from MX records
         email_format = self._detect_email_format(domain, domain_intel)
@@ -130,6 +134,7 @@ class OSINTSpider:
 
         try:
             import dns.resolver
+
             resolver = dns.resolver.Resolver()
             resolver.timeout = 5
             resolver.lifetime = 10
@@ -138,21 +143,36 @@ class OSINTSpider:
             try:
                 mx_answers = resolver.resolve(domain, "MX")
                 intel.mx_records = [str(r.exchange).rstrip(".") for r in mx_answers]
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+            except (
+                dns.resolver.NXDOMAIN,
+                dns.resolver.NoAnswer,
+                dns.resolver.NoNameservers,
+                dns.exception.Timeout,
+            ) as exc:
                 logger.debug("MX record lookup failed for %s: %s", domain, exc)
 
             # NS Records
             try:
                 ns_answers = resolver.resolve(domain, "NS")
                 intel.name_servers = [str(r).rstrip(".") for r in ns_answers]
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+            except (
+                dns.resolver.NXDOMAIN,
+                dns.resolver.NoAnswer,
+                dns.resolver.NoNameservers,
+                dns.exception.Timeout,
+            ) as exc:
                 logger.debug("NS record lookup failed for %s: %s", domain, exc)
 
             # TXT Records (SPF, DKIM, etc.)
             try:
                 txt_answers = resolver.resolve(domain, "TXT")
                 intel.txt_records = [str(r) for r in txt_answers]
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+            except (
+                dns.resolver.NXDOMAIN,
+                dns.resolver.NoAnswer,
+                dns.resolver.NoNameservers,
+                dns.exception.Timeout,
+            ) as exc:
                 logger.debug("TXT record lookup failed for %s: %s", domain, exc)
 
         except ImportError:
@@ -207,9 +227,15 @@ class OSINTSpider:
 
         # Common paths for team/about pages
         paths = [
-            "/about", "/about-us", "/team", "/our-team",
-            "/leadership", "/management", "/contact",
-            "/about/team", "/company/team",
+            "/about",
+            "/about-us",
+            "/team",
+            "/our-team",
+            "/leadership",
+            "/management",
+            "/contact",
+            "/about/team",
+            "/company/team",
         ]
 
         for path in paths:
@@ -235,6 +261,7 @@ class OSINTSpider:
 
         try:
             from bs4 import BeautifulSoup
+
             soup = BeautifulSoup(html, "html.parser")
 
             # Look for common patterns
@@ -286,9 +313,24 @@ class OSINTSpider:
 
     def _find_nearby_role(self, element: Any) -> str:
         """Find role/title near a name element."""
-        role_keywords = {"ceo", "cto", "cfo", "coo", "director", "manager",
-                        "engineer", "developer", "analyst", "administrator",
-                        "president", "founder", "head", "lead", "senior", "chief"}
+        role_keywords = {
+            "ceo",
+            "cto",
+            "cfo",
+            "coo",
+            "director",
+            "manager",
+            "engineer",
+            "developer",
+            "analyst",
+            "administrator",
+            "president",
+            "founder",
+            "head",
+            "lead",
+            "senior",
+            "chief",
+        }
 
         # Check next sibling
         next_elem = element.find_next_sibling()
@@ -358,12 +400,14 @@ class OSINTSpider:
                     names = self._extract_names_from_search_results(response.text)
                     for name in names[:5]:  # Limit per dork
                         email = self.predict_email(name, domain)
-                        targets.append(TargetPerson(
-                            full_name=name,
-                            role="Unknown",
-                            email=email,
-                            confidence=0.4,
-                        ))
+                        targets.append(
+                            TargetPerson(
+                                full_name=name,
+                                role="Unknown",
+                                email=email,
+                                confidence=0.4,
+                            )
+                        )
 
         except Exception as e:
             logger.debug("Search engine recon failed: %s", e)
@@ -396,13 +440,15 @@ class OSINTSpider:
         targets = []
         for name, role in simulated:
             email = self.predict_email(name, domain)
-            targets.append(TargetPerson(
-                full_name=name,
-                role=role,
-                email=email,
-                social_profiles=self._find_social_profiles(name),
-                confidence=0.3,  # Low confidence for simulated
-            ))
+            targets.append(
+                TargetPerson(
+                    full_name=name,
+                    role=role,
+                    email=email,
+                    social_profiles=self._find_social_profiles(name),
+                    confidence=0.3,  # Low confidence for simulated
+                )
+            )
 
         return targets
 
@@ -439,5 +485,3 @@ class OSINTSpider:
         """Verify email syntax is valid."""
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
-
-

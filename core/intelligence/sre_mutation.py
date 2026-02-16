@@ -218,10 +218,7 @@ class SREMutationMixin:
                 new_rate = new_success / new_usage if new_usage > 0 else 0.5
 
                 # Check for retirement
-                should_retire = (
-                    new_usage >= self.MIN_USAGE_FOR_RETIRE
-                    and new_rate < self.PROFILE_RETIRE_THRESHOLD
-                )
+                should_retire = new_usage >= self.MIN_USAGE_FOR_RETIRE and new_rate < self.PROFILE_RETIRE_THRESHOLD
 
                 # Update
                 conn.execute(

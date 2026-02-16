@@ -73,6 +73,7 @@ class MutationEngine(IMutationEngine):
             # Also apply Ghost Protocol obfuscation if available
             try:
                 from core.security.ghost_protocol import get_ghost_protocol
+
                 ghost = get_ghost_protocol()
                 mutated_code = ghost.obfuscate_code(mutated_code)
                 applied_mutations.append("ghost_protocol")
@@ -202,6 +203,7 @@ def _xd(s, k):
             return code
 
         import secrets as _secrets
+
         choice = _secrets.randbelow(2)  # 0 = add→sub, 1 = bool swap
 
         class _SubstTransformer(ast.NodeTransformer):
@@ -283,8 +285,9 @@ def _xd(s, k):
             result = self.mutate(current_code)
             if result.success and result.mutated_code:
                 current_code = result.mutated_code
-                logger.debug("Iteration %s: hash changed from %s to %s",
-                           i + 1, result.original_hash[:8], result.new_hash[:8])
+                logger.debug(
+                    "Iteration %s: hash changed from %s to %s", i + 1, result.original_hash[:8], result.new_hash[:8]
+                )
 
         return current_code
 
@@ -297,22 +300,91 @@ class VariableRenamer(ast.NodeTransformer):
         self.counter = 0
         # Don't rename these (keywords + builtins)
         self.preserved = {
-            "self", "cls", "args", "kwargs", "True", "False", "None",
+            "self",
+            "cls",
+            "args",
+            "kwargs",
+            "True",
+            "False",
+            "None",
             # Python builtins that must not be renamed
-            "print", "len", "range", "str", "int", "float", "bool",
-            "list", "dict", "set", "tuple", "type", "super", "object",
-            "isinstance", "issubclass", "hasattr", "getattr", "setattr",
-            "delattr", "property", "staticmethod", "classmethod",
-            "enumerate", "zip", "map", "filter", "sorted", "reversed",
-            "min", "max", "sum", "abs", "round", "pow", "divmod",
-            "hash", "id", "repr", "ascii", "chr", "ord", "hex", "oct", "bin",
-            "format", "input", "open", "compile", "exec", "eval",
-            "globals", "locals", "vars", "dir", "help",
-            "any", "all", "iter", "next", "callable", "breakpoint",
-            "Exception", "BaseException", "ValueError", "TypeError",
-            "KeyError", "IndexError", "AttributeError", "RuntimeError",
-            "ImportError", "OSError", "IOError", "StopIteration",
-            "NotImplementedError", "FileNotFoundError", "PermissionError",
+            "print",
+            "len",
+            "range",
+            "str",
+            "int",
+            "float",
+            "bool",
+            "list",
+            "dict",
+            "set",
+            "tuple",
+            "type",
+            "super",
+            "object",
+            "isinstance",
+            "issubclass",
+            "hasattr",
+            "getattr",
+            "setattr",
+            "delattr",
+            "property",
+            "staticmethod",
+            "classmethod",
+            "enumerate",
+            "zip",
+            "map",
+            "filter",
+            "sorted",
+            "reversed",
+            "min",
+            "max",
+            "sum",
+            "abs",
+            "round",
+            "pow",
+            "divmod",
+            "hash",
+            "id",
+            "repr",
+            "ascii",
+            "chr",
+            "ord",
+            "hex",
+            "oct",
+            "bin",
+            "format",
+            "input",
+            "open",
+            "compile",
+            "exec",
+            "eval",
+            "globals",
+            "locals",
+            "vars",
+            "dir",
+            "help",
+            "any",
+            "all",
+            "iter",
+            "next",
+            "callable",
+            "breakpoint",
+            "Exception",
+            "BaseException",
+            "ValueError",
+            "TypeError",
+            "KeyError",
+            "IndexError",
+            "AttributeError",
+            "RuntimeError",
+            "ImportError",
+            "OSError",
+            "IOError",
+            "StopIteration",
+            "NotImplementedError",
+            "FileNotFoundError",
+            "PermissionError",
         }
 
     def _get_new_name(self, old_name: str) -> str:

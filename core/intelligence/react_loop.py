@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 class ReActAction(Enum):
     """Possible actions the ReAct loop can take."""
 
-    TOOL = "tool"          # Execute a tool
-    THINK = "think"        # Internal reasoning (no tool)
-    FINISH = "finish"      # Goal achieved
+    TOOL = "tool"  # Execute a tool
+    THINK = "think"  # Internal reasoning (no tool)
+    FINISH = "finish"  # Goal achieved
     ESCALATE = "escalate"  # Needs human input
 
 
@@ -42,12 +42,12 @@ class Thought:
     """Single reasoning step in the ReAct loop."""
 
     step: int
-    reasoning: str           # LLM's chain-of-thought
+    reasoning: str  # LLM's chain-of-thought
     action: ReActAction
-    tool: str = ""           # Tool to execute (if action == TOOL)
+    tool: str = ""  # Tool to execute (if action == TOOL)
     tool_args: dict = field(default_factory=dict)
     confidence: float = 0.5
-    final_answer: str = ""   # Set when action == FINISH
+    final_answer: str = ""  # Set when action == FINISH
 
 
 @dataclass
@@ -55,7 +55,7 @@ class Observation:
     """Result of executing a tool — fed back to LLM."""
 
     tool: str
-    output: str              # Raw stdout (truncated)
+    output: str  # Raw stdout (truncated)
     success: bool
     duration: float = 0.0
     structured: dict = field(default_factory=dict)  # Parsed output
@@ -80,9 +80,9 @@ class ReActLoop:
 
     # Safety limits
     MAX_STEPS = 30
-    MAX_CONSECUTIVE_THINKS = 3   # Prevent infinite reasoning loops
+    MAX_CONSECUTIVE_THINKS = 3  # Prevent infinite reasoning loops
     MAX_OBSERVATION_CHARS = 4000  # Token budget per observation
-    MAX_HISTORY_IN_PROMPT = 8    # How many past steps to include in prompt
+    MAX_HISTORY_IN_PROMPT = 8  # How many past steps to include in prompt
 
     def __init__(
         self,
@@ -147,7 +147,9 @@ class ReActLoop:
 
             if thought.action == ReActAction.ESCALATE:
                 return self._build_result(
-                    thought.reasoning, success=False, escalated=True,
+                    thought.reasoning,
+                    success=False,
+                    escalated=True,
                 )
 
             if thought.action == ReActAction.THINK:
@@ -236,7 +238,7 @@ class ReActLoop:
             success = result.get("success", False) if isinstance(result, dict) else False
 
             # Truncate output for token budget
-            truncated = stdout[:self.MAX_OBSERVATION_CHARS]
+            truncated = stdout[: self.MAX_OBSERVATION_CHARS]
             if len(stdout) > self.MAX_OBSERVATION_CHARS:
                 truncated += f"\n... ({len(stdout) - self.MAX_OBSERVATION_CHARS} chars truncated)"
 
@@ -308,7 +310,7 @@ class ReActLoop:
         # Observation history (recent N steps)
         if self.observations:
             parts.append("\nPREVIOUS OBSERVATIONS:")
-            recent = self.observations[-self.MAX_HISTORY_IN_PROMPT:]
+            recent = self.observations[-self.MAX_HISTORY_IN_PROMPT :]
             for i, obs in enumerate(recent, 1):
                 status = "✓" if obs.success else "✗"
                 # Further truncate in prompt context
@@ -320,8 +322,7 @@ class ReActLoop:
         # If too many thinks, push for action
         if self._consecutive_thinks >= 2:
             parts.append(
-                "\n⚠️ You've been thinking without acting. "
-                "Choose a tool to execute or finish.",
+                "\n⚠️ You've been thinking without acting. Choose a tool to execute or finish.",
             )
 
         # Thought history (just the reasoning, not full observations)
@@ -347,10 +348,7 @@ class ReActLoop:
             lines.append(f"Open Services: {', '.join(services)}")
 
         if agent_state.vulnerabilities:
-            vulns = [
-                v.name if hasattr(v, "name") else str(v)
-                for v in agent_state.vulnerabilities[:5]
-            ]
+            vulns = [v.name if hasattr(v, "name") else str(v) for v in agent_state.vulnerabilities[:5]]
             lines.append(f"Vulnerabilities: {', '.join(vulns)}")
 
         lines.append(f"Foothold: {'Yes' if agent_state.has_foothold else 'No'}")
@@ -443,9 +441,17 @@ class ReActLoop:
             return list(self.tool_selector.tools.keys())
         # Default common tools
         return [
-            "nmap_port_scan", "nmap_service_scan", "nmap_vuln_scan",
-            "nikto_web_scan", "sqlmap_scan", "gobuster", "ffuf",
-            "searchsploit", "hydra", "enum4linux", "passive_recon",
+            "nmap_port_scan",
+            "nmap_service_scan",
+            "nmap_vuln_scan",
+            "nikto_web_scan",
+            "sqlmap_scan",
+            "gobuster",
+            "ffuf",
+            "searchsploit",
+            "hydra",
+            "enum4linux",
+            "passive_recon",
         ]
 
     def _build_result(
@@ -491,8 +497,6 @@ class ReActLoop:
             "total_observations": len(self.observations),
             "tools_used": list({o.tool for o in self.observations}),
             "success_rate": (
-                sum(1 for o in self.observations if o.success) / len(self.observations)
-                if self.observations
-                else 0.0
+                sum(1 for o in self.observations if o.success) / len(self.observations) if self.observations else 0.0
             ),
         }

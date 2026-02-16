@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\multi_agent.py
-# hypothesis_version: 6.151.6
-
-[0.0, 200, 1000, 'adviser', 'available_roles', 'avg_latency_ms', 'call_counts', 'cheap', 'coding', 'default', 'enricher', 'expensive', 'installer', 'latency_ms', 'mid', 'model', 'model_overrides', 'parsing', 'reasoning', 'reflector', 'reporting', 'researcher', 'response', 'role', 'scanning', 'success', 'success_rate', 'tool', 'total_delegations']

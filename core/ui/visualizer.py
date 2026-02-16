@@ -12,8 +12,7 @@ try:
     import importlib.util
 
     DEPENDENCIES_AVAILABLE = (
-        importlib.util.find_spec("pyvis") is not None
-        and importlib.util.find_spec("networkx") is not None
+        importlib.util.find_spec("pyvis") is not None and importlib.util.find_spec("networkx") is not None
     )
 except Exception:
     DEPENDENCIES_AVAILABLE = False
@@ -48,10 +47,7 @@ class NetworkVisualizer:
 
         """
         if not DEPENDENCIES_AVAILABLE:
-            msg = (
-                "NetworkVisualizer requires pyvis and networkx. "
-                "Install: pip install -r requirements-extra.txt"
-            )
+            msg = "NetworkVisualizer requires pyvis and networkx. Install: pip install -r requirements-extra.txt"
             raise NotImplementedError(msg)
 
         from pyvis.network import Network
@@ -69,5 +65,3 @@ class NetworkVisualizer:
         net.save_graph(output_path)
         logger.info("Network map saved to %s", output_path)
         return output_path
-
-

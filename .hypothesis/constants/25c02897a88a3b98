@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\tool_dispatch.py
-# hypothesis_version: 6.151.6
-
-['Tool not found', '_tool_name', 'ad_', 'ad_unknown', 'args', 'c2_beacon', 'cve_lookup', 'error', 'generate_payload', 'hive_mind', 'metasploit_exploit', 'nuclei_scan', 'osint_', 'osint_unknown', 'subdomain_enum', 'success', 'synthesize_code', 'system_evolution', 'waf_bypass']

@@ -173,13 +173,18 @@ class TestConfigManagerLoadSave:
 
     def test_load_config_with_security_section(self, tmp_path):
         cfg_file = tmp_path / "settings.json"
-        cfg_file.write_text(json.dumps({
-            "language": "en",
-            "security": {
-                "ssl_verify": False,
-                "allow_self_signed_certs": True,
-            },
-        }), encoding="utf-8")
+        cfg_file.write_text(
+            json.dumps(
+                {
+                    "language": "en",
+                    "security": {
+                        "ssl_verify": False,
+                        "allow_self_signed_certs": True,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         with patch("core.config.API_ENV_PATH", str(tmp_path / "api.env")):
             mgr = ConfigManager(config_file=str(cfg_file))
         assert mgr.config.ssl_verify is False
@@ -252,10 +257,12 @@ class TestConfigManagerEnv:
         env_path = tmp_path / "config" / "api.env"
         with patch("core.config.API_ENV_PATH", str(env_path)):
             mgr = ConfigManager(config_file=str(cfg_file))
-            mgr._write_env_file({
-                "OPENROUTER_API_KEY": "test_key",
-                "OPENROUTER_MODEL": "gpt-4",
-            })
+            mgr._write_env_file(
+                {
+                    "OPENROUTER_API_KEY": "test_key",
+                    "OPENROUTER_MODEL": "gpt-4",
+                }
+            )
         assert env_path.exists()
         content = env_path.read_text(encoding="utf-8")
         assert "test_key" in content

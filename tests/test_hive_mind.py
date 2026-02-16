@@ -58,9 +58,7 @@ class TestCredentialHarvester(unittest.TestCase):
         del os.environ["TEST_PASSWORD_VAR"]
 
         # Should have found our test credential
-        found = any(
-            c.source == "environment" and "TEST_PASSWORD" in c.username for c in creds
-        )
+        found = any(c.source == "environment" and "TEST_PASSWORD" in c.username for c in creds)
         assert found
 
     def test_get_all_credentials(self) -> None:
@@ -199,9 +197,7 @@ class TestADAnalyzer(unittest.TestCase):
 
         if path:
             # Ensure no duplicates in hops
-            assert len(path.hops) == len(set(path.hops)), (
-                "Cycle detected in attack path!"
-            )
+            assert len(path.hops) == len(set(path.hops)), "Cycle detected in attack path!"
 
     def test_scope_enforcement(self) -> None:
         """Test that attack paths do not include out-of-scope targets."""
@@ -504,6 +500,7 @@ class TestPassTheHashAutomation(unittest.TestCase):
 
     def setUp(self) -> None:
         from modules.hive_mind import PassTheHashAutomation
+
         self.pth = PassTheHashAutomation()
 
     def test_initialization(self) -> None:
@@ -565,6 +562,7 @@ class TestHoneyTokenDetector(unittest.TestCase):
 
     def setUp(self) -> None:
         from modules.hive_mind import HoneyTokenDetector
+
         self.detector = HoneyTokenDetector()
 
     def test_initialization(self) -> None:
@@ -690,6 +688,7 @@ class TestEnhanceHiveMind(unittest.TestCase):
     def test_enhance_adds_pth(self) -> None:
         """Test that enhance adds PTH automation."""
         from modules.hive_mind import PassTheHashAutomation, enhance_hive_mind
+
         hive = HiveMind()
         enhance_hive_mind(hive)
         assert hasattr(hive, "pth")
@@ -698,6 +697,7 @@ class TestEnhanceHiveMind(unittest.TestCase):
     def test_enhance_adds_honey_detector(self) -> None:
         """Test that enhance adds honey detector."""
         from modules.hive_mind import HoneyTokenDetector, enhance_hive_mind
+
         hive = HiveMind()
         enhance_hive_mind(hive)
         assert hasattr(hive, "honey_detector")
@@ -706,6 +706,7 @@ class TestEnhanceHiveMind(unittest.TestCase):
     def test_enhanced_hive_integration(self) -> None:
         """Test enhanced HiveMind integration."""
         from modules.hive_mind import enhance_hive_mind
+
         hive = HiveMind()
         enhance_hive_mind(hive)
 

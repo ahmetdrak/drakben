@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\social_eng\mfa_bypass.py
-# hypothesis_version: 6.151.6
-
-[443, 502, 8443, '*', ', ', '-config', '-developer', '-p', '.yaml', '/', '/opt/evilginx2', '/opt/modlishka', '/{path:.*}', '0.0.0.0', '; ', 'Connection', 'Content-Encoding', 'Content-Type', 'Host', 'Modlishka', 'Modlishka stopped', 'POST', 'Proxy Error', 'Proxy error: %s', 'Transfer-Encoding', 'application/json', 'autocert,all', 'builtin', 'cert', 'cookies', 'curl', 'debug', 'disableSecurity', 'dynamicMode', 'email', 'evilginx', 'evilginx2', 'id', 'ignore', 'jsReflectParam', 'jsRules', 'key', 'listeningAddress', 'logPostOnly', 'login', 'modlishka', 'pass', 'password', 'path', 'phishlets', 'plugins', 'proxyDomain', 'pwd', 'python', 'sessions', 'sessions.json', 'target', 'terminateTriggers', 'terminateUrl', 'time', 'tokens', 'trackingCookie', 'trackingParam', 'url', 'user', 'username', 'utf-8', 'w']

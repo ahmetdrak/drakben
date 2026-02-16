@@ -21,14 +21,16 @@ logger = logging.getLogger(__name__)
 API_ENV_PATH = "config/api.env"
 
 # Placeholder values that should NOT be treated as valid API keys
-_PLACEHOLDER_VALUES = frozenset({
-    "your_key_here",
-    "your-key-here",
-    "YOUR_KEY_HERE",
-    "sk-xxx",
-    "sk-your-key",
-    "",
-})
+_PLACEHOLDER_VALUES = frozenset(
+    {
+        "your_key_here",
+        "your-key-here",
+        "YOUR_KEY_HERE",
+        "sk-xxx",
+        "sk-your-key",
+        "",
+    }
+)
 
 
 # ===========================================
@@ -117,8 +119,29 @@ class NetworkConfig:
     """Centralized network scanning settings."""
 
     # Common ports for quick scans
-    COMMON_PORTS = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445,
-                   993, 995, 1723, 3306, 3389, 5900, 8080, 8443]
+    COMMON_PORTS = [
+        21,
+        22,
+        23,
+        25,
+        53,
+        80,
+        110,
+        111,
+        135,
+        139,
+        143,
+        443,
+        445,
+        993,
+        995,
+        1723,
+        3306,
+        3389,
+        5900,
+        8080,
+        8443,
+    ]
 
     # Port scan settings
     MAX_CONCURRENT_SCANS = 100
@@ -529,24 +552,34 @@ class ConfigManager:
         if choice == "1":
             self.config.llm_provider = "openrouter"
             import getpass as _getpass
+
             api_key = _getpass.getpass("OpenRouter API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
             self._apply_api_key_and_model(
-                env_values, api_key, model,
-                "OPENROUTER_API_KEY", "openrouter_api_key",
-                "OPENROUTER_MODEL", "openrouter_model",
+                env_values,
+                api_key,
+                model,
+                "OPENROUTER_API_KEY",
+                "openrouter_api_key",
+                "OPENROUTER_MODEL",
+                "openrouter_model",
             )
             return True
 
         if choice == "2":
             self.config.llm_provider = "openai"
             import getpass as _getpass
+
             api_key = _getpass.getpass("OpenAI API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
             self._apply_api_key_and_model(
-                env_values, api_key, model,
-                "OPENAI_API_KEY", "openai_api_key",
-                "OPENAI_MODEL", "openai_model",
+                env_values,
+                api_key,
+                model,
+                "OPENAI_API_KEY",
+                "openai_api_key",
+                "OPENAI_MODEL",
+                "openai_model",
             )
             return True
 
@@ -610,10 +643,12 @@ class ConfigManager:
                             security = data.pop("security")
                             data["ssl_verify"] = security.get("ssl_verify", True)
                             data["allow_self_signed_certs"] = security.get(
-                                "allow_self_signed_certs", False,
+                                "allow_self_signed_certs",
+                                False,
                             )
                         # Filter unknown keys to avoid TypeError on DrakbenConfig init
                         import dataclasses as _dc
+
                         valid_fields = {f.name for f in _dc.fields(DrakbenConfig)}
                         data = {k: v for k, v in data.items() if k in valid_fields}
                         return DrakbenConfig(**data)
@@ -673,6 +708,7 @@ class ConfigManager:
         internally when full keys are needed.
         """
         with self._lock:
+
             def _redact(key: str | None) -> str | None:
                 if not key:
                     return None
@@ -743,9 +779,7 @@ class SessionManager:
                 import time
 
                 timestamp = int(time.time())
-                filename = (
-                    f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
-                )
+                filename = f"{target.replace('.', '_').replace(':', '_')}_{timestamp}.json"
                 filepath = self.session_dir / filename
 
                 with open(filepath, "w", encoding="utf-8") as f:

@@ -260,9 +260,7 @@ class ActiveDirectoryAttacker:
         if length > 127:
             # Decode number of bytes for length
             len_bytes_count = length & 0x7F
-            len_hex = remaining[
-                cipher_start_idx + 4 : cipher_start_idx + 4 + (len_bytes_count * 2)
-            ]
+            len_hex = remaining[cipher_start_idx + 4 : cipher_start_idx + 4 + (len_bytes_count * 2)]
             length = int(len_hex, 16)
             data_start = cipher_start_idx + 4 + (len_bytes_count * 2)
 

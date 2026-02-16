@@ -27,7 +27,11 @@ class MasterOrchestrator:
         self.decision_engine = None
 
     def initialize(
-        self, reasoning: Any, context_mgr: Any, self_corr: Any, decision: Any,
+        self,
+        reasoning: Any,
+        context_mgr: Any,
+        self_corr: Any,
+        decision: Any,
     ) -> None:
         """Connect the orchestrator to its functional modules.
 
@@ -149,11 +153,13 @@ class MasterOrchestrator:
             decision = self.self_correction.review(decision)
 
         # Record decision in history for infinite loop detection
-        self.context.history.append({
-            "action": decision.get("action") or decision.get("next_action", {}),
-            "command": decision.get("command"),
-            "success": not decision.get("error"),
-        })
+        self.context.history.append(
+            {
+                "action": decision.get("action") or decision.get("next_action", {}),
+                "command": decision.get("command"),
+                "success": not decision.get("error"),
+            }
+        )
 
         # Prevent unbounded memory growth in long autonomous sessions
         _MAX_HISTORY = 500

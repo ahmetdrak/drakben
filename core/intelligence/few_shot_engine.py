@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 class FewShotExample:
     """A single few-shot example with input, reasoning, and output."""
 
-    scenario: str      # Input scenario description
-    reasoning: str     # Chain-of-thought reasoning trace
-    output: dict       # Expected structured output
-    phase: str = ""    # Which pentest phase this example covers
+    scenario: str  # Input scenario description
+    reasoning: str  # Chain-of-thought reasoning trace
+    output: dict  # Expected structured output
+    phase: str = ""  # Which pentest phase this example covers
     tags: list[str] = field(default_factory=list)
 
 
@@ -142,19 +142,21 @@ class FewShotEngine:
     # ─────────────────── Example Selection ───────────────────
 
     def _select_examples(
-        self, phase: str, task_type: str, max_count: int,
+        self,
+        phase: str,
+        task_type: str,
+        max_count: int,
     ) -> list[FewShotExample]:
         """Select the most relevant examples for the current context."""
         candidates = self._collect_candidates(phase, task_type)
-        scored = [
-            (self._score_example(ex, phase, task_type), ex)
-            for ex in candidates
-        ]
+        scored = [(self._score_example(ex, phase, task_type), ex) for ex in candidates]
         scored.sort(key=lambda x: -x[0])
         return [ex for _, ex in scored[:max_count]]
 
     def _collect_candidates(
-        self, phase: str, task_type: str,
+        self,
+        phase: str,
+        task_type: str,
     ) -> list[FewShotExample]:
         """Gather candidate examples from task-type, phase, and general pools."""
         candidates: list[FewShotExample] = list(
@@ -171,7 +173,9 @@ class FewShotEngine:
 
     @staticmethod
     def _score_example(
-        ex: FewShotExample, phase: str, task_type: str,
+        ex: FewShotExample,
+        phase: str,
+        task_type: str,
     ) -> int:
         """Score a single example based on relevance."""
         score = 0
@@ -219,7 +223,11 @@ class FewShotEngine:
                     "severity": "critical",
                     "next_steps": [
                         {"action": "exploit_cve", "tool": "nuclei", "reason": "Verify CVE-2021-41773 on Apache 2.4.49"},
-                        {"action": "mysql_enum", "tool": "nmap_scripts", "reason": "Enumerate MySQL with default creds"},
+                        {
+                            "action": "mysql_enum",
+                            "tool": "nmap_scripts",
+                            "reason": "Enumerate MySQL with default creds",
+                        },
                         {"action": "web_scan", "tool": "nikto", "reason": "Full web vulnerability scan on 80/443"},
                     ],
                 },
@@ -250,7 +258,11 @@ class FewShotEngine:
                     "summary": "Exposed .git directory is the highest priority — full source code can be extracted. phpinfo.php provides valuable server intel for further exploitation.",
                     "severity": "high",
                     "next_steps": [
-                        {"action": "git_dump", "tool": "git_dumper", "reason": "Download exposed .git repository for source code analysis"},
+                        {
+                            "action": "git_dump",
+                            "tool": "git_dumper",
+                            "reason": "Download exposed .git repository for source code analysis",
+                        },
                         {"action": "dir_enum", "tool": "gobuster", "reason": "Find more hidden files and directories"},
                     ],
                 },
@@ -333,8 +345,18 @@ class FewShotEngine:
                     "Step 4: Could also be a firewall — try from different source port."
                 ),
                 output=[  # type: ignore[arg-type]
-                    {"action": "nmap_no_ping", "tool": "nmap_port_scan", "reason": "Retry with -Pn to bypass ICMP block", "params": {"extra_args": "-Pn"}},
-                    {"action": "tcp_connect", "tool": "nmap_port_scan", "reason": "TCP connect scan as fallback", "params": {"extra_args": "-sT -Pn"}},
+                    {
+                        "action": "nmap_no_ping",
+                        "tool": "nmap_port_scan",
+                        "reason": "Retry with -Pn to bypass ICMP block",
+                        "params": {"extra_args": "-Pn"},
+                    },
+                    {
+                        "action": "tcp_connect",
+                        "tool": "nmap_port_scan",
+                        "reason": "TCP connect scan as fallback",
+                        "params": {"extra_args": "-sT -Pn"},
+                    },
                 ],
                 phase="recon",
                 tags=["recovery", "nmap", "host_down"],

@@ -110,6 +110,7 @@ class RAFailureRecoveryMixin(_MixinBase):
         """
         try:
             from core.intelligence.universal_adapter import get_universal_adapter
+
             adapter = get_universal_adapter()
             if not adapter:
                 return False
@@ -121,6 +122,7 @@ class RAFailureRecoveryMixin(_MixinBase):
 
             # Step 2: Check if it's in the registry (known tool)
             from core.intelligence.universal_adapter import TOOL_REGISTRY
+
             tool_def = TOOL_REGISTRY.get(tool_name)
             if tool_def:
                 pm = adapter.resolver.package_manager
@@ -176,7 +178,9 @@ class RAFailureRecoveryMixin(_MixinBase):
             return False
 
     def _attempt_llm_recovery(
-        self, step: PlanStep, error_msg: str,
+        self,
+        step: PlanStep,
+        error_msg: str,
     ) -> list[dict[str, str]]:
         """Ask the LLM how to recover from a tool failure.
 
@@ -227,8 +231,7 @@ class RAFailureRecoveryMixin(_MixinBase):
                 if isinstance(steps_list, list):
                     # Show recovery suggestion to user
                     suggestion_text = "; ".join(
-                        f"{s.get('action', '?')} ({s.get('reason', '')})"
-                        for s in steps_list[:3]
+                        f"{s.get('action', '?')} ({s.get('reason', '')})" for s in steps_list[:3]
                     )
                     self.transparency.show_llm_recovery(step.tool, error_msg[:200], suggestion_text)
                     return steps_list[:3]
@@ -304,9 +307,7 @@ class RAFailureRecoveryMixin(_MixinBase):
 
         failure_id: str = self.refining_engine.record_failure(
             target_signature=self.target_signature,
-            strategy_name=self.current_strategy.name
-            if self.current_strategy
-            else "unknown",
+            strategy_name=self.current_strategy.name if self.current_strategy else "unknown",
             profile_id=self.current_profile.profile_id,
             error_type=error_type,
             error_message=error_msg,
@@ -325,11 +326,9 @@ class RAFailureRecoveryMixin(_MixinBase):
             )
 
         # Update profile outcome (may trigger retirement)
-        retired_profile = (
-            self.refining_engine.update_profile_outcome(
-                self.current_profile.profile_id,
-                False,
-            )
+        retired_profile = self.refining_engine.update_profile_outcome(
+            self.current_profile.profile_id,
+            False,
         )
         if retired_profile:
             strategy_name = self.current_strategy.name if self.current_strategy else "unknown"
@@ -339,8 +338,8 @@ class RAFailureRecoveryMixin(_MixinBase):
             )
             # LOGIC FIX: Don't keep using a retired profile. Resync immediately.
             try:
-                self.current_strategy, self.current_profile = (
-                    self.refining_engine.select_strategy_and_profile(self.state.target)
+                self.current_strategy, self.current_profile = self.refining_engine.select_strategy_and_profile(
+                    self.state.target
                 )
                 self.planner.replan(
                     step.step_id,

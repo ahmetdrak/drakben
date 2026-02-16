@@ -53,13 +53,7 @@ class ContextBudget:
 
     def validate(self) -> bool:
         """Validate budget doesn't exceed total."""
-        allocated = (
-            self.critical_findings
-            + self.recent_events
-            + self.reasoning
-            + self.insights
-            + self.reserved
-        )
+        allocated = self.critical_findings + self.recent_events + self.reasoning + self.insights + self.reserved
         return allocated <= self.total_tokens
 
 
@@ -228,10 +222,7 @@ class RetrieveModule:
         )
 
         context.total_nodes = (
-            len(context.critical_findings)
-            + len(context.recent_events)
-            + len(context.reasoning)
-            + len(context.insights)
+            len(context.critical_findings) + len(context.recent_events) + len(context.reasoning) + len(context.insights)
         )
 
         return context

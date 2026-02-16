@@ -379,9 +379,7 @@ class TestC2Channel(unittest.TestCase):
 
         entropy = shannon_entropy(encrypted_raw)
         # Random data should have entropy close to 8 bits per byte
-        assert entropy > 7.5, (
-            f"Encryption entropy too low: {entropy} (Weak Crypto Detected!)"
-        )
+        assert entropy > 7.5, f"Encryption entropy too low: {entropy} (Weak Crypto Detected!)"
 
     def test_dns_packet_limit(self) -> None:
         """Test DNS packet size limits (UDP 512 bytes)."""
@@ -400,9 +398,7 @@ class TestC2Channel(unittest.TestCase):
             encoded_query = tunneler.build_query(chunk, "data")
             # DNS packet overhead is roughly header + query length.
             # Safe limit for query name is around 253 chars
-            assert len(encoded_query) <= 255, (
-                f"DNS query too long: {len(encoded_query)}"
-            )
+            assert len(encoded_query) <= 255, f"DNS query too long: {len(encoded_query)}"
 
 
 class TestModuleFunctions(unittest.TestCase):
@@ -498,7 +494,10 @@ class TestC2Listener(unittest.TestCase):
         """Test custom initialisation."""
         key = b"x" * 32
         listener = C2Listener(
-            host="127.0.0.1", port=8443, encryption_key=key, use_tls=False,
+            host="127.0.0.1",
+            port=8443,
+            encryption_key=key,
+            use_tls=False,
         )
         assert listener.host == "127.0.0.1"
         assert listener.port == 8443
@@ -525,7 +524,8 @@ class TestC2Listener(unittest.TestCase):
         listener = C2Listener()
         # Manually register a session (simulating internal bookkeeping)
         listener._sessions["beacon1"] = BeaconSession(
-            beacon_id="beacon1", remote_addr="192.168.1.50",
+            beacon_id="beacon1",
+            remote_addr="192.168.1.50",
         )
         assert len(listener.get_sessions()) == 1
         assert listener.get_session("beacon1") is not None

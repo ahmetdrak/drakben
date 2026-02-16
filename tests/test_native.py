@@ -72,6 +72,7 @@ class TestSyscallEngine:
     def test_singleton(self):
         # Reset singleton
         import modules.native.syscall_engine as mod
+
         mod._syscall_engine = None
         e1 = get_syscall_engine()
         e2 = get_syscall_engine()
@@ -149,6 +150,7 @@ class TestSyscallLoader:
 
     def test_singleton(self):
         import modules.native.syscall_loader as mod
+
         mod._loader = None
         l1 = get_syscall_loader()
         l2 = get_syscall_loader()

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Import new engine
 try:
     from modules.waf_bypass_engine import PayloadType, WAFBypassEngine
+
     _HAS_NEW_ENGINE = True
 except ImportError:
     _HAS_NEW_ENGINE = False
@@ -82,7 +83,7 @@ class WAFEvasion:
             replacement = secrets.choice(variations)
             idx = obfuscated.upper().find(kw)
             while idx != -1:
-                obfuscated = obfuscated[:idx] + replacement + obfuscated[idx + len(kw):]
+                obfuscated = obfuscated[:idx] + replacement + obfuscated[idx + len(kw) :]
                 idx = obfuscated.upper().find(kw, idx + len(replacement))
         return obfuscated
 
@@ -160,6 +161,7 @@ class WAFEvasion:
         # 2. Protocol Wrappers: javascript: -> java\tscript: (Tab)
         if "javascript:" in mutated.lower():
             import re as _re
+
             mutated = _re.sub(r"(?i)javascript:", "java\tscript:", mutated)
 
         # 3. Double Check: SVG payload if script is blocked

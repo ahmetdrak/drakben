@@ -45,6 +45,7 @@ def _reset_di_container():
     yield
     try:
         from core.container import reset_container
+
         reset_container()
     except Exception:
         pass
@@ -70,11 +71,13 @@ def _reset_event_and_observability_singletons():
     yield
     try:
         from core.events import EventBus
+
         EventBus.reset()
     except Exception:
         pass
     try:
         from core.observability import MetricsCollector, Tracer
+
         MetricsCollector.reset()
         Tracer.reset()
     except Exception:

@@ -94,8 +94,10 @@ class Planner:
             self.memory = get_evolution_memory()
         except (OSError, ValueError, RuntimeError) as e:
             import logging
+
             logging.getLogger(__name__).error(
-                "Failed to initialize evolution memory: %s - Using null memory", e,
+                "Failed to initialize evolution memory: %s - Using null memory",
+                e,
             )
             # self.memory already None - Graceful degradation
         self.current_plan_id: str | None = None
@@ -395,12 +397,8 @@ class Planner:
 
         # Map abstract phases to concrete actions based on aggressiveness
         phase_to_actions = {
-            "recon": ["passive_recon"]
-            if aggressiveness < 0.5
-            else ["port_scan", "service_scan"],
-            "scan": ["web_vuln_scan"]
-            if aggressiveness < 0.3
-            else ["vuln_scan", "web_vuln_scan"],
+            "recon": ["passive_recon"] if aggressiveness < 0.5 else ["port_scan", "service_scan"],
+            "scan": ["web_vuln_scan"] if aggressiveness < 0.3 else ["vuln_scan", "web_vuln_scan"],
             "analyze": ["manual_review", "exploit_search"],
             "exploit": ["sqlmap_exploit"] if aggressiveness > 0.6 else ["xss_test"],
         }
@@ -706,10 +704,7 @@ class Planner:
 
     def is_plan_complete(self) -> bool:
         """Check if plan is complete."""
-        return all(
-            step.status not in [StepStatus.PENDING, StepStatus.EXECUTING]
-            for step in self.steps
-        )
+        return all(step.status not in [StepStatus.PENDING, StepStatus.EXECUTING] for step in self.steps)
 
     def get_plan_status(self) -> dict:
         """Get current plan status."""
@@ -731,7 +726,10 @@ class Planner:
         return None
 
     def _find_alternative_tool(
-        self, action: str, failed_tool: str, target: str = "global",
+        self,
+        action: str,
+        failed_tool: str,
+        target: str = "global",
     ) -> str | None:
         """Find alternative tool for action."""
         # Mapping of actions to alternative tools

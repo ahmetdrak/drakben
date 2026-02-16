@@ -360,7 +360,8 @@ class DependencyResolver:
                 shlex.split(tool_def.check_command),
                 shell=False,
                 capture_output=True,
-                timeout=10, check=False,
+                timeout=10,
+                check=False,
             )
             return result.returncode == 0
         except (OSError, subprocess.SubprocessError):
@@ -389,7 +390,8 @@ class DependencyResolver:
                 shell=False,
                 capture_output=True,
                 text=True,
-                timeout=10, check=False,
+                timeout=10,
+                check=False,
             )
             if result.returncode == 0:
                 # Extract version from first line
@@ -418,13 +420,12 @@ class DependencyResolver:
                     shell=False,
                     capture_output=True,
                     text=True,
-                    timeout=300, check=False,
+                    timeout=300,
+                    check=False,
                 )
                 if proc.returncode == 0:
                     result["success"] = True
-                    result["message"] = (
-                        f"Installed {tool_name} via {self.package_manager.value}"
-                    )
+                    result["message"] = f"Installed {tool_name} via {self.package_manager.value}"
                 else:
                     result["message"] = f"Installation failed: {proc.stderr[:200]}"
             except subprocess.TimeoutExpired:
@@ -451,14 +452,11 @@ class DependencyResolver:
                     shell=False,
                     capture_output=True,
                     text=True,
-                    timeout=120, check=False,
+                    timeout=120,
+                    check=False,
                 )
                 result["success"] = proc.returncode == 0
-                result["message"] = (
-                    f"Installed {tool_name} via pip"
-                    if result["success"]
-                    else proc.stderr[:200]
-                )
+                result["message"] = f"Installed {tool_name} via pip" if result["success"] else proc.stderr[:200]
             except (subprocess.SubprocessError, OSError) as e:
                 result["message"] = str(e)
             return True
@@ -495,7 +493,8 @@ class DependencyResolver:
                 shell=False,
                 capture_output=True,
                 text=True,
-                timeout=300, check=False,
+                timeout=300,
+                check=False,
             )
             result["success"] = proc.returncode == 0
             result["message"] = (
@@ -927,6 +926,7 @@ class APIServer:
     def validate_key(self, key: str) -> str | None:
         """Validate an API key (timing-safe comparison)."""
         import hmac
+
         for stored_key, permissions in self.api_keys.items():
             if hmac.compare_digest(stored_key, key):
                 return permissions
@@ -977,7 +977,10 @@ class APIServer:
 
         except (OSError, RuntimeError) as e:
             logger.exception(
-                "Failed to start API server on %s:%s: %s", self.host, self.port, e,
+                "Failed to start API server on %s:%s: %s",
+                self.host,
+                self.port,
+                e,
             )
             self.running = False
 
@@ -1076,16 +1079,12 @@ class UniversalAdapter:
         """Get adapter status."""
         return {
             "tools_available": len(TOOL_REGISTRY),
-            "tools_installed": sum(
-                1 for t in TOOL_REGISTRY if self.resolver.is_tool_installed(t)
-            ),
+            "tools_installed": sum(1 for t in TOOL_REGISTRY if self.resolver.is_tool_installed(t)),
             "mcp_tools": len(self.mcp.tools),
             "mcp_resources": len(self.mcp.resources),
             "api_running": self.api_server.running,
             "api_endpoints": len(self.api_server.get_endpoints()),
-            "package_manager": self.resolver.package_manager.value
-            if self.resolver.package_manager
-            else None,
+            "package_manager": self.resolver.package_manager.value if self.resolver.package_manager else None,
         }
 
 

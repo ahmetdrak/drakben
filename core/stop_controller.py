@@ -145,8 +145,9 @@ class StopController:
             errors.append(f"join_threads: {exc}")
 
         status = "clean" if not errors else "partial"
-        logger.info("Shutdown complete: status=%s, phases=%d, errors=%d",
-                     status, len(self._shutdown_phases), len(errors))
+        logger.info(
+            "Shutdown complete: status=%s, phases=%d, errors=%d", status, len(self._shutdown_phases), len(errors)
+        )
 
         return {
             "status": status,
@@ -234,6 +235,7 @@ class StopController:
         """Flush traces and metrics to disk."""
         try:
             from core.observability import get_metrics, get_tracer
+
             tracer = get_tracer()
             if hasattr(tracer, "export_json"):
                 tracer.export_json("logs/traces_shutdown.json")
@@ -249,6 +251,7 @@ class StopController:
         # Evolution memory
         try:
             from core.intelligence import evolution_memory as _em
+
             if _em._evolution_memory is not None:
                 _em._evolution_memory.close()
                 _em._evolution_memory = None
@@ -257,6 +260,7 @@ class StopController:
         # DI container
         try:
             from core.container import reset_container
+
             reset_container()
         except (ImportError, OSError):
             pass

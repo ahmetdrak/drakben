@@ -147,9 +147,7 @@ class InteractiveShell:
         # Complete commands
         if not text or text.startswith("/"):
             prefix = text.lstrip("/")
-            options.extend(
-                "/" + cmd for cmd in self.BUILTIN_COMMANDS if cmd.startswith(prefix)
-            )
+            options.extend("/" + cmd for cmd in self.BUILTIN_COMMANDS if cmd.startswith(prefix))
 
         # Complete target-related
         if text.startswith("target "):
@@ -415,9 +413,7 @@ class InteractiveShell:
 
         self.console.print(table)
         hint = (
-            "Doğal dilde de komut yazabilirsiniz."
-            if lang == "tr"
-            else "You can also type natural language commands."
+            "Doğal dilde de komut yazabilirsiniz." if lang == "tr" else "You can also type natural language commands."
         )
         self.console.print(f"\n[dim]{hint}[/dim]")
 
@@ -583,6 +579,7 @@ class InteractiveShell:
                 output = result.get("stdout", result.get("output", ""))
                 if output:
                     from rich.syntax import Syntax
+
                     self.console.print(Syntax(str(output)[:2000], "text"))
                 return CommandResult(success=True, output=str(output)[:2000])
             error_msg = result.get("error", "Unknown error")
@@ -649,8 +646,13 @@ class InteractiveShell:
 
         # Validate command before fallback shell execution
         _DANGEROUS = (
-            "rm -rf /", "mkfs", "dd if=", "> /dev/sda",
-            ":(){ :|:& };:", "shutdown", "reboot",
+            "rm -rf /",
+            "mkfs",
+            "dd if=",
+            "> /dev/sda",
+            ":(){ :|:& };:",
+            "shutdown",
+            "reboot",
         )
         if any(d in command.lower() for d in _DANGEROUS):
             return CommandResult(
@@ -756,11 +758,22 @@ class InteractiveShell:
 
             # Block introspection patterns that could escape the sandbox
             _BLOCKED_PATTERNS = (
-                "__class__", "__bases__", "__subclasses__",
-                "__import__", "__globals__", "__code__",
-                "__builtins__", "__mro__", "breakpoint",
-                "eval(", "exec(", "compile(",
-                "open(", "os.", "sys.", "subprocess",
+                "__class__",
+                "__bases__",
+                "__subclasses__",
+                "__import__",
+                "__globals__",
+                "__code__",
+                "__builtins__",
+                "__mro__",
+                "breakpoint",
+                "eval(",
+                "exec(",
+                "compile(",
+                "open(",
+                "os.",
+                "sys.",
+                "subprocess",
                 "importlib",
             )
             if any(p in code for p in _BLOCKED_PATTERNS):

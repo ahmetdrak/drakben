@@ -1,4 +1,5 @@
 """Script to update all imports after restructuring."""
+
 import os
 
 REPLACEMENTS = {
@@ -33,6 +34,7 @@ REPLACEMENTS = {
     "from core.network.web_researcher import": "from core.network.web_researcher import",
 }
 
+
 def update_file(filepath):
     """Update imports in a single file."""
     with open(filepath, encoding="utf-8") as f:
@@ -48,6 +50,7 @@ def update_file(filepath):
         print(f"Updated: {filepath}")
         return True
     return False
+
 
 def main():
     """Update all Python files."""
@@ -65,6 +68,7 @@ def main():
                     total += 1
 
     print(f"\nTotal files updated: {total}")
+
 
 if __name__ == "__main__":
     main()

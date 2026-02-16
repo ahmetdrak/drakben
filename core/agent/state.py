@@ -207,6 +207,7 @@ class AgentState:
                 if cred.password:
                     try:
                         from core.security.ghost_protocol import get_ram_cleaner
+
                         get_ram_cleaner().register_sensitive(cred.password)
                     except Exception as e:
                         logger.debug("RAMCleaner unavailable: %s", e)  # Optional, continue cleanup
@@ -655,7 +656,7 @@ class AgentState:
             self.invariant_violations.extend(violations)
             # Trim to prevent unbounded growth
             if len(self.invariant_violations) > self._max_invariant_violations * 2:
-                self.invariant_violations = self.invariant_violations[-self._max_invariant_violations:]
+                self.invariant_violations = self.invariant_violations[-self._max_invariant_violations :]
             if violations:
                 logger.error("State invariant violations: %s", violations)
                 return False
@@ -675,9 +676,7 @@ class AgentState:
             if len(self.open_services) == 0:
                 violations.append("Exploit phase without discovered services")
             if len(self.vulnerabilities) == 0:
-                has_exploitable: bool = any(
-                    svc.vulnerable for svc in self.open_services.values()
-                )
+                has_exploitable: bool = any(svc.vulnerable for svc in self.open_services.values())
                 if not has_exploitable:
                     violations.append(
                         "Exploit phase without any vulnerabilities or exploitable services",
@@ -749,9 +748,7 @@ class AgentState:
         self.state_changes_history.append(change)
 
         if len(self.state_changes_history) > MAX_STATE_CHANGES_HISTORY:
-            self.state_changes_history = self.state_changes_history[
-                -MAX_STATE_CHANGES_HISTORY:
-            ]
+            self.state_changes_history = self.state_changes_history[-MAX_STATE_CHANGES_HISTORY:]
 
     def to_dict(self) -> dict:
         """Convert full state to dict (for debug/logging).
@@ -772,9 +769,7 @@ class AgentState:
             "has_foothold": self.has_foothold,
             "foothold_method": self.foothold_method,
             "post_exploit_completed": list(self.post_exploit_completed),
-            "state_changes_history": self.state_changes_history[
-                -MAX_STATE_CHANGES_HISTORY:
-            ],
+            "state_changes_history": self.state_changes_history[-MAX_STATE_CHANGES_HISTORY:],
             "invariant_violations": self.invariant_violations,
         }
 
@@ -791,6 +786,7 @@ class AgentState:
 
         # Restore discovery data
         from core.agent.state import CredentialInfo, ServiceInfo, VulnerabilityInfo
+
         for port, svc in data.get("open_services", {}).items():
             try:
                 self.open_services[int(port)] = ServiceInfo(**svc) if isinstance(svc, dict) else svc

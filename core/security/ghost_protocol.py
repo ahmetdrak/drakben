@@ -331,11 +331,7 @@ class PolymorphicTransformer(ast.NodeTransformer):
 
     def _obfuscate_func_name(self, node: ast.FunctionDef) -> None:
         """Obfuscate function name if applicable."""
-        if (
-            self.obfuscate_names
-            and not node.name.startswith("__")
-            and node.name not in ("main", "run")
-        ):
+        if self.obfuscate_names and not node.name.startswith("__") and node.name not in ("main", "run"):
             node.name = self._get_obfuscated_name(node.name)
 
     def _obfuscate_func_args(self, node: ast.FunctionDef) -> None:
@@ -826,6 +822,7 @@ class RAMCleaner:
         self._sensitive_refs.clear()
         # Force garbage collection to help reclaim memory
         import gc
+
         gc.collect()
         logger.info("RAMCleaner: Wiped %d sensitive buffers", count)
         return count

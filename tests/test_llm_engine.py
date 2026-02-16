@@ -21,10 +21,14 @@ class TestOpenRouterStreaming:
 
     def _make_client(self) -> Any:
         """Create a client with mocked provider."""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
+            },
+        ):
             from llm.openrouter_client import OpenRouterClient
+
             client = OpenRouterClient()
             client.api_key = "test-key"
             return client
@@ -44,14 +48,12 @@ class TestOpenRouterStreaming:
         sse_lines = [
             b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n',
             b'data: {"choices":[{"delta":{"content":" world"}}]}\n',
-            b'data: [DONE]\n',
+            b"data: [DONE]\n",
         ]
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            line.decode("utf-8") for line in sse_lines
-        ]
+        mock_response.iter_lines.return_value = [line.decode("utf-8") for line in sse_lines]
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=False)
 
@@ -96,10 +98,14 @@ class TestFunctionCalling:
     """Test function calling support."""
 
     def _make_client(self) -> Any:
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
+            },
+        ):
             from llm.openrouter_client import OpenRouterClient
+
             client = OpenRouterClient()
             client.api_key = "test-key"
             return client
@@ -115,37 +121,43 @@ class TestFunctionCalling:
         client = self._make_client()
 
         api_response = {
-            "choices": [{
-                "message": {
-                    "content": "I'll scan the target.",
-                    "tool_calls": [{
-                        "id": "call_abc123",
-                        "type": "function",
-                        "function": {
-                            "name": "nmap_scan",
-                            "arguments": '{"target": "10.0.0.1"}',
-                        },
-                    }],
-                },
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": "I'll scan the target.",
+                        "tool_calls": [
+                            {
+                                "id": "call_abc123",
+                                "type": "function",
+                                "function": {
+                                    "name": "nmap_scan",
+                                    "arguments": '{"target": "10.0.0.1"}',
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
         }
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = api_response
 
-        tools = [{
-            "type": "function",
-            "function": {
-                "name": "nmap_scan",
-                "description": "Run nmap scan",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"target": {"type": "string"}},
-                    "required": ["target"],
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "nmap_scan",
+                    "description": "Run nmap scan",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"target": {"type": "string"}},
+                        "required": ["target"],
+                    },
                 },
-            },
-        }]
+            }
+        ]
 
         with patch.object(client._session, "post", return_value=mock_resp):
             result = client.query_with_tools("Scan 10.0.0.1", tools)
@@ -211,18 +223,21 @@ class TestTokenCounter:
     def test_count_tokens_basic(self) -> None:
         """count_tokens should return positive count for non-empty text."""
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter(model="gpt-4o")
         count = counter.count_tokens("Hello, world! This is a test.")
         assert count > 0
 
     def test_count_tokens_empty(self) -> None:
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter()
         assert counter.count_tokens("") == 0
 
     def test_trim_to_budget_preserves_system(self) -> None:
         """trim_to_budget should always keep system message."""
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter()
 
         messages = [
@@ -241,6 +256,7 @@ class TestTokenCounter:
 
     def test_context_window_lookup(self) -> None:
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter(model="gpt-4o")
         window = counter.get_context_window()
         # gpt-4o should map to 128000, but model name matching is prefix-based
@@ -251,12 +267,14 @@ class TestTokenCounter:
 
     def test_fits_context(self) -> None:
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter(model="gpt-4o")
         assert counter.fits_context("Short text")
         assert not counter.fits_context("x " * 200000)
 
     def test_estimate_cost(self) -> None:
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter(model="gpt-4o")
         cost = counter.estimate_cost(input_tokens=1000, output_tokens=500)
         assert cost["total_cost"] > 0
@@ -264,6 +282,7 @@ class TestTokenCounter:
 
     def test_count_messages_tokens(self) -> None:
         from core.llm.token_counter import TokenCounter
+
         counter = TokenCounter()
         messages = [
             {"role": "system", "content": "System prompt"},
@@ -283,6 +302,7 @@ class TestMultiTurn:
 
     def test_message_history_basic(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory(system_prompt="You are DRAKBEN.")
         history.add_user("Scan 10.0.0.1")
         history.add_assistant("Starting scan...")
@@ -295,6 +315,7 @@ class TestMultiTurn:
 
     def test_tool_result_added(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory()
         history.add_tool_result("nmap", "80/tcp open http", success=True)
 
@@ -303,6 +324,7 @@ class TestMultiTurn:
 
     def test_trimmed_messages_respects_budget(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory(system_prompt="System", max_messages=100)
 
         for i in range(50):
@@ -315,6 +337,7 @@ class TestMultiTurn:
 
     def test_clear_history(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory()
         history.add_user("test")
         history.clear()
@@ -322,6 +345,7 @@ class TestMultiTurn:
 
     def test_get_last_n(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory()
         for i in range(10):
             history.add_user(f"msg {i}")
@@ -330,6 +354,7 @@ class TestMultiTurn:
 
     def test_summary_stats(self) -> None:
         from core.llm.multi_turn import MessageHistory
+
         history = MessageHistory(system_prompt="sys", session_id="test-session")
         history.add_user("Q1")
         history.add_assistant("A1")
@@ -350,6 +375,7 @@ class TestOutputValidation:
 
     def test_validate_valid_json(self) -> None:
         from core.llm.output_models import LLMOutputValidator
+
         validator = LLMOutputValidator()
         result = validator.validate_response('{"intent": "scan", "response": "ok", "confidence": 0.9}')
         assert result is not None
@@ -357,6 +383,7 @@ class TestOutputValidation:
 
     def test_validate_json_in_code_block(self) -> None:
         from core.llm.output_models import LLMOutputValidator
+
         validator = LLMOutputValidator()
         raw = '```json\n{"intent": "chat", "response": "hello"}\n```'
         result = validator.validate_response(raw)
@@ -365,6 +392,7 @@ class TestOutputValidation:
 
     def test_validate_invalid_returns_none_without_client(self) -> None:
         from core.llm.output_models import LLMOutputValidator
+
         validator = LLMOutputValidator(llm_client=None)
         result = validator.validate_response("not json at all")
         assert result is None
@@ -387,18 +415,21 @@ class TestOutputValidation:
         """Test validation with Pydantic models."""
         try:
             from core.llm.output_models import LLMAnalysisResponse, LLMOutputValidator, _PYDANTIC_AVAILABLE  # noqa: I001
+
             if not _PYDANTIC_AVAILABLE:
                 pytest.skip("Pydantic not available")
 
             validator = LLMOutputValidator()
-            raw = json.dumps({
-                "intent": "scan",
-                "target_extracted": "10.0.0.1",
-                "confidence": 0.95,
-                "response": "I'll scan the target",
-                "steps": [{"action": "nmap"}],
-                "risks": ["port exposure"],
-            })
+            raw = json.dumps(
+                {
+                    "intent": "scan",
+                    "target_extracted": "10.0.0.1",
+                    "confidence": 0.95,
+                    "response": "I'll scan the target",
+                    "steps": [{"action": "nmap"}],
+                    "risks": ["port exposure"],
+                }
+            )
             result = validator.validate_response(raw, LLMAnalysisResponse)
             assert result is not None
             assert abs(result["confidence"] - 0.95) < 1e-9
@@ -409,6 +440,7 @@ class TestOutputValidation:
         """Test ToolCallResponse Pydantic model."""
         try:
             from core.llm.output_models import ToolCallResponse, _PYDANTIC_AVAILABLE  # noqa: I001
+
             if not _PYDANTIC_AVAILABLE:
                 pytest.skip("Pydantic not available")
 
@@ -420,6 +452,7 @@ class TestOutputValidation:
 
     def test_validator_stats(self) -> None:
         from core.llm.output_models import LLMOutputValidator
+
         validator = LLMOutputValidator()
         validator.validate_response('{"intent": "chat"}')
         stats = validator.get_stats()
@@ -436,6 +469,7 @@ class TestRAGPipeline:
 
     def test_rag_init_without_vector_store(self) -> None:
         from core.llm.rag_pipeline import RAGPipeline
+
         rag = RAGPipeline(vector_store=None)
         # May or may not auto-init depending on ChromaDB availability
         assert isinstance(rag.get_stats(), dict)
@@ -443,6 +477,7 @@ class TestRAGPipeline:
     def test_enrich_prompt_no_results(self) -> None:
         """enrich_prompt should return original prompt when no results."""
         from core.llm.rag_pipeline import RAGPipeline
+
         rag = RAGPipeline(vector_store=None)
         rag._vector_store = None  # Force no store
         enriched = rag.enrich_prompt("test query", "original system prompt")
@@ -454,8 +489,11 @@ class TestRAGPipeline:
 
         mock_store = MagicMock()
         mock_store.search.return_value = [
-            {"text": "CVE-2024-1234: Apache RCE", "metadata": {"cve_id": "CVE-2024-1234", "severity": "critical"},
-             "distance": 0.3},
+            {
+                "text": "CVE-2024-1234: Apache RCE",
+                "metadata": {"cve_id": "CVE-2024-1234", "severity": "critical"},
+                "distance": 0.3,
+            },
         ]
         mock_store.count.return_value = 10
 
@@ -467,6 +505,7 @@ class TestRAGPipeline:
 
     def test_ingest_cve(self) -> None:
         from core.llm.rag_pipeline import RAGPipeline
+
         mock_store = MagicMock()
         mock_store.add_memory.return_value = True
         mock_store.count.return_value = 1
@@ -477,6 +516,7 @@ class TestRAGPipeline:
 
     def test_ingest_tool_output(self) -> None:
         from core.llm.rag_pipeline import RAGPipeline
+
         mock_store = MagicMock()
         mock_store.add_memory.return_value = True
         mock_store.count.return_value = 1
@@ -486,6 +526,7 @@ class TestRAGPipeline:
 
     def test_retrieve_filters_by_relevance(self) -> None:
         from core.llm.rag_pipeline import RAGPipeline
+
         mock_store = MagicMock()
         mock_store.search.return_value = [
             {"text": "relevant", "distance": 0.5},
@@ -509,12 +550,15 @@ class TestAsyncLLMClient:
     def test_async_client_importable(self) -> None:
         """AsyncLLMClient should be importable."""
         from core.llm.async_client import AsyncLLMClient
+
         assert callable(AsyncLLMClient)
 
     def test_async_client_build_payload(self) -> None:
         from core.llm.async_client import AsyncLLMClient
+
         client = AsyncLLMClient(
-            api_key="test", model="gpt-4o",
+            api_key="test",
+            model="gpt-4o",
             base_url="https://test.com/v1/chat/completions",
         )
         payload = client._build_payload("Hello", "System", stream=True)
@@ -524,8 +568,10 @@ class TestAsyncLLMClient:
 
     def test_async_client_build_payload_with_tools(self) -> None:
         from core.llm.async_client import AsyncLLMClient
+
         client = AsyncLLMClient(
-            api_key="test", model="gpt-4o",
+            api_key="test",
+            model="gpt-4o",
             base_url="https://test.com/v1/chat/completions",
         )
         tools = [{"type": "function", "function": {"name": "test"}}]
@@ -535,24 +581,30 @@ class TestAsyncLLMClient:
     @pytest.mark.asyncio
     async def test_extract_content(self) -> None:
         from core.llm.async_client import AsyncLLMClient
+
         data = {"choices": [{"message": {"content": "Hello!"}}]}
         assert AsyncLLMClient._extract_content(data) == "Hello!"
 
     @pytest.mark.asyncio
     async def test_extract_full_response_with_tools(self) -> None:
         from core.llm.async_client import AsyncLLMClient
+
         data = {
-            "choices": [{
-                "message": {
-                    "content": "I'll help",
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {"name": "nmap", "arguments": '{"target": "10.0.0.1"}'},
-                    }],
-                },
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": "I'll help",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "nmap", "arguments": '{"target": "10.0.0.1"}'},
+                            }
+                        ],
+                    },
+                }
+            ],
         }
         result = AsyncLLMClient._extract_full_response(data)
         assert result["content"] == "I'll help"
@@ -577,7 +629,8 @@ class TestLLMEngine:
         mock_client.model = "gpt-4o"
         mock_client.stream.return_value = iter(["Hello", " world"])
         mock_client.query_with_tools.return_value = {
-            "content": "I'll scan", "tool_calls": [],
+            "content": "I'll scan",
+            "tool_calls": [],
         }
         mock_client.query_with_messages.return_value = "Multi-turn response"
         mock_client.get_provider_info.return_value = {"provider": "mock"}
@@ -651,6 +704,7 @@ class TestLLMEngine:
 
     def test_engine_build_tool_schema(self) -> None:
         from core.llm.llm_engine import LLMEngine
+
         schema = LLMEngine.build_tool_schema(
             "nmap_scan",
             "Run nmap port scan",
@@ -706,14 +760,14 @@ class TestBrainIntegration:
         """Create brain with mock LLM for testing."""
         mock_client = MagicMock()
         mock_client.query.return_value = (
-            '{"intent": "chat", "response": "Hello!", "confidence": 0.9,'
-            ' "command": null, "steps": [], "risks": []}'
+            '{"intent": "chat", "response": "Hello!", "confidence": 0.9, "command": null, "steps": [], "risks": []}'
         )
         mock_client.model = "gpt-4o"
         mock_client.stream.return_value = iter(["Hello", " from", " DRAKBEN"])
         mock_client.get_provider_info.return_value = {"provider": "mock"}
 
         from core.agent.brain import DrakbenBrain
+
         brain = DrakbenBrain(llm_client=mock_client, use_cognitive_memory=False)
         return brain
 

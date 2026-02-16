@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\cognitive\reflect.py
-# hypothesis_version: 6.151.6
-
-[6.0, 7.0, 8.0, 300, 'File handling issues', 'agent', 'attack_path', 'auth', 'correlation', 'credential_chain', 'error', 'fail', 'file', 'finding_count', 'ftp', 'learned_from', 'login', 'mysql', 'node_count', 'rdp', 'smb', 'sql', 'ssh', 'strategizes', 'time_elapsed', 'tool', 'unknown', 'upload']

@@ -88,8 +88,8 @@ class ContextCompressor:
         if len(non_system) <= self._keep_recent:
             return messages
 
-        old_messages = non_system[:-self._keep_recent]
-        recent_messages = non_system[-self._keep_recent:]
+        old_messages = non_system[: -self._keep_recent]
+        recent_messages = non_system[-self._keep_recent :]
 
         # Compress old messages
         summary = self._summarize_messages(old_messages)
@@ -99,10 +99,12 @@ class ContextCompressor:
         # Build compressed message list
         compressed: list[dict[str, str]] = []
         compressed.extend(system_msgs)
-        compressed.append({
-            "role": "system",
-            "content": f"[Context Summary - {len(old_messages)} previous messages compressed]\n{summary}",
-        })
+        compressed.append(
+            {
+                "role": "system",
+                "content": f"[Context Summary - {len(old_messages)} previous messages compressed]\n{summary}",
+            }
+        )
         compressed.extend(recent_messages)
 
         return compressed
@@ -165,10 +167,7 @@ class ContextCompressor:
         """Use LLM to create an intelligent summary."""
         try:
             # Build compact representation of messages
-            msg_text = "\n".join(
-                f"[{m['role']}]: {m['content'][:300]}"
-                for m in messages
-            )
+            msg_text = "\n".join(f"[{m['role']}]: {m['content'][:300]}" for m in messages)
 
             prompt = (
                 "Summarize this conversation history in 200 words or less. "
@@ -185,7 +184,7 @@ class ContextCompressor:
             if summary and not summary.startswith("["):
                 self._stats["llm_summaries"] += 1
                 logger.debug("LLM summary generated in %.1fs", duration)
-                return summary[:self._max_summary_chars]
+                return summary[: self._max_summary_chars]
 
         except Exception as e:
             logger.debug("LLM summarization failed: %s", e)
@@ -214,7 +213,7 @@ class ContextCompressor:
                     facts.append(f"Assistant: {key_info}")
 
         result = "\n".join(facts)
-        return result[:self._max_summary_chars]
+        return result[: self._max_summary_chars]
 
     def _extract_assistant_facts(self, content: str) -> str:
         """Extract key technical facts from assistant response."""

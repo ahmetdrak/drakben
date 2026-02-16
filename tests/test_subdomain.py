@@ -187,18 +187,22 @@ class TestSubdomainIntegration:
 
             mock_response = MagicMock()
             mock_response.status = 200
-            mock_response.json = AsyncMock(return_value=[
-                {"name_value": "www.example.com"},
-                {"name_value": "*.example.com"},
-                {"name_value": "api.example.com"},
-            ])
+            mock_response.json = AsyncMock(
+                return_value=[
+                    {"name_value": "www.example.com"},
+                    {"name_value": "*.example.com"},
+                    {"name_value": "api.example.com"},
+                ]
+            )
 
             with patch("aiohttp.ClientSession") as mock_session:
                 mock_session_instance = MagicMock()
-                mock_session_instance.get = MagicMock(return_value=AsyncMock(
-                    __aenter__=AsyncMock(return_value=mock_response),
-                    __aexit__=AsyncMock(return_value=None),
-                ))
+                mock_session_instance.get = MagicMock(
+                    return_value=AsyncMock(
+                        __aenter__=AsyncMock(return_value=mock_response),
+                        __aexit__=AsyncMock(return_value=None),
+                    )
+                )
                 mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_session_instance)
                 mock_session.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -224,10 +228,12 @@ class TestSubdomainIntegration:
 
             with patch("asyncio.create_subprocess_exec") as mock_exec:
                 mock_process = MagicMock()
-                mock_process.communicate = AsyncMock(return_value=(
-                    b"www.example.com\napi.example.com\nmail.example.com",
-                    b"",
-                ))
+                mock_process.communicate = AsyncMock(
+                    return_value=(
+                        b"www.example.com\napi.example.com\nmail.example.com",
+                        b"",
+                    )
+                )
                 mock_process.returncode = 0
                 mock_exec.return_value = mock_process
 

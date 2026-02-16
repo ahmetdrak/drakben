@@ -179,6 +179,7 @@ class CloudScanner:
         if self._session is None:
             try:
                 import aiohttp
+
                 self._session = aiohttp.ClientSession(
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 )
@@ -203,6 +204,7 @@ class CloudScanner:
             CloudScanResult with findings.
         """
         import time
+
         start = time.monotonic()
 
         result = CloudScanResult(target=target)
@@ -243,29 +245,33 @@ class CloudScanner:
                     if resp.status == 200:
                         body = await resp.text()
                         if "<ListBucketResult" in body:
-                            result.findings.append(CloudFinding(
-                                provider="aws",
-                                category="s3",
-                                severity="critical",
-                                title=f"Public S3 Bucket: {bucket}",
-                                description="S3 bucket allows anonymous listing",
-                                evidence=f"URL: {url}, Status: {resp.status}",
-                                remediation="Enable S3 Block Public Access, review bucket policy",
-                                url=url,
-                            ))
+                            result.findings.append(
+                                CloudFinding(
+                                    provider="aws",
+                                    category="s3",
+                                    severity="critical",
+                                    title=f"Public S3 Bucket: {bucket}",
+                                    description="S3 bucket allows anonymous listing",
+                                    evidence=f"URL: {url}, Status: {resp.status}",
+                                    remediation="Enable S3 Block Public Access, review bucket policy",
+                                    url=url,
+                                )
+                            )
                             result.cloud_provider = "aws"
                     elif resp.status == 403:
                         # Bucket exists but access denied (less severe)
-                        result.findings.append(CloudFinding(
-                            provider="aws",
-                            category="s3",
-                            severity="info",
-                            title=f"S3 Bucket exists: {bucket}",
-                            description="S3 bucket exists but access is denied",
-                            evidence=f"URL: {url}, Status: 403",
-                            remediation="Verify bucket policy is intentional",
-                            url=url,
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider="aws",
+                                category="s3",
+                                severity="info",
+                                title=f"S3 Bucket exists: {bucket}",
+                                description="S3 bucket exists but access is denied",
+                                evidence=f"URL: {url}, Status: 403",
+                                remediation="Verify bucket policy is intentional",
+                                url=url,
+                            )
+                        )
             except OSError as exc:
                 logger.debug("S3 bucket check failed for %s: %s", bucket, exc)
 
@@ -287,16 +293,18 @@ class CloudScanner:
                         if resp.status == 200:
                             body = await resp.text()
                             if "<EnumerationResults" in body:
-                                result.findings.append(CloudFinding(
-                                    provider="azure",
-                                    category="blob_storage",
-                                    severity="critical",
-                                    title=f"Public Azure Blob: {blob_url}/{container}",
-                                    description="Azure Blob container allows anonymous listing",
-                                    evidence=f"URL: {url}",
-                                    remediation="Set container access level to 'Private'",
-                                    url=url,
-                                ))
+                                result.findings.append(
+                                    CloudFinding(
+                                        provider="azure",
+                                        category="blob_storage",
+                                        severity="critical",
+                                        title=f"Public Azure Blob: {blob_url}/{container}",
+                                        description="Azure Blob container allows anonymous listing",
+                                        evidence=f"URL: {url}",
+                                        remediation="Set container access level to 'Private'",
+                                        url=url,
+                                    )
+                                )
                                 result.cloud_provider = "azure"
                 except OSError as exc:
                     logger.debug("Azure blob check failed for %s/%s: %s", blob_url, container, exc)
@@ -317,16 +325,18 @@ class CloudScanner:
                     if resp.status == 200:
                         body = await resp.text()
                         if "<ListBucketResult" in body or "items" in body:
-                            result.findings.append(CloudFinding(
-                                provider="gcp",
-                                category="cloud_storage",
-                                severity="critical",
-                                title=f"Public GCP Bucket: {bucket_url}",
-                                description="GCP Cloud Storage bucket allows anonymous access",
-                                evidence=f"URL: {url}",
-                                remediation="Remove 'allUsers' and 'allAuthenticatedUsers' IAM bindings",
-                                url=url,
-                            ))
+                            result.findings.append(
+                                CloudFinding(
+                                    provider="gcp",
+                                    category="cloud_storage",
+                                    severity="critical",
+                                    title=f"Public GCP Bucket: {bucket_url}",
+                                    description="GCP Cloud Storage bucket allows anonymous access",
+                                    evidence=f"URL: {url}",
+                                    remediation="Remove 'allUsers' and 'allAuthenticatedUsers' IAM bindings",
+                                    url=url,
+                                )
+                            )
                             result.cloud_provider = "gcp"
             except OSError as exc:
                 logger.debug("GCP bucket check failed for %s: %s", bucket_url, exc)
@@ -347,22 +357,24 @@ class CloudScanner:
                         body = await resp.text()
                         result.metadata_accessible = True
                         result.cloud_provider = provider
-                        result.findings.append(CloudFinding(
-                            provider=provider,
-                            category="metadata",
-                            severity="critical",
-                            title=f"{provider.upper()} Metadata Service Accessible",
-                            description=(
-                                "Cloud instance metadata service is accessible. "
-                                "This can lead to credential theft and privilege escalation."
-                            ),
-                            evidence=f"Response: {body[:200]}",
-                            remediation=(
-                                "Enable IMDSv2 (AWS), use Metadata-Flavor header (GCP), "
-                                "or disable metadata service if not needed."
-                            ),
-                            url=url,
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider=provider,
+                                category="metadata",
+                                severity="critical",
+                                title=f"{provider.upper()} Metadata Service Accessible",
+                                description=(
+                                    "Cloud instance metadata service is accessible. "
+                                    "This can lead to credential theft and privilege escalation."
+                                ),
+                                evidence=f"Response: {body[:200]}",
+                                remediation=(
+                                    "Enable IMDSv2 (AWS), use Metadata-Flavor header (GCP), "
+                                    "or disable metadata service if not needed."
+                                ),
+                                url=url,
+                            )
+                        )
             except OSError as exc:
                 logger.debug("Metadata endpoint check failed for %s: %s", provider, exc)
 
@@ -383,49 +395,57 @@ class CloudScanner:
                     # AWS detection
                     if any(h in headers for h in ["x-amz-request-id", "x-amz-id-2"]):
                         result.cloud_provider = "aws"
-                        result.findings.append(CloudFinding(
-                            provider="aws",
-                            category="headers",
-                            severity="info",
-                            title="AWS Infrastructure Detected",
-                            description="Response headers indicate AWS hosting",
-                            evidence=f"Headers: {_safe_headers(headers)}",
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider="aws",
+                                category="headers",
+                                severity="info",
+                                title="AWS Infrastructure Detected",
+                                description="Response headers indicate AWS hosting",
+                                evidence=f"Headers: {_safe_headers(headers)}",
+                            )
+                        )
 
                     # Azure detection
                     if "x-ms-request-id" in headers or "azure" in server:
                         result.cloud_provider = "azure"
-                        result.findings.append(CloudFinding(
-                            provider="azure",
-                            category="headers",
-                            severity="info",
-                            title="Azure Infrastructure Detected",
-                            description="Response headers indicate Azure hosting",
-                            evidence=f"Headers: {_safe_headers(headers)}",
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider="azure",
+                                category="headers",
+                                severity="info",
+                                title="Azure Infrastructure Detected",
+                                description="Response headers indicate Azure hosting",
+                                evidence=f"Headers: {_safe_headers(headers)}",
+                            )
+                        )
 
                     # GCP detection
                     if "x-goog-" in str(headers).lower() or "gws" in server:
                         result.cloud_provider = "gcp"
-                        result.findings.append(CloudFinding(
-                            provider="gcp",
-                            category="headers",
-                            severity="info",
-                            title="GCP Infrastructure Detected",
-                            description="Response headers indicate GCP hosting",
-                            evidence=f"Headers: {_safe_headers(headers)}",
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider="gcp",
+                                category="headers",
+                                severity="info",
+                                title="GCP Infrastructure Detected",
+                                description="Response headers indicate GCP hosting",
+                                evidence=f"Headers: {_safe_headers(headers)}",
+                            )
+                        )
 
                     # CloudFront
                     if "cloudfront" in server or "x-amz-cf-id" in headers:
-                        result.findings.append(CloudFinding(
-                            provider="aws",
-                            category="cdn",
-                            severity="info",
-                            title="CloudFront CDN Detected",
-                            description="Target is behind AWS CloudFront",
-                            evidence=f"Server: {server}",
-                        ))
+                        result.findings.append(
+                            CloudFinding(
+                                provider="aws",
+                                category="cdn",
+                                severity="info",
+                                title="CloudFront CDN Detected",
+                                description="Target is behind AWS CloudFront",
+                                evidence=f"Server: {server}",
+                            )
+                        )
 
                     break  # Only need one successful check
             except Exception:

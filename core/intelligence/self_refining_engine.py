@@ -223,7 +223,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 logger.exception("Lock error: %s", e)
 
         logger.error(
-            "Failed to acquire lock after %s attempts - possible deadlock", max_retries,
+            "Failed to acquire lock after %s attempts - possible deadlock",
+            max_retries,
         )
         return False
 
@@ -456,7 +457,9 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 logger.exception("Failed profile creation for %s: %s", strat["name"], e)
 
     def _cleanup_conn_and_lock(
-        self, conn: "sqlite3.Connection | None", lock_acquired: bool,
+        self,
+        conn: "sqlite3.Connection | None",
+        lock_acquired: bool,
     ) -> None:
         """Cleanup connection and release lock."""
         if conn:
@@ -494,7 +497,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
             if isinstance(aggressive_params[key], int | float):
                 # LOGIC FIX: Ensure mutation actually changes value even if it is 1
                 aggressive_params[key] = max(
-                    aggressive_params[key] + 1, int(aggressive_params[key] * 1.5),
+                    aggressive_params[key] + 1,
+                    int(aggressive_params[key] * 1.5),
                 )
 
         profile2 = {
@@ -513,7 +517,8 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 # LOGIC FIX: Ensure conservative is actually different
                 val = int(conservative_params[key] * 0.5)
                 conservative_params[key] = max(
-                    1, val if val != aggressive_params.get(key) else max(1, val - 1),
+                    1,
+                    val if val != aggressive_params.get(key) else max(1, val - 1),
                 )
 
         profile3 = {
@@ -624,9 +629,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                         parameters=json.loads(row["parameters"]),
                         step_order=json.loads(row["step_order"]),
                         aggressiveness=row["aggressiveness"],
-                        tool_preferences=json.loads(row["tool_preferences"])
-                        if row["tool_preferences"]
-                        else [],
+                        tool_preferences=json.loads(row["tool_preferences"]) if row["tool_preferences"] else [],
                         success_rate=row["success_rate"],
                         usage_count=row["usage_count"],
                         success_count=row["success_count"],
@@ -660,9 +663,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                         parameters=json.loads(row["parameters"]),
                         step_order=json.loads(row["step_order"]),
                         aggressiveness=row["aggressiveness"],
-                        tool_preferences=json.loads(row["tool_preferences"])
-                        if row["tool_preferences"]
-                        else [],
+                        tool_preferences=json.loads(row["tool_preferences"]) if row["tool_preferences"] else [],
                         success_rate=row["success_rate"],
                         usage_count=row["usage_count"],
                         success_count=row["success_count"],
@@ -721,9 +722,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                             parameters=json.loads(row["parameters"]),
                             step_order=json.loads(row["step_order"]),
                             aggressiveness=row["aggressiveness"],
-                            tool_preferences=json.loads(row["tool_preferences"])
-                            if row["tool_preferences"]
-                            else [],
+                            tool_preferences=json.loads(row["tool_preferences"]) if row["tool_preferences"] else [],
                             success_rate=row["success_rate"],
                             usage_count=row["usage_count"],
                             success_count=row["success_count"],
@@ -825,7 +824,10 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
             self._release_lock_safe()
 
     def _analyze_target_for_selection(
-        self, target: str, start_time: float, max_duration: float,
+        self,
+        target: str,
+        start_time: float,
+        max_duration: float,
     ) -> Any:
         """Step 1: Classify and generate signature."""
         import time
@@ -840,7 +842,10 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
         return {"target_type": target_type, "target_signature": target_signature}
 
     def _select_strategy(
-        self, context: dict[str, Any], start_time: float, max_duration: float,
+        self,
+        context: dict[str, Any],
+        start_time: float,
+        max_duration: float,
     ) -> Any:
         """Step 2: Select best strategy."""
         import time
@@ -922,7 +927,9 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
         return selected
 
     def _handle_no_profiles(
-        self, strategy: "Strategy", failed_profiles: list[str],
+        self,
+        strategy: "Strategy",
+        failed_profiles: list[str],
     ) -> Any:
         """Handle case where all profiles are exhausted."""
         try:
@@ -984,9 +991,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                     SELECT priority_tier, COUNT(*) FROM policies
                     WHERE is_active = 1 GROUP BY priority_tier
                 """)
-                status["policies_by_tier"] = {
-                    PolicyTier(row[0]).name: row[1] for row in cursor.fetchall()
-                }
+                status["policies_by_tier"] = {PolicyTier(row[0]).name: row[1] for row in cursor.fetchall()}
 
                 # Failures
                 cursor = conn.execute("SELECT COUNT(*) FROM failure_contexts")

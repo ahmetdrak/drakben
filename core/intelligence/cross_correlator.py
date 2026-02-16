@@ -29,17 +29,17 @@ class ServiceProfile:
 
     port: int
     protocol: str = "tcp"
-    service: str = ""           # e.g., "http", "ssh", "smb"
-    product: str = ""           # e.g., "Apache", "OpenSSH"
-    version: str = ""           # e.g., "2.4.49", "7.9p1"
+    service: str = ""  # e.g., "http", "ssh", "smb"
+    product: str = ""  # e.g., "Apache", "OpenSSH"
+    version: str = ""  # e.g., "2.4.49", "7.9p1"
     os_hint: str = ""
     cves: list[str] = field(default_factory=list)
     findings: list[str] = field(default_factory=list)
     tools_reported: list[str] = field(default_factory=list)
     paths_discovered: list[str] = field(default_factory=list)
     credentials: list[dict] = field(default_factory=list)
-    severity: str = "info"      # Highest severity across findings
-    confidence: float = 0.0     # Higher when multiple tools agree
+    severity: str = "info"  # Highest severity across findings
+    confidence: float = 0.0  # Higher when multiple tools agree
     last_updated: float = 0.0
 
     @staticmethod
@@ -77,7 +77,7 @@ class TargetProfile:
     services: dict[str, ServiceProfile] = field(default_factory=dict)  # key: "port/proto"
     os_fingerprint: str = ""
     hostnames: list[str] = field(default_factory=list)
-    network_position: str = ""   # "external", "internal", "dmz"
+    network_position: str = ""  # "external", "internal", "dmz"
     total_findings: int = 0
     highest_severity: str = "info"
     attack_surface_score: float = 0.0  # 0-10
@@ -94,10 +94,7 @@ class TargetProfile:
     def get_critical_services(self) -> list[ServiceProfile]:
         """Get services with high/critical severity, sorted by priority."""
         sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        critical = [
-            s for s in self.services.values()
-            if s.severity in ("critical", "high")
-        ]
+        critical = [s for s in self.services.values() if s.severity in ("critical", "high")]
         return sorted(critical, key=lambda s: sev_order.get(s.severity, 4))
 
     def get_attack_paths(self) -> list[dict[str, Any]]:
@@ -158,8 +155,7 @@ class TargetProfile:
         lines.append(f"\nPrioritized Attack Paths ({len(attack_paths)}):")
         for i, ap in enumerate(attack_paths[:5], 1):
             lines.append(
-                f"  {i}. {ap['service']} {ap['product']} "
-                f"[{ap['severity']}] conf={ap['confidence']:.0%}",
+                f"  {i}. {ap['service']} {ap['product']} [{ap['severity']}] conf={ap['confidence']:.0%}",
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -172,11 +168,15 @@ class TargetProfile:
             "attack_surface_score": self.attack_surface_score,
             "services": {
                 k: {
-                    "port": s.port, "protocol": s.protocol,
-                    "service": s.service, "product": s.product,
-                    "version": s.version, "cves": s.cves,
+                    "port": s.port,
+                    "protocol": s.protocol,
+                    "service": s.service,
+                    "product": s.product,
+                    "version": s.version,
+                    "cves": s.cves,
                     "findings": s.findings[:10],
-                    "severity": s.severity, "confidence": s.confidence,
+                    "severity": s.severity,
+                    "confidence": s.confidence,
                     "tools_reported": s.tools_reported,
                     "paths_discovered": s.paths_discovered[:20],
                 }
@@ -338,7 +338,10 @@ class CrossCorrelator:
         return profile
 
     def _extract_and_associate_creds(
-        self, output: str, tool_name: str, profile: TargetProfile,
+        self,
+        output: str,
+        tool_name: str,
+        profile: TargetProfile,
     ) -> None:
         """Extract credentials from output and associate with services."""
         creds = self._RE_CRED.findall(output)
@@ -373,15 +376,16 @@ class CrossCorrelator:
         return {
             **self._stats,
             "targets_tracked": len(self._profiles),
-            "total_services": sum(
-                len(p.services) for p in self._profiles.values()
-            ),
+            "total_services": sum(len(p.services) for p in self._profiles.values()),
         }
 
     # ─────────────────── Internal Parsers ───────────────────
 
     def _ingest_parsed(
-        self, profile: TargetProfile, tool_name: str, data: dict,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        data: dict,
     ) -> None:
         """Ingest pre-parsed structured data."""
         self._ingest_open_ports(profile, tool_name, data.get("open_ports", []))
@@ -389,7 +393,10 @@ class CrossCorrelator:
         self._ingest_discovered_paths(profile, data.get("paths", []))
 
     def _ingest_open_ports(
-        self, profile: TargetProfile, tool_name: str, ports: list[dict],
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        ports: list[dict],
     ) -> None:
         """Ingest open port data into profile."""
         for port_info in ports:
@@ -405,7 +412,10 @@ class CrossCorrelator:
                 svc.tools_reported.append(tool_name)
 
     def _ingest_vulnerabilities(
-        self, profile: TargetProfile, tool_name: str, data: dict,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        data: dict,
     ) -> None:
         """Ingest vulnerability findings into profile."""
         severity = data.get("severity", "medium")
@@ -414,8 +424,11 @@ class CrossCorrelator:
             self._associate_finding(profile, tool_name, finding, severity)
 
     def _associate_finding(
-        self, profile: TargetProfile, tool_name: str,
-        finding: str, severity: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        finding: str,
+        severity: str,
     ) -> None:
         """Associate a finding with the most relevant service."""
         for svc in profile.services.values():
@@ -430,7 +443,9 @@ class CrossCorrelator:
                 first.findings.append(finding)
 
     def _ingest_discovered_paths(
-        self, profile: TargetProfile, paths: list,
+        self,
+        profile: TargetProfile,
+        paths: list,
     ) -> None:
         """Ingest discovered paths into web service profiles."""
         for path in paths:
@@ -442,7 +457,10 @@ class CrossCorrelator:
                     break
 
     def _ingest_raw(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse raw tool output into profile."""
         tool_lower = tool_name.lower()
@@ -465,7 +483,10 @@ class CrossCorrelator:
             self._parse_generic_into_profile(profile, tool_name, output)
 
     def _parse_nmap_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse nmap output into target profile."""
         self._nmap_parse_ports(profile, tool_name, output)
@@ -473,7 +494,10 @@ class CrossCorrelator:
         self._nmap_find_vulns(profile, tool_name, output)
 
     def _nmap_parse_ports(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Extract open ports and service info from nmap output."""
         for match in self._RE_PORT.finditer(output):
@@ -502,7 +526,10 @@ class CrossCorrelator:
             profile.os_fingerprint = os_match.group(1).strip()[:100]
 
     def _nmap_find_vulns(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Extract vulnerability findings from nmap output."""
         for line in output.split("\n"):
@@ -517,7 +544,10 @@ class CrossCorrelator:
                     self._stats["correlations_found"] += 1
 
     def _parse_nikto_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse nikto output into web service profile."""
         port_match = re.search(r"Target Port:\s*(\d+)", output)
@@ -551,7 +581,10 @@ class CrossCorrelator:
         return "info"
 
     def _find_web_service(
-        self, profile: TargetProfile, tool_name: str, fallback_port: int = 80,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        fallback_port: int = 80,
     ) -> ServiceProfile:
         """Find first web service in profile or create one on fallback port."""
         for svc in profile.services.values():
@@ -566,7 +599,10 @@ class CrossCorrelator:
         return svc
 
     def _parse_dirscan_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse gobuster/ffuf output."""
         web_svc = self._find_web_service(profile, tool_name)
@@ -596,7 +632,10 @@ class CrossCorrelator:
                 web_svc.paths_discovered.append(path)
 
     def _parse_nuclei_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse nuclei output into profile."""
         for line in output.split("\n"):
@@ -622,7 +661,10 @@ class CrossCorrelator:
             self._stats["correlations_found"] += 1
 
     def _parse_enum4linux_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse enum4linux output."""
         svc = profile.get_service(445, "tcp")
@@ -641,7 +683,10 @@ class CrossCorrelator:
                 svc.severity = _max_severity(svc.severity, "high")
 
     def _parse_hydra_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse hydra output for credentials."""
         for line in output.split("\n"):
@@ -665,7 +710,10 @@ class CrossCorrelator:
                 svc.findings.append(f"Valid credentials: {cred['username']}:***")
 
     def _parse_sqlmap_into_profile(
-        self, profile: TargetProfile, tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        tool_name: str,
+        output: str,
     ) -> None:
         """Parse sqlmap output."""
         web_svc = self._find_web_service(profile, tool_name)
@@ -686,7 +734,10 @@ class CrossCorrelator:
             web_svc.severity = _max_severity(web_svc.severity, "critical")
 
     def _parse_generic_into_profile(
-        self, profile: TargetProfile, _tool_name: str, output: str,
+        self,
+        profile: TargetProfile,
+        _tool_name: str,
+        output: str,
     ) -> None:
         """Generic parser for unknown tools."""
         for line in output.split("\n"):
@@ -700,7 +751,10 @@ class CrossCorrelator:
                     break
 
     def _distribute_cves(
-        self, profile: TargetProfile, cves: list[str], tool_name: str,
+        self,
+        profile: TargetProfile,
+        cves: list[str],
+        tool_name: str,
     ) -> None:
         """Associate extracted CVEs with the most likely service."""
         unique_cves = list(dict.fromkeys(cves))
@@ -708,7 +762,10 @@ class CrossCorrelator:
             self._associate_cve(profile, cve, tool_name)
 
     def _associate_cve(
-        self, profile: TargetProfile, cve: str, tool_name: str,
+        self,
+        profile: TargetProfile,
+        cve: str,
+        tool_name: str,
     ) -> None:
         """Associate a single CVE with the matching service."""
         for svc in profile.services.values():

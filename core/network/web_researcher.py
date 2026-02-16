@@ -76,11 +76,7 @@ class WebResearcher:
                 title = title_tag.get_text(strip=True)
 
                 snippet_tag = link.find("a", class_="result__snippet")
-                body = (
-                    snippet_tag.get_text(strip=True)
-                    if snippet_tag
-                    else "No description."
-                )
+                body = snippet_tag.get_text(strip=True) if snippet_tag else "No description."
 
                 results.append({"title": title, "href": href, "body": body})
 

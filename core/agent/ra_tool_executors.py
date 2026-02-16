@@ -36,6 +36,7 @@ def _run_coro_safe(coro, *, timeout: float = 300) -> Any:
             future = pool.submit(asyncio.run, coro)
             return future.result(timeout=timeout)
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,10 +119,7 @@ class RAToolExecutorsMixin(_MixinBase):
             if result.code:
                 return {
                     "success": True,
-                    "output": (
-                        f"Code Synthesized: {result.purpose}\nContent Preview:\n"
-                        f"{result.code[:300]}"
-                    ),
+                    "output": (f"Code Synthesized: {result.purpose}\nContent Preview:\n{result.code[:300]}"),
                 }
             return {
                 "success": False,
@@ -161,18 +159,13 @@ class RAToolExecutorsMixin(_MixinBase):
             if tool_name == "hive_mind_scan":
                 init_res: dict[str, Any] = hive.initialize()
                 # If target is IP/subnet, use it. Otherwise auto-detect.
-                subnet = (
-                    args.get("target")
-                    if args.get("target") and "/" in str(args.get("target"))
-                    else None
-                )
+                subnet = args.get("target") if args.get("target") and "/" in str(args.get("target")) else None
 
                 hosts: list[NetworkHost] = hive.scan_network(subnet)
                 hosts_data: list[str] = [str(h) for h in hosts]
 
                 observation: str = (
-                    f"Hive Mind Intelligence:\nInitialized: {init_res}"
-                    f"\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
+                    f"Hive Mind Intelligence:\nInitialized: {init_res}\nDiscovered Hosts: {len(hosts)}\n{hosts_data}"
                 )
                 self.console.print(observation, style="cyan")
 
@@ -358,7 +351,8 @@ class RAToolExecutorsMixin(_MixinBase):
             results["bypasses"] = bypasses[:10]  # Top 10
 
             self.console.print(
-                f"   Generated {len(bypasses)} bypass payloads", style="green",
+                f"   Generated {len(bypasses)} bypass payloads",
+                style="green",
             )
 
             return {"success": True, "output": json.dumps(results, indent=2), "data": results}
@@ -473,15 +467,16 @@ class RAToolExecutorsMixin(_MixinBase):
 
             db = CVEDatabase()
             results = _run_coro_safe(db.search_cves(query))
-            entries = [
-                {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
-                for r in results
-            ] if results else []
+            entries = (
+                [{"id": r.cve_id, "description": r.description[:200], "severity": r.severity} for r in results]
+                if results
+                else []
+            )
 
             return {
                 "success": True,
                 "output": f"Found {len(entries)} CVEs for '{query}':\n"
-                    + "\n".join(f"  {e['id']}: {e['description']}" for e in entries[:10]),
+                + "\n".join(f"  {e['id']}: {e['description']}" for e in entries[:10]),
                 "data": {"query": query, "count": len(entries), "entries": entries[:20]},
             }
 

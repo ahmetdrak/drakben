@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\waf_evasion.py
-# hypothesis_version: 6.151.6
-
-['%09', '%0a', '%0b', '%0c', '%0d', '%26', '%26%26', '%46rom', '%53elect', '%55nion', '&&', "'", "''", '(?i)javascript:', '+', '/', '/*!50000AND*/', '/*!50000FROM*/', '/*!50000OR*/', '/*!50000SELECT*/', '/*!50000UNION*/', '/*!AND*/', '/*!FROM*/', '/*!OR*/', '/*!SELECT*/', '/*!UNION*/', '/*!WHERE*/', '/**/', '0x', '<script', '?', 'AND', 'FROM', 'Fr/**/om', 'OR', 'SE%0aLECT', 'SELECT', 'Se/**/lect', 'UN%0aION', 'UNION', 'Uni/**/on', 'WHERE', 'Wh/**/ere', 'java\tscript:', 'javascript:', '||']

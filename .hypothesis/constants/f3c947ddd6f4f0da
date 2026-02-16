@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\sre_failure.py
-# hypothesis_version: 6.151.6
-
-[0.5, 0.6, 0.7, 0.9, 'access_denied', 'avoid_profile', 'avoid_tools', 'banned', 'blocked', 'error_type', 'fail_', 'firewall', 'max_aggressiveness', 'pol_', 'policy_generated', 'profile_id', 'slow', 'target_signature', 'timeout', 'tool_name']

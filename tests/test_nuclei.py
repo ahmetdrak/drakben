@@ -141,7 +141,7 @@ class TestNucleiScanner:
     def test_scanner_initialization(self):
         """Test scanner initialization."""
         scanner = NucleiScanner()
-        assert hasattr(scanner, 'available')
+        assert hasattr(scanner, "available")
 
     def test_scanner_availability_check(self):
         """Test nuclei availability check."""
@@ -149,7 +149,7 @@ class TestNucleiScanner:
         # Will be False on systems without nuclei installed
         assert isinstance(scanner.available, bool)
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_scanner_with_nuclei_installed(self, mock_which):
         """Test scanner when nuclei is installed."""
         mock_which.return_value = "/usr/bin/nuclei"
@@ -162,7 +162,7 @@ class TestNucleiScanner:
         scanner = NucleiScanner()
         config = NucleiScanConfig()
 
-        if hasattr(scanner, '_build_nuclei_command') and scanner.available:
+        if hasattr(scanner, "_build_nuclei_command") and scanner.available:
             # Method requires targets_file path, not list
             cmd = scanner._build_nuclei_command(
                 targets_file="/tmp/targets.txt",
@@ -183,7 +183,7 @@ class TestNucleiScanner:
             timeout=30,
         )
 
-        if hasattr(scanner, '_build_nuclei_command') and scanner.available:
+        if hasattr(scanner, "_build_nuclei_command") and scanner.available:
             cmd = scanner._build_nuclei_command(
                 targets_file="/tmp/targets.txt",
                 config=config,
@@ -197,7 +197,7 @@ class TestNucleiScanner:
         """Test parsing nuclei JSON output."""
         scanner = NucleiScanner()
 
-        json_output = '''{"template-id":"CVE-2021-44228","info":{"name":"Log4j RCE","severity":"critical"},"host":"https://example.com","matched-at":"https://example.com/api"}'''
+        json_output = """{"template-id":"CVE-2021-44228","info":{"name":"Log4j RCE","severity":"critical"},"host":"https://example.com","matched-at":"https://example.com/api"}"""
 
         result = scanner._parse_result(json_output)
         if result:
@@ -232,7 +232,7 @@ class TestNucleiScannerAsync:
         scanner = NucleiScanner()
         scanner.available = False
 
-        if hasattr(scanner, 'scan'):
+        if hasattr(scanner, "scan"):
             results = await scanner.scan(["https://example.com"])
             assert results == [] or isinstance(results, list)
         else:
@@ -248,7 +248,7 @@ class TestNucleiScannerAsync:
             severity=[NucleiSeverity.CRITICAL],
         )
 
-        if hasattr(scanner, 'scan'):
+        if hasattr(scanner, "scan"):
             results = await scanner.scan(
                 ["https://example.com"],
                 config=config,

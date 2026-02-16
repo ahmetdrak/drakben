@@ -82,17 +82,21 @@ class RAReflectionMixin(_MixinBase):
             return []
         recent_actions: list[dict[str, Any]] = []
         for r in self.evolution.get_recent_actions(count=8):
-            recent_actions.append({
-                "tool": r.tool if hasattr(r, "tool") else str(r),
-                "success": (r.outcome == "success") if hasattr(r, "outcome") else False,
-                "output": r.error_message[:100] if hasattr(r, "error_message") else "",
-            })
+            recent_actions.append(
+                {
+                    "tool": r.tool if hasattr(r, "tool") else str(r),
+                    "success": (r.outcome == "success") if hasattr(r, "outcome") else False,
+                    "output": r.error_message[:100] if hasattr(r, "error_message") else "",
+                }
+            )
         return recent_actions
 
     def _display_reflection(self, iteration: int, entry: Any) -> None:
         """Display self-reflection result to console."""
         verdict_style = {
-            "continue": "green", "pivot": "yellow", "escalate": "red",
+            "continue": "green",
+            "pivot": "yellow",
+            "escalate": "red",
         }.get(entry.verdict, "dim")
 
         self.console.print(

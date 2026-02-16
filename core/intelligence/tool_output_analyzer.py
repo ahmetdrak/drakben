@@ -49,8 +49,7 @@ class AnalyzedOutput:
 
         if self.ports:
             ports_str = ", ".join(
-                f"{p['port']}/{p.get('proto', 'tcp')}({p.get('service', '?')})"
-                for p in self.ports[:15]
+                f"{p['port']}/{p.get('proto', 'tcp')}({p.get('service', '?')})" for p in self.ports[:15]
             )
             lines.append(f"Ports: {ports_str}")
 
@@ -181,11 +180,13 @@ class ToolOutputAnalyzer:
             }
             if port_info["state"] == "open":
                 result.ports.append(port_info)
-                result.services.append({
-                    "port": port_info["port"],
-                    "service": port_info["service"],
-                    "version": port_info["version"],
-                })
+                result.services.append(
+                    {
+                        "port": port_info["port"],
+                        "service": port_info["service"],
+                        "version": port_info["version"],
+                    }
+                )
 
         # OS detection
         os_match = re.search(r"OS details?:\s*(.+)", output)
@@ -209,11 +210,13 @@ class ToolOutputAnalyzer:
             cve = match.group(1).upper()
             if cve not in seen_cves:
                 seen_cves.add(cve)
-                result.vulnerabilities.append({
-                    "name": cve,
-                    "severity": "high",
-                    "type": "cve",
-                })
+                result.vulnerabilities.append(
+                    {
+                        "name": cve,
+                        "severity": "high",
+                        "type": "cve",
+                    }
+                )
 
         # VULNERABLE marker
         if "VULNERABLE" in output.upper():
@@ -283,12 +286,14 @@ class ToolOutputAnalyzer:
 
                 tm = type_pattern.search(line)
                 if tm:
-                    result.vulnerabilities.append({
-                        "name": f"SQLi: {tm.group(1).strip()}",
-                        "parameter": current_param,
-                        "severity": "critical",
-                        "type": "sqli",
-                    })
+                    result.vulnerabilities.append(
+                        {
+                            "name": f"SQLi: {tm.group(1).strip()}",
+                            "parameter": current_param,
+                            "severity": "critical",
+                            "type": "sqli",
+                        }
+                    )
 
         # Database info
         db_match = re.search(r"back-end DBMS:\s*(.+)", output, re.IGNORECASE)
@@ -302,10 +307,12 @@ class ToolOutputAnalyzer:
             r"\[\d+\]\[\S+\]\s+host:\s+\S+\s+login:\s+(\S+)\s+password:\s+(\S+)",
         )
         for match in cred_pattern.finditer(output):
-            result.credentials.append({
-                "username": match.group(1),
-                "password": match.group(2),
-            })
+            result.credentials.append(
+                {
+                    "username": match.group(1),
+                    "password": match.group(2),
+                }
+            )
             result.severity = "critical"
 
         if result.credentials:
@@ -320,12 +327,14 @@ class ToolOutputAnalyzer:
             path = match.group(2).strip()
             if title and not title.startswith("-"):
                 result.findings.append(f"Exploit: {title}")
-                result.vulnerabilities.append({
-                    "name": title[:100],
-                    "path": path,
-                    "severity": "medium",
-                    "type": "exploit",
-                })
+                result.vulnerabilities.append(
+                    {
+                        "name": title[:100],
+                        "path": path,
+                        "severity": "medium",
+                        "type": "exploit",
+                    }
+                )
 
     def _parse_enum4linux(self, output: str, result: AnalyzedOutput) -> None:
         """Parse enum4linux SMB enumeration output."""
@@ -358,11 +367,13 @@ class ToolOutputAnalyzer:
             severity = match.group(1).lower()
             template = match.group(2)
 
-            result.vulnerabilities.append({
-                "name": template,
-                "severity": severity,
-                "type": "nuclei",
-            })
+            result.vulnerabilities.append(
+                {
+                    "name": template,
+                    "severity": severity,
+                    "type": "nuclei",
+                }
+            )
 
             # Update overall severity
             severity_order = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -383,11 +394,13 @@ class ToolOutputAnalyzer:
                 cve = match.group(1).upper()
                 if cve not in seen:
                     seen.add(cve)
-                    result.vulnerabilities.append({
-                        "name": cve,
-                        "severity": "medium",
-                        "type": "cve",
-                    })
+                    result.vulnerabilities.append(
+                        {
+                            "name": cve,
+                            "severity": "medium",
+                            "type": "cve",
+                        }
+                    )
 
         # Severity escalation based on keywords
         critical_keywords = ["remote code execution", "rce", "shell", "root access", "admin access"]

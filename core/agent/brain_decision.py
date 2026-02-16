@@ -72,7 +72,7 @@ class DecisionEngine:
         with self._lock:
             self.decision_history.append(decision)
             if len(self.decision_history) > self.MAX_HISTORY_SIZE:
-                self.decision_history = self.decision_history[-self.MAX_HISTORY_SIZE:]
+                self.decision_history = self.decision_history[-self.MAX_HISTORY_SIZE :]
         return decision
 
     def _needs_approval(
@@ -97,7 +97,7 @@ class DecisionEngine:
     def _collect_failed_tools(context: ExecutionContext) -> set[str]:
         """Collect tool names that have failed from execution history."""
         failed: set[str] = set()
-        for entry in (context.history or []):
+        for entry in context.history or []:
             if isinstance(entry, dict) and not entry.get("success", True):
                 failed.add(entry.get("tool", ""))
         return failed
@@ -122,7 +122,9 @@ class DecisionEngine:
         return score
 
     def _select_action_scored(
-        self, steps: list[dict], context: ExecutionContext,
+        self,
+        steps: list[dict],
+        context: ExecutionContext,
     ) -> tuple[str, float]:
         """Select the best next action with scoring.
 
@@ -174,17 +176,33 @@ class DecisionEngine:
         "udp_scan": {"cmd": "nmap -sU --top-ports 100 {target}", "risk": 3, "stealth": 3},
         # Web scanning
         "web_scan": {"cmd": "nikto -h {target}", "risk": 4, "stealth": 2},
-        "dir_bruteforce": {"cmd": "gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q", "risk": 4, "stealth": 3},
-        "dir_fuzz": {"cmd": "ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403 -t 20", "risk": 4, "stealth": 3},
+        "dir_bruteforce": {
+            "cmd": "gobuster dir -u http://{target} -w /usr/share/wordlists/dirb/common.txt -q",
+            "risk": 4,
+            "stealth": 3,
+        },
+        "dir_fuzz": {
+            "cmd": "ffuf -u http://{target}/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403 -t 20",
+            "risk": 4,
+            "stealth": 3,
+        },
         # Vulnerability scanning
         "vuln_scan": {"cmd": "nmap --script vuln {target}", "risk": 5, "stealth": 3},
         "nuclei_scan": {"cmd": "nuclei -u {target} -severity medium,high,critical -silent", "risk": 5, "stealth": 4},
         "wpscan": {"cmd": "wpscan --url http://{target} --enumerate vp,vt,u --no-banner", "risk": 4, "stealth": 4},
         # SQL injection
-        "sqli_test": {"cmd": "sqlmap -u http://{target}/ --batch --level 1 --risk 1 --forms --crawl=2", "risk": 6, "stealth": 3},
+        "sqli_test": {
+            "cmd": "sqlmap -u http://{target}/ --batch --level 1 --risk 1 --forms --crawl=2",
+            "risk": 6,
+            "stealth": 3,
+        },
         # Brute force
         "ssh_bruteforce": {"cmd": "hydra -L users.txt -P passwords.txt ssh://{target} -t 4", "risk": 7, "stealth": 2},
-        "http_bruteforce": {"cmd": "hydra -L users.txt -P passwords.txt {target} http-post-form", "risk": 7, "stealth": 2},
+        "http_bruteforce": {
+            "cmd": "hydra -L users.txt -P passwords.txt {target} http-post-form",
+            "risk": 7,
+            "stealth": 2,
+        },
         # Subdomain enumeration
         "subdomain_enum": {"cmd": "subfinder -d {target} -silent", "risk": 1, "stealth": 9},
         "dns_enum": {"cmd": "dnsrecon -d {target} -t std", "risk": 2, "stealth": 7},
@@ -195,7 +213,11 @@ class DecisionEngine:
         # Exploitation
         "exploit_search": {"cmd": "searchsploit {target}", "risk": 0, "stealth": 10},
         # General
-        "check_tools": {"cmd": "which nmap nikto gobuster ffuf sqlmap hydra nuclei 2>/dev/null", "risk": 0, "stealth": 10},
+        "check_tools": {
+            "cmd": "which nmap nikto gobuster ffuf sqlmap hydra nuclei 2>/dev/null",
+            "risk": 0,
+            "stealth": 10,
+        },
         "analyze_results": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
         "analyze_vulns": {"cmd": None, "risk": 0, "stealth": 10},  # type: ignore[dict-item]
     }

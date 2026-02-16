@@ -270,11 +270,7 @@ def list_payloads(os_filter: str | None = None) -> list[dict[str, Any]]:
 
     payloads = []
     for name, template in PAYLOAD_TEMPLATES.items():
-        if (
-            os_filter
-            and template.get("os") != os_filter
-            and template.get("os") != "any"
-        ):
+        if os_filter and template.get("os") != os_filter and template.get("os") != "any":
             continue
         payloads.append(
             {

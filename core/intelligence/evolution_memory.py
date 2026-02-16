@@ -68,6 +68,7 @@ class EvolutionMemory:
         self._lock = threading.Lock()
         # Initialize thread-local storage in __init__ for thread safety
         import threading as _threading
+
         self._local = _threading.local()
         self._init_database()
 
@@ -84,9 +85,7 @@ class EvolutionMemory:
         logger = logging.getLogger(__name__)
 
         with self._lock:
-            db_path_str = (
-                self.db_path if isinstance(self.db_path, str) else str(self.db_path)
-            )
+            db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
 
             try:
                 conn = sqlite3.connect(
@@ -209,9 +208,7 @@ class EvolutionMemory:
         if self._is_memory and self._persistent_conn:
             return self._persistent_conn
 
-        db_path_str = (
-            self.db_path if isinstance(self.db_path, str) else str(self.db_path)
-        )
+        db_path_str = self.db_path if isinstance(self.db_path, str) else str(self.db_path)
 
         try:
             # H-4 FIX: Use thread-local storage for connections (initialized in __init__)
@@ -292,6 +289,7 @@ class EvolutionMemory:
     def record_action(self, record: ActionRecord) -> None:
         """Record action outcome - PERSISTENT."""
         import json
+
         with self._lock, self._safe_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -627,9 +625,7 @@ def get_evolution_memory(db_path: str | None = None) -> EvolutionMemory:
                 return _evolution_memory
 
     current_path = (
-        str(_evolution_memory.db_path)
-        if not isinstance(_evolution_memory.db_path, str)
-        else _evolution_memory.db_path
+        str(_evolution_memory.db_path) if not isinstance(_evolution_memory.db_path, str) else _evolution_memory.db_path
     )
 
     if db_path:

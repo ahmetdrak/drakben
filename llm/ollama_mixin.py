@@ -103,7 +103,10 @@ class OllamaMixin:
     # ─────────────────── Ollama Streaming ───────────────────
 
     def _stream_ollama(
-        self, prompt: str, system_prompt: str, timeout: int,
+        self,
+        prompt: str,
+        system_prompt: str,
+        timeout: int,
     ) -> Generator[str, None, None]:
         """Stream from local Ollama instance."""
         payload = {
@@ -113,7 +116,10 @@ class OllamaMixin:
         }
         try:
             response = self._session.post(
-                self.base_url, json=payload, timeout=timeout, stream=True,
+                self.base_url,
+                json=payload,
+                timeout=timeout,
+                stream=True,
             )
             if response.status_code != 200:
                 yield f"[Ollama Error] {response.status_code}"

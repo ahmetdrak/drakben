@@ -130,6 +130,7 @@ def reset_container() -> None:
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _safe_close(obj: Any) -> None:
     """Call ``obj.close()`` if it exists, swallowing errors."""
     close_fn = getattr(obj, "close", None)

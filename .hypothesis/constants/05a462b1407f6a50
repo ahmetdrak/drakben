@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\ra_failure_recovery.py
-# hypothesis_version: 6.151.6
-
-[100, 200, 300, 400, '   Install? [Y/n]: ', '; ', 'N/A', 'Unknown error', 'action', 'auto', 'bold yellow', 'connection refused', 'connection_refused', 'dim', 'duration', 'e', 'error', 'evet', 'failure', 'green', 'llm_client', 'llm_recovery', 'method', 'n', 'not found', 'not recognized', 'params', 'penalty', 'permission', 'permission_denied', 'proposal', 'red', 'requires_approval', 'stderr', 'stdout', 'step_id', 'success', 'timeout', 'tool_missing', 'tool_name', 'unknown', 'y', 'yellow', 'yes', '✅ Step succeeded']

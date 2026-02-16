@@ -19,6 +19,7 @@ from modules.report_generator import (
 
 # ── Finding ────────────────────────────────────────────────────
 
+
 class TestFinding:
     """Tests for the Finding dataclass."""
 
@@ -58,13 +59,16 @@ class TestFinding:
     def test_all_severity_levels(self) -> None:
         for sev in FindingSeverity:
             f = Finding(
-                title="test", severity=sev,
-                description="d", affected_asset="a",
+                title="test",
+                severity=sev,
+                description="d",
+                affected_asset="a",
             )
             assert f.to_dict()["severity"] == sev.value
 
 
 # ── ScanResult ─────────────────────────────────────────────────
+
 
 class TestScanResult:
     """Tests for the ScanResult dataclass."""
@@ -102,8 +106,10 @@ class TestScanResult:
 
     def test_to_dict_empty(self) -> None:
         sr = ScanResult(
-            target="x", scan_type="y",
-            timestamp="z", duration_seconds=0,
+            target="x",
+            scan_type="y",
+            timestamp="z",
+            duration_seconds=0,
         )
         d = sr.to_dict()
         assert d["findings"] == []
@@ -111,6 +117,7 @@ class TestScanResult:
 
 
 # ── ReportConfig ───────────────────────────────────────────────
+
 
 class TestReportConfig:
     """Tests for ReportConfig defaults."""
@@ -130,6 +137,7 @@ class TestReportConfig:
 
 
 # ── ReportGenerator ────────────────────────────────────────────
+
 
 class TestReportGenerator:
     """Tests for ReportGenerator class."""
@@ -179,20 +187,26 @@ class TestReportGenerator:
     def test_add_finding(self) -> None:
         rg = ReportGenerator()
         f = Finding(
-            title="x", severity=FindingSeverity.MEDIUM,
-            description="y", affected_asset="z",
+            title="x",
+            severity=FindingSeverity.MEDIUM,
+            description="y",
+            affected_asset="z",
         )
         rg.add_finding(f)
         assert len(rg.findings) == 1
 
     def test_add_scan_result(self) -> None:
         finding = Finding(
-            title="x", severity=FindingSeverity.LOW,
-            description="d", affected_asset="a",
+            title="x",
+            severity=FindingSeverity.LOW,
+            description="d",
+            affected_asset="a",
         )
         sr = ScanResult(
-            target="t", scan_type="s",
-            timestamp="ts", duration_seconds=1.0,
+            target="t",
+            scan_type="s",
+            timestamp="ts",
+            duration_seconds=1.0,
             findings=[finding],
         )
         rg = ReportGenerator()
@@ -221,8 +235,10 @@ class TestReportGenerator:
         for _ in range(20):
             rg.add_finding(
                 Finding(
-                    title="crit", severity=FindingSeverity.CRITICAL,
-                    description="d", affected_asset="a",
+                    title="crit",
+                    severity=FindingSeverity.CRITICAL,
+                    description="d",
+                    affected_asset="a",
                 ),
             )
         stats = rg.get_statistics()

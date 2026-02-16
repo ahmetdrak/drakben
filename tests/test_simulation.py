@@ -158,9 +158,7 @@ class TestWarGameSimulation(unittest.TestCase):
         obfuscated_payload = self.ghost.obfuscate_code(payload_code)
 
         # Validation: Weapon must be valid and obfuscated
-        assert payload_code != obfuscated_payload, (
-            "Mission Failed: Polymorphism inactive!"
-        )
+        assert payload_code != obfuscated_payload, "Mission Failed: Polymorphism inactive!"
         assert "import" in obfuscated_payload, "Mission Failed: Malformed payload!"
         logger.info(
             "[+] Polymorphic Weapon Forged. Hash: " + str(hash(obfuscated_payload)),
@@ -206,9 +204,7 @@ class TestWarGameSimulation(unittest.TestCase):
         entropy = get_entropy(raw_bytes)
 
         logger.info("[+] C2 Traffic Entropy: %.2f bits/byte", entropy)
-        assert entropy > 6.0, (
-            "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!"
-        )
+        assert entropy > 6.0, "Mission Failed: C2 traffic detected by Firewall (Low Entropy)!"
 
         # --- STEP 5: ACTIONS ON OBJECTIVES (Flag Stealing) ---
         logger.info("[5] EXFILTRATION STARTED")
@@ -224,9 +220,7 @@ class TestWarGameSimulation(unittest.TestCase):
         # Validation
         assert secret_data != exfil_data
         decrypted = self.ghost.decrypt_string(exfil_data, method="xor")
-        assert secret_data == decrypted, (
-            "Mission Failed: Data corrupted during exfiltration!"
-        )
+        assert secret_data == decrypted, "Mission Failed: Data corrupted during exfiltration!"
         logger.info("[+] Data Secured: " + exfil_data[:20] + "...")
 
         # --- STEP 6: CLEANUP (Ghost Protocol) ---

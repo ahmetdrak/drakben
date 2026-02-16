@@ -84,8 +84,11 @@ Your goal is to write highly optimized, stealthy, and functional security tools.
         except SyntaxError:
             logger.warning("Cannot refactor: syntax error in input code")
             return CodeSnippet(
-                code=code, language="python", purpose="refactor",
-                dependencies=[], is_validated=False,
+                code=code,
+                language="python",
+                purpose="refactor",
+                dependencies=[],
+                is_validated=False,
             )
 
         used_names = self._collect_used_names(tree)
@@ -164,6 +167,7 @@ Your goal is to write highly optimized, stealthy, and functional security tools.
         """Lazy-load LLM client to avoid circular imports."""
         if self._llm_client is None:
             from llm.openrouter_client import OpenRouterClient
+
             self._llm_client = OpenRouterClient(enable_cache=True)
         return self._llm_client
 
@@ -185,7 +189,7 @@ Your goal is to write highly optimized, stealthy, and functional security tools.
             enhanced_prompt = f"""{prompt}
 
 Language: {language}
-{lang_hints.get(language.lower(), '')}
+{lang_hints.get(language.lower(), "")}
 
 Remember: Output ONLY the code, no markdown, no explanations."""
 

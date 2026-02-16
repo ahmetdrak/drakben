@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\singularity\validator.py
-# hypothesis_version: 6.151.6
-
-['.', '.py', 'Unknown error', 'Validation error: %s', 'Validation timed out', 'bash', 'eval', 'exec', 'open', 'os', 'popen', 'python', 'remove', 'requests', 'rmdir', 'shutil', 'socket', 'spawn', 'stderr', 'subprocess', 'success', 'system', 'unlink', 'w']

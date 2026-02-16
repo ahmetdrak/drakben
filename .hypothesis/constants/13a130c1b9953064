@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\react_loop.py
-# hypothesis_version: 6.151.6
-
-[0.0, 0.1, 0.3, 0.5, 0.6, 1.0, 100, 500, 800, 4000, ', ', 'action', 'confidence', 'duration', 'enum4linux', 'escalate', 'escalated', 'ffuf', 'final_answer', 'finish', 'gobuster', 'hydra', 'llm_client', 'name', 'nikto_web_scan', 'nmap_port_scan', 'nmap_service_scan', 'nmap_vuln_scan', 'observations', 'output_length', 'passive_recon', 'reasoning', 'searchsploit', 'service', 'sqlmap_scan', 'stdout', 'step', 'steps_taken', 'success', 'success_rate', 'target', 'think', 'thought', 'thoughts', 'tool', 'tool_args', 'tools', 'tools_used', 'total_observations', 'total_steps', 'total_thoughts', '✓', '✗']

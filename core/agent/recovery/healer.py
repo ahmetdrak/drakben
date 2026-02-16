@@ -187,20 +187,45 @@ class SelfHealer:
 
         # Security: Sanitize module name to prevent command injection
         import re
+
         if not re.match(r"^[a-zA-Z0-9_-]+$", module_name):
             logger.warning("Invalid module name format: %s", module_name)
             return False, None
 
         # Security: Whitelist of known-safe pentest-related packages
-        _SAFE_PACKAGES = frozenset({
-            "requests", "beautifulsoup4", "bs4", "lxml", "paramiko",
-            "scapy", "impacket", "pycryptodome", "cryptography",
-            "dnspython", "python-nmap", "shodan", "censys",
-            "rich", "colorama", "tqdm", "tabulate",
-            "aiohttp", "httpx", "urllib3", "certifi",
-            "pyyaml", "toml", "jinja2", "markdown",
-            "pillow", "python-whois", "netaddr", "ipaddress",
-        })
+        _SAFE_PACKAGES = frozenset(
+            {
+                "requests",
+                "beautifulsoup4",
+                "bs4",
+                "lxml",
+                "paramiko",
+                "scapy",
+                "impacket",
+                "pycryptodome",
+                "cryptography",
+                "dnspython",
+                "python-nmap",
+                "shodan",
+                "censys",
+                "rich",
+                "colorama",
+                "tqdm",
+                "tabulate",
+                "aiohttp",
+                "httpx",
+                "urllib3",
+                "certifi",
+                "pyyaml",
+                "toml",
+                "jinja2",
+                "markdown",
+                "pillow",
+                "python-whois",
+                "netaddr",
+                "ipaddress",
+            }
+        )
 
         if module_name.lower() not in _SAFE_PACKAGES:
             logger.warning(
@@ -411,6 +436,7 @@ class SelfHealer:
     def _cleanup_db_locks(self) -> None:
         """Remove database lock files."""
         from pathlib import Path
+
         # Search in project directory and common data directories
         search_dirs = [Path.cwd(), Path.cwd() / "sessions", Path.cwd() / "drakben_vectors"]
         patterns = ["*.db-journal", "*.db-wal", "*.db-shm"]

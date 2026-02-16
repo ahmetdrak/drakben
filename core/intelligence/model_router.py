@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 class TaskComplexity(Enum):
     """Query complexity classification."""
 
-    FAST = "fast"           # Simple parsing, extraction
-    BALANCED = "balanced"   # Analysis, moderate reasoning
-    POWERFUL = "powerful"   # Complex planning, exploitation strategy
+    FAST = "fast"  # Simple parsing, extraction
+    BALANCED = "balanced"  # Analysis, moderate reasoning
+    POWERFUL = "powerful"  # Complex planning, exploitation strategy
 
 
 @dataclass
 class ModelSpec:
     """Specification for an available model."""
 
-    model_id: str            # e.g., "google/gemini-flash-1.5"
-    provider: str = ""       # "openrouter", "openai", "ollama"
+    model_id: str  # e.g., "google/gemini-flash-1.5"
+    provider: str = ""  # "openrouter", "openai", "ollama"
     tier: TaskComplexity = TaskComplexity.BALANCED
     cost_per_1k: float = 0.0  # $ per 1k tokens (0 = free)
     speed_rating: float = 1.0  # Relative speed (higher = faster)
@@ -246,14 +246,16 @@ class ModelRouter:
         Over time, the router learns which models perform best
         for which tasks and adjusts scoring.
         """
-        self._performance_log.append({
-            "model": model_id,
-            "task": task_type,
-            "duration": duration,
-            "success": success,
-            "quality": quality_score,
-            "timestamp": time.time(),
-        })
+        self._performance_log.append(
+            {
+                "model": model_id,
+                "task": task_type,
+                "duration": duration,
+                "success": success,
+                "quality": quality_score,
+                "timestamp": time.time(),
+            }
+        )
 
         # Keep last 500 entries
         if len(self._performance_log) > 500:
@@ -297,8 +299,13 @@ class ModelRouter:
         """Map explicit task type to complexity."""
         fast_tasks = {"json_parse", "extract", "format", "classify", "simple_parse"}
         powerful_tasks = {
-            "exploit_plan", "code_gen", "reasoning", "strategy",
-            "code_generation", "exploit_strategy", "complex_analysis",
+            "exploit_plan",
+            "code_gen",
+            "reasoning",
+            "strategy",
+            "code_generation",
+            "exploit_strategy",
+            "complex_analysis",
         }
 
         task_lower = task_type.lower()
@@ -350,10 +357,7 @@ class ModelRouter:
         if not self._models:
             return None
 
-        scored = [
-            (spec.score_for_task(complexity), spec)
-            for spec in self._models.values()
-        ]
+        scored = [(spec.score_for_task(complexity), spec) for spec in self._models.values()]
         scored.sort(key=lambda x: -x[0])
 
         return scored[0][1] if scored else None
@@ -363,10 +367,7 @@ class ModelRouter:
         if model_id not in self._models:
             return
 
-        recent = [
-            e for e in self._performance_log[-100:]
-            if e["model"] == model_id
-        ]
+        recent = [e for e in self._performance_log[-100:] if e["model"] == model_id]
         if len(recent) < 5:
             return  # Not enough data
 

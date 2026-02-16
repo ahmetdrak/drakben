@@ -357,7 +357,8 @@ class MemoryStream:
             if self._db_conn:
                 try:
                     self._db_conn.execute(
-                        "DELETE FROM memory_nodes WHERE node_id = ?", (node_id,),
+                        "DELETE FROM memory_nodes WHERE node_id = ?",
+                        (node_id,),
                     )
                 except sqlite3.Error:
                     logger.debug("Eviction DB delete failed for %s", node_id, exc_info=True)
@@ -459,10 +460,7 @@ class MemoryStream:
             node_ids = self._by_type.get(node_type, [])
 
             if target:
-                node_ids = [
-                    nid for nid in node_ids
-                    if self._nodes.get(nid) and self._nodes[nid].target == target
-                ]
+                node_ids = [nid for nid in node_ids if self._nodes.get(nid) and self._nodes[nid].target == target]
 
             recent_ids = list(reversed(node_ids[-n:]))
 
@@ -488,10 +486,7 @@ class MemoryStream:
             node_ids = self._by_relevance.get(relevance, [])
 
             if target:
-                node_ids = [
-                    nid for nid in node_ids
-                    if self._nodes.get(nid) and self._nodes[nid].target == target
-                ]
+                node_ids = [nid for nid in node_ids if self._nodes.get(nid) and self._nodes[nid].target == target]
 
             recent_ids = list(reversed(node_ids[-n:]))
 
@@ -607,10 +602,7 @@ class MemoryStream:
     def count_by_type(self) -> dict[str, int]:
         """Return count per node type."""
         with self._lock:
-            return {
-                ntype.value: len(ids)
-                for ntype, ids in self._by_type.items()
-            }
+            return {ntype.value: len(ids) for ntype, ids in self._by_type.items()}
 
     def get_stats(self) -> dict[str, Any]:
         """Get memory stream statistics."""
@@ -664,7 +656,11 @@ class MemoryStream:
         if not nodes:
             return None, current_chars
         section, current_chars = self._collect_section(
-            header, nodes, n, current_chars, max_chars,
+            header,
+            nodes,
+            n,
+            current_chars,
+            max_chars,
         )
         return section, current_chars
 
@@ -698,8 +694,11 @@ class MemoryStream:
             critical = self.get_critical_findings(target=target)
             if critical:
                 sec, current_chars = self._collect_section(
-                    "=== CRITICAL FINDINGS ===\n", critical, 5,
-                    current_chars, max_chars,
+                    "=== CRITICAL FINDINGS ===\n",
+                    critical,
+                    5,
+                    current_chars,
+                    max_chars,
                 )
                 sections.append(sec)
 
@@ -711,8 +710,13 @@ class MemoryStream:
             ]
             for node_type, header, n in typed_specs:
                 sec, current_chars = self._build_typed_section(  # type: ignore[assignment]
-                    node_type, header, n, target,
-                    include_types, current_chars, max_chars,
+                    node_type,
+                    header,
+                    n,
+                    target,
+                    include_types,
+                    current_chars,
+                    max_chars,
                 )
                 if sec is not None:
                     sections.append(sec)
@@ -729,7 +733,8 @@ class MemoryStream:
         if self._db_conn:
             try:
                 self._db_conn.execute(
-                    "DELETE FROM memory_nodes WHERE target = ?", (target,),
+                    "DELETE FROM memory_nodes WHERE target = ?",
+                    (target,),
                 )
                 self._db_conn.commit()
             except sqlite3.Error:

@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\brain_decision.py
-# hypothesis_version: 6.151.6
-
-[0.0, 0.02, 0.03, 0.3, 0.5, 0.8, 1.0, 100, 'action', 'analyze_results', 'analyze_vulns', 'check_tools', 'cmd', 'command', 'complete', 'confidence', 'dir_bruteforce', 'dir_fuzz', 'dns_enum', 'exploit', 'exploit_search', 'get_shell', 'has_risks', 'http_bruteforce', 'intent', 'needs_approval', 'nikto -h {target}', 'nmap -F -T4 {target}', 'nmap -O {target}', 'nuclei_scan', 'os_detection', 'port_scan', 'port_scan_fast', 'port_scan_full', 'reasoning', 'respond', 'risk', 'risks', 'score', 'service_detection', 'smb_enum', 'sqli_test', 'ssh_bruteforce', 'ssl_scan', 'sslscan {target}', 'stealth', 'steps', 'subdomain_enum', 'success', 'tool', 'udp_scan', 'unknown', 'vuln_scan', 'web_scan', 'wpscan']

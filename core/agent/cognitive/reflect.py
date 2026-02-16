@@ -101,11 +101,10 @@ class ReflectModule:
 
         # Finding count trigger
         recent_findings = self._memory_stream.get_by_type(
-            NodeType.FINDING, n=10,
+            NodeType.FINDING,
+            n=10,
         )
-        high_poignancy_findings = [
-            f for f in recent_findings if f.poignancy >= 7.0
-        ]
+        high_poignancy_findings = [f for f in recent_findings if f.poignancy >= 7.0]
         return len(high_poignancy_findings) >= REFLECTION_TRIGGERS["finding_count"]
 
     def reflect(
@@ -179,13 +178,12 @@ class ReflectModule:
             return None
 
         # Look for chain: recon -> vuln -> exploit opportunity
-        services = [
-            f for f in findings
-            if f.pentest_relevance == PentestRelevance.SERVICE_INFO
-        ]
+        services = [f for f in findings if f.pentest_relevance == PentestRelevance.SERVICE_INFO]
         vulns = [
-            f for f in findings
-            if f.pentest_relevance in [
+            f
+            for f in findings
+            if f.pentest_relevance
+            in [
                 PentestRelevance.CRITICAL_VULN,
                 PentestRelevance.HIGH_VULN,
             ]
@@ -231,10 +229,14 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Correlate related vulnerabilities."""
         vulns = self._memory_stream.get_by_relevance(
-            PentestRelevance.CRITICAL_VULN, n=10, target=target,
+            PentestRelevance.CRITICAL_VULN,
+            n=10,
+            target=target,
         )
         vulns += self._memory_stream.get_by_relevance(
-            PentestRelevance.HIGH_VULN, n=10, target=target,
+            PentestRelevance.HIGH_VULN,
+            n=10,
+            target=target,
         )
 
         if len(vulns) < 2:
@@ -256,8 +258,7 @@ class ReflectModule:
             return None
 
         description = (
-            f"VULNERABILITY CORRELATION: Multiple {', '.join(patterns_found)} "
-            "detected. Consider combined exploitation."
+            f"VULNERABILITY CORRELATION: Multiple {', '.join(patterns_found)} detected. Consider combined exploitation."
         )
 
         return create_reflection_node(
@@ -273,7 +274,9 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Identify credential chains and reuse opportunities."""
         creds = self._memory_stream.get_by_relevance(
-            PentestRelevance.CREDENTIAL, n=10, target=target,
+            PentestRelevance.CREDENTIAL,
+            n=10,
+            target=target,
         )
 
         if len(creds) < 1:
@@ -281,12 +284,13 @@ class ReflectModule:
 
         # Look for reuse opportunities
         services = self._memory_stream.get_by_relevance(
-            PentestRelevance.SERVICE_INFO, n=20, target=target,
+            PentestRelevance.SERVICE_INFO,
+            n=20,
+            target=target,
         )
 
         auth_services = [
-            s for s in services
-            if any(x in s.description.lower() for x in ["ssh", "ftp", "smb", "rdp", "mysql"])
+            s for s in services if any(x in s.description.lower() for x in ["ssh", "ftp", "smb", "rdp", "mysql"])
         ]
 
         if auth_services:
@@ -311,14 +315,13 @@ class ReflectModule:
     ) -> ConceptNode | None:
         """Learn from failed attempts."""
         events = self._memory_stream.get_by_type(
-            NodeType.EVENT, n=30, target=target,
+            NodeType.EVENT,
+            n=30,
+            target=target,
         )
 
         # Find failures
-        failures = [
-            e for e in events
-            if "fail" in e.description.lower() or "error" in e.description.lower()
-        ]
+        failures = [e for e in events if "fail" in e.description.lower() or "error" in e.description.lower()]
 
         if len(failures) < 3:
             return None
@@ -371,7 +374,7 @@ class ReflectModule:
 
 {context}
 
-Target: {target or 'unknown'}
+Target: {target or "unknown"}
 
 Respond with a single actionable strategic recommendation."""
 

@@ -407,6 +407,7 @@ class TestMasterOrchestrator:
     @pytest.fixture()
     def orchestrator(self):
         from core.agent.brain import ExecutionContext
+
         with patch("core.agent.brain.AICoder"):
             orch = MasterOrchestrator.__new__(MasterOrchestrator)
             orch.reasoning_engine = MagicMock()
@@ -433,14 +434,18 @@ class TestMasterOrchestrator:
 
     def test_check_infinite_loop_diverse_actions(self, orchestrator):
         orchestrator.context.history = [
-            {"action": {"type": "scan"}}, {"action": {"type": "exploit"}}, {"action": {"type": "report"}}
+            {"action": {"type": "scan"}},
+            {"action": {"type": "exploit"}},
+            {"action": {"type": "report"}},
         ]
         decision = {"action": "recon"}
         assert orchestrator._check_infinite_loop(decision) is None
 
     def test_check_infinite_loop_repeated_actions(self, orchestrator):
         orchestrator.context.history = [
-            {"action": {"type": "scan"}}, {"action": {"type": "scan"}}, {"action": {"type": "scan"}}
+            {"action": {"type": "scan"}},
+            {"action": {"type": "scan"}},
+            {"action": {"type": "scan"}},
         ]
         decision = {"action": "scan"}
         result = orchestrator._check_infinite_loop(decision)
@@ -473,10 +478,7 @@ class TestConstructSystemPrompt:
             r._ai_coder = None
             r._first_error_shown = False
             # Set the compact system prompt template
-            r.COMPACT_SYSTEM_PROMPT = (
-                "Target: {target}\nPhase: {phase}\nOS: {os_name}\n"
-                "Kali: {is_kali}\nLang: {lang}"
-            )
+            r.COMPACT_SYSTEM_PROMPT = "Target: {target}\nPhase: {phase}\nOS: {os_name}\nKali: {is_kali}\nLang: {lang}"
             return r
 
     def test_prompt_with_target_en(self, reasoning):

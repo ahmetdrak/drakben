@@ -45,8 +45,7 @@ def create_app():
         from fastapi.middleware.cors import CORSMiddleware
     except ImportError:
         logger.warning(
-            "FastAPI not installed. Web UI unavailable. "
-            "Install with: pip install fastapi uvicorn",
+            "FastAPI not installed. Web UI unavailable. Install with: pip install fastapi uvicorn",
         )
         return None
 
@@ -71,6 +70,7 @@ def create_app():
             create_auth_middleware,
             create_rate_limit_middleware,
         )
+
         create_auth_middleware(app)
         create_rate_limit_middleware(app, max_requests=120, window_seconds=60.0)
     except ImportError:
@@ -92,6 +92,7 @@ def _register_health_endpoints(app) -> None:
         """Full health check (bypasses auth)."""
         try:
             from core.health import get_health_checker
+
             checker = get_health_checker()
             report = checker.full_check()
             return report.to_dict()
@@ -108,6 +109,7 @@ def _register_health_endpoints(app) -> None:
         """Readiness probe — can the system handle requests?"""
         try:
             from core.health import get_health_checker
+
             checker = get_health_checker()
             ready = checker.readiness()
             status_code = 200 if ready else 503
@@ -139,6 +141,7 @@ def _register_system_endpoints(app) -> None:
         """Get observability metrics."""
         try:
             from core.observability import get_metrics
+
             return get_metrics().get_all()
         except ImportError:
             return {"error": "Observability module not available"}
@@ -148,6 +151,7 @@ def _register_system_endpoints(app) -> None:
         """Get recent trace spans."""
         try:
             from core.observability import get_tracer
+
             return get_tracer().get_traces(limit=min(limit, 500))
         except ImportError:
             return []
@@ -157,6 +161,7 @@ def _register_system_endpoints(app) -> None:
         """Get knowledge graph statistics."""
         try:
             from core.knowledge_graph import get_knowledge_graph
+
             return get_knowledge_graph().stats()
         except ImportError:
             return {"error": "Knowledge graph not available"}
@@ -169,6 +174,7 @@ def _register_system_endpoints(app) -> None:
         """Get knowledge graph entities."""
         try:
             from core.knowledge_graph import get_knowledge_graph
+
             kg = get_knowledge_graph()
             entities = kg.find_entities(entity_type=entity_type, limit=limit)
             return [
@@ -191,6 +197,7 @@ def _register_event_endpoints(app) -> None:
     @app.get("/api/v1/events")
     async def event_stream():
         """Server-Sent Events stream of real-time DRAKBEN events."""
+
         async def generate():
             try:
                 from core.events import get_event_bus
@@ -210,12 +217,15 @@ def _register_event_endpoints(app) -> None:
                     while True:
                         try:
                             event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                            data = json.dumps({
-                                "type": event.type.value,
-                                "data": event.data,
-                                "timestamp": event.timestamp,
-                                "source": event.source,
-                            }, default=str)
+                            data = json.dumps(
+                                {
+                                    "type": event.type.value,
+                                    "data": event.data,
+                                    "timestamp": event.timestamp,
+                                    "source": event.source,
+                                },
+                                default=str,
+                            )
                             yield f"data: {data}\n\n"
                         except TimeoutError:
                             # Send keepalive
@@ -244,6 +254,7 @@ def _register_agent_endpoints(app) -> None:
         """Get current AgentState snapshot."""
         try:
             from core.agent.state import AgentState
+
             state = AgentState()
             return {
                 "target": state.target,
@@ -278,6 +289,7 @@ def _register_agent_endpoints(app) -> None:
         """Stop the running agent."""
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.stop()
             return {"status": "stop_requested"}
         except (ImportError, RuntimeError):
@@ -289,6 +301,7 @@ def _safe_import_status(module: str, cls: str) -> str:
     """Check if a module/class is available."""
     try:
         import importlib
+
         mod = importlib.import_module(module)
         getattr(mod, cls)
         return "available"

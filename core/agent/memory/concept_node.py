@@ -77,9 +77,9 @@ class SPOTriple:
         """Convert SPO triple to natural language sentence."""
         return f"{self.subject} {self.predicate} {self.obj}"
 
-    def matches(self, query_subject: str | None = None,
-                query_predicate: str | None = None,
-                query_obj: str | None = None) -> bool:
+    def matches(
+        self, query_subject: str | None = None, query_predicate: str | None = None, query_obj: str | None = None
+    ) -> bool:
         """Check if triple matches a query pattern (None = wildcard)."""
         if query_subject and query_subject.lower() not in self.subject.lower():
             return False
@@ -158,7 +158,7 @@ class ConceptNode:
         Stanford formula: recency = decay_factor ^ hours_since_access
         """
         hours_since_access = (time.time() - self.last_accessed) / 3600.0
-        return decay_factor ** hours_since_access
+        return decay_factor**hours_since_access
 
     def get_pentest_boost(self) -> float:
         """Get pentest-specific boost factor for this node."""
@@ -206,7 +206,9 @@ class ConceptNode:
                 "subject": self.spo_triple.subject,
                 "predicate": self.spo_triple.predicate,
                 "obj": self.spo_triple.obj,
-            } if self.spo_triple else None,
+            }
+            if self.spo_triple
+            else None,
             "embedding": self.embedding,
             "metadata": self.metadata,
             "parent_node_ids": self.parent_node_ids,

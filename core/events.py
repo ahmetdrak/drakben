@@ -207,7 +207,7 @@ class EventBus:
             # Store in ring-buffer history
             self._history.append(event)
             if len(self._history) > self.MAX_HISTORY:
-                self._history = self._history[-self.MAX_HISTORY:]
+                self._history = self._history[-self.MAX_HISTORY :]
 
             # Snapshot handlers to avoid lock during dispatch
             specific = list(self._subscribers.get(event_type, []))
@@ -220,7 +220,8 @@ class EventBus:
                 handler(event)
             except Exception:
                 logger.exception(
-                    "Event handler error for %s", event_label,
+                    "Event handler error for %s",
+                    event_label,
                 )
 
     # -- Control --

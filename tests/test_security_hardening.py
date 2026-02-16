@@ -156,7 +156,9 @@ class TestHealerWhitelist:
         # Will attempt pip install (which may fail in test env)
         # but should NOT be blocked by the whitelist
         result, _ = healer._heal_python_module_missing(
-            "test_tool", "import requests", diagnosis,
+            "test_tool",
+            "import requests",
+            diagnosis,
         )
         # It proceeds past the whitelist check (may succeed or fail at pip)
         # We just verify it doesn't return False with "not in safe whitelist"
@@ -167,7 +169,9 @@ class TestHealerWhitelist:
         healer = self._make_healer()
         diagnosis = {"module": "evil_package_xyz"}
         result, _ = healer._heal_python_module_missing(
-            "test_tool", "import evil_package_xyz", diagnosis,
+            "test_tool",
+            "import evil_package_xyz",
+            diagnosis,
         )
         assert result is False
         assert _ is None
@@ -176,7 +180,9 @@ class TestHealerWhitelist:
         healer = self._make_healer()
         diagnosis: dict[str, str] = {}
         result, _ = healer._heal_python_module_missing(
-            "test_tool", "import ???", diagnosis,
+            "test_tool",
+            "import ???",
+            diagnosis,
         )
         assert result is False
 
@@ -184,7 +190,9 @@ class TestHealerWhitelist:
         healer = self._make_healer()
         diagnosis = {"module": "evil; rm -rf /"}
         result, _ = healer._heal_python_module_missing(
-            "test_tool", "cmd", diagnosis,
+            "test_tool",
+            "cmd",
+            diagnosis,
         )
         assert result is False
 

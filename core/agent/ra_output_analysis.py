@@ -98,7 +98,7 @@ class RAOutputAnalysisMixin(_MixinBase):
             f'"severity": "info|low|medium|high|critical", '
             f'"next_steps": ['
             f'  {{"action": "action_name", "tool": "tool_name", "reason": "why"}}'
-            f']}}\n\n'
+            f"]}}\n\n"
             f"next_steps should recommend concrete follow-up scans based on what "
             f"was discovered (e.g., web port open -> nikto, SMB -> enum4linux). "
             f"Return empty list if no further action needed."
@@ -134,6 +134,7 @@ class RAOutputAnalysisMixin(_MixinBase):
         if output_parser and type(output_parser).__name__ == "StructuredOutputParser":
             try:
                 from core.intelligence.structured_output import ToolAnalysis as _TA
+
                 parsed = output_parser.parse(response, _TA)
                 if parsed and hasattr(parsed, "to_dict"):
                     return parsed.to_dict()
@@ -152,7 +153,9 @@ class RAOutputAnalysisMixin(_MixinBase):
 
         target = self.state.target or "unknown"
         n_injected = self.planner.inject_dynamic_steps(
-            new_actions=next_steps, target=target, source="llm",
+            new_actions=next_steps,
+            target=target,
+            source="llm",
         )
         if n_injected > 0:
             self.transparency.show_plan_injection(next_steps[:n_injected], source="llm")
@@ -230,7 +233,8 @@ class RAOutputAnalysisMixin(_MixinBase):
         return findings, severity
 
     def _determine_offline_next_steps(
-        self, port_lines: list[tuple[str, str]],
+        self,
+        port_lines: list[tuple[str, str]],
     ) -> tuple[str | None, list[dict[str, str]]]:
         """Determine next actions based on discovered ports."""
         if not port_lines:

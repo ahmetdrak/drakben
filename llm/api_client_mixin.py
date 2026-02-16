@@ -43,7 +43,11 @@ class APIClientMixin:
         return "[Error] Max retries exceeded"
 
     def _attempt_api_call(
-        self, headers: dict, payload: dict, timeout: int, attempt: int,
+        self,
+        headers: dict,
+        payload: dict,
+        timeout: int,
+        attempt: int,
     ) -> str | None:
         """Execute a single API call attempt. Returns result or None to retry."""
         try:
@@ -74,9 +78,7 @@ class APIClientMixin:
             "Content-Type": "application/json",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = (
-                "https://github.com/drakben/drakben"  # updated to generic
-            )
+            headers["HTTP-Referer"] = "https://github.com/drakben/drakben"  # updated to generic
             headers["X-Title"] = "DRAKBEN Pentest AI"
         return headers
 

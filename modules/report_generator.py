@@ -619,8 +619,7 @@ class ReportGenerator:
             if finding.cvss_vector:
                 cvss_extra = f" &mdash; <code>{_html.escape(finding.cvss_vector)}</code>"
             body += (
-                f"<p><strong>CVE:</strong> {_html.escape(finding.cve_id)} "
-                f"(CVSS: {finding.cvss_score}{cvss_extra})</p>"
+                f"<p><strong>CVE:</strong> {_html.escape(finding.cve_id)} (CVSS: {finding.cvss_score}{cvss_extra})</p>"
             )
         elif finding.cvss_vector:
             body += f"<p><strong>CVSS Vector:</strong> <code>{_html.escape(finding.cvss_vector)}</code></p>"
@@ -649,8 +648,10 @@ class ReportGenerator:
                     data = base64.b64encode(ss_file.read_bytes()).decode()
                     ext = ss_file.suffix.lower().lstrip(".")
                     mime = {
-                        "png": "image/png", "jpg": "image/jpeg",
-                        "jpeg": "image/jpeg", "gif": "image/gif",
+                        "png": "image/png",
+                        "jpg": "image/jpeg",
+                        "jpeg": "image/jpeg",
+                        "gif": "image/gif",
                     }.get(ext, "image/png")
                     html += (
                         f'<img src="data:{mime};base64,{data}"'

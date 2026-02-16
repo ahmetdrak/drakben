@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\events.py
-# hypothesis_version: 6.151.6
-
-[1000, 'agent.error', 'agent.paused', 'agent.resumed', 'agent.started', 'agent.stopped', 'brain.decision.made', 'brain.reasoning.done', 'evolution.penalty', 'finding.credential', 'finding.foothold', 'finding.service', 'llm.fallback', 'llm.query.done', 'llm.query.start', 'llm.stream.token', 'plan.created', 'plan.dynamic_inject', 'plan.replanned', 'plan.step.done', 'plan.step.start', 'report.generated', 'security.stagnation', 'state.changed', 'state.phase_changed', 'state.target_set', 'system.log', 'system.metric', 'tool.blocked', 'tool.complete', 'tool.failed', 'tool.start', 'user.command', 'user.input', 'value']

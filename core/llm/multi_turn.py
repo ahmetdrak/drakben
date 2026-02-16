@@ -113,15 +113,17 @@ class MessageHistory:
             return
 
         with self._lock:
-            self._messages.append({
-                "role": role,
-                "content": content,
-                "timestamp": time.time(),  # type: ignore[dict-item]
-            })
+            self._messages.append(
+                {
+                    "role": role,
+                    "content": content,
+                    "timestamp": time.time(),  # type: ignore[dict-item]
+                }
+            )
 
             # Enforce size limit (keep most recent)
             if len(self._messages) > self._max_messages:
-                self._messages = self._messages[-self._max_messages:]
+                self._messages = self._messages[-self._max_messages :]
 
     def get_messages(self) -> list[dict[str, str]]:
         """Get all messages in OpenAI chat format (with system prompt).
@@ -137,10 +139,7 @@ class MessageHistory:
                 result.append({"role": "system", "content": self._system_prompt})
 
             # Strip internal timestamps for API calls
-            result.extend(
-                {"role": msg["role"], "content": msg["content"]}
-                for msg in self._messages
-            )
+            result.extend({"role": msg["role"], "content": msg["content"]} for msg in self._messages)
 
             return result
 
@@ -190,10 +189,7 @@ class MessageHistory:
 
         """
         with self._lock:
-            return [
-                {"role": msg["role"], "content": msg["content"]}
-                for msg in self._messages[-n:]
-            ]
+            return [{"role": msg["role"], "content": msg["content"]} for msg in self._messages[-n:]]
 
     def clear(self) -> None:
         """Clear all message history (keeps system prompt)."""

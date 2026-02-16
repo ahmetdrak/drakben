@@ -84,7 +84,8 @@ class MenuAIProcessingMixin(_MixinBase):
 
             if intent and intent != "chat":
                 intent_display = {
-                    "scan": "🔍 Tarama", "action": "⚡ Eylem",
+                    "scan": "🔍 Tarama",
+                    "action": "⚡ Eylem",
                     "exploit": "💥 Exploit",
                     "find_vulnerability": "🔎 Zafiyet Arama",
                     "needs_target": "🎯 Hedef Gerekli",
@@ -192,6 +193,7 @@ class MenuAIProcessingMixin(_MixinBase):
 
         if not self.brain:
             from core.agent.brain import DrakbenBrain
+
             self.brain = DrakbenBrain()
 
         thinking_display = ThinkingDisplay(console=self.console, language=lang)
@@ -403,12 +405,7 @@ class MenuAIProcessingMixin(_MixinBase):
 
     def _extract_response_text(self, result: Any) -> str | None:
         """Extract response text from result dict."""
-        return (
-            result.get("llm_response")
-            or result.get("reply")
-            or result.get("response")
-            or result.get("reasoning")
-        )
+        return result.get("llm_response") or result.get("reply") or result.get("response") or result.get("reasoning")
 
     def _show_planned_steps(self, result: Any, lang: str) -> None:
         """Show planned steps from AI response."""
@@ -422,7 +419,7 @@ class MenuAIProcessingMixin(_MixinBase):
         for i, s in enumerate(steps[:5]):
             action = s.get("action", s.get("tool", "unknown"))
             desc = s.get("description", s.get("tool", ""))[:50]
-            step_lines.append(f"  {i+1}. {action} - {desc}")
+            step_lines.append(f"  {i + 1}. {action} - {desc}")
 
         step_text = "\n".join(step_lines)
         if step_text.strip():
@@ -454,6 +451,7 @@ class MenuAIProcessingMixin(_MixinBase):
             return
 
         from rich.panel import Panel
+
         self.console.print(
             Panel(
                 f"💻 {command}",

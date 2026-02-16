@@ -47,9 +47,7 @@ async def test_gauntlet_poc() -> None:  # NOSONAR - Test function intentionally 
     if StealthSession is not None:
         session = StealthSession(impersonate="chrome120")
         headers = session.headers
-        assert "Chrome" in headers.get("User-Agent", ""), (
-            "User-Agent does not mimic Chrome!"
-        )
+        assert "Chrome" in headers.get("User-Agent", ""), "User-Agent does not mimic Chrome!"
         results["Stealth"] = True
 
     # -------------------------------------------------------------

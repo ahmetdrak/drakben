@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class ComponentHealth:
     """Health status for one subsystem."""
@@ -85,6 +86,7 @@ class HealthReport:
 # Health Checker
 # ------------------------------------------------------------------
 
+
 class HealthChecker:
     """Performs health checks against DRAKBEN subsystems."""
 
@@ -114,13 +116,15 @@ class HealthChecker:
             except Exception as exc:
                 healthy, message, details = False, str(exc), {}
             latency = (time.time() - t0) * 1000
-            results.append(ComponentHealth(
-                name=name,
-                healthy=healthy,
-                latency_ms=latency,
-                message=message,
-                details=details,
-            ))
+            results.append(
+                ComponentHealth(
+                    name=name,
+                    healthy=healthy,
+                    latency_ms=latency,
+                    message=message,
+                    details=details,
+                )
+            )
 
         # Derive overall status
         unhealthy_count = sum(1 for r in results if not r.healthy)
@@ -150,6 +154,7 @@ class HealthChecker:
     def _check_runtime() -> tuple[bool, str, dict[str, Any]]:
         """Check Python runtime is operational."""
         import sys
+
         return True, "ok", {"python_version": sys.version.split()[0]}
 
     def _check_disk(self) -> tuple[bool, str, dict[str, Any]]:
@@ -167,6 +172,7 @@ class HealthChecker:
         """Check configuration is loadable."""
         try:
             from core.config import ConfigManager
+
             cm = ConfigManager(config_file="config/settings.json")
             provider = cm.config.llm_provider
             return True, f"provider={provider}", {"llm_provider": provider}
@@ -178,6 +184,7 @@ class HealthChecker:
         """Check at least one LLM provider is configured."""
         try:
             from core.config import ConfigManager
+
             cm = ConfigManager(config_file="config/settings.json")
             if cm.config.llm_setup_complete:
                 return True, "configured", {"setup_complete": True}
@@ -190,6 +197,7 @@ class HealthChecker:
         """Check Docker availability (non-critical)."""
         try:
             import docker
+
             client = docker.from_env()
             client.ping()
             return True, "reachable", {}

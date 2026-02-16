@@ -3,6 +3,7 @@
 This module is kept only for backward compatibility. All new code
 should import from ``core.llm.llm_cache``.
 """
+
 import hashlib
 import logging
 import sqlite3
@@ -134,5 +135,3 @@ class LLMCache:
     def _hash_query(self, query: str) -> str:
         """Sorguyu SHA256 ile hashle."""
         return hashlib.sha256(query.encode("utf-8")).hexdigest()
-
-

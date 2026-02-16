@@ -125,6 +125,7 @@ class LLMEngine:
         """Auto-initialize LLM client from environment."""
         try:
             from llm.openrouter_client import OpenRouterClient
+
             self._client = OpenRouterClient()
             if not self._model:
                 self._model = self._client.model
@@ -134,6 +135,7 @@ class LLMEngine:
     def _init_history(self, system_prompt: str, max_messages: int) -> None:
         try:
             from core.llm.multi_turn import MessageHistory
+
             self._history = MessageHistory(  # type: ignore[assignment]
                 system_prompt=system_prompt,
                 max_messages=max_messages,
@@ -144,6 +146,7 @@ class LLMEngine:
     def _init_token_counter(self, model: str) -> None:
         try:
             from core.llm.token_counter import TokenCounter
+
             self._token_counter = TokenCounter(model=model or "gpt-4o")  # type: ignore[assignment]
         except ImportError:
             logger.debug("TokenCounter unavailable — token management disabled.")
@@ -151,8 +154,10 @@ class LLMEngine:
     def _init_validator(self) -> None:
         try:
             from core.llm.output_models import LLMOutputValidator
+
             self._validator = LLMOutputValidator(  # type: ignore[assignment]
-                llm_client=self._client, max_retries=2,
+                llm_client=self._client,
+                max_retries=2,
             )
         except ImportError:
             logger.debug("LLMOutputValidator unavailable — validation disabled.")
@@ -160,6 +165,7 @@ class LLMEngine:
     def _init_rag(self) -> None:
         try:
             from core.llm.rag_pipeline import RAGPipeline
+
             self._rag = RAGPipeline()  # type: ignore[assignment]
             if not self._rag.available:
                 self._rag = None
@@ -170,6 +176,7 @@ class LLMEngine:
         """Initialize LLM response cache."""
         try:
             from core.llm.llm_cache import LLMCache
+
             self._cache = LLMCache(default_ttl=ttl, max_size=512)
         except ImportError:
             logger.debug("LLMCache unavailable — caching disabled.")
@@ -178,6 +185,7 @@ class LLMEngine:
         """Initialize ContextCompressor for intelligent message summarization."""
         try:
             from core.intelligence.context_compressor import ContextCompressor
+
             self._context_compressor = ContextCompressor(llm_client=self._client)
         except ImportError:
             logger.debug("ContextCompressor unavailable — compression disabled.")
@@ -186,6 +194,7 @@ class LLMEngine:
         """Initialize ModelRouter for intelligent model selection."""
         try:
             from core.intelligence.model_router import ModelRouter
+
             self._model_router = ModelRouter()
             # Auto-detect model capabilities from client
             if self._client and hasattr(self._client, "model"):
@@ -237,6 +246,7 @@ class LLMEngine:
         cache_key = None
         if self._cache and not validate:
             from core.llm.llm_cache import LLMCache
+
             cache_key = LLMCache.make_key(prompt, effective_system, routed_model or "")
             cached = self._cache.get(cache_key)
             if cached is not None:
@@ -268,9 +278,7 @@ class LLMEngine:
 
     def _enrich_system_prompt(self, prompt: str, system_prompt: str | None) -> str:
         """Enrich system prompt with RAG context if available."""
-        effective = system_prompt or (
-            self._history.system_prompt if self._history else ""
-        )
+        effective = system_prompt or (self._history.system_prompt if self._history else "")
         if not self._rag:
             return effective
         enriched = self._rag.enrich_prompt(prompt, effective)
@@ -280,13 +288,18 @@ class LLMEngine:
         return effective
 
     def _query_client(
-        self, prompt: str, system: str, timeout: int, routed_model: str | None,
+        self,
+        prompt: str,
+        system: str,
+        timeout: int,
+        routed_model: str | None,
     ) -> str:
         """Execute query against LLM client with optional model routing."""
         if not routed_model or not hasattr(self._client, "query"):
             return self._client.query(prompt, system, timeout=timeout)
         try:
             import inspect
+
             sig = inspect.signature(self._client.query)
             if "model" in sig.parameters:
                 return self._client.query(prompt, system, timeout=timeout, model=routed_model)
@@ -329,9 +342,7 @@ class LLMEngine:
 
         self._stats["streams"] += 1
 
-        effective_system = system_prompt or (
-            self._history.system_prompt if self._history else ""
-        )
+        effective_system = system_prompt or (self._history.system_prompt if self._history else "")
 
         # RAG enrichment
         if self._rag:
@@ -372,13 +383,14 @@ class LLMEngine:
 
         self._stats["tool_calls"] += 1
 
-        effective_system = system_prompt or (
-            self._history.system_prompt if self._history else ""
-        )
+        effective_system = system_prompt or (self._history.system_prompt if self._history else "")
 
         if hasattr(self._client, "query_with_tools"):
             return self._client.query_with_tools(
-                prompt, tools, effective_system, timeout,
+                prompt,
+                tools,
+                effective_system,
+                timeout,
             )
 
         # Fallback: query normally and try to parse tool calls from JSON
@@ -448,12 +460,16 @@ class LLMEngine:
 
         if hasattr(self._client, "query_with_messages"):
             return self._client.query_with_messages(
-                messages, timeout, tools=tools, stream=stream,
+                messages,
+                timeout,
+                tools=tools,
+                stream=stream,
             )
         return self._fallback_multi_turn(messages, timeout)
 
     def _compress_messages(
-        self, messages: list[dict[str, str]],
+        self,
+        messages: list[dict[str, str]],
     ) -> list[dict[str, str]]:
         """Compress conversation history if compressor is available."""
         if not self._context_compressor or len(messages) <= 6:
@@ -465,7 +481,9 @@ class LLMEngine:
             return messages
 
     def _enrich_history_system(
-        self, messages: list[dict[str, str]], user_message: str | None,
+        self,
+        messages: list[dict[str, str]],
+        user_message: str | None,
     ) -> list[dict[str, str]]:
         """Enrich system prompt in history with RAG context."""
         if not self._rag or not messages:
@@ -575,7 +593,9 @@ class LLMEngine:
     # ─────────────────────── Validation Methods ───────────────────────
 
     def validate_json(
-        self, raw_response: str, model_class: type | None = None,
+        self,
+        raw_response: str,
+        model_class: type | None = None,
     ) -> dict[str, Any] | None:
         """Validate and repair LLM JSON output.
 
@@ -587,6 +607,7 @@ class LLMEngine:
         # Fallback: raw JSON parse
         try:
             import json as _json
+
             return _json.loads(raw_response)
         except (json.JSONDecodeError, TypeError):
             return None
@@ -650,6 +671,7 @@ class LLMEngine:
         """
         try:
             from core.tools.tool_registry import ToolRegistry
+
             registry = ToolRegistry()
         except ImportError:
             return []
@@ -667,18 +689,20 @@ class LLMEngine:
                 },
             }
 
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": tool.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": params,
-                        "required": ["target"],
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": tool.description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": params,
+                            "required": ["target"],
+                        },
                     },
-                },
-            })
+                }
+            )
 
         return schemas
 
@@ -691,8 +715,10 @@ class LLMEngine:
     ) -> str:
         """Async single query."""
         import asyncio
+
         try:
             from core.llm.async_client import AsyncLLMClient
+
             async with asyncio.timeout(self._default_timeout), AsyncLLMClient() as client:
                 return await client.ainvoke(prompt, system_prompt)
         except ImportError:
@@ -705,8 +731,10 @@ class LLMEngine:
     ) -> list[str]:
         """Async batch — execute multiple queries in parallel."""
         import asyncio
+
         try:
             from core.llm.async_client import AsyncLLMClient
+
             async with asyncio.timeout(self._default_timeout), AsyncLLMClient() as client:
                 return await client.abatch(prompts, system_prompt)
         except ImportError:
@@ -716,6 +744,7 @@ class LLMEngine:
         """Async streaming query."""
         try:
             from core.llm.async_client import AsyncLLMClient
+
             async with AsyncLLMClient() as client:
                 async for chunk in client.astream(prompt, system_prompt):
                     yield chunk

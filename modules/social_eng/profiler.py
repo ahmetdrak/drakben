@@ -243,9 +243,7 @@ class NLPPayloadEngine:
             sorted_biases[0][0] if (len(sorted_biases) > 0 and sorted_biases[0][1] > 0) else CognitiveBias.CURIOSITY
         )
         secondary = (
-            sorted_biases[1][0]
-            if len(sorted_biases) > 1 and sorted_biases[1][1] > 0
-            else CognitiveBias.SOCIAL_PROOF
+            sorted_biases[1][0] if len(sorted_biases) > 1 and sorted_biases[1][1] > 0 else CognitiveBias.SOCIAL_PROOF
         )
 
         # B. Context & Tone Detection

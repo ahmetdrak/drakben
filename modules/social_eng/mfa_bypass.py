@@ -60,11 +60,7 @@ class MFABypass:
         """List available phishlets (login page templates)."""
         phishlets: list[str] = []
         if os.path.exists(self.phishlets_dir):
-            phishlets.extend(
-                f.replace(".yaml", "")
-                for f in os.listdir(self.phishlets_dir)
-                if f.endswith(".yaml")
-            )
+            phishlets.extend(f.replace(".yaml", "") for f in os.listdir(self.phishlets_dir) if f.endswith(".yaml"))
         return phishlets
 
     def start_proxy(self, _phishlet: str, _lure_domain: str) -> bool:
@@ -505,4 +501,3 @@ class UnifiedMFABypass:
         self.active_backend = backend
         logger.info("Switched to backend: %s", backend.value)
         return True
-

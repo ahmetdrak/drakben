@@ -151,26 +151,36 @@ class LLMOutputValidator:
             )
 
         # Prompt injection check (highest priority)
-        result = self._check_patterns(command, _PROMPT_INJECTION_PATTERNS, "Prompt injection pattern detected", "critical")
+        result = self._check_patterns(
+            command, _PROMPT_INJECTION_PATTERNS, "Prompt injection pattern detected", "critical"
+        )
         if result:
             return result
 
         # Destructive file-system check
         if self.config.block_destructive_fs:
-            result = self._check_patterns(command, _DESTRUCTIVE_FS_PATTERNS, "Destructive file-system operation blocked", "critical")
+            result = self._check_patterns(
+                command, _DESTRUCTIVE_FS_PATTERNS, "Destructive file-system operation blocked", "critical"
+            )
             if result:
                 return result
 
         # Data exfiltration check
         if self.config.block_exfiltration:
-            result = self._check_patterns(command, _EXFILTRATION_PATTERNS, "Potential data exfiltration blocked", "high")
+            result = self._check_patterns(
+                command, _EXFILTRATION_PATTERNS, "Potential data exfiltration blocked", "high"
+            )
             if result:
                 return result
 
         return ValidationResult(safe=True, command=command)
 
     def _check_patterns(
-        self, command: str, patterns: list, reason: str, risk_level: str,
+        self,
+        command: str,
+        patterns: list,
+        reason: str,
+        risk_level: str,
     ) -> ValidationResult | None:
         """Check command against a list of compiled regex patterns."""
         for pattern in patterns:

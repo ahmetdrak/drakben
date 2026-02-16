@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\health.py
-# hypothesis_version: 6.151.6
-
-[0.0, 100, 1000, 1024, '2.5.0', 'available', 'checks', 'config', 'config/settings.json', 'configured', 'degraded', 'disk', 'docker', 'free_mb', 'healthy', 'latency_ms', 'llm', 'llm_provider', 'message', 'name', 'no LLM configured', 'ok', 'python_version', 'reachable', 'runtime', 'setup_complete', 'status', 'timestamp', 'unhealthy', 'version']

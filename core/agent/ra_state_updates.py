@@ -95,6 +95,7 @@ class RAStateUpdatesMixin(_MixinBase):
         """Get transparency dashboard (lazy import to avoid circular deps)."""
         try:
             from core.ui.transparency import get_transparency
+
             return get_transparency(getattr(self, "console", None))
         except ImportError:
             return None
@@ -141,7 +142,8 @@ class RAStateUpdatesMixin(_MixinBase):
             if td:
                 n_vulns = len(self.state.vulnerabilities)
                 td.show_phase_transition(
-                    old_phase, "EXPLOIT",
+                    old_phase,
+                    "EXPLOIT",
                     f"{n_vulns} vulnerabilities found — attempting exploitation",
                 )
         elif self.state.phase != AttackPhase.VULN_SCAN:
@@ -169,16 +171,28 @@ class RAStateUpdatesMixin(_MixinBase):
 
     # Positive evidence patterns for foothold detection
     _FOOTHOLD_POSITIVE = [
-        "session opened", "meterpreter", "shell session",
-        "command shell", "reverse shell", "bind shell",
-        "successfully exploited", "access granted",
-        "root@", "www-data@", "uid=", "whoami",
+        "session opened",
+        "meterpreter",
+        "shell session",
+        "command shell",
+        "reverse shell",
+        "bind shell",
+        "successfully exploited",
+        "access granted",
+        "root@",
+        "www-data@",
+        "uid=",
+        "whoami",
     ]
     # Negative evidence that overrides positive matches
     _FOOTHOLD_NEGATIVE = [
-        "unsuccessful", "not vulnerable", "failed",
-        "no session", "exploit completed but no session",
-        "success rate: 0", "0 sessions opened",
+        "unsuccessful",
+        "not vulnerable",
+        "failed",
+        "no session",
+        "exploit completed but no session",
+        "success rate: 0",
+        "0 sessions opened",
     ]
 
     def _process_exploit_result(self, tool_name: str, result: dict) -> None:
@@ -233,8 +247,7 @@ class RAStateUpdatesMixin(_MixinBase):
         else:
             # Log warning instead of injecting fake data
             logger.warning(
-                "Nmap output parsing returned no services. "
-                "Raw output (first 500 chars): %s",
+                "Nmap output parsing returned no services. Raw output (first 500 chars): %s",
                 stdout[:500],
             )
             self.state.set_observation(

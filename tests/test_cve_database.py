@@ -162,7 +162,7 @@ class TestAutoUpdater:
         updater = AutoUpdater(db)
 
         # Should not raise
-        with patch.object(updater, '_update_loop'):
+        with patch.object(updater, "_update_loop"):
             updater.start_background_update()
 
 
@@ -192,10 +192,9 @@ class TestCVEDatabaseIntegration:
 
         # Check tables exist
         import sqlite3
+
         with sqlite3.connect(db_path) as conn:
-            tables = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             table_names = [t[0] for t in tables]
             assert "cve_cache" in table_names
             assert "keyword_index" in table_names

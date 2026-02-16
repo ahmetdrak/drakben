@@ -157,9 +157,11 @@ class DaemonService:
             # M-11 FIX: Cross-platform process termination
             if self.is_windows:
                 import subprocess
+
                 subprocess.run(
                     ["taskkill", "/PID", str(pid), "/F"],
-                    capture_output=True, check=False,
+                    capture_output=True,
+                    check=False,
                 )
             else:
                 os.kill(pid, signal.SIGTERM)

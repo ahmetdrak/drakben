@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\memory\memory_stream.py
-# hypothesis_version: 6.151.6
-
-[0.5, 1.0, 6.0, 7.0, 10.0, 100, 2000, 10000, '\n=== INSIGHTS ===\n', 'Clear all DB failed', 'access_count', 'by_type', 'created_at', 'description', 'distance', 'drakben_memory.db', 'embeddings_enabled', 'last_accessed', 'metadata', 'newest_node', 'node_id', 'node_type', 'oldest_node', 'parent_node_ids', 'pentest_relevance', 'persistence_enabled', 'poignancy', 'spo_obj', 'spo_predicate', 'spo_subject', 'target', 'targets', 'total_nodes']

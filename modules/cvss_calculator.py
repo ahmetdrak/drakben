@@ -47,13 +47,13 @@ class CVSSResult:
 # ──────────────────────────────────────────────────────────────
 
 _AV = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}  # Attack Vector
-_AC = {"L": 0.77, "H": 0.44}                          # Attack Complexity
-_PR_U = {"N": 0.85, "L": 0.62, "H": 0.27}            # Privileges Required (Scope Unchanged)
-_PR_C = {"N": 0.85, "L": 0.68, "H": 0.50}            # Privileges Required (Scope Changed)
-_UI = {"N": 0.85, "R": 0.62}                          # User Interaction
-_C = {"N": 0.00, "L": 0.22, "H": 0.56}               # Confidentiality Impact
-_I = {"N": 0.00, "L": 0.22, "H": 0.56}               # Integrity Impact
-_A = {"N": 0.00, "L": 0.22, "H": 0.56}               # Availability Impact
+_AC = {"L": 0.77, "H": 0.44}  # Attack Complexity
+_PR_U = {"N": 0.85, "L": 0.62, "H": 0.27}  # Privileges Required (Scope Unchanged)
+_PR_C = {"N": 0.85, "L": 0.68, "H": 0.50}  # Privileges Required (Scope Changed)
+_UI = {"N": 0.85, "R": 0.62}  # User Interaction
+_C = {"N": 0.00, "L": 0.22, "H": 0.56}  # Confidentiality Impact
+_I = {"N": 0.00, "L": 0.22, "H": 0.56}  # Integrity Impact
+_A = {"N": 0.00, "L": 0.22, "H": 0.56}  # Availability Impact
 
 _VECTOR_RE = re.compile(
     r"^CVSS:3\.[01]/AV:([NALP])/AC:([LH])/PR:([NLH])/UI:([NR])"
@@ -168,6 +168,7 @@ class CVSSCalculator:
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
+
 
 def _roundup(value: float) -> float:
     """CVSS v3.1 'roundup' function: round up to 1 decimal place."""

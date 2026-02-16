@@ -26,6 +26,7 @@ class TestDIContainer:
 
     def setup_method(self):
         from core.container import Container
+
         self.c = Container()
 
     def test_register_and_resolve_factory(self):
@@ -75,9 +76,11 @@ class TestDIContainer:
         mock_svc = MagicMock()
         self.c.register("db", mock_svc)
         self.c.resolve("db")  # Must resolve to cache the instance
+
         # Now register a real closeable
         class Closeable:
             closed = False
+
             def close(self):
                 self.closed = True
 
@@ -94,12 +97,14 @@ class TestDIContainer:
 
     def test_global_singleton(self):
         from core.container import get_container
+
         c1 = get_container()
         c2 = get_container()
         assert c1 is c2
 
     def test_reset_container_function(self):
         from core.container import get_container, reset_container
+
         c = get_container()
         c.register("tmp", lambda: 42)
         c.resolve("tmp")
@@ -118,6 +123,7 @@ class TestHealthChecker:
 
     def test_full_check_returns_report(self):
         from core.health import get_health_checker
+
         checker = get_health_checker()
         report = checker.full_check()
         assert report.status in ("healthy", "degraded", "unhealthy")
@@ -126,6 +132,7 @@ class TestHealthChecker:
 
     def test_report_to_dict(self):
         from core.health import get_health_checker
+
         report = get_health_checker().full_check()
         d = report.to_dict()
         assert "status" in d
@@ -134,17 +141,20 @@ class TestHealthChecker:
 
     def test_readiness_returns_bool(self):
         from core.health import get_health_checker
+
         result = get_health_checker().readiness()
         assert isinstance(result, bool)
 
     def test_runtime_check_always_healthy(self):
         from core.health import HealthChecker
+
         ok, _msg, details = HealthChecker._check_runtime()
         assert ok is True
         assert "python_version" in details
 
     def test_disk_check(self):
         from core.health import HealthChecker
+
         checker = HealthChecker()
         ok, _msg, details = checker._check_disk()
         assert isinstance(ok, bool)
@@ -153,11 +163,13 @@ class TestHealthChecker:
     def test_docker_check_non_critical(self):
         """Docker check should never fail the overall health (it's optional)."""
         from core.health import HealthChecker
+
         ok, _msg, _details = HealthChecker._check_docker()
         assert ok is True  # Always True — Docker is optional
 
     def test_singleton(self):
         from core.health import get_health_checker
+
         a = get_health_checker()
         b = get_health_checker()
         assert a is b
@@ -173,12 +185,19 @@ class TestInputValidatorProperty:
 
     def setup_method(self):
         from core.security.input_validator import LLMOutputValidator
+
         self.validator = LLMOutputValidator()
 
-    @given(cmd=st.text(min_size=1, max_size=200, alphabet=st.characters(
-        whitelist_categories=("L", "N", "P"),
-        whitelist_characters=" .-_/:",
-    )))
+    @given(
+        cmd=st.text(
+            min_size=1,
+            max_size=200,
+            alphabet=st.characters(
+                whitelist_categories=("L", "N", "P"),
+                whitelist_characters=" .-_/:",
+            ),
+        )
+    )
     @settings(max_examples=50)
     def test_safe_commands_never_crash(self, cmd):
         """Validator should never raise on any input."""
@@ -217,10 +236,16 @@ class TestCVSSProperty:
     @settings(max_examples=100)
     def test_score_always_0_to_10(self, av, ac, pr, ui, s, c, i, a):
         from modules.cvss_calculator import CVSSCalculator
+
         result = CVSSCalculator.from_metrics(
-            attack_vector=av, attack_complexity=ac,
-            privileges_required=pr, user_interaction=ui,
-            scope=s, confidentiality=c, integrity=i, availability=a,
+            attack_vector=av,
+            attack_complexity=ac,
+            privileges_required=pr,
+            user_interaction=ui,
+            scope=s,
+            confidentiality=c,
+            integrity=i,
+            availability=a,
         )
         assert 0.0 <= result.score <= 10.0
         assert result.severity in ("NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL")
@@ -239,10 +264,16 @@ class TestCVSSProperty:
     def test_vector_roundtrip(self, av, ac, pr, ui, s, c, i, a):
         """from_metrics → vector → from_vector should produce same score."""
         from modules.cvss_calculator import CVSSCalculator
+
         r1 = CVSSCalculator.from_metrics(
-            attack_vector=av, attack_complexity=ac,
-            privileges_required=pr, user_interaction=ui,
-            scope=s, confidentiality=c, integrity=i, availability=a,
+            attack_vector=av,
+            attack_complexity=ac,
+            privileges_required=pr,
+            user_interaction=ui,
+            scope=s,
+            confidentiality=c,
+            integrity=i,
+            availability=a,
         )
         r2 = CVSSCalculator.from_vector(r1.vector)
         assert r1.score == r2.score
@@ -259,40 +290,47 @@ class TestCVSSCalculator:
 
     def test_maximum_severity(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
         assert r.score == 9.8
         assert r.severity == "CRITICAL"
 
     def test_zero_impact(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N")
         assert r.score == 0.0
         assert r.severity == "NONE"
 
     def test_medium_score(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:L/I:L/A:N")
         assert 3.0 <= r.score <= 6.0
         assert r.severity in ("LOW", "MEDIUM")
 
     def test_scope_changed(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H")
         assert r.score == 10.0
         assert r.severity == "CRITICAL"
 
     def test_invalid_vector_raises(self):
         from modules.cvss_calculator import CVSSCalculator
+
         with pytest.raises(ValueError, match="Invalid CVSS"):
             CVSSCalculator.from_vector("not-a-vector")
 
     def test_vector_v30_also_works(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
         assert r.score == 9.8
 
     def test_breakdown_fields(self):
         from modules.cvss_calculator import CVSSCalculator
+
         r = CVSSCalculator.from_vector("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
         assert "impact" in r.breakdown
         assert "exploitability" in r.breakdown
@@ -300,6 +338,7 @@ class TestCVSSCalculator:
 
     def test_severity_from_score(self):
         from modules.cvss_calculator import CVSSCalculator
+
         assert CVSSCalculator.severity_from_score(0.0) == "NONE"
         assert CVSSCalculator.severity_from_score(2.5) == "LOW"
         assert CVSSCalculator.severity_from_score(5.0) == "MEDIUM"
@@ -322,6 +361,7 @@ class TestMultiAgentEnhanced:
 
     def test_delegate_returns_latency(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator(llm_client=self._mock_client("scan done"))
         result = orch.delegate(AgentRole.SCANNING, "analyze this output")
         assert result["success"] is True
@@ -330,6 +370,7 @@ class TestMultiAgentEnhanced:
 
     def test_delegate_with_context(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         client = self._mock_client("found vulns")
         orch = MultiAgentOrchestrator(llm_client=client)
         result = orch.delegate(
@@ -347,7 +388,9 @@ class TestMultiAgentEnhanced:
 
         mock_chain = MagicMock()
         mock_chain.query.return_value = MagicMock(
-            success=True, response="fallback answer", provider_used="backup",
+            success=True,
+            response="fallback answer",
+            provider_used="backup",
         )
         orch = MultiAgentOrchestrator(fallback_chain=mock_chain)
         result = orch.delegate(AgentRole.REASONING, "plan attack")
@@ -356,12 +399,14 @@ class TestMultiAgentEnhanced:
 
     def test_no_client_returns_failure(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator()
         result = orch.delegate(AgentRole.DEFAULT, "hello")
         assert result["success"] is False
 
     def test_stats_include_new_fields(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator(llm_client=self._mock_client())
         orch.delegate(AgentRole.PARSING, "parse this")
         stats = orch.get_stats()
@@ -373,6 +418,7 @@ class TestMultiAgentEnhanced:
 
     def test_delegation_record_stored(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator(llm_client=self._mock_client())
         orch.delegate(AgentRole.CODING, "write exploit")
         assert len(orch._delegation_history) == 1
@@ -394,6 +440,7 @@ class TestMultiAgentEnhanced:
 
     def test_all_roles_have_system_prompt(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator()
         for role in AgentRole:
             prompt = orch.get_system_prompt(role)
@@ -402,6 +449,7 @@ class TestMultiAgentEnhanced:
 
     def test_tier_for_all_roles(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator()
         for role in AgentRole:
             tier = orch.get_tier(role)
@@ -418,6 +466,7 @@ class TestFindingEnhanced:
 
     def test_cvss_vector_field(self):
         from modules.report_generator import Finding, FindingSeverity
+
         f = Finding(
             title="SQL Injection",
             severity=FindingSeverity.CRITICAL,
@@ -432,6 +481,7 @@ class TestFindingEnhanced:
 
     def test_evidence_artifacts_field(self):
         from modules.report_generator import Finding, FindingSeverity
+
         f = Finding(
             title="Open Port",
             severity=FindingSeverity.INFO,
@@ -445,6 +495,7 @@ class TestFindingEnhanced:
 
     def test_defaults_backward_compatible(self):
         from modules.report_generator import Finding, FindingSeverity
+
         f = Finding(
             title="Test",
             severity=FindingSeverity.LOW,
@@ -466,6 +517,7 @@ class TestGracefulShutdown:
 
     def setup_method(self):
         from core.stop_controller import StopController
+
         # Create a fresh instance (bypass singleton for isolation)
         self.ctrl = StopController.__new__(StopController)
         self.ctrl._initialized = False
@@ -511,6 +563,7 @@ class TestGracefulShutdown:
 
     def test_check_stop_convenience(self):
         from core.stop_controller import check_stop, stop_controller
+
         stop_controller.reset()
         assert not check_stop()
         stop_controller.stop()

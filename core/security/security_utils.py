@@ -41,7 +41,8 @@ class CredentialStore:
         self._encryption_key: bytes | None = None
 
         logger.info(
-            "CredentialStore initialized (keyring: %s)", self._keyring_available,
+            "CredentialStore initialized (keyring: %s)",
+            self._keyring_available,
         )
 
     def _check_keyring(self) -> bool:
@@ -76,10 +77,7 @@ class CredentialStore:
             logger.exception(
                 "pycryptodome not available! Install with: pip install pycryptodome",
             )
-            msg = (
-                "pycryptodome is REQUIRED for secure credential storage. "
-                "Install with: pip install pycryptodome"
-            )
+            msg = "pycryptodome is REQUIRED for secure credential storage. Install with: pip install pycryptodome"
             raise ImportError(msg) from e
 
     def _decrypt(self, encrypted: bytes, key: bytes) -> str:
@@ -98,10 +96,7 @@ class CredentialStore:
         except ImportError as e:
             # NO FALLBACK - XOR is not secure
             logger.exception("pycryptodome not available for decryption!")
-            msg = (
-                "pycryptodome is REQUIRED for credential decryption. "
-                "Install with: pip install pycryptodome"
-            )
+            msg = "pycryptodome is REQUIRED for credential decryption. Install with: pip install pycryptodome"
             raise ImportError(msg) from e
 
     def store(self, key: str, value: str, master_password: str | None = None) -> bool:

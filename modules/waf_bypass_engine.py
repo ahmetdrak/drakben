@@ -425,7 +425,10 @@ class AdaptiveMutationMemory:
                     conn.close()
 
     def get_best_mutations(
-        self, waf_type: WAFType, context: str, limit: int = 5,
+        self,
+        waf_type: WAFType,
+        context: str,
+        limit: int = 5,
     ) -> list[tuple[str, float]]:
         """Get best mutation types for a specific WAF and context."""
         with self._lock:
@@ -753,7 +756,10 @@ class SQLBypassEngine:
                 if keyword.upper() in result.upper():
                     alt = secrets.choice(alternatives)
                     result = re.sub(
-                        rf"\b{keyword}\b", alt, result, flags=re.IGNORECASE,
+                        rf"\b{keyword}\b",
+                        alt,
+                        result,
+                        flags=re.IGNORECASE,
                     )
 
         # Level 3: Comment injection
@@ -880,9 +886,7 @@ class XSSBypassEngine:
     @classmethod
     def case_mutation(cls, tag: str) -> str:
         """Random case mutation for tags."""
-        return "".join(
-            c.upper() if secrets.choice([True, False]) else c.lower() for c in tag
-        )
+        return "".join(c.upper() if secrets.choice([True, False]) else c.lower() for c in tag)
 
     @classmethod
     def tag_mutation(cls, payload: str) -> str:
@@ -1091,7 +1095,8 @@ class WAFBypassEngine:
 
     @staticmethod
     def _score_headers(
-        signature: WAFSignature, response_headers: dict[str, str],
+        signature: WAFSignature,
+        response_headers: dict[str, str],
     ) -> tuple[float, int]:
         """Score header matches. Returns (matches, total_checks)."""
         matches = 0.0
@@ -1110,7 +1115,9 @@ class WAFBypassEngine:
 
     @staticmethod
     def _score_cookies_and_body(
-        signature: WAFSignature, cookies: list[str], body_lower: str,
+        signature: WAFSignature,
+        cookies: list[str],
+        body_lower: str,
     ) -> tuple[float, int]:
         """Score cookie and body pattern matches. Returns (matches, total_checks)."""
         matches = 0.0
@@ -1136,7 +1143,9 @@ class WAFBypassEngine:
         """Score how well a WAF signature matches the response."""
         hdr_matches, hdr_checks = self._score_headers(signature, response_headers)
         cb_matches, cb_checks = self._score_cookies_and_body(
-            signature, cookies, response_body.lower(),
+            signature,
+            cookies,
+            response_body.lower(),
         )
         total_checks = hdr_checks + cb_checks
         matches = hdr_matches + cb_matches
@@ -1172,7 +1181,11 @@ class WAFBypassEngine:
 
         for waf_type, signature in WAF_SIGNATURES.items():
             confidence = self._score_waf_signature(
-                signature, response_headers, response_body, status_code, cookies,
+                signature,
+                response_headers,
+                response_body,
+                status_code,
+                cookies,
             )
             if confidence > best_confidence:
                 best_confidence = confidence
@@ -1258,7 +1271,7 @@ class WAFBypassEngine:
 
         payloads.sort(key=sort_key)
 
-        return payloads[:aggressiveness * 5]
+        return payloads[: aggressiveness * 5]
 
     def bypass_xss(
         self,
@@ -1299,7 +1312,7 @@ class WAFBypassEngine:
         # Filter blocked
         payloads = [p for p in payloads if not self.memory.is_pattern_blocked(waf, p)]
 
-        return payloads[:aggressiveness * 5]
+        return payloads[: aggressiveness * 5]
 
     def bypass_rce(
         self,
@@ -1328,7 +1341,7 @@ class WAFBypassEngine:
         # Filter blocked
         payloads = [p for p in payloads if not self.memory.is_pattern_blocked(waf, p)]
 
-        return payloads[:aggressiveness * 3]
+        return payloads[: aggressiveness * 3]
 
     def record_result(
         self,

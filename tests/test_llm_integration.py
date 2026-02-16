@@ -64,14 +64,16 @@ class FakeLLMClient:
         **kwargs: Any,
     ) -> str:
         """Return a canned response and log the call."""
-        self.call_log.append({
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-            "model": model or self.model,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "timestamp": time.monotonic(),
-        })
+        self.call_log.append(
+            {
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "model": model or self.model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "timestamp": time.monotonic(),
+            }
+        )
         return f"[FAKE] Response to: {prompt[:60]}"
 
     def stream(self, prompt: str, **kwargs: Any):
@@ -111,10 +113,14 @@ class TestLLMContract:
 
     def test_openrouter_client_has_required_interface(self) -> None:
         """Verify OpenRouterClient exposes the expected public methods."""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
+            },
+        ):
             from llm.openrouter_client import OpenRouterClient
+
             client = OpenRouterClient()
             try:
                 assert callable(getattr(client, "query", None))
@@ -158,7 +164,8 @@ class TestLLMContract:
 
         client = FakeLLMClient()
         engine = LLMEngine(
-            llm_client=client, system_prompt="test",
+            llm_client=client,
+            system_prompt="test",
             enable_rag=False,
         )
         result = engine.query("hello")
@@ -184,10 +191,14 @@ class TestLLMContract:
 
     def test_rate_limiter_contract(self) -> None:
         """RateLimiter.acquire() returns True within timeout."""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "sk-or-test-key-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx",
+            },
+        ):
             from llm.openrouter_client import RateLimiter
+
             limiter = RateLimiter(requests_per_minute=600, burst_size=10)
             assert limiter.acquire(timeout=1.0) is True
 
@@ -222,6 +233,7 @@ class TestLLMRealIntegration:
     def _make_client() -> Any:
         if _HAS_REAL_KEY:
             from llm.openrouter_client import OpenRouterClient
+
             return OpenRouterClient()
         return FakeLLMClient()
 

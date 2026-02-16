@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\llm\streaming_tools_mixin.py
-# hypothesis_version: 6.151.6
-
-[200, 'Stream error: %s', '[DONE]', 'arguments', 'choices', 'content', 'data: ', 'delta', 'function', 'id', 'message', 'messages', 'model', 'name', 'ollama', 'role', 'stream', 'system', 'tool_calls', 'tools', 'user', '{}']

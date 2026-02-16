@@ -46,11 +46,11 @@ class DefenseType(Enum):
 class StealthLevel(Enum):
     """Stealth escalation levels."""
 
-    NORMAL = 0       # Default — no evasion
-    LOW = 1          # Slow down, add random delays
-    MEDIUM = 2       # Fragmentation, source port rotation
-    HIGH = 3         # Full evasion: decoy, timing, encoding
-    PARANOID = 4     # Maximum stealth: single packet at a time
+    NORMAL = 0  # Default — no evasion
+    LOW = 1  # Slow down, add random delays
+    MEDIUM = 2  # Fragmentation, source port rotation
+    HIGH = 3  # Full evasion: decoy, timing, encoding
+    PARANOID = 4  # Maximum stealth: single packet at a time
 
 
 @dataclass
@@ -58,9 +58,9 @@ class DefenseSignature:
     """A detected defense mechanism."""
 
     defense_type: DefenseType
-    confidence: float = 0.0     # 0-1
+    confidence: float = 0.0  # 0-1
     evidence: list[str] = field(default_factory=list)
-    product: str = ""           # "CloudFlare", "ModSecurity", etc.
+    product: str = ""  # "CloudFlare", "ModSecurity", etc.
     first_seen: float = field(default_factory=time.time)
     hit_count: int = 1
 
@@ -73,7 +73,7 @@ class EvasionStrategy:
     description: str
     tool_modifications: dict[str, Any] = field(default_factory=dict)
     delay_seconds: float = 0.0
-    priority: int = 0          # Higher = apply first
+    priority: int = 0  # Higher = apply first
 
 
 class AdversarialAdapter:
@@ -126,9 +126,9 @@ class AdversarialAdapter:
     ]
 
     _HONEYPOT_INDICATORS = [
-        "too_many_open_ports",    # >100 ports open suspiciously
-        "fake_banners",          # Mixing incompatible services
-        "instant_response",      # Zero-latency responses
+        "too_many_open_ports",  # >100 ports open suspiciously
+        "fake_banners",  # Mixing incompatible services
+        "instant_response",  # Zero-latency responses
     ]
 
     def __init__(self) -> None:
@@ -200,12 +200,14 @@ class AdversarialAdapter:
             self._consecutive_blocks = max(0, self._consecutive_blocks - 1)
 
         # Record in history
-        self._tool_history.append({
-            "tool": tool_name,
-            "blocked": bool(new_detections),
-            "defenses": [d.defense_type.value for d in new_detections],
-            "timestamp": time.time(),
-        })
+        self._tool_history.append(
+            {
+                "tool": tool_name,
+                "blocked": bool(new_detections),
+                "defenses": [d.defense_type.value for d in new_detections],
+                "timestamp": time.time(),
+            }
+        )
         if len(self._tool_history) > 100:
             self._tool_history = self._tool_history[-100:]
 
@@ -271,8 +273,7 @@ class AdversarialAdapter:
         for dtype, sig in self._detections.items():
             product = f" ({sig.product})" if sig.product else ""
             lines.append(
-                f"  - {dtype.value.upper()}{product}: "
-                f"confidence={sig.confidence:.0%}, hits={sig.hit_count}",
+                f"  - {dtype.value.upper()}{product}: confidence={sig.confidence:.0%}, hits={sig.hit_count}",
             )
             if sig.evidence:
                 lines.append(f"    Evidence: {sig.evidence[0][:80]}")
@@ -331,7 +332,9 @@ class AdversarialAdapter:
         return sig
 
     def _detect_ids(
-        self, output: str, exit_code: int | None,
+        self,
+        output: str,
+        exit_code: int | None,
     ) -> DefenseSignature | None:
         """Detect IDS/IPS/firewall from tool output."""
         evidence: list[str] = []
@@ -488,7 +491,9 @@ class AdversarialAdapter:
         if new_level.value > self._stealth_level.value:
             logger.info(
                 "Stealth escalation: %s → %s (consecutive blocks: %d)",
-                self._stealth_level.name, new_level.name, self._consecutive_blocks,
+                self._stealth_level.name,
+                new_level.name,
+                self._consecutive_blocks,
             )
             self._stealth_level = new_level
             self._stats["stealth_escalations"] += 1
@@ -509,12 +514,14 @@ class AdversarialAdapter:
         elif defense_type == DefenseType.RATE_LIMIT:
             strategies.extend(self._rate_limit_evasion(tool))
         elif defense_type == DefenseType.HONEYPOT:
-            strategies.append(EvasionStrategy(
-                name="honeypot_caution",
-                description="Possible honeypot detected — limit interaction depth",
-                tool_modifications={"_max_depth": 2},
-                priority=10,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="honeypot_caution",
+                    description="Possible honeypot detected — limit interaction depth",
+                    tool_modifications={"_max_depth": 2},
+                    priority=10,
+                )
+            )
         elif defense_type == DefenseType.ANTI_BRUTEFORCE:
             strategies.extend(self._anti_bf_evasion(tool))
 
@@ -525,21 +532,25 @@ class AdversarialAdapter:
         strategies = []
 
         if "nmap" in tool:
-            strategies.append(EvasionStrategy(
-                name="nmap_fragment",
-                description="Fragment packets to bypass WAF inspection",
-                tool_modifications={"extra_args": "-f --mtu 24"},
-                priority=8,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="nmap_fragment",
+                    description="Fragment packets to bypass WAF inspection",
+                    tool_modifications={"extra_args": "-f --mtu 24"},
+                    priority=8,
+                )
+            )
 
         if tool in ("nikto", "gobuster", "ffuf", "sqlmap"):
-            strategies.append(EvasionStrategy(
-                name="user_agent_rotate",
-                description="Rotate User-Agent to evade WAF fingerprinting",
-                tool_modifications={"_rotate_user_agent": True},
-                delay_seconds=1.5,
-                priority=7,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="user_agent_rotate",
+                    description="Rotate User-Agent to evade WAF fingerprinting",
+                    tool_modifications={"_rotate_user_agent": True},
+                    delay_seconds=1.5,
+                    priority=7,
+                )
+            )
 
         if "sqlmap" in tool:
             tamper_scripts = {
@@ -549,22 +560,26 @@ class AdversarialAdapter:
                 "Imperva": "space2comment,randomcase,charencode",
             }
             tamper = tamper_scripts.get(sig.product, "space2comment,randomcase")
-            strategies.append(EvasionStrategy(
-                name="sqlmap_tamper",
-                description=f"SQLMap tamper scripts for {sig.product or 'generic WAF'}",
-                tool_modifications={"extra_args": f"--tamper={tamper} --random-agent"},
-                delay_seconds=2.0,
-                priority=9,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="sqlmap_tamper",
+                    description=f"SQLMap tamper scripts for {sig.product or 'generic WAF'}",
+                    tool_modifications={"extra_args": f"--tamper={tamper} --random-agent"},
+                    delay_seconds=2.0,
+                    priority=9,
+                )
+            )
 
         if "nuclei" in tool:
-            strategies.append(EvasionStrategy(
-                name="nuclei_rate_limit",
-                description="Reduce nuclei request rate for WAF bypass",
-                tool_modifications={"extra_args": "-rl 10 -c 2"},
-                delay_seconds=1.0,
-                priority=6,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="nuclei_rate_limit",
+                    description="Reduce nuclei request rate for WAF bypass",
+                    tool_modifications={"extra_args": "-rl 10 -c 2"},
+                    delay_seconds=1.0,
+                    priority=6,
+                )
+            )
 
         return strategies
 
@@ -573,32 +588,40 @@ class AdversarialAdapter:
         strategies = []
 
         if "nmap" in tool:
-            strategies.append(EvasionStrategy(
-                name="nmap_stealth_timing",
-                description="Use T1 timing to slow scan below IDS threshold",
-                tool_modifications={"extra_args": "-T1 -Pn --max-retries 1"},
-                priority=9,
-            ))
-            strategies.append(EvasionStrategy(
-                name="nmap_decoy",
-                description="Add decoy IPs to confuse IDS source tracking",
-                tool_modifications={"extra_args": "-D RND:5"},
-                priority=7,
-            ))
-            strategies.append(EvasionStrategy(
-                name="nmap_source_port",
-                description="Use DNS source port to bypass firewall rules",
-                tool_modifications={"extra_args": "--source-port 53"},
-                priority=6,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="nmap_stealth_timing",
+                    description="Use T1 timing to slow scan below IDS threshold",
+                    tool_modifications={"extra_args": "-T1 -Pn --max-retries 1"},
+                    priority=9,
+                )
+            )
+            strategies.append(
+                EvasionStrategy(
+                    name="nmap_decoy",
+                    description="Add decoy IPs to confuse IDS source tracking",
+                    tool_modifications={"extra_args": "-D RND:5"},
+                    priority=7,
+                )
+            )
+            strategies.append(
+                EvasionStrategy(
+                    name="nmap_source_port",
+                    description="Use DNS source port to bypass firewall rules",
+                    tool_modifications={"extra_args": "--source-port 53"},
+                    priority=6,
+                )
+            )
 
         if tool in ("gobuster", "ffuf", "nikto"):
-            strategies.append(EvasionStrategy(
-                name="web_slow_scan",
-                description="Add delays between web requests",
-                delay_seconds=3.0,
-                priority=8,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="web_slow_scan",
+                    description="Add delays between web requests",
+                    delay_seconds=3.0,
+                    priority=8,
+                )
+            )
 
         return strategies
 
@@ -618,13 +641,15 @@ class AdversarialAdapter:
         """Anti-brute-force evasion."""
         strategies = []
         if "hydra" in tool:
-            strategies.append(EvasionStrategy(
-                name="hydra_slow",
-                description="Reduce parallel tasks and add wait between attempts",
-                tool_modifications={"extra_args": "-t 1 -W 10"},
-                delay_seconds=5.0,
-                priority=9,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="hydra_slow",
+                    description="Reduce parallel tasks and add wait between attempts",
+                    tool_modifications={"extra_args": "-t 1 -W 10"},
+                    delay_seconds=5.0,
+                    priority=9,
+                )
+            )
         return strategies
 
     def _stealth_level_strategies(self, tool: str) -> list[EvasionStrategy]:
@@ -636,17 +661,19 @@ class AdversarialAdapter:
         strategies = []
 
         if level.value >= StealthLevel.LOW.value:
-            strategies.append(EvasionStrategy(
-                name="stealth_delay",
-                description=f"Stealth level {level.name}: inter-request delay",
-                delay_seconds={
-                    StealthLevel.LOW: 1.0,
-                    StealthLevel.MEDIUM: 3.0,
-                    StealthLevel.HIGH: 5.0,
-                    StealthLevel.PARANOID: 10.0,
-                }.get(level, 1.0),
-                priority=5,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="stealth_delay",
+                    description=f"Stealth level {level.name}: inter-request delay",
+                    delay_seconds={
+                        StealthLevel.LOW: 1.0,
+                        StealthLevel.MEDIUM: 3.0,
+                        StealthLevel.HIGH: 5.0,
+                        StealthLevel.PARANOID: 10.0,
+                    }.get(level, 1.0),
+                    priority=5,
+                )
+            )
 
         if level.value >= StealthLevel.MEDIUM.value and "nmap" in tool:
             timing = {
@@ -654,11 +681,13 @@ class AdversarialAdapter:
                 StealthLevel.HIGH: "-T1",
                 StealthLevel.PARANOID: "-T0",
             }.get(level, "-T2")
-            strategies.append(EvasionStrategy(
-                name="nmap_timing",
-                description=f"Nmap timing: {timing}",
-                tool_modifications={"extra_args": timing},
-                priority=4,
-            ))
+            strategies.append(
+                EvasionStrategy(
+                    name="nmap_timing",
+                    description=f"Nmap timing: {timing}",
+                    tool_modifications={"extra_args": timing},
+                    priority=4,
+                )
+            )
 
         return strategies

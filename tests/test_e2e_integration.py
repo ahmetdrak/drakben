@@ -30,6 +30,7 @@ import pytest
 # E2E-01: Config → LLM → Agent Bootstrap Chain
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EConfigToAgentBootstrap:
     """Verify the full initialization chain: config → LLM → agent."""
 
@@ -85,6 +86,7 @@ class TestE2EConfigToAgentBootstrap:
 # E2E-02: EventBus → Observability → KnowledgeGraph Pipeline
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EEventObservabilityKG:
     """Verify events flow from EventBus through observability into knowledge graph."""
 
@@ -105,7 +107,7 @@ class TestE2EEventObservabilityKG:
         assert len(events_received) >= 1
         # Handler receives Event objects — access .data for payload
         evt = events_received[0]
-        event_data = evt.data if hasattr(evt, 'data') else evt
+        event_data = evt.data if hasattr(evt, "data") else evt
         assert event_data["action"] == "scan"
         assert span.name == "e2e_event_test"
 
@@ -143,7 +145,7 @@ class TestE2EEventObservabilityKG:
         kg = KnowledgeGraph(db_path=":memory:")
 
         def on_discovery(event) -> None:
-            d = event.data if hasattr(event, 'data') else event
+            d = event.data if hasattr(event, "data") else event
             kg.add_entity("host", d["host"], {"port": d["port"]})
 
         bus.subscribe("host_discovered", on_discovery)
@@ -166,7 +168,7 @@ class TestE2EEventObservabilityKG:
         hosts_found: list = []
 
         def on_scan(event) -> None:
-            d = event.data if hasattr(event, 'data') else event
+            d = event.data if hasattr(event, "data") else event
             kg.add_entity("host", d["host"], {"services": d["services"]})
             hosts_found.append(d["host"])
 
@@ -188,6 +190,7 @@ class TestE2EEventObservabilityKG:
 # ═══════════════════════════════════════════════════════════
 # E2E-03: State → Exploit Preconditions → Tool Dispatch
 # ═══════════════════════════════════════════════════════════
+
 
 class TestE2EStateExploitPipeline:
     """State transitions drive exploit preconditions and tool dispatch."""
@@ -251,6 +254,7 @@ class TestE2EStateExploitPipeline:
 # E2E-04: Memory System → Cognitive Cycle → Decision
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EMemoryCognitiveDecision:
     """Memory persistence feeds cognitive retrieval which drives decisions."""
 
@@ -295,6 +299,7 @@ class TestE2EMemoryCognitiveDecision:
 # E2E-05: ToolRegistry → ToolSelector Pipeline
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EToolPipeline:
     """Full tool pipeline from registry to selection."""
 
@@ -332,6 +337,7 @@ class TestE2EToolPipeline:
 # E2E-06: SelfRefining → EvolutionMemory → Strategy Mutation
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2ESelfRefiningCycle:
     """Self-refining engine learns from failures and mutates strategies."""
 
@@ -362,6 +368,7 @@ class TestE2ESelfRefiningCycle:
 # E2E-07: Config Hot-Reload → Component Propagation
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EConfigPropagation:
     """Config changes propagate to dependent components."""
 
@@ -386,6 +393,7 @@ class TestE2EConfigPropagation:
 # ═══════════════════════════════════════════════════════════
 # E2E-08: Full Pentest Simulation Flow
 # ═══════════════════════════════════════════════════════════
+
 
 class TestE2EPentestSimulation:
     """Simulate a complete pentest lifecycle through multiple modules."""
@@ -452,6 +460,7 @@ class TestE2EPentestSimulation:
 # E2E-09: Multi-Agent Coordination
 # ═══════════════════════════════════════════════════════════
 
+
 class TestE2EMultiAgent:
     """Multi-agent spawn, coordinate, and collect results."""
 
@@ -474,6 +483,7 @@ class TestE2EMultiAgent:
 # ═══════════════════════════════════════════════════════════
 # E2E-10: KnowledgeGraph → Attack Path → Exploit Suggestion
 # ═══════════════════════════════════════════════════════════
+
 
 class TestE2EKGExploitSuggestion:
     """Knowledge graph feeds attack paths into exploit suggestions."""
@@ -520,6 +530,7 @@ class TestE2EKGExploitSuggestion:
 # ═══════════════════════════════════════════════════════════
 # E2E-11: Thread Safety Across Components
 # ═══════════════════════════════════════════════════════════
+
 
 class TestE2EThreadSafety:
     """Verify thread safety when multiple components interact concurrently."""
@@ -583,6 +594,7 @@ class TestE2EThreadSafety:
 # ═══════════════════════════════════════════════════════════
 # E2E-12: Error Recovery Chain
 # ═══════════════════════════════════════════════════════════
+
 
 class TestE2EErrorRecovery:
     """Verify graceful error recovery across component boundaries."""

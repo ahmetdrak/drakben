@@ -1,10 +1,10 @@
 # tests/test_llm_utils.py
 """Tests for core/llm_utils.py — parse_llm_json_response & format_llm_prompt."""
 
-
 from core.llm_utils import format_llm_prompt, parse_llm_json_response
 
 # ── parse_llm_json_response ───────────────────────────────────
+
 
 class TestParseLlmJsonResponse:
     """Tests for all three parsing strategies + edge cases."""
@@ -53,7 +53,7 @@ class TestParseLlmJsonResponse:
 
     def test_array_not_object(self) -> None:
         # parse_llm_json_response is designed for dicts; arrays may or may not pass
-        result = parse_llm_json_response('[1, 2, 3]')
+        result = parse_llm_json_response("[1, 2, 3]")
         # Strategy 1 returns the list (which is valid JSON)
         assert result == [1, 2, 3] or result is None
 
@@ -63,6 +63,7 @@ class TestParseLlmJsonResponse:
 
 
 # ── format_llm_prompt ─────────────────────────────────────────
+
 
 class TestFormatLlmPrompt:
     """Tests for prompt formatting."""
@@ -90,7 +91,10 @@ class TestFormatLlmPrompt:
 
     def test_combined_json_and_turkish(self) -> None:
         result = format_llm_prompt(
-            "sys", "usr", json_response=True, language="tr",
+            "sys",
+            "usr",
+            json_response=True,
+            language="tr",
         )
         assert "JSON" in result
         assert "Türkçe" in result

@@ -22,22 +22,26 @@ class TestEventBus:
     def setup_method(self):
         # Reset to clean state before each test
         from core.events import EventBus
+
         EventBus.reset()
 
     def teardown_method(self):
         # Ensure clean state after test
         from core.events import EventBus
+
         EventBus.reset()
         EventBus._instance = None
 
     def test_singleton(self):
         from core.events import EventBus
+
         a = EventBus()
         b = EventBus()
         assert a is b
 
     def test_subscribe_and_publish(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         received = []
         bus.subscribe(EventType.TOOL_START, lambda e: received.append(e))
@@ -48,6 +52,7 @@ class TestEventBus:
 
     def test_subscribe_all(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         received = []
         bus.subscribe_all(lambda e: received.append(e))
@@ -57,6 +62,7 @@ class TestEventBus:
 
     def test_unsubscribe(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
 
         def handler(_e):
@@ -68,6 +74,7 @@ class TestEventBus:
 
     def test_unsubscribe_all(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
 
         def handler(_e):
@@ -79,6 +86,7 @@ class TestEventBus:
 
     def test_pause_resume(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         received = []
         bus.subscribe(EventType.TOOL_START, lambda e: received.append(e))
@@ -91,6 +99,7 @@ class TestEventBus:
 
     def test_history(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         bus.publish(EventType.TOOL_START, {"tool": "nmap"})
         bus.publish(EventType.TOOL_COMPLETE, {"tool": "nmap"})
@@ -101,6 +110,7 @@ class TestEventBus:
 
     def test_history_limit(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         for i in range(bus.MAX_HISTORY + 100):
             bus.publish(EventType.METRIC, {"i": i})
@@ -109,6 +119,7 @@ class TestEventBus:
 
     def test_handler_exception_does_not_crash(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         bus.subscribe(EventType.TOOL_START, lambda e: 1 / 0)
         # Should not raise
@@ -116,17 +127,20 @@ class TestEventBus:
 
     def test_event_immutable(self):
         from core.events import Event, EventType
+
         e = Event(type=EventType.TOOL_START, data={"k": "v"})
         assert e.type == EventType.TOOL_START
         assert e.timestamp > 0
 
     def test_get_event_bus(self):
         from core.events import get_event_bus
+
         bus = get_event_bus()
         assert bus is not None
 
     def test_clear(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         bus.subscribe(EventType.TOOL_START, lambda e: None)
         bus.publish(EventType.TOOL_START)
@@ -136,6 +150,7 @@ class TestEventBus:
 
     def test_thread_safety(self):
         from core.events import EventBus, EventType
+
         bus = EventBus()
         counter = {"value": 0}
         lock = threading.Lock()
@@ -145,10 +160,7 @@ class TestEventBus:
                 counter["value"] += 1
 
         bus.subscribe(EventType.METRIC, handler)
-        threads = [
-            threading.Thread(target=lambda: bus.publish(EventType.METRIC))
-            for _ in range(50)
-        ]
+        threads = [threading.Thread(target=lambda: bus.publish(EventType.METRIC)) for _ in range(50)]
         for t in threads:
             t.start()
         for t in threads:
@@ -157,6 +169,7 @@ class TestEventBus:
 
     def test_all_event_types_exist(self):
         from core.events import EventType
+
         assert len(EventType) > 30  # Minimum expected event types
 
 
@@ -169,22 +182,26 @@ class TestTracer:
     def setup_method(self):
         # Reset to clean state before each test
         from core.observability import Tracer
+
         Tracer.reset()
 
     def teardown_method(self):
         # Ensure clean state after test
         from core.observability import Tracer
+
         Tracer.reset()
         Tracer._instance = None
 
     def test_singleton(self):
         from core.observability import Tracer
+
         a = Tracer()
         b = Tracer()
         assert a is b
 
     def test_span_basic(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with tracer.span("test_op", {"key": "value"}) as sp:
             sp.set_attribute("extra", 42)
@@ -196,6 +213,7 @@ class TestTracer:
 
     def test_span_error(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with pytest.raises(ValueError, match="boom"):
             with tracer.span("failing_op"):
@@ -205,6 +223,7 @@ class TestTracer:
 
     def test_nested_spans(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with tracer.span("parent"):
             with tracer.span("child") as child:
@@ -215,6 +234,7 @@ class TestTracer:
 
     def test_span_duration(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with tracer.span("timed") as sp:
             time.sleep(0.01)
@@ -222,6 +242,7 @@ class TestTracer:
 
     def test_span_events(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with tracer.span("with_events") as sp:
             sp.add_event("checkpoint", {"step": 1})
@@ -231,6 +252,7 @@ class TestTracer:
 
     def test_disabled_tracer(self):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         tracer.disable()
         with tracer.span("no_op") as sp:
@@ -240,6 +262,7 @@ class TestTracer:
 
     def test_export_json(self, tmp_path):
         from core.observability import get_tracer
+
         tracer = get_tracer()
         with tracer.span("export_test"):
             pass  # Span body intentionally empty — testing export only
@@ -255,22 +278,26 @@ class TestMetricsCollector:
     def setup_method(self):
         # Reset to clean state before each test
         from core.observability import MetricsCollector
+
         MetricsCollector.reset()
 
     def teardown_method(self):
         # Ensure clean state after test
         from core.observability import MetricsCollector
+
         MetricsCollector.reset()
         MetricsCollector._instance = None
 
     def test_singleton(self):
         from core.observability import MetricsCollector
+
         a = MetricsCollector()
         b = MetricsCollector()
         assert a is b
 
     def test_counter(self):
         from core.observability import get_metrics
+
         m = get_metrics()
         m.increment("test.counter")
         m.increment("test.counter", 5.0)
@@ -279,6 +306,7 @@ class TestMetricsCollector:
 
     def test_counter_with_tags(self):
         from core.observability import get_metrics
+
         m = get_metrics()
         m.increment("tools.executed", tags={"tool": "nmap"})
         m.increment("tools.executed", tags={"tool": "nikto"})
@@ -288,6 +316,7 @@ class TestMetricsCollector:
 
     def test_gauge(self):
         from core.observability import get_metrics
+
         m = get_metrics()
         m.gauge("memory.usage", 42.5)
         m.gauge("memory.usage", 50.0)
@@ -296,6 +325,7 @@ class TestMetricsCollector:
 
     def test_histogram(self):
         from core.observability import get_metrics
+
         m = get_metrics()
         for v in [10, 20, 30, 40, 50]:
             m.histogram("tool.duration", float(v))
@@ -308,6 +338,7 @@ class TestMetricsCollector:
 
     def test_export_json(self, tmp_path):
         from core.observability import get_metrics
+
         m = get_metrics()
         m.increment("export.test")
         path = tmp_path / "metrics.json"
@@ -325,22 +356,26 @@ class TestKnowledgeGraph:
     def setup_method(self):
         # Reset to clean state before each test
         from core.knowledge_graph import KnowledgeGraph
+
         KnowledgeGraph.reset()
 
     def teardown_method(self):
         # Ensure clean state after test
         from core.knowledge_graph import KnowledgeGraph
+
         KnowledgeGraph.reset()
         KnowledgeGraph._instance = None
 
     def test_singleton(self):
         from core.knowledge_graph import KnowledgeGraph
+
         a = KnowledgeGraph(db_path=":memory:")
         b = KnowledgeGraph()
         assert a is b
 
     def test_add_and_get_entity(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "10.0.0.1", {"os": "Linux"})
         entity = kg.get_entity("10.0.0.1")
@@ -350,6 +385,7 @@ class TestKnowledgeGraph:
 
     def test_entity_upsert(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "10.0.0.1", {"os": "Linux"})
         kg.add_entity("host", "10.0.0.1", {"os": "Ubuntu 22.04"})
@@ -358,6 +394,7 @@ class TestKnowledgeGraph:
 
     def test_add_relation(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "10.0.0.1")
         kg.add_entity("service", "10.0.0.1:80", {"name": "http"})
@@ -367,6 +404,7 @@ class TestKnowledgeGraph:
 
     def test_get_related_outgoing(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "10.0.0.1")
         kg.add_entity("service", "10.0.0.1:80")
@@ -378,6 +416,7 @@ class TestKnowledgeGraph:
 
     def test_get_related_incoming(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("service", "10.0.0.1:80")
         kg.add_entity("vulnerability", "CVE-2021-44228")
@@ -387,6 +426,7 @@ class TestKnowledgeGraph:
 
     def test_find_entities_by_type(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "10.0.0.1")
         kg.add_entity("host", "10.0.0.2")
@@ -396,6 +436,7 @@ class TestKnowledgeGraph:
 
     def test_find_attack_paths(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "entry")
         kg.add_entity("service", "http_80")
@@ -410,6 +451,7 @@ class TestKnowledgeGraph:
 
     def test_stats(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "h1")
         kg.add_entity("service", "s1")
@@ -420,6 +462,7 @@ class TestKnowledgeGraph:
 
     def test_clear(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "h1")
         kg.clear()
@@ -427,6 +470,7 @@ class TestKnowledgeGraph:
 
     def test_export_json(self, tmp_path):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "h1", {"os": "Linux"})
         path = tmp_path / "graph.json"
@@ -436,11 +480,13 @@ class TestKnowledgeGraph:
 
     def test_entity_not_found(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         assert kg.get_entity("nonexistent") is None
 
     def test_relation_with_confidence(self):
         from core.knowledge_graph import get_knowledge_graph
+
         kg = get_knowledge_graph(db_path=":memory:")
         kg.add_entity("host", "h1")
         kg.add_entity("vuln", "v1")
@@ -456,18 +502,21 @@ class TestTypedContextManager:
 
     def test_typed_set_and_get(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         cm.set(ContextKey.TARGET, "10.0.0.1")
         assert cm.get(ContextKey.TARGET) == "10.0.0.1"
 
     def test_string_backward_compat(self):
         from core.agent.brain_context import ContextManager
+
         cm = ContextManager()
         cm.update({"target": "10.0.0.1"})
         assert cm.get("target") == "10.0.0.1"
 
     def test_enum_key_in_update(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         cm.update({ContextKey.PHASE: "recon"})
         assert cm.get(ContextKey.PHASE) == "recon"
@@ -475,6 +524,7 @@ class TestTypedContextManager:
 
     def test_get_typed(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         cm.set(ContextKey.ITERATION, 5)
         assert cm.get_typed(ContextKey.ITERATION, int) == 5
@@ -483,6 +533,7 @@ class TestTypedContextManager:
 
     def test_has(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         assert not cm.has(ContextKey.TARGET)
         cm.set(ContextKey.TARGET, "x")
@@ -491,6 +542,7 @@ class TestTypedContextManager:
 
     def test_remove(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         cm.set(ContextKey.TARGET, "x")
         cm.remove(ContextKey.TARGET)
@@ -498,6 +550,7 @@ class TestTypedContextManager:
 
     def test_snapshot(self):
         from core.agent.brain_context import ContextKey, ContextManager
+
         cm = ContextManager()
         cm.set(ContextKey.TARGET, "x")
         snap = cm.snapshot()
@@ -508,6 +561,7 @@ class TestTypedContextManager:
 
     def test_detect_changes(self):
         from core.agent.brain_context import ContextManager
+
         cm = ContextManager()
         cm.update({"a": 1})
         cm.update({"a": 2, "b": 3})
@@ -517,6 +571,7 @@ class TestTypedContextManager:
 
     def test_history_cap(self):
         from core.agent.brain_context import ContextManager
+
         cm = ContextManager()
         for i in range(cm.MAX_HISTORY_SIZE + 50):
             cm.update({"i": i})
@@ -524,6 +579,7 @@ class TestTypedContextManager:
 
     def test_clear_history(self):
         from core.agent.brain_context import ContextManager
+
         cm = ContextManager()
         cm.update({"a": 1})
         cm.clear_history()
@@ -531,6 +587,7 @@ class TestTypedContextManager:
 
     def test_context_key_values(self):
         from core.agent.brain_context import ContextKey
+
         assert ContextKey.TARGET.value == "target"
         assert ContextKey.PHASE.value == "phase"
         assert len(ContextKey) >= 20
@@ -544,6 +601,7 @@ class TestDrakbenConfigSubConfigs:
 
     def test_llm_sub_config(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(llm_provider="openrouter", openrouter_model="gpt-4o")
         llm = cfg.llm
         assert llm.provider == "openrouter"
@@ -551,6 +609,7 @@ class TestDrakbenConfigSubConfigs:
 
     def test_security_sub_config(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(auto_approve=True, ssl_verify=False)
         sec = cfg.security
         assert sec.auto_approve is True
@@ -558,6 +617,7 @@ class TestDrakbenConfigSubConfigs:
 
     def test_ui_sub_config(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(language="tr", verbose=True)
         ui = cfg.ui
         assert ui.language == "tr"
@@ -565,12 +625,14 @@ class TestDrakbenConfigSubConfigs:
 
     def test_session_sub_config(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(target="10.0.0.1")
         sess = cfg.session
         assert sess.target == "10.0.0.1"
 
     def test_engine_sub_config(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(stealth_mode=True, max_threads=8)
         eng = cfg.engine
         assert eng.stealth_mode is True
@@ -578,6 +640,7 @@ class TestDrakbenConfigSubConfigs:
 
     def test_backward_compat_flat_access(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig()
         assert cfg.llm_provider == "auto"
         assert cfg.language == "en"
@@ -585,6 +648,7 @@ class TestDrakbenConfigSubConfigs:
 
     def test_model_overrides(self):
         from core.config import DrakbenConfig
+
         cfg = DrakbenConfig(model_overrides={"reasoning": "gpt-4o", "parsing": "llama-3.1-8b"})
         llm = cfg.llm
         assert llm.get_model_for_role("reasoning") == "gpt-4o"
@@ -593,12 +657,14 @@ class TestDrakbenConfigSubConfigs:
 
     def test_llm_config_standalone(self):
         from core.config import LLMConfig
+
         llm = LLMConfig(provider="ollama", ollama_model="codellama")
         assert llm.provider == "ollama"
         assert llm.ollama_model == "codellama"
 
     def test_security_config_standalone(self):
         from core.config import SecurityConfig
+
         sec = SecurityConfig()
         assert sec.auto_approve is False
         assert sec.ssl_verify is True
@@ -612,6 +678,7 @@ class TestToolDispatcher:
 
     def test_registered_tools(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = False
         dispatcher = ToolDispatcher(agent)
@@ -621,6 +688,7 @@ class TestToolDispatcher:
 
     def test_registered_prefixes(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         dispatcher = ToolDispatcher(agent)
         assert "ad_" in dispatcher.registered_prefixes
@@ -628,6 +696,7 @@ class TestToolDispatcher:
 
     def test_blocked_tool(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = True
         dispatcher = ToolDispatcher(agent)
@@ -637,6 +706,7 @@ class TestToolDispatcher:
 
     def test_exact_dispatch(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = False
         agent._execute_waf_bypass.return_value = {"success": True}
@@ -646,6 +716,7 @@ class TestToolDispatcher:
 
     def test_prefix_dispatch(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = False
         agent._execute_ad_attacks.return_value = {"success": True}
@@ -655,6 +726,7 @@ class TestToolDispatcher:
 
     def test_custom_handler_registration(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = False
         dispatcher = ToolDispatcher(agent)
@@ -667,6 +739,7 @@ class TestToolDispatcher:
 
     def test_fallback_to_system_tool(self):
         from core.agent.tool_dispatch import ToolDispatcher
+
         agent = MagicMock()
         agent.tool_selector.is_tool_blocked.return_value = False
         agent.tool_selector.tools = {}
@@ -684,30 +757,35 @@ class TestMultiAgentOrchestrator:
 
     def test_agent_role_enum(self):
         from core.agent.multi_agent import AgentRole
+
         assert AgentRole.REASONING.value == "reasoning"
         assert AgentRole.PARSING.value == "parsing"
         assert len(AgentRole) >= 10
 
     def test_model_tier_mapping(self):
         from core.agent.multi_agent import DEFAULT_MODEL_TIERS, AgentRole
+
         assert DEFAULT_MODEL_TIERS[AgentRole.REASONING] == "expensive"
         assert DEFAULT_MODEL_TIERS[AgentRole.PARSING] == "cheap"
         assert DEFAULT_MODEL_TIERS[AgentRole.CODING] == "mid"
 
     def test_role_system_prompts(self):
         from core.agent.multi_agent import ROLE_SYSTEM_PROMPTS, AgentRole
+
         for role in AgentRole:
             assert role in ROLE_SYSTEM_PROMPTS
             assert len(ROLE_SYSTEM_PROMPTS[role]) > 10
 
     def test_orchestrator_no_client(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator(llm_client=None)
         result = orch.delegate(AgentRole.REASONING, "test")
         assert result["success"] is False
 
     def test_orchestrator_with_mock_client(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         client = MagicMock()
         client.query.return_value = "Analysis complete"
         orch = MultiAgentOrchestrator(
@@ -721,6 +799,7 @@ class TestMultiAgentOrchestrator:
 
     def test_orchestrator_with_context(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         client = MagicMock()
         client.query.return_value = "Done"
         orch = MultiAgentOrchestrator(llm_client=client)
@@ -736,6 +815,7 @@ class TestMultiAgentOrchestrator:
 
     def test_orchestrator_stats(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         client = MagicMock()
         client.query.return_value = "ok"
         orch = MultiAgentOrchestrator(llm_client=client)
@@ -745,6 +825,7 @@ class TestMultiAgentOrchestrator:
 
     def test_get_model_for_role(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator(
             model_overrides={"reasoning": "claude-3.5-sonnet"},
         )
@@ -753,6 +834,7 @@ class TestMultiAgentOrchestrator:
 
     def test_get_tier(self):
         from core.agent.multi_agent import AgentRole, MultiAgentOrchestrator
+
         orch = MultiAgentOrchestrator()
         assert orch.get_tier(AgentRole.REASONING) == "expensive"
         assert orch.get_tier(AgentRole.SCANNING) == "cheap"
@@ -766,25 +848,30 @@ class TestLazyCoreInit:
 
     def test_import_config_manager(self):
         from core import ConfigManager
+
         assert ConfigManager is not None
 
     def test_import_agent_state(self):
         from core import AgentState
+
         assert AgentState is not None
 
     def test_import_event_bus(self):
         from core import EventBus, EventType, get_event_bus
+
         assert EventBus is not None
         assert EventType is not None
         assert get_event_bus is not None
 
     def test_import_knowledge_graph(self):
         from core import KnowledgeGraph, get_knowledge_graph
+
         assert KnowledgeGraph is not None
         assert get_knowledge_graph is not None
 
     def test_import_observability(self):
         from core import MetricsCollector, Tracer, get_metrics, get_tracer
+
         assert Tracer is not None
         assert MetricsCollector is not None
         assert get_metrics is not None
@@ -792,6 +879,7 @@ class TestLazyCoreInit:
 
     def test_import_context_key(self):
         from core import ContextKey
+
         assert ContextKey.TARGET.value == "target"
 
     def test_import_nonexistent_raises(self):
@@ -800,6 +888,7 @@ class TestLazyCoreInit:
 
     def test_all_exports(self):
         import core
+
         assert len(core.__all__) > 40
 
 
@@ -811,6 +900,7 @@ class TestCloudScanner:
 
     def test_cloud_finding_dataclass(self):
         from modules.cloud_scanner import CloudFinding
+
         f = CloudFinding(
             provider="aws",
             category="s3",
@@ -823,20 +913,32 @@ class TestCloudScanner:
 
     def test_cloud_scan_result(self):
         from modules.cloud_scanner import CloudFinding, CloudScanResult
+
         result = CloudScanResult(target="example.com")
-        result.findings.append(CloudFinding(
-            provider="aws", category="s3", severity="critical",
-            title="Public bucket", description="test",
-        ))
-        result.findings.append(CloudFinding(
-            provider="aws", category="s3", severity="high",
-            title="Writable bucket", description="test",
-        ))
+        result.findings.append(
+            CloudFinding(
+                provider="aws",
+                category="s3",
+                severity="critical",
+                title="Public bucket",
+                description="test",
+            )
+        )
+        result.findings.append(
+            CloudFinding(
+                provider="aws",
+                category="s3",
+                severity="high",
+                title="Writable bucket",
+                description="test",
+            )
+        )
         assert result.critical_count == 1
         assert result.high_count == 1
 
     def test_scan_result_to_dict(self):
         from modules.cloud_scanner import CloudScanResult
+
         result = CloudScanResult(target="test.com", cloud_provider="aws")
         d = result.to_dict()
         assert d["target"] == "test.com"
@@ -845,6 +947,7 @@ class TestCloudScanner:
 
     def test_clean_target(self):
         from modules.cloud_scanner import CloudScanner
+
         scanner = CloudScanner()
         assert scanner._clean_target("https://www.example.com/path") == "example.com"
         assert scanner._clean_target("http://10.0.0.1:8080/api") == "10.0.0.1"
@@ -852,12 +955,14 @@ class TestCloudScanner:
 
     def test_metadata_endpoints_defined(self):
         from modules.cloud_scanner import METADATA_ENDPOINTS
+
         assert "aws" in METADATA_ENDPOINTS
         assert "azure" in METADATA_ENDPOINTS
         assert "gcp" in METADATA_ENDPOINTS
 
     def test_s3_patterns(self):
         from modules.cloud_scanner import S3_BUCKET_PATTERNS
+
         assert len(S3_BUCKET_PATTERNS) >= 10
         assert any("{target}" in p for p in S3_BUCKET_PATTERNS)
 
@@ -871,6 +976,7 @@ class TestWebAPI:
     def test_create_app_without_fastapi(self):
         """Graceful degradation when FastAPI is not installed."""
         from core.ui import web_api
+
         # If FastAPI is installed, create_app returns an app
         # If not, it returns None — both are valid
         app = web_api.create_app()
@@ -879,5 +985,6 @@ class TestWebAPI:
 
     def test_safe_import_status(self):
         from core.ui.web_api import _safe_import_status
+
         assert _safe_import_status("core.events", "EventBus") == "available"
         assert _safe_import_status("nonexistent.module", "X") == "not_installed"

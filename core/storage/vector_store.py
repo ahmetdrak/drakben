@@ -126,6 +126,3 @@ class VectorStore:
             self.close()
         except Exception:
             logger.debug("VectorStore.__del__ cleanup failed", exc_info=True)
-
-
-

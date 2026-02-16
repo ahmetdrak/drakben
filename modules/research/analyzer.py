@@ -49,13 +49,15 @@ class TargetAnalyzer:
             if isinstance(node, ast.Call):
                 func_name = self._get_func_name(node)
                 if func_name and func_name in self.dangerous_functions:
-                    findings.append({
-                        "function": func_name,
-                        "line": getattr(node, "lineno", 0),
-                        "score": self.dangerous_functions[func_name],
-                        "file": file_path,
-                        "context": ast.get_source_segment(source, node) or "",
-                    })
+                    findings.append(
+                        {
+                            "function": func_name,
+                            "line": getattr(node, "lineno", 0),
+                            "score": self.dangerous_functions[func_name],
+                            "file": file_path,
+                            "context": ast.get_source_segment(source, node) or "",
+                        }
+                    )
 
         return sorted(findings, key=lambda x: x["score"], reverse=True)
 
@@ -106,5 +108,3 @@ class TargetAnalyzer:
                 parts.append(current.id)
             return ".".join(reversed(parts))
         return None
-
-

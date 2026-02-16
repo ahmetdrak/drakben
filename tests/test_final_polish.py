@@ -21,16 +21,19 @@ class TestLLMCache:
 
     def _make_cache(self, **kwargs):
         from core.llm.llm_cache import LLMCache
+
         return LLMCache(**kwargs)
 
     def test_make_key_deterministic(self):
         from core.llm.llm_cache import LLMCache
+
         k1 = LLMCache.make_key("hello", "sys", "gpt-4o")
         k2 = LLMCache.make_key("hello", "sys", "gpt-4o")
         assert k1 == k2
 
     def test_make_key_different_prompts(self):
         from core.llm.llm_cache import LLMCache
+
         k1 = LLMCache.make_key("prompt A", "sys", "gpt-4o")
         k2 = LLMCache.make_key("prompt B", "sys", "gpt-4o")
         assert k1 != k2
@@ -38,6 +41,7 @@ class TestLLMCache:
     def test_put_and_get(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("test", "sys", "m")
         cache.put(key, "result-123")
         assert cache.get(key) == "result-123"
@@ -45,12 +49,14 @@ class TestLLMCache:
     def test_miss_returns_none(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("nonexistent", "", "")
         assert cache.get(key) is None
 
     def test_ttl_expiry(self):
         cache = self._make_cache(default_ttl=0.05)
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("expire-me", "", "")
         cache.put(key, "val")
         time.sleep(0.1)
@@ -59,6 +65,7 @@ class TestLLMCache:
     def test_invalidate(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("inv", "", "")
         cache.put(key, "val")
         assert cache.invalidate(key) is True
@@ -68,6 +75,7 @@ class TestLLMCache:
     def test_clear(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         for i in range(5):
             cache.put(LLMCache.make_key(f"p{i}", "", ""), f"v{i}")
         assert cache.size == 5
@@ -78,6 +86,7 @@ class TestLLMCache:
     def test_max_size_eviction(self):
         cache = self._make_cache(max_size=3)
         from core.llm.llm_cache import LLMCache
+
         for i in range(5):
             cache.put(LLMCache.make_key(f"p{i}", "", ""), f"v{i}")
         assert cache.size <= 3
@@ -85,6 +94,7 @@ class TestLLMCache:
     def test_stats_tracking(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("stats", "", "")
 
         cache.get(key)  # miss
@@ -100,6 +110,7 @@ class TestLLMCache:
     def test_custom_ttl_per_entry(self):
         cache = self._make_cache(default_ttl=300)
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("custom-ttl", "", "")
         cache.put(key, "val", ttl=0.05)
         time.sleep(0.1)
@@ -108,12 +119,14 @@ class TestLLMCache:
     def test_dict_value_caching(self):
         cache = self._make_cache()
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("dict", "", "")
         cache.put(key, {"tool": "nmap", "result": "open"})
         assert cache.get(key) == {"tool": "nmap", "result": "open"}
 
     def test_cache_key_uses_sha256(self):
         from core.llm.llm_cache import LLMCache
+
         key = LLMCache.make_key("a", "b", "c")
         expected = hashlib.sha256(b"a\x00b\x00c").hexdigest()
         assert key.digest == expected
@@ -129,6 +142,7 @@ class TestLLMEngineCacheIntegration:
 
     def _make_engine(self, client=None, **kwargs):
         from core.llm.llm_engine import LLMEngine
+
         mock_client = client or MagicMock()
         mock_client.query = MagicMock(return_value="LLM response")
         return LLMEngine(
@@ -147,6 +161,7 @@ class TestLLMEngineCacheIntegration:
 
     def test_cache_disabled(self):
         from core.llm.llm_engine import LLMEngine
+
         engine = LLMEngine(
             llm_client=MagicMock(),
             enable_cache=False,
@@ -160,6 +175,7 @@ class TestLLMEngineCacheIntegration:
         mock_client = MagicMock()
         mock_client.query = MagicMock(return_value="cached-answer")
         from core.llm.llm_engine import LLMEngine
+
         engine = LLMEngine(
             llm_client=mock_client,
             enable_rag=False,
@@ -215,6 +231,7 @@ class TestProtocolInterfaces:
             ReportGeneratorProtocol,
             ToolRegistryProtocol,
         )
+
         assert all(
             p is not None
             for p in [
@@ -261,9 +278,14 @@ class TestProtocolInterfaces:
         from core.interfaces import CredentialStoreProtocol
 
         class FakeStore:
-            def get(self, key): return None
-            def set(self, key, value): return True
-            def delete(self, key): return True
+            def get(self, key):
+                return None
+
+            def set(self, key, value):
+                return True
+
+            def delete(self, key):
+                return True
 
         assert isinstance(FakeStore(), CredentialStoreProtocol)
 
@@ -271,8 +293,11 @@ class TestProtocolInterfaces:
         from core.interfaces import HealthCheckerProtocol
 
         class FakeHealth:
-            def check(self): return {}
-            def readiness(self): return True
+            def check(self):
+                return {}
+
+            def readiness(self):
+                return True
 
         assert isinstance(FakeHealth(), HealthCheckerProtocol)
 
@@ -300,21 +325,23 @@ class TestReportTemplateEnhancements:
         rg = ReportGenerator(config=config)
         rg.set_target("10.0.0.1")
         rg.start_assessment()
-        rg.add_finding(Finding(
-            title="SQL Injection",
-            severity=FindingSeverity.CRITICAL,
-            description="Blind SQL injection in login form",
-            affected_asset="https://target.com/login",
-            evidence="sqlmap output: injectable",
-            remediation="Use parameterized queries",
-            cve_id="CVE-2024-1234",
-            cvss_score=9.8,
-            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
-            evidence_artifacts=[
-                "POST /login HTTP/1.1\nuser=admin'--",
-                "HTTP/1.1 200 OK\nWelcome admin",
-            ],
-        ))
+        rg.add_finding(
+            Finding(
+                title="SQL Injection",
+                severity=FindingSeverity.CRITICAL,
+                description="Blind SQL injection in login form",
+                affected_asset="https://target.com/login",
+                evidence="sqlmap output: injectable",
+                remediation="Use parameterized queries",
+                cve_id="CVE-2024-1234",
+                cvss_score=9.8,
+                cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                evidence_artifacts=[
+                    "POST /login HTTP/1.1\nuser=admin'--",
+                    "HTTP/1.1 200 OK\nWelcome admin",
+                ],
+            )
+        )
         rg.end_assessment()
         return rg
 
@@ -376,13 +403,15 @@ class TestReportTemplateEnhancements:
         rg = ReportGenerator(ReportConfig(include_methodology=False, use_llm_summary=False))
         rg.set_target("10.0.0.1")
         rg.start_assessment()
-        rg.add_finding(Finding(
-            title="Weak Cipher",
-            severity=FindingSeverity.MEDIUM,
-            description="TLS 1.0 supported",
-            affected_asset="10.0.0.1:443",
-            cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
-        ))
+        rg.add_finding(
+            Finding(
+                title="Weak Cipher",
+                severity=FindingSeverity.MEDIUM,
+                description="TLS 1.0 supported",
+                affected_asset="10.0.0.1:443",
+                cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+            )
+        )
         rg.end_assessment()
 
         html = rg._generate_html()
@@ -400,6 +429,7 @@ class TestDockerAndCIConfig:
 
     def test_docker_compose_has_healthcheck(self):
         from pathlib import Path
+
         content = Path("docker-compose.yml").read_text(encoding="utf-8")
         assert "healthcheck:" in content
         assert "interval:" in content
@@ -407,6 +437,7 @@ class TestDockerAndCIConfig:
 
     def test_docker_compose_has_resource_limits(self):
         from pathlib import Path
+
         content = Path("docker-compose.yml").read_text(encoding="utf-8")
         assert "limits:" in content
         assert "memory:" in content
@@ -414,20 +445,23 @@ class TestDockerAndCIConfig:
 
     def test_ci_has_coverage_gate(self):
         from pathlib import Path
+
         content = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         assert "--cov-fail-under=" in content
 
     def test_ci_no_continue_on_error_for_mypy(self):
         from pathlib import Path
+
         lines = Path(".github/workflows/ci.yml").read_text(encoding="utf-8").splitlines()
         for i, line in enumerate(lines):
             if "Mypy type check" in line:
-                context = "\n".join(lines[i:i + 5])
+                context = "\n".join(lines[i : i + 5])
                 assert "continue-on-error" not in context
                 break
 
     def test_ci_bandit_no_silent_fail(self):
         from pathlib import Path
+
         content = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         assert "bandit" in content
         # "|| true" should NOT be present after bandit line
@@ -437,15 +471,18 @@ class TestDockerAndCIConfig:
 
     def test_ci_has_sonarcloud_step(self):
         from pathlib import Path
+
         content = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         assert "SonarCloud Scan" in content or "sonarqube-scan-action" in content
 
     def test_requirements_has_pytest_cov(self):
         from pathlib import Path
+
         content = Path("requirements.txt").read_text(encoding="utf-8")
         assert "pytest-cov" in content
 
     def test_requirements_has_hypothesis(self):
         from pathlib import Path
+
         content = Path("requirements.txt").read_text(encoding="utf-8")
         assert "hypothesis" in content

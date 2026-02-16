@@ -80,7 +80,9 @@ class TestOSINTSpider:
 
     def test_predict_email_custom_format(self):
         email = self.spider.predict_email(
-            "John Doe", "corp.com", "{f}{last}@{domain}",
+            "John Doe",
+            "corp.com",
+            "{f}{last}@{domain}",
         )
         assert email == "jdoe@corp.com"
 
@@ -205,7 +207,9 @@ class TestPsychoProfiler:
 
     def test_craft_phishing_email_authority(self):
         target = TargetPerson(
-            full_name="Bob Manager", role="Legal Director", email="bob@corp.com",
+            full_name="Bob Manager",
+            role="Legal Director",
+            email="bob@corp.com",
         )
         profile = {"bias_vector": "authority"}
         email = self.profiler.craft_phishing_email(target, profile)
@@ -215,7 +219,9 @@ class TestPsychoProfiler:
 
     def test_craft_phishing_email_fear(self):
         target = TargetPerson(
-            full_name="Carol Sec", role="Security Analyst", email="carol@corp.com",
+            full_name="Carol Sec",
+            role="Security Analyst",
+            email="carol@corp.com",
         )
         profile = {"bias_vector": "fear"}
         email = self.profiler.craft_phishing_email(target, profile)
@@ -223,7 +229,9 @@ class TestPsychoProfiler:
 
     def test_craft_phishing_email_curiosity_dev(self):
         target = TargetPerson(
-            full_name="Dave Dev", role="Software Developer", email="dave@corp.com",
+            full_name="Dave Dev",
+            role="Software Developer",
+            email="dave@corp.com",
         )
         profile = {"bias_vector": "curiosity"}
         email = self.profiler.craft_phishing_email(target, profile)
@@ -231,7 +239,9 @@ class TestPsychoProfiler:
 
     def test_craft_phishing_email_default(self):
         target = TargetPerson(
-            full_name="Eve User", role="Sales", email="eve@corp.com",
+            full_name="Eve User",
+            role="Sales",
+            email="eve@corp.com",
         )
         profile = {"bias_vector": "social_proof"}
         email = self.profiler.craft_phishing_email(target, profile)

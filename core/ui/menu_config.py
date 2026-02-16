@@ -30,9 +30,7 @@ class MenuConfigMixin(_MixinBase):
         providers: dict[str, tuple[str, str]] = {
             "1": (
                 "openrouter",
-                "OpenRouter (Ücretsiz modeller var)"
-                if lang == "tr"
-                else "OpenRouter (Free models available)",
+                "OpenRouter (Ücretsiz modeller var)" if lang == "tr" else "OpenRouter (Free models available)",
             ),
             "2": ("openai", "OpenAI (GPT-4, GPT-4o)"),
             "3": (
@@ -60,11 +58,7 @@ class MenuConfigMixin(_MixinBase):
         self.console.print(f"[bold {self.COLORS['cyan']}]{title}[/]")
         self.console.print("─" * 30)
 
-        current_info: str = (
-            "[dim]Ayar yok[/]"
-            if lang == "tr"
-            else "[dim]No config[/]"
-        )
+        current_info: str = "[dim]Ayar yok[/]" if lang == "tr" else "[dim]No config[/]"
         if self.brain and self.brain.llm_client:
             info = self.brain.llm_client.get_provider_info()
             current_info = f"[green]●[/] {info.get('provider', 'N/A')} / {info.get('model', 'N/A')}"
@@ -90,9 +84,7 @@ class MenuConfigMixin(_MixinBase):
         self.console.print()
         self.console.print(table)
 
-        prompt_text: str = (
-            "Seçiminiz (1-3 veya 0)" if lang == "tr" else "Choice (1-3 or 0)"
-        )
+        prompt_text: str = "Seçiminiz (1-3 veya 0)" if lang == "tr" else "Choice (1-3 or 0)"
         self.console.print(f"   {prompt_text}: ", end="")
         choice: str = input().strip().lower()
 
@@ -107,15 +99,11 @@ class MenuConfigMixin(_MixinBase):
             "openrouter": [
                 (
                     "deepseek/deepseek-chat",
-                    "DeepSeek Chat (Ücretsiz)"
-                    if lang == "tr"
-                    else "DeepSeek Chat (Free)",
+                    "DeepSeek Chat (Ücretsiz)" if lang == "tr" else "DeepSeek Chat (Free)",
                 ),
                 (
                     "meta-llama/llama-3.1-8b-instruct:free",
-                    "Llama 3.1 8B (Ücretsiz)"
-                    if lang == "tr"
-                    else "Llama 3.1 8B (Free)",
+                    "Llama 3.1 8B (Ücretsiz)" if lang == "tr" else "Llama 3.1 8B (Free)",
                 ),
                 (
                     "google/gemma-2-9b-it:free",
@@ -242,9 +230,7 @@ class MenuConfigMixin(_MixinBase):
             )
             self.console.print(f"\n[green]{msg}[/]")
 
-            test_msg: str = (
-                "Bağlantı test ediliyor..." if lang == "tr" else "Testing connection..."
-            )
+            test_msg: str = "Bağlantı test ediliyor..." if lang == "tr" else "Testing connection..."
             self.console.print(f"\n[dim]{test_msg}[/dim]")
 
             from core.agent.brain import DrakbenBrain
@@ -254,18 +240,10 @@ class MenuConfigMixin(_MixinBase):
             if self.brain.llm_client:
                 test_result = self.brain.test_llm()
                 if test_result.get("connected"):
-                    ok_msg: str = (
-                        "Bağlantı başarılı."
-                        if lang == "tr"
-                        else "Connection OK."
-                    )
+                    ok_msg: str = "Bağlantı başarılı." if lang == "tr" else "Connection OK."
                     self.console.print(f"[green]{ok_msg}[/]\n")
                 else:
-                    err_msg: str = (
-                        "Bağlantı hatası:"
-                        if lang == "tr"
-                        else "Connection error:"
-                    )
+                    err_msg: str = "Bağlantı hatası:" if lang == "tr" else "Connection error:"
                     self.console.print(
                         f"[red]{err_msg} {test_result.get('error', 'Unknown')}[/]\n",
                     )
@@ -419,5 +397,6 @@ class MenuConfigMixin(_MixinBase):
     def _clear_screen(self) -> None:
         """Ekranı temizle."""
         import subprocess
+
         cmd = "cls" if os.name == "nt" else "clear"
         subprocess.call(cmd, shell=True)  # noqa: S602  # safe: hardcoded command

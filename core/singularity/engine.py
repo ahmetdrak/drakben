@@ -13,24 +13,51 @@ from .validator import CodeValidator
 logger = logging.getLogger(__name__)
 
 # --- Security: AST-level blacklist for generated code ---
-_DANGEROUS_CALLS: frozenset[str] = frozenset({
-    "system", "popen", "spawn", "exec", "eval", "compile",
-    "execfile", "input",  # Python 2 compat concern
-    "remove", "rmdir", "unlink", "rmtree",
-})
+_DANGEROUS_CALLS: frozenset[str] = frozenset(
+    {
+        "system",
+        "popen",
+        "spawn",
+        "exec",
+        "eval",
+        "compile",
+        "execfile",
+        "input",  # Python 2 compat concern
+        "remove",
+        "rmdir",
+        "unlink",
+        "rmtree",
+    }
+)
 
 # M-9 FIX: Allow 'import os' (for os.path) — dangerous os.* calls are blocked
 # by _DANGEROUS_CALLS. But 'from os import system' is explicitly blocked below.
-_DANGEROUS_IMPORTS: frozenset[str] = frozenset({
-    "subprocess", "shutil", "ctypes", "multiprocessing",
-    "signal", "pty", "resource",
-})
+_DANGEROUS_IMPORTS: frozenset[str] = frozenset(
+    {
+        "subprocess",
+        "shutil",
+        "ctypes",
+        "multiprocessing",
+        "signal",
+        "pty",
+        "resource",
+    }
+)
 
 # Specific os sub-imports that are dangerous
-_DANGEROUS_OS_NAMES: frozenset[str] = frozenset({
-    "system", "popen", "spawn", "execv", "execvp", "execvpe",
-    "remove", "unlink", "rmdir",
-})
+_DANGEROUS_OS_NAMES: frozenset[str] = frozenset(
+    {
+        "system",
+        "popen",
+        "spawn",
+        "execv",
+        "execvp",
+        "execvpe",
+        "remove",
+        "unlink",
+        "rmdir",
+    }
+)
 
 
 def _check_call_safety(node: ast.Call) -> str | None:
@@ -199,12 +226,14 @@ class SingularityEngine:
             # Generate tool name from description if not provided
             if not tool_name:
                 import re
+
                 # Create a safe tool name from description
                 safe = re.sub(r"[^a-z0-9]+", "_", description.lower())[:30].strip("_")
                 tool_name = f"singularity_{safe}"
 
             # Save the generated code to modules/dynamic/
             from pathlib import Path
+
             dynamic_dir = Path("modules/dynamic")
             dynamic_dir.mkdir(parents=True, exist_ok=True)
             module_path = dynamic_dir / f"{tool_name}.py"
@@ -221,6 +250,7 @@ class SingularityEngine:
                         return {"error": f"Security blocked: {reason}"}
 
                     import importlib.util
+
                     spec = importlib.util.spec_from_file_location(tool_name, str(module_path))
                     if not spec or not spec.loader:
                         return {"error": "Failed to load dynamic module"}

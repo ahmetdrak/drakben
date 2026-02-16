@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\brain_context.py
-# hypothesis_version: 6.151.6
-
-[500, 'Initial context', 'available_tools', 'changes', 'credentials', 'current', 'custom', 'foothold', 'foothold_method', 'iteration', 'kali_detected', 'last_error', 'last_output', 'last_tool', 'llm_model', 'llm_provider', 'max_iterations', 'open_ports', 'phase', 'previous', 'profile', 'scan_mode', 'services', 'strategy', 'target', 'target_os', 'target_type', 'tools_run', 'vulnerabilities']

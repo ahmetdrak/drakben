@@ -37,7 +37,6 @@ except ImportError:
             """Stub class when prompt_toolkit is not installed."""
 
 
-
 # =========================================
 # COMMAND COMPLETER
 # =========================================

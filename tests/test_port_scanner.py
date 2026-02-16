@@ -15,6 +15,7 @@ from modules.recon import (
 
 # ── _guess_service ─────────────────────────────────────────────
 
+
 class TestGuessService:
     """Tests for the port-to-service mapping helper."""
 
@@ -61,6 +62,7 @@ class TestGuessService:
 
 # ── _get_common_ports ──────────────────────────────────────────
 
+
 class TestGetCommonPorts:
     """Tests for the common ports list helper."""
 
@@ -87,6 +89,7 @@ class TestGetCommonPorts:
 
 
 # ── scan_ports (async) ─────────────────────────────────────────
+
 
 class TestScanPorts:
     """Async tests for scan_ports."""
@@ -156,7 +159,9 @@ class TestScanPorts:
         with patch("socket.gethostbyname", return_value="10.0.0.1"):
             with patch("asyncio.open_connection", side_effect=fake_connect):
                 result = await scan_ports(
-                    "example.com", ports=[22, 80, 443, 8080], connect_timeout=0.1,
+                    "example.com",
+                    ports=[22, 80, 443, 8080],
+                    connect_timeout=0.1,
                 )
 
         assert len(result["open_ports"]) == 2
@@ -181,7 +186,9 @@ class TestScanPorts:
         with patch("socket.gethostbyname", return_value="10.0.0.1"):
             with patch("asyncio.open_connection", side_effect=fake_connect):
                 result = await scan_ports(
-                    "example.com", ports=[8080, 22, 443], connect_timeout=0.1,
+                    "example.com",
+                    ports=[8080, 22, 443],
+                    connect_timeout=0.1,
                 )
 
         port_numbers = [p["port"] for p in result["open_ports"]]
@@ -202,7 +209,10 @@ class TestScanPorts:
                 mock_conn.return_value = (AsyncMock(), mock_writer)
                 with patch("modules.recon.STATE_AVAILABLE", True):
                     await scan_ports(
-                        "localhost", ports=[443], connect_timeout=0.1, state=mock_state,
+                        "localhost",
+                        ports=[443],
+                        connect_timeout=0.1,
+                        state=mock_state,
                     )
 
         assert 443 in mock_state.open_services
@@ -231,6 +241,7 @@ class TestScanPorts:
 
 
 # ── scan_ports_sync ────────────────────────────────────────────
+
 
 class TestScanPortsSync:
     """Tests for the synchronous wrapper."""

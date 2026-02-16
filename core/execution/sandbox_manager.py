@@ -329,12 +329,8 @@ class SandboxManager:
             duration = time.time() - start_time
             stdout_data, stderr_data = exec_result.output or (b"", b"")
 
-            stdout = (
-                stdout_data.decode("utf-8", errors="replace") if stdout_data else ""
-            )
-            stderr = (
-                stderr_data.decode("utf-8", errors="replace") if stderr_data else ""
-            )
+            stdout = stdout_data.decode("utf-8", errors="replace") if stdout_data else ""
+            stderr = stderr_data.decode("utf-8", errors="replace") if stderr_data else ""
 
             success = exec_result.exit_code == 0
 

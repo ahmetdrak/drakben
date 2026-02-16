@@ -9,6 +9,7 @@ Pattern: Each mixin inherits from ``AgentProtocol`` only when
 cross-mixin and cross-class attribute access without changing the
 runtime MRO.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol
@@ -69,14 +70,22 @@ class AgentProtocol(Protocol):
 
     # ── Cross-mixin Methods ──────────────────────────────────────
     def _diagnose_error(
-        self, output: str, exit_code: int,
+        self,
+        output: str,
+        exit_code: int,
     ) -> dict[str, Any]: ...
 
     def _format_tool_result(
-        self, result: Any, args: dict[str, Any], tool_name: str = ...,
+        self,
+        result: Any,
+        args: dict[str, Any],
+        tool_name: str = ...,
     ) -> dict[str, Any]: ...
 
     def _handle_tool_failure(
-        self, tool_name: str, command: str, result: Any,
+        self,
+        tool_name: str,
+        command: str,
+        result: Any,
         args: dict[str, Any],
     ) -> dict[str, Any]: ...

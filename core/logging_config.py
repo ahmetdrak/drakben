@@ -200,4 +200,3 @@ def get_logger(name: str) -> logging.Logger:
         name = f"drakben.{name}"
 
     return logging.getLogger(name)
-

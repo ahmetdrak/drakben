@@ -170,9 +170,13 @@ class TestSmartTerminalHistory:
     def test_add_to_history(self):
         terminal = SmartTerminal()
         result = ExecutionResult(
-            command="ls", status=ExecutionStatus.SUCCESS,
-            stdout="file1", stderr="", exit_code=0,
-            duration=0.1, timestamp=time.time(),
+            command="ls",
+            status=ExecutionStatus.SUCCESS,
+            stdout="file1",
+            stderr="",
+            exit_code=0,
+            duration=0.1,
+            timestamp=time.time(),
         )
         terminal._add_to_history(result)
         assert len(terminal.execution_history) == 1
@@ -181,9 +185,13 @@ class TestSmartTerminalHistory:
         terminal = SmartTerminal()
         for i in range(MAX_EXECUTION_HISTORY + 50):
             result = ExecutionResult(
-                command=f"cmd_{i}", status=ExecutionStatus.SUCCESS,
-                stdout="", stderr="", exit_code=0,
-                duration=0.0, timestamp=time.time(),
+                command=f"cmd_{i}",
+                status=ExecutionStatus.SUCCESS,
+                stdout="",
+                stderr="",
+                exit_code=0,
+                duration=0.0,
+                timestamp=time.time(),
             )
             terminal._add_to_history(result)
         assert len(terminal.execution_history) <= MAX_EXECUTION_HISTORY
@@ -192,9 +200,13 @@ class TestSmartTerminalHistory:
         terminal = SmartTerminal()
         for i in range(5):
             result = ExecutionResult(
-                command=f"cmd_{i}", status=ExecutionStatus.SUCCESS,
-                stdout="", stderr="", exit_code=0,
-                duration=0.0, timestamp=time.time(),
+                command=f"cmd_{i}",
+                status=ExecutionStatus.SUCCESS,
+                stdout="",
+                stderr="",
+                exit_code=0,
+                duration=0.0,
+                timestamp=time.time(),
             )
             terminal._add_to_history(result)
         terminal.clear_history()
@@ -204,9 +216,13 @@ class TestSmartTerminalHistory:
         terminal = SmartTerminal()
         assert terminal.get_last_result() is None
         result = ExecutionResult(
-            command="ls", status=ExecutionStatus.SUCCESS,
-            stdout="", stderr="", exit_code=0,
-            duration=0.0, timestamp=time.time(),
+            command="ls",
+            status=ExecutionStatus.SUCCESS,
+            stdout="",
+            stderr="",
+            exit_code=0,
+            duration=0.0,
+            timestamp=time.time(),
         )
         terminal._add_to_history(result)
         assert terminal.get_last_result().command == "ls"
@@ -261,15 +277,19 @@ class TestSmartTerminalExecute:
     def test_execute_skip_confirmation(self):
         """skip_confirmation=True should bypass the confirmation check."""
         terminal = SmartTerminal()
-        with patch.object(terminal, "_create_process") as mock_proc, \
-             patch.object(terminal, "_wait_for_process") as mock_wait:
+        with (
+            patch.object(terminal, "_create_process") as mock_proc,
+            patch.object(terminal, "_wait_for_process") as mock_wait,
+        ):
             mock_process = MagicMock()
             mock_proc.return_value = mock_process
             mock_wait.return_value = ("output", "", 0, ExecutionStatus.SUCCESS)
 
             # sudo normally requires confirmation, but we skip it
             result = terminal.execute(
-                "sudo ls", skip_sanitization=True, skip_confirmation=True,
+                "sudo ls",
+                skip_sanitization=True,
+                skip_confirmation=True,
             )
             assert result.status == ExecutionStatus.SUCCESS
 
@@ -289,8 +309,10 @@ class TestSmartTerminalExecute:
     def test_execute_callback_invoked(self):
         terminal = SmartTerminal()
         callback = MagicMock()
-        with patch.object(terminal, "_create_process") as mock_proc, \
-             patch.object(terminal, "_wait_for_process") as mock_wait:
+        with (
+            patch.object(terminal, "_create_process") as mock_proc,
+            patch.object(terminal, "_wait_for_process") as mock_wait,
+        ):
             mock_process = MagicMock()
             mock_proc.return_value = mock_process
             mock_wait.return_value = ("ok", "", 0, ExecutionStatus.SUCCESS)
@@ -317,9 +339,13 @@ class TestSmartTerminalSandbox:
         with patch("core.execution.execution_engine._get_sandbox_manager", return_value=None):
             with patch.object(terminal, "execute") as mock_execute:
                 mock_execute.return_value = ExecutionResult(
-                    command="ls", status=ExecutionStatus.SUCCESS,
-                    stdout="ok", stderr="", exit_code=0,
-                    duration=0.1, timestamp=time.time(),
+                    command="ls",
+                    status=ExecutionStatus.SUCCESS,
+                    stdout="ok",
+                    stderr="",
+                    exit_code=0,
+                    duration=0.1,
+                    timestamp=time.time(),
                 )
                 result = terminal.execute_sandboxed("ls")
                 mock_execute.assert_called_once()
@@ -342,7 +368,9 @@ class TestSmartTerminalPrepareCommand:
     def test_prepare_shell_command(self):
         terminal = SmartTerminal()
         _, args = terminal._prepare_command(
-            "echo hello | grep h", shell=True, skip_sanitization=True,
+            "echo hello | grep h",
+            shell=True,
+            skip_sanitization=True,
         )
         assert isinstance(args, str)
 
@@ -463,8 +491,13 @@ class TestOutputAnalyzer:
     def _make_result(self, command, stdout="", stderr="", exit_code=0):
         status = ExecutionStatus.SUCCESS if exit_code == 0 else ExecutionStatus.FAILED
         return ExecutionResult(
-            command=command, status=status, stdout=stdout, stderr=stderr,
-            exit_code=exit_code, duration=1.0, timestamp=time.time(),
+            command=command,
+            status=status,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            duration=1.0,
+            timestamp=time.time(),
         )
 
     def test_analyze_nmap_output(self, analyzer):
@@ -520,9 +553,13 @@ class TestExecutionDataClasses:
 
     def test_execution_result_creation(self):
         r = ExecutionResult(
-            command="test", status=ExecutionStatus.SUCCESS,
-            stdout="out", stderr="err", exit_code=0,
-            duration=1.5, timestamp=time.time(),
+            command="test",
+            status=ExecutionStatus.SUCCESS,
+            stdout="out",
+            stderr="err",
+            exit_code=0,
+            duration=1.5,
+            timestamp=time.time(),
         )
         assert r.command == "test"
         assert r.exit_code == 0

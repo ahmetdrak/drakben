@@ -56,11 +56,7 @@ class MenuCommandsMixin(_MixinBase):
             for i, r in enumerate(results, 1):
                 self.console.print(f"{i}. [bold]{r['title']}[/]")
                 self.console.print(f"   [cyan underline]{r['href']}[/]")
-                body: Any | str = (
-                    r.get("body", "")[:200] + "..."
-                    if r.get("body")
-                    else "No description."
-                )
+                body: Any | str = r.get("body", "")[:200] + "..." if r.get("body") else "No description."
                 self.console.print(f"   [dim]{body}[/]\n")
 
         except (OSError, ValueError, RuntimeError) as e:
@@ -133,8 +129,7 @@ class MenuCommandsMixin(_MixinBase):
         domain_pattern = r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$"
 
         return bool(
-            re.match(ip_pattern, target)
-            or re.match(domain_pattern, target, re.IGNORECASE),
+            re.match(ip_pattern, target) or re.match(domain_pattern, target, re.IGNORECASE),
         )
 
     def _show_current_target_info(self, lang: str) -> None:
@@ -315,17 +310,15 @@ class MenuCommandsMixin(_MixinBase):
         """Handle scan interruption (Ctrl+C)."""
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.stop()
         except ImportError:
             pass
-        interrupt_msg: str = (
-            "\nTarama durduruldu."
-            if lang == "tr"
-            else "\nScan stopped."
-        )
+        interrupt_msg: str = "\nTarama durduruldu." if lang == "tr" else "\nScan stopped."
         self.console.print(f"[yellow]{interrupt_msg}[/]")
         try:
             from core.stop_controller import stop_controller
+
             stop_controller.reset()
         except ImportError:
             pass
@@ -333,9 +326,7 @@ class MenuCommandsMixin(_MixinBase):
     def _handle_scan_error(self, error: Exception, lang: str) -> None:
         """Handle scan error."""
         logger.exception("Scan error: %s", error)
-        error_msg: str = (
-            f"Tarama hatası: {error}" if lang == "tr" else f"Scan error: {error}"
-        )
+        error_msg: str = f"Tarama hatası: {error}" if lang == "tr" else f"Scan error: {error}"
         self.console.print(f"[red]{error_msg}[/]")
 
     def _show_scan_plan_and_confirm(self, lang: str) -> None:
@@ -405,11 +396,7 @@ class MenuCommandsMixin(_MixinBase):
             target: str = self.config.target or "localhost"
             self.agent.initialize(target=target, mode=scan_mode)
         except Exception as init_error:
-            error_msg: str = (
-                f"Agent hatası: {init_error}"
-                if lang == "tr"
-                else f"Agent error: {init_error}"
-            )
+            error_msg: str = f"Agent hatası: {init_error}" if lang == "tr" else f"Agent error: {init_error}"
             retry_msg = "Yeniden deneniyor..." if lang == "tr" else "Retrying..."
             self.console.print(f"[yellow]{error_msg}[/]")
             self.console.print(f"[dim]{retry_msg}[/]")
@@ -460,12 +447,14 @@ class MenuCommandsMixin(_MixinBase):
         self._add_llm_status_row(status_table, is_tr)
 
         title = "DRAKBEN Durumu" if is_tr else "DRAKBEN Status"
-        self.console.print(Panel(
-            status_table,
-            title=f"[bold cyan]{title}[/]",
-            border_style="cyan",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                status_table,
+                title=f"[bold cyan]{title}[/]",
+                border_style="cyan",
+                padding=(0, 1),
+            )
+        )
 
         if self.agent and self.agent.state:
             self._show_agent_status_compact(is_tr)
@@ -505,9 +494,14 @@ class MenuCommandsMixin(_MixinBase):
 
         state = self.agent.state
         phase_colors = {
-            "init": "dim", "recon": "yellow", "vulnerability_scan": "cyan",
-            "exploit": "red", "foothold": "green", "post_exploit": "magenta",
-            "complete": self.STYLE_BOLD_GREEN, "failed": self.STYLE_BOLD_RED,
+            "init": "dim",
+            "recon": "yellow",
+            "vulnerability_scan": "cyan",
+            "exploit": "red",
+            "foothold": "green",
+            "post_exploit": "magenta",
+            "complete": self.STYLE_BOLD_GREEN,
+            "failed": self.STYLE_BOLD_RED,
         }
         phase_color = phase_colors.get(state.phase.value, "white")
         phase_name = self._get_phase_display_name(state.phase.value, is_tr)
@@ -530,12 +524,14 @@ class MenuCommandsMixin(_MixinBase):
         agent_table.add_row("Foothold" if not is_tr else "Erişim", f"[{foothold_style}]{foothold_text}[/]")
 
         title = "Agent Status" if not is_tr else "Ajan Durumu"
-        self.console.print(Panel(
-            agent_table,
-            title=f"[bold yellow]{title}[/]",
-            border_style="yellow",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                agent_table,
+                title=f"[bold yellow]{title}[/]",
+                border_style="yellow",
+                padding=(0, 1),
+            )
+        )
 
     # ── Memory ──────────────────────────────────────────────────────
 
@@ -557,18 +553,21 @@ class MenuCommandsMixin(_MixinBase):
         self._populate_evolution_memory_rows(mem_table, is_tr)
 
         title = "Hafıza Sistemi" if is_tr else "Memory System"
-        self.console.print(Panel(
-            mem_table,
-            title=f"[bold cyan]{title}[/]",
-            border_style="cyan",
-            padding=(0, 1),
-        ))
+        self.console.print(
+            Panel(
+                mem_table,
+                title=f"[bold cyan]{title}[/]",
+                border_style="cyan",
+                padding=(0, 1),
+            )
+        )
         self.console.print()
 
     def _populate_stanford_memory_rows(self, mem_table: Table, is_tr: bool) -> None:
         """Populate Stanford Memory Stream rows."""
         try:
             from core.agent.memory.memory_stream import get_memory_stream
+
             ms = get_memory_stream()
             stats = ms.get_stats()
             mem_table.add_row(
@@ -613,6 +612,7 @@ class MenuCommandsMixin(_MixinBase):
         """Populate Evolution Memory rows."""
         try:
             from core.intelligence.evolution_memory import get_evolution_memory
+
             evo = get_evolution_memory()
             mem_table.add_row(
                 "[bold yellow]Evrim Hafızası[/]" if is_tr else "[bold yellow]Evolution Memory[/]",
@@ -627,8 +627,7 @@ class MenuCommandsMixin(_MixinBase):
             blocked = sum(1 for p in penalties.values() if p.get("blocked"))
             mem_table.add_row(
                 "  Araç Cezaları" if is_tr else "  Tool Penalties",
-                f"{len(penalties)} ({blocked} engellenmiş)" if is_tr
-                else f"{len(penalties)} ({blocked} blocked)",
+                f"{len(penalties)} ({blocked} engellenmiş)" if is_tr else f"{len(penalties)} ({blocked} blocked)",
             )
             heuristics = evo.get_all_heuristics()
             mem_table.add_row(

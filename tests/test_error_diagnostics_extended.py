@@ -17,6 +17,7 @@ def diag() -> DiagnosticsHelper:
 
 # ── Basic error categories (was test_error_diagnostics.py) ────
 
+
 class TestBasicDiagnostics:
     """Basic _diagnose_error coverage for common error types."""
 
@@ -39,14 +40,16 @@ class TestBasicDiagnostics:
 
     def test_python_module_missing(self, diag: DiagnosticsHelper) -> None:
         result = diag._diagnose_error(
-            "ModuleNotFoundError: No module named 'requests'", 1,
+            "ModuleNotFoundError: No module named 'requests'",
+            1,
         )
         assert result["type"] == "python_module_missing"
         assert result["module"] == "requests"
 
     def test_file_not_found(self, diag: DiagnosticsHelper) -> None:
         result = diag._diagnose_error(
-            "No such file or directory: config.json", 1,
+            "No such file or directory: config.json",
+            1,
         )
         assert result["type"] == "file_not_found"
 
@@ -65,6 +68,7 @@ class TestBasicDiagnostics:
 
 # ── _check_library_error ──────────────────────────────────────
 
+
 class TestLibraryError:
     def test_shared_object(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_library_error("error: cannot open shared object file: libssl.so.1.1")
@@ -82,6 +86,7 @@ class TestLibraryError:
 
 
 # ── _check_syntax_error ──────────────────────────────────────
+
 
 class TestSyntaxError:
     def test_invalid_argument(self, diag: DiagnosticsHelper) -> None:
@@ -107,6 +112,7 @@ class TestSyntaxError:
 
 # ── _check_memory_error ──────────────────────────────────────
 
+
 class TestMemoryError:
     def test_out_of_memory(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_memory_error("killed (out of memory)")
@@ -128,6 +134,7 @@ class TestMemoryError:
 
 # ── _check_disk_error ────────────────────────────────────────
 
+
 class TestDiskError:
     def test_no_space(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_disk_error("no space left on device")
@@ -147,6 +154,7 @@ class TestDiskError:
 
 
 # ── _check_auth_error ────────────────────────────────────────
+
 
 class TestAuthError:
     def test_auth_failed(self, diag: DiagnosticsHelper) -> None:
@@ -168,6 +176,7 @@ class TestAuthError:
 
 # ── _check_port_error ────────────────────────────────────────
 
+
 class TestPortError:
     def test_address_in_use(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_port_error("error: address already in use port: 8080")
@@ -184,6 +193,7 @@ class TestPortError:
 
 
 # ── _check_database_error ────────────────────────────────────
+
 
 class TestDatabaseError:
     def test_sqlite_locked(self, diag: DiagnosticsHelper) -> None:
@@ -205,6 +215,7 @@ class TestDatabaseError:
 
 # ── _check_parse_error ───────────────────────────────────────
 
+
 class TestParseError:
     def test_json_decode(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_parse_error("json.decoder.jsondecodeerror: expecting value")
@@ -224,6 +235,7 @@ class TestParseError:
 
 
 # ── _check_version_error ─────────────────────────────────────
+
 
 class TestVersionError:
     def test_version_mismatch(self, diag: DiagnosticsHelper) -> None:
@@ -245,6 +257,7 @@ class TestVersionError:
 
 # ── _check_resource_error ────────────────────────────────────
 
+
 class TestResourceError:
     def test_too_many_files(self, diag: DiagnosticsHelper) -> None:
         r = diag._check_resource_error("too many open files")
@@ -260,6 +273,7 @@ class TestResourceError:
 
 
 # ── _diagnose_error (top-level integration) ──────────────────
+
 
 class TestDiagnoseError:
     def test_unknown_error_fallback(self, diag: DiagnosticsHelper) -> None:

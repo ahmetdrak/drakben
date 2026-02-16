@@ -1,4 +1,0 @@
-# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\knowledge_base.py
-# hypothesis_version: 6.151.6
-
-[0.0, 0.3, 0.5, 0.6, 0.7, 0.8, 300, 3600, ' AND category = ?', ' AND confidence >= ?', ' AND key = ?', '.', 'CVE-', 'VULNERABLE', 'bypass', 'category', 'confidence', 'content', 'defense_bypass', 'entries_expired', 'entry_id', 'hits', 'key', 'learns', 'lesson', 'recalls', 'success_count', 'tags', 'tool_rating', 'total_entries', 'use_count']

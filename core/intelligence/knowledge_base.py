@@ -31,13 +31,13 @@ class KnowledgeEntry:
     """A single piece of learned knowledge."""
 
     entry_id: str = ""
-    category: str = ""          # "lesson", "fingerprint", "tool_rating", "defense_bypass"
-    key: str = ""               # Lookup key (e.g., "waf:cloudflare:sqli")
-    content: str = ""           # The knowledge itself
+    category: str = ""  # "lesson", "fingerprint", "tool_rating", "defense_bypass"
+    key: str = ""  # Lookup key (e.g., "waf:cloudflare:sqli")
+    content: str = ""  # The knowledge itself
     tags: list[str] = field(default_factory=list)
-    confidence: float = 0.5     # 0-1
-    use_count: int = 0          # Times this knowledge was used
-    success_count: int = 0      # Times it led to success
+    confidence: float = 0.5  # 0-1
+    use_count: int = 0  # Times this knowledge was used
+    success_count: int = 0  # Times it led to success
     created_at: float = 0.0
     updated_at: float = 0.0
     expires_at: float = 0.0
@@ -125,6 +125,7 @@ class CrossSessionKB:
         """Initialize SQLite database."""
         try:
             import os
+
             os.makedirs(os.path.dirname(self._db_path) or ".", exist_ok=True)
             self._conn = sqlite3.connect(
                 self._db_path,
@@ -193,9 +194,15 @@ class CrossSessionKB:
                     metadata = excluded.metadata
                 """,
                 (
-                    entry_id, category, key, content,
-                    json.dumps(tags or []), confidence,
-                    now, now, now + ttl,
+                    entry_id,
+                    category,
+                    key,
+                    content,
+                    json.dumps(tags or []),
+                    confidence,
+                    now,
+                    now,
+                    now + ttl,
                     json.dumps(metadata or {}),
                 ),
             )
@@ -234,7 +241,10 @@ class CrossSessionKB:
         self._stats["recalls"] += 1
 
         query, params = self._build_recall_query(
-            category, key, min_confidence, limit,
+            category,
+            key,
+            min_confidence,
+            limit,
         )
 
         rows = self._execute_recall(query, params)
@@ -250,7 +260,11 @@ class CrossSessionKB:
         return entries[:limit]
 
     def _build_recall_query(
-        self, category: str, key: str, min_confidence: float, limit: int,
+        self,
+        category: str,
+        key: str,
+        min_confidence: float,
+        limit: int,
     ) -> tuple[str, list[Any]]:
         """Build SQL query and params for recall filtering."""
         now = time.time()
@@ -272,7 +286,9 @@ class CrossSessionKB:
         return query, params
 
     def _execute_recall(
-        self, query: str, params: list[Any],
+        self,
+        query: str,
+        params: list[Any],
     ) -> list[tuple[Any, ...]]:
         """Execute recall query and return raw rows."""
         try:
@@ -284,7 +300,8 @@ class CrossSessionKB:
 
     @staticmethod
     def _rows_to_entries(
-        rows: list[tuple[Any, ...]], tags: list[str] | None,
+        rows: list[tuple[Any, ...]],
+        tags: list[str] | None,
     ) -> list[KnowledgeEntry]:
         """Convert raw DB rows to KnowledgeEntry objects with tag filtering."""
         entries: list[KnowledgeEntry] = []
@@ -313,7 +330,10 @@ class CrossSessionKB:
         return self.recall(tags=[target], limit=50)
 
     def recall_for_context(
-        self, target: str, service: str = "", defense: str = "",
+        self,
+        target: str,
+        service: str = "",
+        defense: str = "",
     ) -> str:
         """Get all relevant knowledge as a compact string for LLM injection.
 
@@ -341,7 +361,10 @@ class CrossSessionKB:
         return "\n".join(lines)
 
     def _gather_context_entries(
-        self, target: str, service: str, defense: str,
+        self,
+        target: str,
+        service: str,
+        defense: str,
     ) -> list[KnowledgeEntry]:
         """Gather relevant knowledge entries from all categories."""
         relevant: list[KnowledgeEntry] = []
@@ -350,9 +373,13 @@ class CrossSessionKB:
             relevant.extend(self.recall(category="lesson", tags=[service], limit=5))
             relevant.extend(self.recall(category="tool_rating", tags=[service], limit=5))
         if defense:
-            relevant.extend(self.recall(
-                category="defense_bypass", tags=[defense.lower()], limit=5,
-            ))
+            relevant.extend(
+                self.recall(
+                    category="defense_bypass",
+                    tags=[defense.lower()],
+                    limit=5,
+                )
+            )
         return relevant
 
     @staticmethod

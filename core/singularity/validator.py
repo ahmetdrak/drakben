@@ -91,6 +91,7 @@ class CodeValidator(IValidator):
             try:
                 # Step 3: Build the execution command based on language
                 import shlex
+
                 lang = snippet.language.lower()
                 if lang == "python":
                     # Use python -c with the code (safely quoted for shell)
@@ -168,8 +169,15 @@ class CodeValidator(IValidator):
             func_name = node.func.attr
 
         forbidden = {
-            "system", "popen", "spawn", "exec", "eval",
-            "open", "remove", "rmdir", "unlink",
+            "system",
+            "popen",
+            "spawn",
+            "exec",
+            "eval",
+            "open",
+            "remove",
+            "rmdir",
+            "unlink",
         }
         if func_name in forbidden:
             logger.error("SECURITY ALERT: Blocked dangerous call '%s'", func_name)

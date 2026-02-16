@@ -70,9 +70,7 @@ def format_llm_prompt(
     prompt = f"{system_msg}\n\n{user_msg}"
 
     if json_response:
-        prompt += (
-            "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations."
-        )
+        prompt += "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations."
 
     # Language instruction
     if language == "tr":

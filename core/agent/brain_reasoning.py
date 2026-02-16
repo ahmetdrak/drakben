@@ -50,18 +50,45 @@ class ContinuousReasoning:
     _RE_JSON_BLOCK = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL)
     _RE_NMAP_PORT = re.compile(r"(\d+)/(tcp|udp)\s+open\s+(\S+)\s*(.*)")
     _RE_CHAT_PATTERNS: list[re.Pattern[str]] = [
-        re.compile(p) for p in [
-            r"\bmerhaba\b", r"\bselam\b", r"\bhello\b", r"\bhi\b",
-            r"\bgood morning\b", r"\bgood evening\b", r"\bgünaydin\b",
-            r"\bgünaydın\b", r"\biyi akşamlar\b", r"\bnasılsın\b",
-            r"\bhow are you\b", r"\bsen kimsin\b", r"\bwho are you\b",
-            r"\bhangi model\b", r"\bwhat model\b", r"\bne yapabilirsin\b",
-            r"\bwhat can you do\b", r"\badın ne\b", r"\byour name\b",
-            r"\bhakkında\b", r"\babout you\b", r"\bteşekkür\b", r"\bthank\b",
-            r"\btamam\b", r"\bokay\b", r"\bok\b", r"\bneden\b", r"\bwhy\b",
-            r"\bnasıl\b", r"\bhow do\b", r"\bne zaman\b", r"\bwhen\b",
-            r"\bhangi sistem\b", r"\bwhat system\b", r"\bcevap ver\b",
-            r"\bkonuş\b", r"\bsöyle\b",
+        re.compile(p)
+        for p in [
+            r"\bmerhaba\b",
+            r"\bselam\b",
+            r"\bhello\b",
+            r"\bhi\b",
+            r"\bgood morning\b",
+            r"\bgood evening\b",
+            r"\bgünaydin\b",
+            r"\bgünaydın\b",
+            r"\biyi akşamlar\b",
+            r"\bnasılsın\b",
+            r"\bhow are you\b",
+            r"\bsen kimsin\b",
+            r"\bwho are you\b",
+            r"\bhangi model\b",
+            r"\bwhat model\b",
+            r"\bne yapabilirsin\b",
+            r"\bwhat can you do\b",
+            r"\badın ne\b",
+            r"\byour name\b",
+            r"\bhakkında\b",
+            r"\babout you\b",
+            r"\bteşekkür\b",
+            r"\bthank\b",
+            r"\btamam\b",
+            r"\bokay\b",
+            r"\bok\b",
+            r"\bneden\b",
+            r"\bwhy\b",
+            r"\bnasıl\b",
+            r"\bhow do\b",
+            r"\bne zaman\b",
+            r"\bwhen\b",
+            r"\bhangi sistem\b",
+            r"\bwhat system\b",
+            r"\bcevap ver\b",
+            r"\bkonuş\b",
+            r"\bsöyle\b",
         ]
     ]
 
@@ -134,7 +161,9 @@ OUTPUT JSON:
         return "\n".join(parts) if parts else "No prior observations yet."
 
     def _extract_history_state(
-        self, context: ExecutionContext, parts: list[str],
+        self,
+        context: ExecutionContext,
+        parts: list[str],
     ) -> None:
         """Extract discoveries and failures from execution history."""
         discoveries: list[str] = []
@@ -152,7 +181,9 @@ OUTPUT JSON:
 
     @staticmethod
     def _categorize_history_entry(
-        entry: dict, discoveries: list[str], failed_tools: list[str],
+        entry: dict,
+        discoveries: list[str],
+        failed_tools: list[str],
     ) -> None:
         """Categorize a single history entry into discoveries or failures."""
         if entry.get("success") is False:
@@ -229,6 +260,7 @@ OUTPUT JSON:
 
         """
         import threading
+
         self._lock = threading.Lock()  # Thread safety for history
         self.llm_client = llm_client
         self.cognitive_memory = cognitive_memory  # Stanford Memory System
@@ -241,6 +273,7 @@ OUTPUT JSON:
         self.knowledge_base: Any = None
         try:
             from core.intelligence.knowledge_base import CrossSessionKB
+
             self.knowledge_base = CrossSessionKB()
         except ImportError:
             pass
@@ -272,6 +305,7 @@ OUTPUT JSON:
         # Detect Kali Linux and available tools
         try:
             from core.security.kali_detector import KaliDetector
+
             kali = KaliDetector()
             self._system_context["is_kali"] = kali.is_kali()
             self._system_context["available_tools"] = list(kali.get_available_tools().keys())
@@ -287,9 +321,7 @@ OUTPUT JSON:
         with self._lock:
             self.reasoning_history.append(item)
             if len(self.reasoning_history) > self.MAX_REASONING_HISTORY:
-                self.reasoning_history = self.reasoning_history[
-                    -self.MAX_REASONING_HISTORY :
-                ]
+                self.reasoning_history = self.reasoning_history[-self.MAX_REASONING_HISTORY :]
 
     def analyze(self, user_input: str, context: ExecutionContext) -> dict:
         """Analyze user input to determine intent and generate a plan.
@@ -318,6 +350,7 @@ OUTPUT JSON:
         # Show fallback status via transparency dashboard
         try:
             from core.ui.transparency import get_transparency
+
             td = get_transparency()
             if td and td.enabled:
                 reason = "LLM not connected" if not self.llm_client else "LLM analysis failed"
@@ -375,7 +408,10 @@ OUTPUT JSON:
                 delay = min(5 * (2**attempt), 10)  # 5s, 10s (capped)
                 _logger.warning(
                     "LLM transient error, retrying in %ss (%s/%s): %s",
-                    delay, attempt + 1, MAX_RETRIES, error_msg,
+                    delay,
+                    attempt + 1,
+                    MAX_RETRIES,
+                    error_msg,
                 )
                 time.sleep(delay)  # NOTE: blocking sleep; async not used here
                 continue
@@ -395,7 +431,9 @@ OUTPUT JSON:
             _logger.warning("LLM first error: %s", error_msg[:100])
 
     def _check_llm_cache(
-        self, user_input: str, system_prompt: str,
+        self,
+        user_input: str,
+        system_prompt: str,
     ) -> dict[str, Any] | None:
         """Check LLM cache for a cached response.
 
@@ -491,7 +529,8 @@ OUTPUT JSON:
         if self.cognitive_memory:
             target = getattr(context, "target", None)
             cognitive_context = self.cognitive_memory.get_context_for_llm(
-                query=user_input, target=target,
+                query=user_input,
+                target=target,
             )
             if cognitive_context:
                 system_prompt = f"{system_prompt}\n\n### MEMORY CONTEXT (relevant past findings):\n{cognitive_context}"
@@ -511,9 +550,7 @@ OUTPUT JSON:
             response = self.llm_client.query(user_input, system_prompt, timeout=timeout)
 
             # Check for error responses (match DRAKBEN's error format: "[Error]", "[Offline]", "[Timeout]")
-            if any(
-                response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")
-            ):
+            if any(response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")):
                 return {"success": False, "error": response}
 
             # Save to Cache on Success
@@ -550,9 +587,7 @@ OUTPUT JSON:
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
             # Try to extract meaningful text from dict if passed by mistake
-            user_input = (
-                user_input.get("command") or user_input.get("input") or str(user_input)
-            )
+            user_input = user_input.get("command") or user_input.get("input") or str(user_input)
 
         if not isinstance(user_input, str):
             user_input = str(user_input)
@@ -604,11 +639,32 @@ OUTPUT JSON:
         if len(words) <= 3:
             # Check if any word looks like a tool name
             common_tools = {
-                "nuclei", "nmap", "sqlmap", "nikto", "gobuster", "ffuf",
-                "dirb", "wfuzz", "hydra", "john", "hashcat", "enum4linux",
-                "crackmapexec", "impacket", "responder", "bloodhound",
-                "metasploit", "msfconsole", "burp", "masscan", "amass",
-                "subfinder", "httpx", "whatweb", "wafw00f", "dirsearch",
+                "nuclei",
+                "nmap",
+                "sqlmap",
+                "nikto",
+                "gobuster",
+                "ffuf",
+                "dirb",
+                "wfuzz",
+                "hydra",
+                "john",
+                "hashcat",
+                "enum4linux",
+                "crackmapexec",
+                "impacket",
+                "responder",
+                "bloodhound",
+                "metasploit",
+                "msfconsole",
+                "burp",
+                "masscan",
+                "amass",
+                "subfinder",
+                "httpx",
+                "whatweb",
+                "wafw00f",
+                "dirsearch",
             }
             if any(w.lower().rstrip(".-") in common_tools for w in words):
                 return False
@@ -670,9 +726,7 @@ IMPORTANT RULES:
             response = self.llm_client.query(user_input, system_prompt, timeout=20)
 
             # Check for error responses (match DRAKBEN's error format: "[Error]", "[Offline]", "[Timeout]")
-            if any(
-                response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")
-            ):
+            if any(response.startswith(f"[{tag}]") for tag in ("Error", "Offline", "Timeout", "Stopped")):
                 return {"success": False, "error": response}
 
             # 2. Save to Cache
@@ -766,9 +820,7 @@ IMPORTANT RULES:
         """Detect user intent from input."""
         # Safety check: Ensure input is string
         if isinstance(user_input, dict):
-            user_input = (
-                user_input.get("command") or user_input.get("input") or str(user_input)
-            )
+            user_input = user_input.get("command") or user_input.get("input") or str(user_input)
 
         if not isinstance(user_input, str):
             user_input = str(user_input)
@@ -785,10 +837,29 @@ IMPORTANT RULES:
 
         # FIRST: Check for theoretical questions (these are always "chat")
         question_indicators = [
-            "ihtimal", "olasılık", "yüzde", "kaç", "mümkün mü", "possible",
-            "percentage", "what if", "could you", "can you", "would",
-            "nasıl", "nedir", "ne kadar", "hangi", "mısın", "misin",
-            "musun", "midir", "selam", "merhaba", "hello", "hi",
+            "ihtimal",
+            "olasılık",
+            "yüzde",
+            "kaç",
+            "mümkün mü",
+            "possible",
+            "percentage",
+            "what if",
+            "could you",
+            "can you",
+            "would",
+            "nasıl",
+            "nedir",
+            "ne kadar",
+            "hangi",
+            "mısın",
+            "misin",
+            "musun",
+            "midir",
+            "selam",
+            "merhaba",
+            "hello",
+            "hi",
         ]
         if any(q in user_lower for q in question_indicators):
             # But check if it's an explicit action request too
@@ -850,13 +921,9 @@ IMPORTANT RULES:
         """Check what we already know from prior scans."""
         history = getattr(context, "history", None) or []
         return {
-            "has_port_scan": any(
-                isinstance(h, dict) and h.get("tool") == "nmap" and h.get("success")
-                for h in history
-            ),
+            "has_port_scan": any(isinstance(h, dict) and h.get("tool") == "nmap" and h.get("success") for h in history),
             "has_web_scan": any(
-                isinstance(h, dict) and h.get("tool") in ("nikto", "gobuster", "ffuf")
-                for h in history
+                isinstance(h, dict) and h.get("tool") in ("nikto", "gobuster", "ffuf") for h in history
             ),
             "available_tools": self._system_context.get("available_tools", []),
         }
@@ -870,8 +937,9 @@ IMPORTANT RULES:
             steps.append({"action": "port_scan", "tool": "nmap"})
             steps.append({"action": "service_detection", "tool": "nmap"})
         else:
-            steps.append({"action": "port_scan_full", "tool": "nmap",
-                          "note": "Full port scan since basic already done"})
+            steps.append(
+                {"action": "port_scan_full", "tool": "nmap", "note": "Full port scan since basic already done"}
+            )
 
         # Add subdomain enum if target looks like a domain
         target = context.target or ""
@@ -906,14 +974,16 @@ IMPORTANT RULES:
 
         if not state["has_port_scan"]:
             steps.append({"action": "service_detection", "tool": "nmap"})
-        steps.extend([
-            {"action": "vuln_scan", "tool": "nmap"},
-            {"action": "exploit_search", "tool": "searchsploit"},
-            {"action": "select_exploit"},
-            {"action": "generate_payload"},
-            {"action": "execute_exploit"},
-            {"action": "verify_shell"},
-        ])
+        steps.extend(
+            [
+                {"action": "vuln_scan", "tool": "nmap"},
+                {"action": "exploit_search", "tool": "searchsploit"},
+                {"action": "select_exploit"},
+                {"action": "generate_payload"},
+                {"action": "execute_exploit"},
+                {"action": "verify_shell"},
+            ]
+        )
         return steps
 
     @staticmethod
@@ -983,9 +1053,12 @@ IMPORTANT RULES:
                 result["action"] = "expand_plan"
 
         # Auto-trigger reflections after every 5 observations
-        if (hasattr(self, "cognitive_memory") and self.cognitive_memory
-                and len(getattr(context, "history", None) or []) % 5 == 0
-                and len(getattr(context, "history", None) or []) > 0):
+        if (
+            hasattr(self, "cognitive_memory")
+            and self.cognitive_memory
+            and len(getattr(context, "history", None) or []) % 5 == 0
+            and len(getattr(context, "history", None) or []) > 0
+        ):
             try:
                 target = context.target
                 self.cognitive_memory.generate_reflections(target=target)
@@ -1042,7 +1115,9 @@ IMPORTANT RULES:
         return findings
 
     def _suggest_next_from_findings(
-        self, findings: dict, context: ExecutionContext,
+        self,
+        findings: dict,
+        context: ExecutionContext,
     ) -> list[dict]:
         """Suggest additional steps based on what was discovered.
 
@@ -1077,11 +1152,13 @@ IMPORTANT RULES:
 
         # Vulnerabilities found → exploit search
         if findings.get("vulnerabilities"):
-            suggestions.append({
-                "action": "exploit_search",
-                "tool": "searchsploit",
-                "reason": "Vulnerabilities detected",
-            })
+            suggestions.append(
+                {
+                    "action": "exploit_search",
+                    "tool": "searchsploit",
+                    "reason": "Vulnerabilities detected",
+                }
+            )
 
         return suggestions
 

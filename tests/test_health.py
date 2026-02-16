@@ -18,6 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # 1. Module importability
 # ---------------------------------------------------------------------------
 
+
 def test_module_health() -> None:
     """Verify all critical modules are importable."""
     modules_to_check = [

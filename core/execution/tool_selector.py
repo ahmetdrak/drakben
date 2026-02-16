@@ -1,4 +1,4 @@
-﻿# core/execution/tool_selector.py
+# core/execution/tool_selector.py
 # DRAKBEN Tool Selector - DETERMINISTIC TOOL SELECTION
 # REQUIRED: LLM tool selection limited to state.remaining_attack_surface
 # NEW: KaliDetector integration - only available tools
@@ -472,10 +472,7 @@ class ToolSelector:
 
         elif state.phase == AttackPhase.EXPLOIT:
             # SQL injection possible
-            if (
-                service in ["http", "https", "mysql", "postgres"]
-                and "sqlmap_scan" in allowed_tools
-            ):
+            if service in ["http", "https", "mysql", "postgres"] and "sqlmap_scan" in allowed_tools:
                 return ("sqlmap_scan", {"target": f"http://{state.target}:{port}"})
 
         return None

@@ -155,7 +155,8 @@ class TestModuleInfo:
         """Test module info class availability."""
         # ModuleInfo not in this module - verify we can import the module
         from modules import metasploit
-        assert hasattr(metasploit, 'MetasploitRPC')
+
+        assert hasattr(metasploit, "MetasploitRPC")
 
 
 class TestMSFRPCError:
@@ -165,7 +166,8 @@ class TestMSFRPCError:
         """Test error class availability."""
         # Custom exceptions may not exist - verify module structure
         from modules import metasploit
-        assert hasattr(metasploit, 'MetasploitRPC')
+
+        assert hasattr(metasploit, "MetasploitRPC")
 
 
 # Async tests
