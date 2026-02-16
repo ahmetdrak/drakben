@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\self_reflection.py
+# hypothesis_version: 6.151.6
+
+[0.0, 0.2, 0.3, 0.5, 1.0, 100, '; ', '?', 'avg_duration', 'blind_spots', 'continue', 'duration', 'escalate', 'has_foothold', 'history_length', 'iteration', 'iteration_count', 'latest_progress', 'latest_verdict', 'open_services', 'output', 'phase', 'pivot', 'pivots_suggested', 'progress_pct', 'reasoning', 'repetition_count', 'services_found', 'success', 'success_rate', 'suggested_changes', 'tool', 'tool_names', 'tools_used', 'total_reflections', 'total_time', 'verdict', 'vulnerabilities', 'vulns_found', '✓', '✗']

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\brain_self_correction.py
+# hypothesis_version: 6.151.6
+
+[-100, 100, '%0|%0', ':(){ :|:& };:', '> /dev/sd[a-z]', '> /dev/sda', 'Added safety check', '\\s*[|;&]+\\s*', 'action', 'cat /etc/passwd', 'cat /etc/shadow', 'chmod -R 777', 'chmod 777', 'chown root', 'command', 'corrected', 'corrections', 'dd if=', 'del /f /s /q', 'format c:', 'format d:', 'grub-install', 'insmod ', 'mkfs', 'modprobe ', 'nc -e', 'ncat -e', 'needs_approval', 'nikto', 'nmap', 'nuclei', 'optimizations', 'original', 'port_scan', 'prerequisites', 'rd /s /q', 'recent_corrections', 'required_tools', 'rm -rf /', 'rm -rf /*', 'safety_warning', 'service_detection', 'shred ', 'steps', 'tool', 'tools_available', 'total_corrections', 'vuln_scan', 'wipefs']

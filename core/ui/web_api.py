@@ -65,11 +65,55 @@ def create_app():
         allow_headers=["*"],
     )
 
+    # Auth & rate limiting (production hardening)
+    try:
+        from core.security.api_auth import (
+            create_auth_middleware,
+            create_rate_limit_middleware,
+        )
+        create_auth_middleware(app)
+        create_rate_limit_middleware(app, max_requests=120, window_seconds=60.0)
+    except ImportError:
+        logger.debug("Auth/rate-limit middleware not loaded", exc_info=True)
+
+    _register_health_endpoints(app)
     _register_system_endpoints(app)
     _register_event_endpoints(app)
     _register_agent_endpoints(app)
 
     return app
+
+
+def _register_health_endpoints(app) -> None:
+    """Register health/readiness/liveness probes."""
+
+    @app.get("/api/v1/health")
+    async def health_check() -> dict[str, Any]:
+        """Full health check (bypasses auth)."""
+        try:
+            from core.health import get_health_checker
+            checker = get_health_checker()
+            report = checker.full_check()
+            return report.to_dict()
+        except (ImportError, RuntimeError):
+            return {"status": "healthy", "timestamp": time.time()}
+
+    @app.get("/api/v1/health/live")
+    async def liveness() -> dict[str, str]:
+        """Liveness probe (k8s / Docker HEALTHCHECK)."""
+        return {"status": "alive"}
+
+    @app.get("/api/v1/health/ready")
+    async def readiness() -> dict[str, Any]:
+        """Readiness probe — can the system handle requests?"""
+        try:
+            from core.health import get_health_checker
+            checker = get_health_checker()
+            ready = checker.readiness()
+            status_code = 200 if ready else 503
+            return {"ready": ready, "status_code": status_code}
+        except (ImportError, RuntimeError):
+            return {"ready": True, "status_code": 200}
 
 
 def _register_system_endpoints(app) -> None:
@@ -217,7 +261,7 @@ def _register_agent_endpoints(app) -> None:
                 "has_foothold": state.has_foothold,
                 "foothold_method": state.foothold_method,
             }
-        except Exception:
+        except (ImportError, AttributeError, ValueError, RuntimeError):
             logger.debug("Agent state retrieval failed", exc_info=True)
             return {"error": "Failed to retrieve agent state"}
 
@@ -233,10 +277,10 @@ def _register_agent_endpoints(app) -> None:
     async def stop_agent() -> dict[str, str]:
         """Stop the running agent."""
         try:
-            from core.stop_controller import stop
-            stop()
+            from core.stop_controller import stop_controller
+            stop_controller.stop()
             return {"status": "stop_requested"}
-        except Exception:
+        except (ImportError, RuntimeError):
             logger.debug("Agent stop failed", exc_info=True)
             return {"status": "error", "message": "Failed to stop agent"}
 

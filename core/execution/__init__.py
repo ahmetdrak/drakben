@@ -8,9 +8,11 @@ from core.execution.execution_engine import (
     ExecutionStatus,
     SecurityError,
 )
-from core.execution.interpreter import UniversalInterpreter
 from core.execution.sandbox_manager import SandboxManager
-from core.execution.tool_selector import ToolSelector
+
+# NOTE: ToolSelector and UniversalInterpreter are NOT re-exported here
+# to avoid circular imports (tool_selector → core.agent → refactored_agent → tool_selector).
+# Import them directly: ``from core.execution.tool_selector import ToolSelector``
 
 __all__ = [
     "CommandSanitizer",
@@ -19,6 +21,4 @@ __all__ = [
     "ExecutionStatus",
     "SandboxManager",
     "SecurityError",
-    "ToolSelector",
-    "UniversalInterpreter",
 ]

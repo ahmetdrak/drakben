@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\metasploit.py
+# hypothesis_version: 6.151.6
+
+[0.0, 200, 55553, 65535, '127.0.0.1', 'Connection error: %s', 'RPC call error: %s', 'auth.login', 'auth.logout', 'core.version', 'duration_seconds', 'error', 'exploit_name', 'failed', 'http', 'https', 'info', 'meterpreter', 'method', 'module.payloads', 'modules', 'msf', 'no_session', 'output', 'params', 'result', 'running', 'session', 'session.list', 'session_id', 'session_type', 'shell', 'status', 'success', 'target', 'target_host', 'target_port', 'token', 'type', 'unknown', 'username', 'version', 'via_exploit', 'via_payload', 'vnc']

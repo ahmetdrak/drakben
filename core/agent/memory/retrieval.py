@@ -224,7 +224,7 @@ class RetrievalEngine:
                     similarity = max(0.0, 1.0 - distance)
                     scores[node_id] = similarity
 
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             logger.debug("Vector search failed: %s", e)
 
         return scores

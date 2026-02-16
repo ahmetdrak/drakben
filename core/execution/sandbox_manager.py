@@ -108,6 +108,8 @@ class SandboxManager:
         image: str = DEFAULT_SANDBOX_IMAGE,
         memory_limit: str = DEFAULT_MEMORY_LIMIT,
         cpu_limit: str = DEFAULT_CPU_LIMIT,
+        *,
+        network_disabled: bool = False,
     ) -> None:
         """Initialize SandboxManager.
 
@@ -115,11 +117,14 @@ class SandboxManager:
             image: Docker image to use for containers
             memory_limit: Memory limit for containers (e.g., "512m")
             cpu_limit: CPU limit for containers (e.g., "1.0")
+            network_disabled: If True, containers start with network=none
+                              (full isolation).  Useful for payload analysis.
 
         """
         self.image = image
         self.memory_limit = memory_limit
         self.cpu_limit = cpu_limit
+        self.network_disabled = network_disabled
         self.active_containers: dict[str, ContainerInfo] = {}
         self._containers_lock = _sm_threading.Lock()  # Thread safety for active_containers
         self._docker_available: bool | None = None
@@ -166,7 +171,7 @@ class SandboxManager:
         except subprocess.TimeoutExpired:
             logger.warning("Docker check timed out")
             return False
-        except Exception as e:
+        except OSError as e:
             logger.warning("Docker check error: %s", e)
             return False
 
@@ -188,7 +193,7 @@ class SandboxManager:
         except ImportError:
             logger.warning("docker-py not installed. Install with: pip install docker")
             return None
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.warning("Failed to create Docker client: %s", e)
             return None
 
@@ -198,6 +203,9 @@ class SandboxManager:
         image: str | None = None,
         volumes: list[str] | None = None,
         environment: dict[str, str] | None = None,
+        *,
+        network_disabled: bool | None = None,
+        read_only: bool = False,
     ) -> ContainerInfo | None:
         """Create a new sandbox container.
 
@@ -206,6 +214,9 @@ class SandboxManager:
             image: Docker image (uses default if None)
             volumes: Volume mounts (e.g., ["/host/path:/container/path"])
             environment: Environment variables
+            network_disabled: Override instance-level network isolation.
+                              If None, uses self.network_disabled.
+            read_only: Mount root filesystem as read-only.
 
         Returns:
             ContainerInfo if successful, None if failed
@@ -222,6 +233,10 @@ class SandboxManager:
         container_image = image or self.image
         container_name = f"drakben-sandbox-{name}-{int(time.time())}"
 
+        # Determine network isolation
+        isolate_network = network_disabled if network_disabled is not None else self.network_disabled
+        net_mode = "none" if isolate_network else "bridge"
+
         try:
             container = client.containers.run(
                 container_image,
@@ -233,7 +248,8 @@ class SandboxManager:
                 cpu_quota=int(float(self.cpu_limit) * 100000),
                 volumes=volumes or [],
                 environment=environment or {},
-                network_mode="bridge",
+                network_mode=net_mode,
+                read_only=read_only,
                 auto_remove=False,  # We manually remove for cleanup verification
             )
 
@@ -254,7 +270,7 @@ class SandboxManager:
 
             return info
 
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.exception("Failed to create sandbox: %s", e)
             return None
 
@@ -334,7 +350,7 @@ class SandboxManager:
                 duration=duration,
             )
 
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             duration = time.time() - start_time
             logger.exception("Sandbox execution failed: %s", e)
             return ExecutionResult(
@@ -375,7 +391,7 @@ class SandboxManager:
 
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.exception("Failed to cleanup sandbox %s: %s", container_id[:12], e)
             return False
 

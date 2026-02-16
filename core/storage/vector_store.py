@@ -18,7 +18,7 @@ except ImportError:
     logger.warning(
         "ChromaDB not found. Vector memory disabled (falling back to exact match).",
     )
-except Exception as e:
+except RuntimeError as e:
     logger.warning("ChromaDB initialization error: %s", e)
 
 
@@ -43,7 +43,7 @@ class VectorStore:
                     metadata={"hnsw:space": "cosine"},
                 )
                 logger.info("Vector Store initialized at %s", persist_dir)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError) as e:
                 logger.exception("Failed to initialize Vector Store: %s", e)
                 self.client = None
 
@@ -64,7 +64,7 @@ class VectorStore:
 
             self.collection.add(documents=[text], metadatas=[metadata], ids=[doc_id])
             return True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as e:
             logger.exception("Failed to add memory: %s", e)
             return False
 
@@ -96,7 +96,7 @@ class VectorStore:
                     for i in range(len(documents[0]))
                 )
             return output
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             logger.exception("Search failed: %s", e)
             return []
 
@@ -116,7 +116,7 @@ class VectorStore:
                     self.client._system.stop()
                 elif hasattr(self.client, "close"):
                     self.client.close()
-            except Exception:
+            except OSError:
                 pass
             self.client = None
 
@@ -125,7 +125,7 @@ class VectorStore:
         try:
             self.close()
         except Exception:
-            pass
+            logger.debug("VectorStore.__del__ cleanup failed", exc_info=True)
 
 
 

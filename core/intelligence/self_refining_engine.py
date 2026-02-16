@@ -110,7 +110,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 self._seed_default_strategies()
                 self._initialized = True
                 logger.info("SelfRefiningEngine database initialized successfully")
-            except Exception as e:
+            except (sqlite3.Error, OSError) as e:
                 logger.exception("Failed to initialize SelfRefiningEngine: %s", e)
                 logger.exception("Initialization error details")
                 # DON'T set _initialized = True on failure
@@ -160,7 +160,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
             conn = self._get_conn()
             yield conn
             conn.commit()
-        except Exception as e:
+        except (sqlite3.Error, OSError) as e:
             logger.exception("Database operation failed: %s", e)
             raise
         finally:
@@ -219,7 +219,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                     return True
                 logger.warning("Lock wait attempt %s/%s", attempt + 1, max_retries)
                 time.sleep(0.3)  # Short sleep before retry
-            except Exception as e:
+            except RuntimeError as e:
                 logger.exception("Lock error: %s", e)
 
         logger.error(
@@ -301,7 +301,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
 
         except sqlite3.OperationalError as e:
             logger.exception("Database error during seeding: %s", e)
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.exception("Unexpected error during seeding: %s", e)
         finally:
             self._cleanup_conn_and_lock(conn, lock_acquired)
@@ -313,7 +313,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                 if self._lock.acquire(timeout=1.5):
                     return True
                 time.sleep(0.5)
-            except Exception as e:
+            except RuntimeError as e:
                 logger.exception("Lock error: %s", e)
         return False
 
@@ -452,7 +452,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
                     strat["base_parameters"],
                     now,
                 )
-            except Exception as e:
+            except (sqlite3.Error, ValueError, TypeError) as e:
                 logger.exception("Failed profile creation for %s: %s", strat["name"], e)
 
     def _cleanup_conn_and_lock(
@@ -818,7 +818,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
 
             return strategy, profile
 
-        except Exception as e:
+        except (sqlite3.Error, ValueError, TimeoutError) as e:
             logger.exception("Error in select_strategy_and_profile: %s", e)
             return None, None
         finally:
@@ -927,7 +927,7 @@ class SelfRefiningEngine(SREPolicyMixin, SREMutationMixin, SREFailureMixin):
         """Handle case where all profiles are exhausted."""
         try:
             return self.select_best_profile(strategy.name, failed_profiles)
-        except Exception as e:
+        except (sqlite3.Error, ValueError) as e:
             logger.exception("Profile selection/mutation failed: %s", e)
             return None
 

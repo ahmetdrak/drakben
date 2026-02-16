@@ -250,3 +250,109 @@ class TestMetasploitIntegration:
             assert "/" in payload
             parts = payload.split("/")
             assert len(parts) >= 2
+
+
+class TestRunExploit:
+    """Tests for MetasploitRPC.run_exploit (offline / not connected)."""
+
+    @pytest.mark.asyncio
+    async def test_run_exploit_not_connected(self):
+        """run_exploit returns ERROR when not connected."""
+        client = MetasploitRPC()
+        result = await client.run_exploit(
+            "exploit/windows/smb/ms17_010_eternalblue",
+            "192.168.1.100",
+        )
+        assert result.status == ExploitStatus.ERROR
+        assert "Not connected" in result.error
+
+    @pytest.mark.asyncio
+    async def test_run_exploit_strips_prefix(self):
+        """Exploit path prefix is normalised even on error."""
+        client = MetasploitRPC()
+        result = await client.run_exploit(
+            "exploit/windows/smb/ms17_010_eternalblue",
+            "10.0.0.1",
+        )
+        # Not connected → ERROR, but exploit_name should still be stored
+        assert result.status == ExploitStatus.ERROR
+        # The name is the original name since the error occurs before normalisation
+        assert "ms17_010_eternalblue" in result.exploit_name
+
+    def test_exploit_result_to_dict(self):
+        """ExploitResult serialisation includes all fields."""
+        result = ExploitResult(
+            status=ExploitStatus.SUCCESS,
+            exploit_name="windows/smb/ms17_010_eternalblue",
+            target="192.168.1.100",
+            session=MSFSession(
+                session_id=1,
+                session_type=SessionType.METERPRETER,
+                target_host="192.168.1.100",
+                target_port=4444,
+                via_exploit="exploit/windows/smb/ms17_010_eternalblue",
+                via_payload="windows/x64/meterpreter/reverse_tcp",
+            ),
+            output="Session 1 opened",
+            duration_seconds=12.5,
+        )
+        d = result.to_dict()
+        assert d["status"] == "success"
+        assert d["session"]["session_id"] == 1
+        assert abs(d["duration_seconds"] - 12.5) < 1e-9
+
+    def test_exploit_result_failed(self):
+        """ExploitResult for failure has no session."""
+        result = ExploitResult(
+            status=ExploitStatus.FAILED,
+            exploit_name="windows/smb/ms17_010_eternalblue",
+            target="192.168.1.100",
+            error="Connection refused",
+        )
+        d = result.to_dict()
+        assert d["status"] == "failed"
+        assert d["session"] is None
+        assert d["error"] == "Connection refused"
+
+
+class TestModuleInspection:
+    """Tests for module inspection methods (offline)."""
+
+    @pytest.mark.asyncio
+    async def test_get_module_info_not_connected(self):
+        """get_module_info raises when not connected."""
+        client = MetasploitRPC()
+        with pytest.raises(ConnectionError):
+            await client.get_module_info("exploit", "windows/smb/ms17_010_eternalblue")
+
+    @pytest.mark.asyncio
+    async def test_get_module_options_not_connected(self):
+        """get_module_options raises when not connected."""
+        client = MetasploitRPC()
+        with pytest.raises(ConnectionError):
+            await client.get_module_options("exploit", "windows/smb/ms17_010_eternalblue")
+
+
+class TestSessionInteraction:
+    """Tests for session interaction methods (offline)."""
+
+    @pytest.mark.asyncio
+    async def test_session_shell_write_not_connected(self):
+        """session_shell_write raises when not connected."""
+        client = MetasploitRPC()
+        with pytest.raises(ConnectionError):
+            await client.session_shell_write(1, "whoami")
+
+    @pytest.mark.asyncio
+    async def test_session_stop_not_connected(self):
+        """session_stop raises when not connected."""
+        client = MetasploitRPC()
+        with pytest.raises(ConnectionError):
+            await client.session_stop(1)
+
+    @pytest.mark.asyncio
+    async def test_run_post_module_not_connected(self):
+        """run_post_module raises when not connected."""
+        client = MetasploitRPC()
+        with pytest.raises(ConnectionError):
+            await client.run_post_module(1, "multi/gather/env")

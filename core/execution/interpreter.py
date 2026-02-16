@@ -308,7 +308,7 @@ class UniversalInterpreter:
                 return InterpreterResult("", "Command blocked by security policy")
 
             return self._execute_sanitized_command(sanitized)
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             logger.exception("Shell execution error: %s", e)
             return InterpreterResult("", str(e))
 
@@ -388,7 +388,7 @@ class UniversalInterpreter:
 
         except subprocess.TimeoutExpired:
             return InterpreterResult("", "Command timed out after 60 seconds")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.exception("Shell execution error: %s", e)
             return InterpreterResult("", str(e))
 

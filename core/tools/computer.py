@@ -81,7 +81,7 @@ class Computer:
                     return
             except ImportError:
                 pass  # pyautogui not installed
-            except Exception as e:
+            except (OSError, ValueError, TypeError, RuntimeError) as e:
                 logger.warning("Unexpected error during visual element search for '%s': %s", x, e)
 
             # Fallback: log a helpful warning instead of crashing
@@ -113,7 +113,7 @@ class Computer:
             pyautogui.click(x=target_x, y=target_y, clicks=clicks, button=button)
             logger.info("Clicked %s at (%s, %s)", button, target_x, target_y)
 
-        except Exception as e:
+        except (ComputerError, OSError, ValueError, TypeError, RuntimeError) as e:
             msg = f"Click failed: {e}"
             raise ComputerError(msg) from e
 
@@ -122,7 +122,7 @@ class Computer:
         self.check_availability()
         try:
             pyautogui.scroll(amount)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError) as e:
             msg = f"Scroll failed: {e}"
             raise ComputerError(msg) from e
 
@@ -140,7 +140,7 @@ class Computer:
         try:
             pyautogui.write(text, interval=interval)
             logger.info("Typed text (length %s)", len(text))
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError) as e:
             msg = f"Type failed: {e}"
             raise ComputerError(msg) from e
 
@@ -161,7 +161,7 @@ class Computer:
             else:
                 pyautogui.press(keys[0])
             logger.info("Pressed %s", keys)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, RuntimeError) as e:
             msg = f"Press failed: {e}"
             raise ComputerError(msg) from e
 

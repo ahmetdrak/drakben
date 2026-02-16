@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\social_eng\phishing.py
+# hypothesis_version: 6.151.6
+
+[200, '/api/capture', '587', 'Cloning failed: %s', 'Content-Type', 'From', 'POST', 'SMTP not configured', 'SMTP_FROM', 'SMTP_HOST', 'SMTP_PASS', 'SMTP_PORT', 'SMTP_USER', 'Sent to %s', 'Subject', 'To', 'User-Agent', 'action', 'alternative', 'cloned_site', 'data:', 'error', 'failed', 'form', 'hidden', 'href', 'html', 'html.parser', 'image/png', 'img', 'index.html', 'input', 'link', 'method', 'name', 'plain', 'req_id', 'script', 'sent', 'src', 'style', 'stylesheet', 'success', 'type', 'utf-8', 'value', 'w']

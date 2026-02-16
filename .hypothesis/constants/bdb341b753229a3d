@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\llm\api_client_mixin.py
+# hypothesis_version: 6.151.6
+
+[200, 401, 429, 500, '***', '...', 'API query error: %s', 'Authorization', 'Connection error: %s', 'Content-Type', 'DRAKBEN Pentest AI', 'HTTP-Referer', 'Request error: %s', 'Retry-After', 'X-Title', 'application/json', 'choices', 'content', 'message', 'messages', 'model', 'openrouter', 'role', 'system', 'user']

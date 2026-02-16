@@ -581,8 +581,8 @@ class KnowledgeGraph:
                 if pc is not None:
                     try:
                         pc.close()
-                    except Exception:
-                        pass
+                    except sqlite3.Error:
+                        pass  # Cleanup: best-effort on singleton reset
             cls._instance = None
 
 

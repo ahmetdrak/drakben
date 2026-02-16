@@ -67,7 +67,7 @@ class RAGPipeline:
                 logger.debug("VectorStore has no collection — RAG disabled")
         except ImportError:
             logger.debug("VectorStore not available — RAG pipeline disabled")
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError) as exc:
             logger.debug("VectorStore init failed: %s", exc)
             self._vector_store = None
 
@@ -107,7 +107,7 @@ class RAGPipeline:
 
             return relevant
 
-        except Exception as exc:
+        except (ValueError, RuntimeError) as exc:
             logger.debug("RAG retrieval failed: %s", exc)
             return []
 
@@ -211,7 +211,7 @@ class RAGPipeline:
 
             text = f"{cve_id}: {description}"
             return self._vector_store.add_memory(text, metadata)
-        except Exception as exc:
+        except (ValueError, TypeError, RuntimeError) as exc:
             logger.debug("CVE ingestion failed: %s", exc)
             return False
 
@@ -247,7 +247,7 @@ class RAGPipeline:
             }
             text = f"{name}: {description}"
             return self._vector_store.add_memory(text, metadata)
-        except Exception as exc:
+        except (ValueError, TypeError, RuntimeError) as exc:
             logger.debug("Exploit ingestion failed: %s", exc)
             return False
 
@@ -281,7 +281,7 @@ class RAGPipeline:
             # Truncate very long outputs
             text = f"[{tool_name}] {output[:2000]}"
             return self._vector_store.add_memory(text, metadata)
-        except Exception as exc:
+        except (ValueError, TypeError, RuntimeError) as exc:
             logger.debug("Tool output ingestion failed: %s", exc)
             return False
 

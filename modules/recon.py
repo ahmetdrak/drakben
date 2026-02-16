@@ -79,36 +79,53 @@ class AsyncRetry:
         return wrapper
 
 
-async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
-    """Fetch URL with proper error handling and logging.
+async def fetch_url(
+    session: aiohttp.ClientSession,
+    url: str,
+    *,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+) -> dict[str, Any]:
+    """Fetch URL with retry, exponential backoff, and proper error handling.
 
     Args:
-        session: aiohttp ClientSession
-        url: URL to fetch
+        session: aiohttp ClientSession.
+        url: URL to fetch.
+        max_retries: Maximum number of attempts (default 3).
+        base_delay: Initial delay between retries in seconds.
 
     Returns:
-        Dict with 'status', 'headers', 'text', 'error' keys
+        Dict with ``status``, ``headers``, ``text``, ``error`` keys.
 
     """
-    timeout_seconds = 10  # Fixed timeout value
-    try:
-        async with asyncio.timeout(timeout_seconds):
-            async with session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
-            ) as resp:
-                return {
-                    "status": resp.status,
-                    "headers": dict(resp.headers),
-                    "text": await resp.text(),
-                    "error": None,
-                }
-    except TimeoutError:
-        logger.exception("Timeout fetching %s", url)
-        return {"status": 0, "headers": {}, "text": "", "error": "Timeout"}
-    except aiohttp.ClientError as e:
-        logger.exception("HTTP error fetching %s: %s", url, e)
-        return {"status": 0, "headers": {}, "text": "", "error": str(e)}
+    timeout_seconds = 10
+    last_error: str = "Unknown"
+    for attempt in range(max_retries):
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=timeout_seconds),
+                ) as resp:
+                    return {
+                        "status": resp.status,
+                        "headers": dict(resp.headers),
+                        "text": await resp.text(),
+                        "error": None,
+                    }
+        except TimeoutError:
+            last_error = "Timeout"
+            logger.warning("Timeout fetching %s (attempt %d/%d)", url, attempt + 1, max_retries)
+        except aiohttp.ClientError as e:
+            last_error = str(e)
+            logger.warning("HTTP error fetching %s (attempt %d/%d): %s", url, attempt + 1, max_retries, e)
+
+        if attempt < max_retries - 1:
+            delay = base_delay * (2 ** attempt)
+            await asyncio.sleep(delay)
+
+    logger.error("All %d attempts failed for %s: %s", max_retries, url, last_error)
+    return {"status": 0, "headers": {}, "text": "", "error": last_error}
 
 
 def extract_domain(url: str) -> str:
@@ -550,19 +567,24 @@ def scan_ports_sync(
     concurrency: int = 200,
     state: Optional["AgentState"] = None,
 ) -> dict[str, Any]:
-    """Synchronous wrapper for :func:`scan_ports`."""
+    """Synchronous wrapper for :func:`scan_ports`.
+
+    Uses :func:`core.tools.tool_registry._run_coro_safe` pattern to
+    handle both fresh and nested-event-loop scenarios cleanly.
+    """
+    import concurrent.futures
+
+    coro = scan_ports(host, ports, connect_timeout, concurrency, state)
     try:
-        return asyncio.run(
-            scan_ports(host, ports, connect_timeout, concurrency, state),
-        )
+        return asyncio.run(coro)
     except RuntimeError:
-        # Already in an async context - use a new event loop in a thread
-        import concurrent.futures
+        # Already inside an event loop — delegate to a background thread
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(
+            future = pool.submit(
                 asyncio.run,
                 scan_ports(host, ports, connect_timeout, concurrency, state),
-            ).result(timeout=300)
+            )
+            return future.result(timeout=300)
 
 
 def _guess_service(port: int) -> str:

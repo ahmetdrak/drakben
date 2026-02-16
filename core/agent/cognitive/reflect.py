@@ -399,7 +399,7 @@ Respond with a single actionable strategic recommendation."""
                 parent_node_ids=[r.node_id for r in recent_reflections],
                 target=target,
             )
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             logger.debug("LLM insight generation failed: %s", e)
             return None
 

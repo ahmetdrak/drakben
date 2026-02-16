@@ -1,7 +1,8 @@
 # core/observability.py
 # DRAKBEN — Observability & Tracing Module
 # Structured metrics, tracing, and monitoring for AI agent operations.
-# Inspired by PentAGI's OpenTelemetry + Langfuse approach.
+# OpenTelemetry-compatible: when ``opentelemetry-api`` is installed,
+# spans and metrics are automatically bridged to OTEL exporters.
 
 """Lightweight observability layer for DRAKBEN.
 
@@ -10,6 +11,7 @@ Provides:
 - Metrics collection (counters, gauges, histograms)
 - Structured event logging
 - Export to JSON for external tools
+- **OpenTelemetry bridge** — automatic when ``opentelemetry-api`` is present
 
 Usage::
 
@@ -23,6 +25,10 @@ Usage::
 
     metrics = get_metrics()
     metrics.increment("tools.executed", tags={"tool": "nmap"})
+
+When ``opentelemetry-api`` is installed, spans are mirrored to the
+OTEL global TracerProvider so any configured exporter (Jaeger, Zipkin,
+OTLP, etc.) receives them automatically.
 """
 
 from __future__ import annotations
@@ -41,6 +47,23 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# OpenTelemetry bridge (optional dependency)
+# ---------------------------------------------------------------------------
+_otel_tracer: Any = None
+_OTEL_AVAILABLE = False
+
+try:
+    from opentelemetry import trace as otel_trace
+    from opentelemetry.trace import StatusCode as OtelStatusCode
+
+    _otel_tracer = otel_trace.get_tracer("drakben", "1.0.0")
+    _OTEL_AVAILABLE = True
+    logger.info("OpenTelemetry bridge enabled — spans will mirror to OTEL exporter")
+except ImportError:
+    OtelStatusCode = None  # type: ignore[assignment,misc]
+    logger.debug("opentelemetry-api not installed — using built-in tracing only")
 
 
 # ---------------------------------------------------------------------------
@@ -180,11 +203,40 @@ class Tracer:
                     self._traces.append(sp)
                     if len(self._traces) > self.MAX_TRACES:
                         self._traces = self._traces[-self.MAX_TRACES:]
+            # Mirror to OpenTelemetry if available
+            self._mirror_to_otel(sp)
 
     def get_traces(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent traces as dicts."""
         with self._tracer_lock:
             return [t.to_dict() for t in self._traces[-limit:]]
+
+    @staticmethod
+    def _mirror_to_otel(sp: Span) -> None:
+        """Mirror a completed span to OpenTelemetry (best-effort)."""
+        if not _OTEL_AVAILABLE or _otel_tracer is None:
+            return
+        try:
+            otel_span = _otel_tracer.start_span(
+                sp.name,
+                attributes={
+                    k: str(v) if not isinstance(v, (bool, int, float, str)) else v
+                    for k, v in sp.attributes.items()
+                },
+            )
+            for ev in sp.events:
+                otel_span.add_event(
+                    ev.get("name", ""),
+                    attributes=ev.get("attributes", {}),
+                )
+            if sp.status == "error":
+                otel_span.set_status(OtelStatusCode.ERROR, sp.attributes.get("status_message", ""))
+            else:
+                otel_span.set_status(OtelStatusCode.OK)
+            otel_span.end()
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            # OTEL bridge is best-effort — never break production flow
+            pass
 
     def export_json(self, path: str | Path) -> None:
         """Export all traces to a JSON file."""

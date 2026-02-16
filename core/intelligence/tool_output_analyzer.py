@@ -151,7 +151,7 @@ class ToolOutputAnalyzer:
         if parser:
             try:
                 parser(raw_output, result)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError) as e:
                 logger.debug("Parser for %s failed: %s", tool_name, e)
 
         # Generic pattern matching (always runs, adds to existing data)

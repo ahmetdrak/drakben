@@ -135,7 +135,7 @@ class CrossSessionKB:
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.executescript(self._SCHEMA)
             self._conn.commit()
-        except Exception as exc:
+        except (sqlite3.Error, OSError) as exc:
             logger.warning("Knowledge base init failed: %s", exc)
             self._conn = None
 
@@ -200,7 +200,7 @@ class CrossSessionKB:
                 ),
             )
             self._conn.commit()
-        except Exception as exc:
+        except sqlite3.Error as exc:
             logger.debug("Knowledge learn failed: %s", exc)
             return ""
 
@@ -278,7 +278,7 @@ class CrossSessionKB:
         try:
             cursor = self._conn.execute(query, params)
             return cursor.fetchall()
-        except Exception as exc:
+        except sqlite3.Error as exc:
             logger.debug("Knowledge recall failed: %s", exc)
             return []
 
@@ -425,7 +425,7 @@ class CrossSessionKB:
             count = cursor.rowcount
             self._stats["entries_expired"] += count
             return count
-        except Exception:
+        except sqlite3.Error:
             return 0
 
     def get_stats(self) -> dict[str, Any]:
@@ -435,7 +435,7 @@ class CrossSessionKB:
             try:
                 cursor = self._conn.execute("SELECT COUNT(*) FROM knowledge")
                 total = cursor.fetchone()[0]
-            except Exception:
+            except sqlite3.Error:
                 pass
         return {**self._stats, "total_entries": total}
 
@@ -451,8 +451,8 @@ class CrossSessionKB:
                 (entry_id,),
             )
             self._conn.commit()
-        except Exception:
-            pass
+        except sqlite3.Error:
+            logger.debug("Failed to increment use_count for %s", entry_id, exc_info=True)
 
     def _increment_success(self, entry_id: str) -> None:
         """Increment success count for an entry."""
@@ -464,14 +464,14 @@ class CrossSessionKB:
                 (entry_id,),
             )
             self._conn.commit()
-        except Exception:
-            pass
+        except sqlite3.Error:
+            logger.debug("Failed to increment success_count for %s", entry_id, exc_info=True)
 
     def close(self) -> None:
         """Close database connection."""
         if self._conn:
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except sqlite3.Error:
+                pass  # Close path: best-effort cleanup
             self._conn = None

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\memory\retrieval.py
+# hypothesis_version: 6.151.6
+
+[0.0, 0.5, 0.8, 0.99, 1.0, 1.2, 1.3, 1.5, 2.0, 3.0, 10.0, 100, 200, 1000, 2000, '\n💡 Insights:', '\n📋 Recent Actions:', '\n📌 Key Findings:', 'distance', 'exploit', 'foothold', 'metadata', 'node_id', 'post_exploit', 'recon', 'vuln_scan']

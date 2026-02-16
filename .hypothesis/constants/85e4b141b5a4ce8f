@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\state.py
+# hypothesis_version: 6.151.6
+
+[200, 500, 65535, '*', ':', 'AgentState', 'Attack complete', 'Attack failed', 'Remaining', 'Tested', '_', '_initialized', '_open', 'complete', 'credentials', 'data', 'exploit', 'failed', 'foothold', 'foothold_achieved', 'foothold_method', 'has_foothold', 'has_services', 'has_vulnerability', 'init', 'injection', 'invariant_violations', 'iteration', 'iteration_count', 'last_observation', 'open_services', 'open_services_count', 'phase', 'port_', 'post_exploit', 'recon', 'remaining_count', 'services_discovered', 'session', 'shell', 'sql', 'surface_tested', 'target', 'tcpwrapped', 'tested_count', 'timestamp', 'type', 'unknown', 'vulnerabilities', 'vulnerability_found', 'vulnerability_scan', 'vulnerable']

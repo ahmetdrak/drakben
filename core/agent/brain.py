@@ -18,6 +18,7 @@ from core.agent.brain_reasoning import (
     get_model_timeout,  # noqa: F401 (re-exported)
 )
 from core.agent.brain_self_correction import SelfCorrection
+from core.container import get_container
 from core.intelligence.coder import AICoder
 
 # Intelligence v2 imports (lazy-safe)
@@ -109,6 +110,8 @@ class DrakbenBrain:
     """
 
     def __init__(self, llm_client=None, use_cognitive_memory: bool = True) -> None:
+        self._container = get_container()
+
         # Auto-initialize LLM client if not provided
         self.llm_client = self._init_llm_client(llm_client)
 
@@ -120,12 +123,23 @@ class DrakbenBrain:
             self.llm_client, use_cognitive_memory,
         )
 
-        # Initialize modules (pass cognitive_memory to reasoning)
-        self.orchestrator = MasterOrchestrator()
-        self.reasoning = ContinuousReasoning(self.llm_client, self.cognitive_memory)
-        self.context_mgr = ContextManager()
-        self.self_correction = SelfCorrection()
-        self.decision_engine = DecisionEngine()
+        # Initialize modules via DI container (fall back to direct new)
+        self.orchestrator = self._resolve_or_create(
+            "orchestrator", MasterOrchestrator,
+        )
+        self.reasoning = self._resolve_or_create(
+            "reasoning", ContinuousReasoning,
+            self.llm_client, self.cognitive_memory,
+        )
+        self.context_mgr = self._resolve_or_create(
+            "context_manager", ContextManager,
+        )
+        self.self_correction = self._resolve_or_create(
+            "self_correction", SelfCorrection,
+        )
+        self.decision_engine = self._resolve_or_create(
+            "decision_engine", DecisionEngine,
+        )
 
         # Connect modules
         self.orchestrator.initialize(
@@ -137,6 +151,17 @@ class DrakbenBrain:
 
         # ── Intelligence v2 + v3 modules ──
         self._init_intelligence_modules(self.llm_client)
+
+    # ------------------------------------------------------------------
+    # DI helper
+    # ------------------------------------------------------------------
+
+    def _resolve_or_create(self, name: str, klass: Any, *args: Any, **kwargs: Any) -> Any:
+        """Resolve *name* from the DI container; fall back to ``klass(...)``."""
+        existing = self._container.try_resolve(name)
+        if existing is not None:
+            return existing
+        return klass(*args, **kwargs)
 
     @staticmethod
     def _init_llm_client(llm_client: Any) -> Any:
@@ -164,7 +189,7 @@ class DrakbenBrain:
             )
             logger.info("LLM Engine initialized (streaming, tools, RAG, multi-turn)")
             return engine
-        except Exception as e:
+        except (ImportError, RuntimeError, ValueError, OSError) as e:
             logger.debug("Could not initialize LLM Engine: %s", e)
             return None
 
@@ -179,7 +204,7 @@ class DrakbenBrain:
             mem = CognitiveMemoryManager(llm_client=llm_client)
             logger.info("Cognitive Memory System initialized (Stanford-style)")
             return mem
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             logger.warning("Could not initialize Cognitive Memory: %s", e)
             return None
 
@@ -197,25 +222,52 @@ class DrakbenBrain:
             return None
 
     def _init_intelligence_modules(self, llm_client: Any) -> None:
-        """Initialize all Intelligence v2 + v3 modules safely."""
+        """Initialize all Intelligence v2 + v3 modules via DI or _safe_init."""
         # v2 modules
-        self.output_analyzer = self._safe_init(
-            _ToolOutputAnalyzer, llm_client=llm_client, label="Tool Output Analyzer",
+        self.output_analyzer = (
+            self._container.try_resolve("output_analyzer")
+            or self._safe_init(
+                _ToolOutputAnalyzer, llm_client=llm_client, label="Tool Output Analyzer",
+            )
         )
-        self.context_compressor = self._safe_init(
-            _ContextCompressor, llm_client=llm_client, label="Context Compressor",
+        self.context_compressor = (
+            self._container.try_resolve("context_compressor")
+            or self._safe_init(
+                _ContextCompressor, llm_client=llm_client, label="Context Compressor",
+            )
         )
-        self.output_parser = self._safe_init(
-            _StructuredOutputParser, llm_client=llm_client, label="Structured Output Parser",
+        self.output_parser = (
+            self._container.try_resolve("output_parser")
+            or self._safe_init(
+                _StructuredOutputParser, llm_client=llm_client, label="Structured Output Parser",
+            )
         )
         # v3 modules
-        self.few_shot = self._safe_init(_FewShotEngine, label="Few-Shot Engine")
-        self.correlator = self._safe_init(_CrossCorrelator, label="Cross-Correlator")
-        self.adversarial = self._safe_init(_AdversarialAdapter, label="Adversarial Adapter")
-        self.exploit_predictor = self._safe_init(_ExploitPredictor, label="Exploit Predictor")
-        self.knowledge_base = self._safe_init(_CrossSessionKB, label="Cross-Session KB")
+        self.few_shot = (
+            self._container.try_resolve("few_shot")
+            or self._safe_init(_FewShotEngine, label="Few-Shot Engine")
+        )
+        self.correlator = (
+            self._container.try_resolve("correlator")
+            or self._safe_init(_CrossCorrelator, label="Cross-Correlator")
+        )
+        self.adversarial = (
+            self._container.try_resolve("adversarial")
+            or self._safe_init(_AdversarialAdapter, label="Adversarial Adapter")
+        )
+        self.exploit_predictor = (
+            self._container.try_resolve("exploit_predictor")
+            or self._safe_init(_ExploitPredictor, label="Exploit Predictor")
+        )
+        self.knowledge_base = (
+            self._container.try_resolve("knowledge_base")
+            or self._safe_init(_CrossSessionKB, label="Cross-Session KB")
+        )
         # Model Router needs special init
-        self.model_router = self._init_model_router(llm_client)
+        self.model_router = (
+            self._container.try_resolve("model_router")
+            or self._init_model_router(llm_client)
+        )
 
     def _init_model_router(self, llm_client: Any) -> Any:
         """Initialize model router with auto-detection."""
@@ -223,7 +275,7 @@ class DrakbenBrain:
         if router and llm_client:
             try:
                 router.auto_detect_models(llm_client)
-            except Exception as e:
+            except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
                 logger.debug("Model Router auto-detect failed: %s", e)
         return router
 
@@ -392,7 +444,8 @@ class DrakbenBrain:
 
         try:
             schemas = self.engine.build_tool_schemas_from_registry(tool_names)
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
+            logger.debug("Tool schema build failed", exc_info=True)
             schemas = []
 
         if not schemas:
@@ -435,7 +488,7 @@ class DrakbenBrain:
                 tool, len(analyzed.ports), len(analyzed.vulnerabilities), analyzed.severity,
             )
             return analyzed
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.debug("Output analysis failed for %s: %s", tool, e)
             return None
 
@@ -502,7 +555,7 @@ class DrakbenBrain:
             self.correlator.ingest(
                 tool, output, target=target or "unknown", parsed_data=parsed_data,
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             logger.debug("Cross-correlation failed: %s", e)
 
     def _observe_adversarial(self, tool: str, output: str) -> None:
@@ -516,7 +569,7 @@ class DrakbenBrain:
                     "Defense detected: %s",
                     ", ".join(d.defense_type.value for d in detections),
                 )
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             logger.debug("Adversarial analysis failed: %s", e)
 
     def _observe_kb_learn(
@@ -536,7 +589,7 @@ class DrakbenBrain:
                 success=success,
                 findings=findings,
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.debug("KB learning failed: %s", e)
 
     def get_stats(self) -> dict:
@@ -597,7 +650,7 @@ class DrakbenBrain:
                 "provider": self.llm_client.get_provider_info(),
                 "response": response[:200],
             }
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             return {"connected": False, "error": str(e)}
 
     def ask_coder(self, instruction: str, context: dict | None = None) -> dict:

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\ra_state_updates.py
+# hypothesis_version: 6.151.6
+
+[500, 65535, '-p\\s*(\\d{1,5})', '.', '0 sessions opened', 'EXPLOIT', 'POST_EXPLOIT', 'RECON', 'Unknown error', 'VULN_SCAN', '_', 'access granted', 'add_vulnerability', 'args', 'bind shell', 'command', 'command shell', 'console', 'exploit', 'failed', 'findings', 'foothold_gained', 'injection', 'medium', 'meterpreter', 'nikto', 'nmap_port_scan', 'nmap_service_scan', 'no session', 'not vulnerable', 'parse_failure', 'phase_advance', 'port', 'post_exploit', 'proto', 'recon', 'reverse shell', 'root@', 'service', 'session opened', 'severity', 'shell session', 'sqlmap', 'stderr', 'stdout', 'success', 'success rate: 0', 'target', 'tool', 'tool_failure', 'tool_success', 'uid=', 'unknown', 'unsuccessful', 'vuln', 'vuln_scan', 'vulnerabilities', 'vulnerability_found', 'vulnerable', 'whoami', 'www-data@']

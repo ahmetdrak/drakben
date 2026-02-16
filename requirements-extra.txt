@@ -26,3 +26,9 @@ Pillow>=10.0.0            # LSB steganography for C2 image encoding
 # ========== SSH POST-EXPLOITATION ==========
 # Paramiko olmadan SSH shell özelliği devre dışı kalır
 paramiko>=3.4.0           # SSH connections for post-exploitation
+
+# ========== OBSERVABILITY (OpenTelemetry) ==========
+# OTEL olmadan built-in JSON tracing kullanılır
+opentelemetry-api>=1.20.0           # OTEL API for distributed tracing
+opentelemetry-sdk>=1.20.0           # OTEL SDK (spans, exporters)
+opentelemetry-exporter-otlp>=1.20.0 # OTLP exporter (Jaeger/Zipkin/Grafana)

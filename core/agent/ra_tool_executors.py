@@ -10,19 +10,36 @@ Extracted from refactored_agent.py for maintainability.
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import json
 import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from core.agent._agent_protocol import AgentProtocol
     from core.singularity.base import CodeSnippet
     from modules.hive_mind import AttackPath, NetworkHost
     from modules.weapon_foundry import GeneratedPayload
 
+    _MixinBase = AgentProtocol
+else:
+    _MixinBase = object
+
+
+def _run_coro_safe(coro, *, timeout: float = 300) -> Any:
+    """Run a coroutine from sync code, safe even inside a running event loop."""
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=timeout)
+
 logger = logging.getLogger(__name__)
 
 
-class RAToolExecutorsMixin:
+class RAToolExecutorsMixin(_MixinBase):
     """Mixin providing specialized tool executor methods.
 
     Expects the host class to provide:
@@ -98,17 +115,17 @@ class RAToolExecutorsMixin:
                 language=lang,
             )
 
-            if getattr(result, "success", False):
+            if result.code:
                 return {
                     "success": True,
                     "output": (
-                        f"Code Synthesized: {result.file_path}\nContent Preview:\n"
-                        f"{result.content[:300] if result.content else ''}"
+                        f"Code Synthesized: {result.purpose}\nContent Preview:\n"
+                        f"{result.code[:300]}"
                     ),
                 }
             return {
                 "success": False,
-                "error": f"Synthesis failed: {getattr(result, 'error', 'Unknown Error')}",
+                "error": "Synthesis failed: no code generated",
             }
 
         except Exception as e:
@@ -197,25 +214,35 @@ class RAToolExecutorsMixin:
     def _execute_metasploit(self, args: dict) -> dict:
         """Execute Metasploit module via wrapper."""
         try:
-            from modules.metasploit import MetasploitBridge
+            from modules.metasploit import MetasploitRPC
 
-            # Initialize if needed (singleton pattern preferred in real usage, but instantiating for now)
-            msf = MetasploitBridge()
+            msf = MetasploitRPC()
 
-            # 'module' and 'options' are expected in args
             module = args.get("module")
             options = args.get("options", {})
 
             if not module:
                 return {"success": False, "error": "Metasploit module name required"}
 
-            self.console.print(f"🔥 Launching Metasploit: {module}", style="red")
-            result = msf.execute_module(module, options)
+            rpc_host = options.pop("rpc_host", "127.0.0.1")
+            rpc_port = int(options.pop("rpc_port", 55553))
+            rpc_user = options.pop("rpc_user", "msf")
+            rpc_pass = options.pop("rpc_pass", "")
 
+            self.console.print(f"🔥 Launching Metasploit: {module}", style="red")
+
+            async def _run_msf() -> dict:
+                await msf.connect(rpc_host, rpc_port, rpc_user, rpc_pass)
+                try:
+                    result = await msf._call("module.execute", [module, options])
+                    return {"success": bool(result), "output": str(result)[:2000]}
+                finally:
+                    await msf.disconnect()
+
+            result = _run_coro_safe(_run_msf())
             return {
                 "success": result.get("success", False),
                 "output": result.get("output", ""),
-                "session_id": result.get("session_id"),
             }
         except ImportError:
             return {"success": False, "error": "modules.metasploit not found"}
@@ -242,17 +269,13 @@ class RAToolExecutorsMixin:
             result = {}
             if tool_name == "ad_asreproast":
                 # Async shim
-                import asyncio
-
                 user_file = args.get("user_file")
-                result = asyncio.run(
+                result = _run_coro_safe(
                     attacker.run_asreproast(domain, target_ip, user_file),
                 )
 
             elif tool_name == "ad_smb_spray":
                 # Async shim
-                import asyncio
-
                 user_file = args.get("user_file")
                 password = args.get("password")
                 if not user_file or not password:
@@ -263,7 +286,7 @@ class RAToolExecutorsMixin:
 
                 # Check concurrency arg
                 concurrency = args.get("concurrency", 10)
-                result = asyncio.run(
+                result = _run_coro_safe(
                     attacker.run_smb_spray(
                         domain,
                         target_ip,
@@ -386,8 +409,6 @@ class RAToolExecutorsMixin:
     def _execute_subdomain_enum(self, args: dict) -> dict:
         """Execute Python-based subdomain enumeration."""
         try:
-            import asyncio
-
             from modules.subdomain import SubdomainEnumerator
 
             target = args.get("target") or getattr(self.state, "target", None)
@@ -397,7 +418,7 @@ class RAToolExecutorsMixin:
             self.console.print(f"🔍 Subdomain Enumeration → {target}", style="blue")
 
             enumerator = SubdomainEnumerator()
-            results = asyncio.run(enumerator.enumerate(target))
+            results = _run_coro_safe(enumerator.enumerate(target))
             subdomains = [str(r) for r in results] if results else []
 
             return {
@@ -415,8 +436,6 @@ class RAToolExecutorsMixin:
     def _execute_nuclei_scan(self, args: dict) -> dict:
         """Execute Python Nuclei scanner."""
         try:
-            import asyncio
-
             from modules.nuclei import NucleiScanner
 
             target = args.get("target") or getattr(self.state, "target", None)
@@ -426,7 +445,7 @@ class RAToolExecutorsMixin:
             self.console.print(f"☢️ Nuclei Scan → {target}", style="yellow")
 
             scanner = NucleiScanner()
-            results = asyncio.run(scanner.scan(target))
+            results = _run_coro_safe(scanner.scan(target))
             findings = [str(r) for r in results] if results else []
 
             return {
@@ -444,8 +463,6 @@ class RAToolExecutorsMixin:
     def _execute_cve_lookup(self, args: dict) -> dict:
         """Execute CVE database lookup."""
         try:
-            import asyncio
-
             from modules.cve_database import CVEDatabase
 
             query = args.get("query") or args.get("product") or args.get("cve_id", "")
@@ -455,7 +472,7 @@ class RAToolExecutorsMixin:
             self.console.print(f"🔎 CVE Lookup → {query}", style="cyan")
 
             db = CVEDatabase()
-            results = asyncio.run(db.search_cves(query))
+            results = _run_coro_safe(db.search_cves(query))
             entries = [
                 {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
                 for r in results

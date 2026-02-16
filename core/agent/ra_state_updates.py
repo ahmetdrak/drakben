@@ -15,7 +15,12 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from core.agent._agent_protocol import AgentProtocol
     from core.agent.state import ServiceInfo
+
+    _MixinBase = AgentProtocol
+else:
+    _MixinBase = object
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +28,7 @@ logger = logging.getLogger(__name__)
 _ERR_UNKNOWN = "Unknown error"
 
 
-class RAStateUpdatesMixin:
+class RAStateUpdatesMixin(_MixinBase):
     """Mixin providing state update functionality for RefactoredDrakbenAgent.
 
     Expects the host class to provide:

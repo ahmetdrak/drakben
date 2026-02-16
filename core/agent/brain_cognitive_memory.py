@@ -48,7 +48,7 @@ class CognitiveMemoryManager:
                 from core.storage.vector_store import VectorStore
                 vector_store = VectorStore()
                 logger.debug("VectorStore initialized for semantic embeddings")
-            except Exception as vs_err:
+            except (ImportError, RuntimeError, OSError) as vs_err:
                 logger.debug("VectorStore not available (optional): %s", vs_err)
 
             # Initialize core components with optional VectorStore
@@ -71,7 +71,7 @@ class CognitiveMemoryManager:
 
         except ImportError as e:
             logger.warning("Memory modules not available: %s", e)
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Failed to initialize CognitiveMemoryManager: %s", e)
 
     @property
@@ -114,7 +114,7 @@ class CognitiveMemoryManager:
                 metadata=meta,
             )
             return nodes
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             logger.warning("Failed to perceive tool output: %s", e, exc_info=True)
             return []
 
@@ -154,7 +154,7 @@ class CognitiveMemoryManager:
                 phase=phase,
             )
             return retrieved_ctx.context_string
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             logger.warning("Failed to retrieve context: %s", e, exc_info=True)
             return ""
 
@@ -185,7 +185,7 @@ class CognitiveMemoryManager:
             # ReflectModule.reflect(target, force)
             reflections = self._reflect.reflect(target=target, force=force)
             return reflections
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as e:
             logger.warning("Failed to generate reflections: %s", e, exc_info=True)
             return []
 
@@ -216,7 +216,7 @@ class CognitiveMemoryManager:
                     "reflections": stream_stats.get("reflections", 0),
                     "avg_importance": stream_stats.get("avg_importance", 0.0),
                 })
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             logger.debug("Failed to get memory stats: %s", e)
 
         return stats

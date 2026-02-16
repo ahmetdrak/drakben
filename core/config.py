@@ -12,6 +12,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from core.security.security_utils import CredentialStore
+
 # Setup logger
 logger = logging.getLogger(__name__)
 
@@ -333,10 +335,17 @@ class ConfigManager:
     Thread-safe implementation with locking.
     """
 
+    # Map env-var names → DrakbenConfig attribute names
+    _CREDENTIAL_KEYS: dict[str, str] = {
+        "OPENROUTER_API_KEY": "openrouter_api_key",
+        "OPENAI_API_KEY": "openai_api_key",
+    }
+
     def __init__(self, config_file: str = "config/settings.json") -> None:
         self._lock = threading.RLock()  # Reentrant lock for nested calls
         self.config_file = Path(config_file)
         self.config = self.load_config()
+        self._credential_store = CredentialStore()
         self._load_env()
         self._llm_client = None  # Lazy initialization
 
@@ -348,7 +357,7 @@ class ConfigManager:
         return value.strip() not in _PLACEHOLDER_VALUES
 
     def _load_env(self) -> None:
-        """Load API keys from .env (with override to pick up file changes)."""
+        """Load API keys: CredentialStore → .env → os.environ (in priority order)."""
         # Use absolute path based on project root for reliability
         project_root = Path(__file__).resolve().parent.parent
         env_file = project_root / API_ENV_PATH
@@ -357,18 +366,22 @@ class ConfigManager:
         if env_file.exists():
             load_dotenv(env_file, override=True)
 
-        # Override with environment variables (filter out placeholders)
-        or_key = os.getenv("OPENROUTER_API_KEY", "")
-        if self._is_valid_key(or_key):
-            self.config.openrouter_api_key = or_key
-        else:
-            self.config.openrouter_api_key = None
+        # Try CredentialStore first, fall back to environment
+        for env_key, attr_name in self._CREDENTIAL_KEYS.items():
+            secure_val = None
+            try:
+                secure_val = self._credential_store.retrieve(env_key)
+            except (ImportError, OSError, RuntimeError):
+                pass  # keyring may not be available
 
-        oai_key = os.getenv("OPENAI_API_KEY", "")
-        if self._is_valid_key(oai_key):
-            self.config.openai_api_key = oai_key
-        else:
-            self.config.openai_api_key = None
+            if self._is_valid_key(secure_val):
+                setattr(self.config, attr_name, secure_val)
+            else:
+                env_val = os.getenv(env_key, "")
+                if self._is_valid_key(env_val):
+                    setattr(self.config, attr_name, env_val)
+                else:
+                    setattr(self.config, attr_name, None)
 
         local_url = os.getenv("LOCAL_LLM_URL")
         if local_url:
@@ -378,17 +391,14 @@ class ConfigManager:
             self.config.ollama_model = local_model
 
         # Mark setup complete only if a REAL provider is configured
-        if any(
+        self.config.llm_setup_complete = any(
             [
-                self._is_valid_key(os.getenv("OPENROUTER_API_KEY", "")),
-                self._is_valid_key(os.getenv("OPENAI_API_KEY", "")),
+                self._is_valid_key(self.config.openrouter_api_key),
+                self._is_valid_key(self.config.openai_api_key),
                 os.getenv("LOCAL_LLM_URL"),
                 os.getenv("LOCAL_LLM_MODEL"),
             ],
-        ):
-            self.config.llm_setup_complete = True
-        else:
-            self.config.llm_setup_complete = False
+        )
 
     def _read_env_file(self) -> dict[str, str]:
         """Read api.env into a dict."""
@@ -492,6 +502,28 @@ class ConfigManager:
         choice = input("> ").strip().lower()
         return choice in ["e", "y", "evet", "yes"]
 
+    def _apply_api_key_and_model(
+        self,
+        env_values: dict[str, str],
+        api_key: str,
+        model: str,
+        key_env: str,
+        key_attr: str,
+        model_env: str,
+        model_attr: str,
+    ) -> None:
+        """Store API key (env + config + credential store) and model."""
+        if api_key:
+            env_values[key_env] = api_key
+            setattr(self.config, key_attr, api_key)
+            try:
+                self._credential_store.store(key_env, api_key)
+            except (ImportError, OSError, RuntimeError):
+                pass
+        if model:
+            env_values[model_env] = model
+            setattr(self.config, model_attr, model)
+
     def _configure_provider(self, choice: str, env_values: dict[str, str]) -> bool:
         """Configure specific provider based on user choice."""
         if choice == "1":
@@ -499,12 +531,11 @@ class ConfigManager:
             import getpass as _getpass
             api_key = _getpass.getpass("OpenRouter API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
-            if api_key:
-                env_values["OPENROUTER_API_KEY"] = api_key
-                self.config.openrouter_api_key = api_key
-            if model:
-                env_values["OPENROUTER_MODEL"] = model
-                self.config.openrouter_model = model
+            self._apply_api_key_and_model(
+                env_values, api_key, model,
+                "OPENROUTER_API_KEY", "openrouter_api_key",
+                "OPENROUTER_MODEL", "openrouter_model",
+            )
             return True
 
         if choice == "2":
@@ -512,12 +543,11 @@ class ConfigManager:
             import getpass as _getpass
             api_key = _getpass.getpass("OpenAI API key: ").strip()
             model = input("Model (leave empty for default): ").strip()
-            if api_key:
-                env_values["OPENAI_API_KEY"] = api_key
-                self.config.openai_api_key = api_key
-            if model:
-                env_values["OPENAI_MODEL"] = model
-                self.config.openai_model = model
+            self._apply_api_key_and_model(
+                env_values, api_key, model,
+                "OPENAI_API_KEY", "openai_api_key",
+                "OPENAI_MODEL", "openai_model",
+            )
             return True
 
         if choice == "3":
@@ -551,7 +581,7 @@ class ConfigManager:
                     from llm.openrouter_client import OpenRouterClient
 
                     self._llm_client = OpenRouterClient()  # type: ignore[assignment]
-                except Exception as e:
+                except (ImportError, OSError) as e:
                     logger.warning("Failed to initialize LLM client: %s", e)
                     self._llm_client = None
             return self._llm_client
@@ -587,7 +617,7 @@ class ConfigManager:
                         valid_fields = {f.name for f in _dc.fields(DrakbenConfig)}
                         data = {k: v for k, v in data.items() if k in valid_fields}
                         return DrakbenConfig(**data)
-                except Exception as e:
+                except (json.JSONDecodeError, OSError, TypeError, KeyError) as e:
                     logger.exception("Config load error: %s", e)
 
             return DrakbenConfig()
@@ -621,7 +651,7 @@ class ConfigManager:
                 raise  # Re-raise to allow caller to handle
             except Exception as e:
                 logger.exception("Config save error (unexpected): %s", e)
-                raise  # Re-raise to allow caller to handle
+                raise  # Re-raise — legitimate broad catch (re-raised)
 
     def set_language(self, lang: str) -> None:
         """Set interface language (thread-safe)."""
@@ -672,6 +702,23 @@ class ConfigManager:
             self.config.approved_once = False
             self.save_config()
 
+    def migrate_env_to_secure_store(self) -> int:
+        """One-time migration: move API keys from .env → CredentialStore.
+
+        Returns number of keys migrated.
+        """
+        values = self._read_env_file()
+        migrated = 0
+        for env_key in self._CREDENTIAL_KEYS:
+            val = values.get(env_key, "")
+            if self._is_valid_key(val):
+                try:
+                    self._credential_store.store(env_key, val)
+                    migrated += 1
+                except (ImportError, OSError, RuntimeError):
+                    pass
+        return migrated
+
 
 class SessionManager:
     """Manage penetration testing sessions.
@@ -705,7 +752,7 @@ class SessionManager:
                     json.dump(self.current_session, f, indent=2, ensure_ascii=False)
 
                 return filepath
-            except Exception as e:
+            except (OSError, TypeError, ValueError) as e:
                 logger.exception("Session save error: %s", e)
                 return None
 
@@ -717,7 +764,7 @@ class SessionManager:
                 if filepath.exists():
                     with open(filepath, encoding="utf-8") as f:
                         return json.load(f)
-            except Exception as e:
+            except (json.JSONDecodeError, OSError) as e:
                 logger.exception("Session load error: %s", e)
             return None
 

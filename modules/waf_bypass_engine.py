@@ -511,7 +511,7 @@ class AdaptiveMutationMemory:
         """Ensure database connection is closed on garbage collection."""
         try:
             self.close()
-        except Exception:
+        except (sqlite3.Error, OSError):
             pass
 
     def __enter__(self) -> AdaptiveMutationMemory:
@@ -1382,7 +1382,7 @@ class WAFBypassEngine:
         """Ensure resources are released on garbage collection."""
         try:
             self.close()
-        except Exception:
+        except (sqlite3.Error, OSError):
             pass
 
     def __enter__(self) -> WAFBypassEngine:

@@ -205,7 +205,7 @@ Remember: Output ONLY the code, no markdown, no explanations."""
             logger.warning("LLM returned empty/short response, using fallback")
             return self._mock_llm_call(prompt, language)
 
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             logger.warning("LLM call failed (%s), using mock response", e)
             return self._mock_llm_call(prompt, language)
 
@@ -366,7 +366,7 @@ Remember: Output ONLY the code, no markdown, no explanations."""
                     deps.append(node.module.split(".")[0])
         except SyntaxError:
             pass
-        except Exception as e:
+        except (AttributeError, TypeError) as e:
             logger.warning("Failed to extract deps: %s", e)
 
         return list(set(deps))

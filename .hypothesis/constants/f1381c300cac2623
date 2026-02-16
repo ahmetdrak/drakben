@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\llm\prompt_registry.py
+# hypothesis_version: 6.151.6
+
+["Unknown prompt: '%s'", 'brain', 'brain.default', 'brain.expert', 'coding', 'cot', 'default', 'en', 'expert', 'functions', 'json', 'parsing', 'reasoning', 'reflection', 'report', 'report.analyst', 'reporting', 'role', 'role.coding', 'role.parsing', 'role.reasoning', 'role.reporting', 'role.scanning', 'scanning', 'target', 'tool', 'tool.default_system', 'tool.with_functions', 'total_findings', 'tr', 'util.cot_prefix', 'util.json_repair', 'util.reflection', 'utility']

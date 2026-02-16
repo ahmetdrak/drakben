@@ -137,7 +137,7 @@ class InteractiveShell:
             readline_mod.set_completer(self._completer)
 
             logger.debug("Readline initialized with history")
-        except Exception as e:
+        except (OSError, ImportError, AttributeError) as e:
             logger.warning("Could not initialize readline: %s", e)
 
     def _completer(self, text: str, state: int) -> str | None:
@@ -395,7 +395,7 @@ class InteractiveShell:
                 for i, step in enumerate(result["steps"], 1):
                     self.console.print(f"  {i}. {step.get('action', 'unknown')}")
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
             thinking_display.finish_thinking(success=False)
             logger.exception("NLP processing error: %s", e)
             self.console.print(f"[red]Could not process: {e}[/red]")
@@ -671,7 +671,7 @@ class InteractiveShell:
             if result.stderr:
                 self.console.print(f"[red]{result.stderr}[/red]")
             return CommandResult(success=result.returncode == 0, output="")
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return CommandResult(success=False, error=str(e))
 
     def _assess_shell_risk(self, command: str) -> RiskLevel:
@@ -815,7 +815,7 @@ class InteractiveShell:
                 json.dump(export_data, f, indent=2)
             self.console.print(f"[green]Exported to {filename}[/green]")
             return CommandResult(success=True, output="")
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             return CommandResult(success=False, error=str(e))
 
     def _config_show(self) -> None:

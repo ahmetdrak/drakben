@@ -89,7 +89,8 @@ class AsyncLLMClient:
             self.base_url = client.base_url
             self.provider = client.provider
             client.close()
-        except Exception:
+        except (ImportError, ValueError, OSError, KeyError):
+            logger.warning("OpenRouterClient init failed, using defaults", exc_info=True)
             self.api_key = ""
             self.model = "gpt-4o"
             self.base_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -169,7 +170,7 @@ class AsyncLLMClient:
             return "[Timeout] Async request timed out."
         except aiohttp.ClientError as exc:
             return f"[Connection Error] {exc!s}"
-        except Exception as exc:
+        except (KeyError, ValueError, RuntimeError) as exc:
             logger.exception("Async query error: %s", exc)
             return f"[Error] {exc!s}"
 
@@ -220,7 +221,7 @@ class AsyncLLMClient:
             yield "[Timeout] Stream timed out."
         except aiohttp.ClientError as exc:
             yield f"[Connection Error] {exc!s}"
-        except Exception as exc:
+        except (KeyError, ValueError, RuntimeError) as exc:
             logger.exception("Async stream error: %s", exc)
             yield f"[Error] {exc!s}"
 
@@ -276,7 +277,7 @@ class AsyncLLMClient:
                     return self._extract_full_response(data)
                 text = await resp.text()
                 return {"error": f"[API Error] {resp.status}: {text[:200]}"}
-        except Exception as exc:
+        except (aiohttp.ClientError, OSError, ValueError) as exc:
             return {"error": f"[Error] {exc!s}"}
 
     @staticmethod

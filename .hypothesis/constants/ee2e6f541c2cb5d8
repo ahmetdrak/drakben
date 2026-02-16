@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\execution\tool_selector.py
+# hypothesis_version: 6.151.6
+
+[100, ':', 'INTERNAL_MODULE', 'ToolSpec', 'Valid', 'c2_beacon', 'complete', 'critical', 'cve_lookup', 'exploit', 'exploit_vuln', 'generate_payload', 'generic_command', 'high', 'hive_mind_attack', 'hive_mind_scan', 'http', 'https', 'lateral_movement', 'low', 'medium', 'metasploit_exploit', 'msfvenom_payload', 'mysql', 'next_phase', 'nikto_web_scan', 'nmap_port_scan', 'nmap_service_scan', 'nmap_vuln_scan', 'nuclei_scan', 'osint_scan', 'passive_recon', 'payload', 'phase_transition', 'port', 'ports', 'post_exploit', 'postgres', 'privilege_escalation', 'recon', 'report', 'reverse_shell', 'scan', 'scan_surface', 'sql', 'sqlmap_exploit', 'sqlmap_scan', 'ssh {target}', 'subdomain_enum', 'sudo -l', 'synthesize_code', 'system_evolution', 'target', 'vuln_id', 'vuln_scan', 'vulnerability_scan', 'waf_bypass', '{command}', '{target}']

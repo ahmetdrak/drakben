@@ -341,11 +341,15 @@ class TestConfigManagerLLMClient:
         cfg_file = tmp_path / "settings.json"
         with patch("core.config.API_ENV_PATH", str(tmp_path / "api.env")):
             mgr = ConfigManager(config_file=str(cfg_file))
-        with patch("llm.openrouter_client.OpenRouterClient", side_effect=Exception("no key")):
-            # Should handle gracefully
+        with patch(
+            "llm.openrouter_client.OpenRouterClient",
+            side_effect=OSError("no key"),
+        ):
+            # Force fresh init by resetting cached client
+            mgr._llm_client = None
+            # Should handle gracefully — OSError is caught by the property
             client = mgr.llm_client
-            # Client may be None after failure
-            assert client is None or client is not None  # Just shouldn't crash
+            assert client is None  # OSError → returns None
 
 
 # ===================================================================

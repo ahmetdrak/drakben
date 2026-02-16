@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\payload.py
+# hypothesis_version: 6.151.6
+
+[4444, 65535, 'ASPX web shell', 'AgentState', 'Bash reverse shell', 'JSP web shell', 'LHOST', 'Netcat bind shell', 'Netcat reverse shell', 'PHP reverse shell', 'Perl reverse shell', 'Python bind shell', 'Python reverse shell', 'Ruby reverse shell', 'Simple PHP web shell', 'any', 'aspx', 'available', 'bash', 'bind_shell_nc', 'bind_shell_python', 'blocked', 'code', 'description', 'encoded', 'error', 'generator', 'invariant_violations', 'java', 'lhost', 'linux', 'lport', 'mkfifo', 'msfvenom', 'name', 'nc', 'os', 'perl', 'php', 'powershell', 'python', 'python3', 'requires', 'reverse_shell_bash', 'reverse_shell_nc', 'reverse_shell_perl', 'reverse_shell_php', 'reverse_shell_python', 'reverse_shell_ruby', 'ruby', 'success', 'type', 'unknown', 'utf-8', 'web_shell_aspx', 'web_shell_jsp', 'web_shell_php', 'windows']

@@ -4,6 +4,8 @@ import os
 import sys
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.weapon_foundry import (
@@ -183,6 +185,7 @@ class TestWeaponFoundry(unittest.TestCase):
         assert payload.key is not None
         assert "exec" in payload.decoder_stub
 
+    @pytest.mark.filterwarnings("ignore:RC4 is cryptographically weak:DeprecationWarning")
     def test_forge_with_rc4(self) -> None:
         """Test payload with RC4 encryption."""
         payload = self.foundry.forge(
@@ -254,6 +257,7 @@ class TestWeaponFoundry(unittest.TestCase):
         # But for 'Villager Killer' status, we expect uniqueness.
         # self.assertEqual(len(unique_payloads), 5, "Polymorphism failed: Duplicate payloads generated!")
 
+    @pytest.mark.filterwarnings("ignore:RC4 is cryptographically weak:DeprecationWarning")
     def test_generated_code_validity(self) -> None:
         """Test that generated Python code is syntactically valid."""
         import ast
@@ -292,6 +296,7 @@ class TestQuickForge(unittest.TestCase):
         assert isinstance(payload, str)
         assert "_e=" in payload
 
+    @pytest.mark.filterwarnings("ignore:RC4 is cryptographically weak:DeprecationWarning")
     def test_quick_forge_rc4(self) -> None:
         """Test quick_forge with RC4."""
         payload = quick_forge("10.0.0.1", 4444, encryption="rc4")

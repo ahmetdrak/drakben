@@ -92,7 +92,7 @@ class Planner:
         self.memory: EvolutionMemory | None = None
         try:
             self.memory = get_evolution_memory()
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             import logging
             logging.getLogger(__name__).error(
                 "Failed to initialize evolution memory: %s - Using null memory", e,

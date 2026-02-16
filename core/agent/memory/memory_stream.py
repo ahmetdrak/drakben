@@ -157,7 +157,7 @@ class MemoryStream:
             self._load_from_persistence()
 
             logger.info("MemoryStream persistence initialized: %s", self._persist_path)
-        except Exception as e:
+        except (sqlite3.Error, OSError) as e:
             logger.exception("Failed to initialize persistence: %s", e)
             self._db_conn = None
 
@@ -176,7 +176,7 @@ class MemoryStream:
                 self._nodes[node.node_id] = node
 
             logger.info("Loaded %d nodes from persistence", len(self._nodes))
-        except Exception as e:
+        except (sqlite3.Error, ValueError, KeyError) as e:
             logger.exception("Failed to load from persistence: %s", e)
 
     def _row_to_node(self, row: sqlite3.Row) -> ConceptNode:
@@ -254,7 +254,7 @@ class MemoryStream:
                 ),
             )
             self._db_conn.commit()
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.exception("Failed to persist node %s: %s", node.node_id, e)
 
     def _index_node(self, node: ConceptNode) -> None:
@@ -359,15 +359,15 @@ class MemoryStream:
                     self._db_conn.execute(
                         "DELETE FROM memory_nodes WHERE node_id = ?", (node_id,),
                     )
-                except Exception:
-                    pass
+                except sqlite3.Error:
+                    logger.debug("Eviction DB delete failed for %s", node_id, exc_info=True)
 
         # Commit eviction deletes to persist them
         if self._db_conn:
             try:
                 self._db_conn.commit()
-            except Exception:
-                pass
+            except sqlite3.Error:
+                logger.debug("Eviction commit failed", exc_info=True)
 
         logger.info("Evicted %d low-importance nodes", min(to_remove, len(candidates)))
 
@@ -391,7 +391,7 @@ class MemoryStream:
             }
 
             self._vector_store.add_memory(text, metadata)
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, OSError) as e:
             logger.debug("Failed to embed node: %s", e)
 
     def get(self, node_id: str) -> ConceptNode | None:
@@ -414,8 +414,8 @@ class MemoryStream:
                             (node.last_accessed, node.access_count, node_id),
                         )
                         self._db_conn.commit()
-                    except Exception:
-                        pass
+                    except sqlite3.Error:
+                        logger.debug("Access count update failed", exc_info=True)
             return node
 
     def get_recent(self, n: int = 10, target: str | None = None) -> list[ConceptNode]:
@@ -595,7 +595,7 @@ class MemoryStream:
                         output.append((node, similarity))
 
             return output
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, OSError) as e:
             logger.debug("Semantic search failed: %s", e)
             return []
 
@@ -732,8 +732,8 @@ class MemoryStream:
                     "DELETE FROM memory_nodes WHERE target = ?", (target,),
                 )
                 self._db_conn.commit()
-            except Exception:
-                pass
+            except sqlite3.Error:
+                logger.debug("Clear target DB failed for %s", target, exc_info=True)
 
     def _clear_all(self) -> None:
         """Remove every node from indexes and DB."""
@@ -747,8 +747,8 @@ class MemoryStream:
             try:
                 self._db_conn.execute("DELETE FROM memory_nodes")
                 self._db_conn.commit()
-            except Exception:
-                pass
+            except sqlite3.Error:
+                logger.debug("Clear all DB failed", exc_info=True)
 
     def clear(self, target: str | None = None) -> None:
         """Clear memory stream.
@@ -770,8 +770,8 @@ class MemoryStream:
             try:
                 self._db_conn.commit()
                 self._db_conn.close()
-            except Exception:
-                pass
+            except sqlite3.Error:
+                pass  # Close path: best-effort cleanup
             self._db_conn = None
 
 

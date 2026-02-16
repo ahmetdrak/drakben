@@ -8,6 +8,7 @@ Description: Loads and manages the Rust-based Syscall Engine DLL.
 import ctypes
 import logging
 import platform
+import sys
 from ctypes import c_int, c_size_t, c_uint32, c_void_p
 from pathlib import Path
 
@@ -27,11 +28,22 @@ else:
 
 
 class SyscallLoader:
-    """Bridge between Python Agent and Rust Syscall Engine."""
+    """Bridge between Python Agent and Rust Syscall Engine.
+
+    On first instantiation the loader searches for the pre-compiled
+    shared library (``drakben_syscalls.dll`` / ``libdrakben_syscalls.so``).
+    If the library is not found **and** ``cargo`` is available on ``PATH``,
+    it will attempt to compile the crate automatically via the bundled
+    ``build.py`` helper.
+    """
 
     def __init__(self) -> None:
         self.dll_path = self._find_dll()
         self.lib = None
+
+        # Auto-build if the DLL is missing and cargo is available
+        if not self.dll_path:
+            self.dll_path = self._try_auto_build()
 
         if self.dll_path:
             try:
@@ -42,8 +54,44 @@ class SyscallLoader:
                 logger.exception("Failed to load Syscall DLL: %s", e)
         else:
             logger.warning(
-                "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls",
+                "Syscall DLL not found. Run 'cargo build --release' in modules/native/rust_syscalls "
+                "or install the Rust toolchain for auto-build.",
             )
+
+    @staticmethod
+    def _try_auto_build() -> Path | None:
+        """Try to compile the Rust crate automatically.
+
+        Returns:
+            Path to the compiled library, or ``None`` on failure.
+        """
+        import shutil
+        import subprocess
+
+        if shutil.which("cargo") is None:
+            logger.info("cargo not on PATH — skipping auto-build")
+            return None
+
+        build_script = RUST_PROJECT_PATH / "build.py"
+        if not build_script.exists():
+            logger.info("build.py not found — skipping auto-build")
+            return None
+
+        logger.info("Attempting auto-build of Rust Syscall Engine…")
+        try:
+            subprocess.check_call(
+                [sys.executable, str(build_script)],
+                cwd=str(RUST_PROJECT_PATH),
+                timeout=120,
+            )
+            artifact = RUST_PROJECT_PATH / "target" / TARGET_DIR / DLL_NAME
+            if artifact.exists():
+                logger.info("Auto-build succeeded: %s", artifact)
+                return artifact.resolve()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            logger.warning("Auto-build failed: %s", exc)
+
+        return None
 
     def _find_dll(self) -> Path | None:
         """Search for the compiled DLL/SO file."""

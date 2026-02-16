@@ -187,8 +187,8 @@ OUTPUT JSON:
             )
             if mem_ctx and len(mem_ctx) > 10:
                 parts.append(f"Memory context: {mem_ctx[:300]}")
-        except Exception:
-            pass
+        except (AttributeError, TypeError, RuntimeError):
+            logger.debug("Memory context retrieval failed", exc_info=True)
 
     def _add_kb_context(self, context: ExecutionContext, parts: list[str]) -> None:
         """Add Cross-Session Knowledge Base context to operational state."""
@@ -200,8 +200,8 @@ OUTPUT JSON:
             kb_ctx = self.knowledge_base.recall_for_context(target=target, service=service)
             if kb_ctx and len(kb_ctx) > 10:
                 parts.append(f"Prior knowledge:\n{kb_ctx[:400]}")
-        except Exception:
-            pass
+        except (AttributeError, TypeError, RuntimeError):
+            logger.debug("KB context retrieval failed", exc_info=True)
 
     @staticmethod
     def _detect_service(context: ExecutionContext) -> str | None:
@@ -245,10 +245,10 @@ OUTPUT JSON:
         except ImportError:
             pass
 
-        # Initialize LLM Cache
+        # Initialize LLM Cache (use canonical cache from core.llm)
         self.llm_cache = None
         try:
-            from core.storage.llm_cache import LLMCache
+            from core.llm.llm_cache import LLMCache
 
             self.llm_cache = LLMCache()
         except ImportError:
@@ -405,7 +405,8 @@ OUTPUT JSON:
         if not self.llm_cache:
             return None
 
-        cached_json: str | None = self.llm_cache.get(user_input + "\x00" + system_prompt)
+        key = self.llm_cache.make_key(user_input, system_prompt)
+        cached_json = self.llm_cache.get(key)
         if not cached_json:
             return None
 
@@ -517,10 +518,11 @@ OUTPUT JSON:
 
             # Save to Cache on Success
             if self.llm_cache:
-                self.llm_cache.set(user_input + "\x00" + system_prompt, response)
+                key = self.llm_cache.make_key(user_input, system_prompt)
+                self.llm_cache.put(key, response)
 
             return self._build_llm_result(response)
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             return {"success": False, "error": str(e)}
 
     def _parse_llm_response(self, response: str) -> dict[str, Any] | None:
@@ -649,9 +651,9 @@ IMPORTANT RULES:
 
         try:
             # 1. Check Cache
-            cache_key = user_input + "\x00" + system_prompt
-            if self.llm_cache:
-                cached_resp: str | None = self.llm_cache.get(cache_key)
+            cache_key = self.llm_cache.make_key(user_input, system_prompt) if self.llm_cache else None
+            if self.llm_cache and cache_key:
+                cached_resp = self.llm_cache.get(cache_key)
                 if cached_resp:
                     return {
                         "success": True,
@@ -674,8 +676,8 @@ IMPORTANT RULES:
                 return {"success": False, "error": response}
 
             # 2. Save to Cache
-            if self.llm_cache:
-                self.llm_cache.set(cache_key, response)
+            if self.llm_cache and cache_key:
+                self.llm_cache.put(cache_key, response)
 
             return {
                 "success": True,
@@ -687,7 +689,7 @@ IMPORTANT RULES:
                 "risks": [],
                 "llm_response": response,
             }
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             return {"success": False, "error": str(e)}
 
     def _construct_system_prompt(
@@ -987,8 +989,8 @@ IMPORTANT RULES:
             try:
                 target = context.target
                 self.cognitive_memory.generate_reflections(target=target)
-            except Exception:
-                pass
+            except (AttributeError, TypeError, RuntimeError):
+                logger.debug("Auto-reflection generation failed", exc_info=True)
 
         return result
 

@@ -247,6 +247,6 @@ class SingularityEngine:
             logger.info("Dynamic tool registered: %s", tool_name)
             return code
 
-        except Exception as e:
+        except (ImportError, OSError, ValueError, RuntimeError) as e:
             logger.exception("Failed to register dynamic tool: %s", e)
             return code  # Return code even if registration fails

@@ -1,14 +1,29 @@
+"""DEPRECATED: Use ``core.llm.llm_cache.LLMCache`` instead.
+
+This module is kept only for backward compatibility. All new code
+should import from ``core.llm.llm_cache``.
+"""
 import hashlib
 import logging
 import sqlite3
 import time
+import warnings
 
 logger = logging.getLogger(__name__)
+
+# Emit deprecation warning on import
+warnings.warn(
+    "core.storage.llm_cache is deprecated — use core.llm.llm_cache instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class LLMCache:
     """LLM Önbellekleme Sistemi.
     ------------------------
+    .. deprecated::
+        Use ``core.llm.llm_cache.LLMCache`` instead.
     Amaç: Tekrar eden LLM sorgularını önbelleğe alarak hız ve maliyet avantajı sağlamak.
     Özellikler:
     - SQLite tabanlı kalıcı depolama

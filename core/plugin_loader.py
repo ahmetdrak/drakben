@@ -2,13 +2,16 @@
 # DRAKBEN Dynamic Plugin Loader
 # Safe loading of external tool definitions
 
+from __future__ import annotations
+
 import importlib.util
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-# Type checking imports
-from core.execution.tool_selector import ToolSpec
+if TYPE_CHECKING:
+    from core.execution.tool_selector import ToolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,8 @@ class PluginLoader:
 
     def _load_single_plugin(self, file_path: Path) -> ToolSpec | None:
         """Load a single plugin file safely."""
+        from core.execution.tool_selector import ToolSpec
+
         module_name = file_path.stem
 
         try:

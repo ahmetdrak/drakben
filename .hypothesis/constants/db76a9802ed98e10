@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\llm\llm_engine.py
+# hypothesis_version: 6.151.6
+
+[0.0, 300.0, 512, 1024, 8192, 'Assistant', 'User', 'available_models', 'cache_hits', 'components', 'content', 'conversation', 'description', 'function', 'get_provider_info', 'gpt-4o', 'llm_client', 'model', 'multi_turn', 'name', 'note', 'object', 'output_validator', 'parameters', 'properties', 'provider', 'queries', 'query', 'query_with_messages', 'query_with_tools', 'rag', 'rag_enrichments', 'rag_pipeline', 'repairs', 'required', 'role', 'stream', 'streams', 'string', 'system', 'target', 'token_counter', 'tokens_saved_by_trim', 'tool_calls', 'total_cost', 'type', 'user', 'validation_repairs', 'validator']

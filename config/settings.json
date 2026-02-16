@@ -5,14 +5,14 @@
   "ollama_model": "llama3.1",
   "openai_model": "gpt-4o-mini",
   "llm_setup_complete": true,
-  "language": "tr",
+  "language": "en",
   "use_colors": true,
   "verbose": false,
   "auto_approve": false,
   "approved_once": false,
   "ssl_verify": true,
   "allow_self_signed_certs": false,
-  "target": null,
+  "target": "www.google.com",
   "session_dir": "sessions",
   "log_dir": "logs",
   "stealth_mode": false,
@@ -23,5 +23,6 @@
     "safety_checks": true,
     "max_iterations": 50,
     "command_timeout": 300
-  }
+  },
+  "model_overrides": {}
 }

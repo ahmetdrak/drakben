@@ -273,7 +273,7 @@ class LLMOutputValidator:
                 props = schema.get("properties", {})
                 return json.dumps(props, indent=2)[:500]
             except Exception:
-                pass
+                logger.debug("Failed to extract JSON schema from %s", model_class.__name__, exc_info=True)
         return '{"intent": "...", "response": "...", "steps": [], "risks": []}'
 
     def get_stats(self) -> dict[str, int]:

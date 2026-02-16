@@ -305,19 +305,56 @@ class SubdomainEnumerator:
             return domain[4:]
         return domain
 
+    async def _fetch_json_with_retry(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+    ) -> Any:
+        """Fetch JSON from *url* with exponential-backoff retry.
+
+        Args:
+            url: The URL to fetch.
+            headers: Optional HTTP headers.
+            max_retries: Maximum number of attempts.
+            base_delay: Initial delay between retries in seconds.
+
+        Returns:
+            Parsed JSON data, or ``None`` on persistent failure.
+        """
+        client_timeout = aiohttp.ClientTimeout(total=30)
+        for attempt in range(max_retries):
+            try:
+                async with (
+                    aiohttp.ClientSession(timeout=client_timeout) as session,
+                    session.get(url, headers=headers) as resp,
+                ):
+                    if resp.status == 200:
+                        return await resp.json()
+                    logger.warning(
+                        "%s returned HTTP %d (attempt %d/%d)",
+                        url, resp.status, attempt + 1, max_retries,
+                    )
+            except (TimeoutError, aiohttp.ClientError) as exc:
+                logger.warning(
+                    "%s failed (attempt %d/%d): %s",
+                    url, attempt + 1, max_retries, exc,
+                )
+            if attempt < max_retries - 1:
+                await asyncio.sleep(base_delay * (2 ** attempt))
+        return None
+
     async def _crtsh_enum(self, domain: str) -> list[SubdomainResult]:
         """Enumerate using crt.sh (Certificate Transparency)."""
         try:
             url = f"https://crt.sh/?q=%.{domain}&output=json"
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp,
-            ):
-                if resp.status == 200:
-                    data = await resp.json()
-                    results = self._parse_crtsh_data(data, domain)
-                    logger.info("crt.sh found %s subdomains", len(results))
-                    return results
+            data = await self._fetch_json_with_retry(url)
+            if data is not None:
+                results = self._parse_crtsh_data(data, domain)
+                logger.info("crt.sh found %s subdomains", len(results))
+                return results
             return []
         except Exception as e:
             logger.exception("crt.sh error: %s", e)
@@ -354,20 +391,11 @@ class SubdomainEnumerator:
         try:
             url = f"https://www.virustotal.com/api/v3/domains/{domain}/subdomains"
             headers = {"x-apikey": self.vt_api_key}
-
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(
-                    url,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as resp,
-            ):
-                if resp.status == 200:
-                    data = await resp.json()
-                    results = self._parse_virustotal_data(data)
-                    logger.info("VirusTotal found %s subdomains", len(results))
-                    return results
+            data = await self._fetch_json_with_retry(url, headers=headers)
+            if data is not None:
+                results = self._parse_virustotal_data(data)
+                logger.info("VirusTotal found %s subdomains", len(results))
+                return results
             return []
         except Exception as e:
             logger.exception("VirusTotal error: %s", e)
@@ -389,15 +417,11 @@ class SubdomainEnumerator:
         """Enumerate using Web Archive."""
         try:
             url = f"https://web.archive.org/cdx/search/cdx?url=*.{domain}&output=json&fl=original&collapse=urlkey"
-            async with (
-                aiohttp.ClientSession() as session,
-                session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp,
-            ):
-                if resp.status == 200:
-                    data = await resp.json()
-                    results = self._parse_web_archive_data(data, domain)
-                    logger.info("Web Archive found %s subdomains", len(results))
-                    return results
+            data = await self._fetch_json_with_retry(url)
+            if data is not None:
+                results = self._parse_web_archive_data(data, domain)
+                logger.info("Web Archive found %s subdomains", len(results))
+                return results
             return []
         except Exception as e:
             logger.exception("Web Archive error: %s", e)

@@ -15,12 +15,17 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from re import Match
 
+    from core.agent._agent_protocol import AgentProtocol
     from core.execution.execution_engine import ExecutionResult
+
+    _MixinBase = AgentProtocol
+else:
+    _MixinBase = object
 
 logger = logging.getLogger(__name__)
 
 
-class RAToolRecoveryMixin:
+class RAToolRecoveryMixin(_MixinBase):
     """Mixin providing tool failure recovery for RefactoredDrakbenAgent.
 
     Expects the host class to provide:

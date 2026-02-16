@@ -138,22 +138,22 @@ class OSINTSpider:
             try:
                 mx_answers = resolver.resolve(domain, "MX")
                 intel.mx_records = [str(r.exchange).rstrip(".") for r in mx_answers]
-            except Exception:
-                pass
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+                logger.debug("MX record lookup failed for %s: %s", domain, exc)
 
             # NS Records
             try:
                 ns_answers = resolver.resolve(domain, "NS")
                 intel.name_servers = [str(r).rstrip(".") for r in ns_answers]
-            except Exception:
-                pass
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+                logger.debug("NS record lookup failed for %s: %s", domain, exc)
 
             # TXT Records (SPF, DKIM, etc.)
             try:
                 txt_answers = resolver.resolve(domain, "TXT")
                 intel.txt_records = [str(r) for r in txt_answers]
-            except Exception:
-                pass
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+                logger.debug("TXT record lookup failed for %s: %s", domain, exc)
 
         except ImportError:
             # Fallback to socket-based DNS

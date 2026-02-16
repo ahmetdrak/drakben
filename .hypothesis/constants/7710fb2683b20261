@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\security\security_utils.py
+# hypothesis_version: 6.151.6
+
+[100, 200, 9050, 100000, ' AND event_type = ?', ' AND timestamp <= ?', ' AND timestamp >= ?', '%', '.credentials.enc', '127.0.0.1', ':memory:', 'Audit logged: %s', 'GENESIS', 'Proxy working: %s:%s', 'USER', 'USERNAME', '\\%', '\\_', '_', 'action', 'audit.db', 'check.torproject.org', 'command_executed', 'config_changed', 'credential_accessed', 'details', 'drakben', 'error', 'event_type', 'exploit', 'exploit_attempted', 'exploit_succeeded', 'http', 'https', 'low', 'medium', 'payload_generated', 'rb', 'risk_level', 'scan_completed', 'scan_started', 'session_ended', 'session_started', 'sha256', 'source_ip', 'success', 'target', 'timestamp', 'unknown', 'user', 'warning', 'wb']

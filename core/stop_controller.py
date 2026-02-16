@@ -59,6 +59,8 @@ class StopController:
         self._active_processes: list[Any] = []  # subprocess.Popen objects
         self._active_threads: list[threading.Thread] = []
         self._callbacks_lock = threading.Lock()
+        self._shutdown_timeout: float = 10.0  # seconds
+        self._shutdown_phases: list[str] = []  # completed phase names
         self._initialized = True
 
         logger.debug("StopController initialized")
@@ -80,6 +82,78 @@ class StopController:
         # Run cleanup callbacks
         self._run_cleanup_callbacks()
 
+    def graceful_shutdown(self, timeout: float | None = None) -> dict[str, Any]:
+        """Perform a full graceful shutdown with phased teardown.
+
+        Phases:
+        1. Signal stop to all loops
+        2. Drain active processes
+        3. Flush logs and observability data
+        4. Close database connections
+        5. Run custom cleanup callbacks
+
+        Returns:
+            Summary dict with completed phases and any errors.
+        """
+        effective_timeout = timeout or self._shutdown_timeout
+        errors: list[str] = []
+        self._shutdown_phases = []
+
+        # Phase 1: Signal stop
+        logger.info("Shutdown Phase 1: Signal stop")
+        self._stop_event.set()
+        self._shutdown_phases.append("signal")
+
+        # Phase 2: Drain processes
+        logger.info("Shutdown Phase 2: Drain active processes")
+        try:
+            self._terminate_all_processes()
+            self._shutdown_phases.append("drain_processes")
+        except Exception as exc:
+            errors.append(f"drain_processes: {exc}")
+
+        # Phase 3: Flush observability
+        logger.info("Shutdown Phase 3: Flush observability")
+        try:
+            self._flush_observability()
+            self._shutdown_phases.append("flush_observability")
+        except Exception as exc:
+            errors.append(f"flush_observability: {exc}")
+
+        # Phase 4: Close databases
+        logger.info("Shutdown Phase 4: Close databases")
+        try:
+            self._close_databases()
+            self._shutdown_phases.append("close_databases")
+        except Exception as exc:
+            errors.append(f"close_databases: {exc}")
+
+        # Phase 5: Custom callbacks
+        logger.info("Shutdown Phase 5: Custom cleanup callbacks")
+        try:
+            self._run_cleanup_callbacks()
+            self._shutdown_phases.append("cleanup_callbacks")
+        except Exception as exc:
+            errors.append(f"cleanup_callbacks: {exc}")
+
+        # Phase 6: Wait for threads to finish
+        logger.info("Shutdown Phase 6: Join threads")
+        try:
+            self._join_threads(effective_timeout)
+            self._shutdown_phases.append("join_threads")
+        except Exception as exc:
+            errors.append(f"join_threads: {exc}")
+
+        status = "clean" if not errors else "partial"
+        logger.info("Shutdown complete: status=%s, phases=%d, errors=%d",
+                     status, len(self._shutdown_phases), len(errors))
+
+        return {
+            "status": status,
+            "completed_phases": list(self._shutdown_phases),
+            "errors": errors,
+        }
+
     def reset(self) -> None:
         """Reset the stop state for new operations."""
         self._stop_event.clear()
@@ -87,6 +161,7 @@ class StopController:
             self._active_processes.clear()
             self._active_threads.clear()
             self._cleanup_callbacks.clear()
+        self._shutdown_phases = []
         logger.debug("StopController reset")
 
     def is_stopped(self) -> bool:
@@ -153,6 +228,47 @@ class StopController:
                 callback()
             except Exception as e:
                 logger.warning("Cleanup callback error: %s", e)
+
+    @staticmethod
+    def _flush_observability() -> None:
+        """Flush traces and metrics to disk."""
+        try:
+            from core.observability import get_metrics, get_tracer
+            tracer = get_tracer()
+            if hasattr(tracer, "export_json"):
+                tracer.export_json("logs/traces_shutdown.json")
+            metrics = get_metrics()
+            if hasattr(metrics, "export_json"):
+                metrics.export_json("logs/metrics_shutdown.json")
+        except ImportError:
+            pass
+
+    @staticmethod
+    def _close_databases() -> None:
+        """Close known database connections."""
+        # Evolution memory
+        try:
+            from core.intelligence import evolution_memory as _em
+            if _em._evolution_memory is not None:
+                _em._evolution_memory.close()
+                _em._evolution_memory = None
+        except (ImportError, OSError):
+            pass
+        # DI container
+        try:
+            from core.container import reset_container
+            reset_container()
+        except (ImportError, OSError):
+            pass
+
+    def _join_threads(self, timeout: float) -> None:
+        """Wait for registered threads to finish."""
+        with self._callbacks_lock:
+            threads = [t for t in self._active_threads if t.is_alive()]
+
+        per_thread = max(1.0, timeout / max(len(threads), 1))
+        for t in threads:
+            t.join(timeout=per_thread)
 
 
 # Global singleton instance

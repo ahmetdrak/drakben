@@ -12,9 +12,11 @@ from modules.c2_framework import (
     DEFAULT_SLEEP_INTERVAL,
     BeaconMessage,
     BeaconResponse,
+    BeaconSession,
     BeaconStatus,
     C2Channel,
     C2Config,
+    C2Listener,
     C2Protocol,
     DNSTunneler,
     DoHTransport,
@@ -438,6 +440,133 @@ class TestEnums(unittest.TestCase):
         assert BeaconStatus.DORMANT.value == "dormant"
         assert BeaconStatus.ACTIVE.value == "active"
         assert BeaconStatus.ERROR.value == "error"
+
+
+class TestBeaconSession(unittest.TestCase):
+    """Tests for the BeaconSession dataclass."""
+
+    def test_creation_defaults(self) -> None:
+        """Test default field values."""
+        session = BeaconSession(beacon_id="abc123", remote_addr="10.0.0.1")
+        assert session.beacon_id == "abc123"
+        assert session.remote_addr == "10.0.0.1"
+        assert session.pending_commands == []
+        assert session.history == []
+        assert session.first_seen > 0
+        assert session.last_seen >= session.first_seen
+
+    def test_enqueue_returns_msg_id(self) -> None:
+        """Test that enqueue returns a non-empty message ID."""
+        session = BeaconSession(beacon_id="b1", remote_addr="10.0.0.2")
+        msg_id = session.enqueue("shell", {"cmd": "whoami"})
+        assert isinstance(msg_id, str)
+        assert len(msg_id) == 16
+        assert len(session.pending_commands) == 1
+        assert session.pending_commands[0].command == "shell"
+
+    def test_enqueue_multiple(self) -> None:
+        """Test queuing several commands."""
+        session = BeaconSession(beacon_id="b2", remote_addr="10.0.0.3")
+        ids = [session.enqueue(f"cmd{i}") for i in range(5)]
+        assert len(set(ids)) == 5  # all unique
+        assert len(session.pending_commands) == 5
+
+    def test_to_dict(self) -> None:
+        """Test serialisation to dict."""
+        session = BeaconSession(beacon_id="b3", remote_addr="10.0.0.4")
+        session.enqueue("sleep", {"interval": 120})
+        d = session.to_dict()
+        assert d["beacon_id"] == "b3"
+        assert d["remote_addr"] == "10.0.0.4"
+        assert d["pending"] == 1
+        assert d["history_count"] == 0
+
+
+class TestC2Listener(unittest.TestCase):
+    """Tests for the C2Listener server-side component."""
+
+    def test_init_defaults(self) -> None:
+        """Test default initialisation values."""
+        listener = C2Listener()
+        assert listener.host == "0.0.0.0"
+        assert listener.port == 443
+        assert listener.use_tls is True
+        assert len(listener.encryption_key) == 32
+        assert listener.running is False
+
+    def test_init_custom(self) -> None:
+        """Test custom initialisation."""
+        key = b"x" * 32
+        listener = C2Listener(
+            host="127.0.0.1", port=8443, encryption_key=key, use_tls=False,
+        )
+        assert listener.host == "127.0.0.1"
+        assert listener.port == 8443
+        assert listener.encryption_key == key
+        assert listener.use_tls is False
+
+    def test_get_sessions_empty(self) -> None:
+        """Test empty sessions listing."""
+        listener = C2Listener()
+        assert listener.get_sessions() == {}
+
+    def test_get_session_unknown(self) -> None:
+        """Test querying non-existent session."""
+        listener = C2Listener()
+        assert listener.get_session("non-existent") is None
+
+    def test_queue_command_unknown_beacon(self) -> None:
+        """Test queuing to a non-existent beacon returns None."""
+        listener = C2Listener()
+        assert listener.queue_command("ghost", "shell") is None
+
+    def test_session_management(self) -> None:
+        """Test manual session registration and command queuing."""
+        listener = C2Listener()
+        # Manually register a session (simulating internal bookkeeping)
+        listener._sessions["beacon1"] = BeaconSession(
+            beacon_id="beacon1", remote_addr="192.168.1.50",
+        )
+        assert len(listener.get_sessions()) == 1
+        assert listener.get_session("beacon1") is not None
+
+        # Queue a command
+        msg_id = listener.queue_command("beacon1", "shell", {"cmd": "id"})
+        assert msg_id is not None
+        assert len(listener._sessions["beacon1"].pending_commands) == 1
+
+    def test_encrypt_decrypt_roundtrip(self) -> None:
+        """Test that listener encryption is reversible."""
+        key = os.urandom(32)
+        listener = C2Listener(encryption_key=key)
+        plaintext = b'{"cmd": "whoami", "id": "test123"}'
+        encrypted = listener._encrypt(plaintext)
+        assert encrypted != plaintext
+        decrypted = listener._decrypt(encrypted)
+        assert decrypted == plaintext
+
+    def test_get_status(self) -> None:
+        """Test status reporting."""
+        listener = C2Listener(host="0.0.0.0", port=8080, use_tls=False)
+        status = listener.get_status()
+        assert status["running"] is False
+        assert status["port"] == 8080
+        assert status["active_beacons"] == 0
+
+    def test_get_session_history_empty(self) -> None:
+        """Test history for non-existent session."""
+        listener = C2Listener()
+        assert listener.get_session_history("nope") == []
+
+    def test_get_session_history(self) -> None:
+        """Test history retrieval for existing session."""
+        listener = C2Listener()
+        session = BeaconSession(beacon_id="b1", remote_addr="10.0.0.1")
+        session.history.append({"direction": "in", "command": "checkin"})
+        listener._sessions["b1"] = session
+        history = listener.get_session_history("b1")
+        assert len(history) == 1
+        assert history[0]["command"] == "checkin"
 
 
 if __name__ == "__main__":

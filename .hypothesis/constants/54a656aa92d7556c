@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\llm\openrouter_client.py
+# hypothesis_version: 6.151.6
+
+[1.0, 30.0, 60.0, 300.0, 200, 500, 502, 503, 504, 1000, 'CUSTOM_API_KEY', 'CUSTOM_API_URL', 'CUSTOM_MODEL', 'Cache hit for prompt', 'GET', 'Hello', 'LOCAL_LLM_MODEL', 'LOCAL_LLM_URL', 'OPENAI_API_KEY', 'OPENAI_MODEL', 'OPENROUTER_API_KEY', 'OPENROUTER_MODEL', 'OpenRouterClient', 'POST', '[', '[Error]', '[Offline]', 'api.env', 'base_url', 'cache_enabled', 'cache_stats', 'config', 'custom', 'default', 'entries', 'error', 'gpt-4o-mini', 'has_api_key', 'hit_rate', 'hits', 'http://', 'https://', 'llama3.1', 'max_entries', 'max_retries', 'message', 'misses', 'model', 'ollama', 'openai', 'openrouter', 'provider', 'sk-or-']

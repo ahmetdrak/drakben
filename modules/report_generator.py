@@ -27,6 +27,8 @@ except (ImportError, OSError):
 
 logger = logging.getLogger(__name__)
 
+_CLOSING_DIV = "</div>"
+
 
 class ReportFormat(Enum):
     """Supported report formats."""
@@ -59,8 +61,10 @@ class Finding:
     remediation: str = ""
     cve_id: str | None = None
     cvss_score: float | None = None
+    cvss_vector: str | None = None  # e.g. "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     references: list[str] = field(default_factory=list)
     screenshots: list[str] = field(default_factory=list)  # Paths to screenshot files
+    evidence_artifacts: list[str] = field(default_factory=list)  # Raw tool output snippets
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,8 +76,10 @@ class Finding:
             "remediation": self.remediation,
             "cve_id": self.cve_id,
             "cvss_score": self.cvss_score,
+            "cvss_vector": self.cvss_vector,
             "references": self.references,
             "screenshots": self.screenshots,
+            "evidence_artifacts": self.evidence_artifacts,
         }
 
 
@@ -550,6 +556,8 @@ class ReportGenerator:
 
         {self._generate_executive_summary_html(stats) if self.config.include_executive_summary else ""}
 
+        {self._generate_methodology_html() if self.config.include_methodology else ""}
+
         <div class="section">
             <h2>Detailed Findings (Click to Expand)</h2>
             {findings_html if findings_html else "<p>No findings recorded.</p>"}
@@ -607,9 +615,22 @@ class ReportGenerator:
             f"<p><strong>Description:</strong> {_html.escape(finding.description)}</p>"
         )
         if finding.cve_id:
-            body += f"<p><strong>CVE:</strong> {_html.escape(finding.cve_id)} (CVSS: {finding.cvss_score})</p>"
+            cvss_extra = ""
+            if finding.cvss_vector:
+                cvss_extra = f" &mdash; <code>{_html.escape(finding.cvss_vector)}</code>"
+            body += (
+                f"<p><strong>CVE:</strong> {_html.escape(finding.cve_id)} "
+                f"(CVSS: {finding.cvss_score}{cvss_extra})</p>"
+            )
+        elif finding.cvss_vector:
+            body += f"<p><strong>CVSS Vector:</strong> <code>{_html.escape(finding.cvss_vector)}</code></p>"
         if finding.evidence:
             body += f'<div class="evidence"><strong>Evidence:</strong><pre>{_html.escape(finding.evidence)}</pre></div>'
+        if finding.evidence_artifacts:
+            body += '<div class="evidence"><strong>Evidence Artifacts:</strong>'
+            for artifact in finding.evidence_artifacts:
+                body += f"<pre>{_html.escape(artifact)}</pre>"
+            body += _CLOSING_DIV
         if finding.screenshots:
             body += self._build_screenshots_html(finding.screenshots)
         if finding.remediation:
@@ -639,7 +660,7 @@ class ReportGenerator:
                     )
             except Exception:
                 html += f'<p style="color:#666;">[Screenshot: {ss_path}]</p>'
-        html += "</div>"
+        html += _CLOSING_DIV
         return html
 
     def _build_findings_list_html(self) -> str:
@@ -715,6 +736,36 @@ class ReportGenerator:
         </div>
         """
 
+    def _generate_methodology_html(self) -> str:
+        """Generate methodology section describing the assessment approach."""
+        return """
+        <div class="section">
+            <h2>Assessment Methodology</h2>
+            <div class="executive-summary">
+                <p>The penetration test followed industry-standard methodologies including:</p>
+                <ul>
+                    <li><strong>OWASP Testing Guide v4.2</strong> — Web application security testing framework</li>
+                    <li><strong>OSSTMM 3.0</strong> — Open Source Security Testing Methodology Manual</li>
+                    <li><strong>PTES</strong> — Penetration Testing Execution Standard</li>
+                    <li><strong>NIST SP 800-115</strong> — Technical Guide to Information Security Testing</li>
+                </ul>
+
+                <h3 style="margin-top: 20px;">Testing Phases</h3>
+                <ol>
+                    <li><strong>Reconnaissance:</strong> Passive and active information gathering, subdomain enumeration, technology fingerprinting</li>
+                    <li><strong>Scanning &amp; Enumeration:</strong> Port scanning, service detection, vulnerability scanning with multiple engines</li>
+                    <li><strong>Exploitation:</strong> Controlled exploitation of identified vulnerabilities to confirm impact</li>
+                    <li><strong>Post-Exploitation:</strong> Privilege escalation, lateral movement assessment, data access evaluation</li>
+                    <li><strong>Reporting:</strong> Findings documentation with evidence, risk scoring (CVSS v3.1), and remediation guidance</li>
+                </ol>
+
+                <h3 style="margin-top: 20px;">Risk Rating</h3>
+                <p>Findings are rated using the <strong>CVSS v3.1</strong> (Common Vulnerability Scoring System) standard.
+                The overall risk score is a weighted composite reflecting the combined impact of all findings.</p>
+            </div>
+        </div>
+        """
+
     def _generate_ai_insight(self, critical: int, high: int, risk: int) -> str:
         """Generate C-Level insight via LLM with rule-based fallback.
 
@@ -777,8 +828,46 @@ class ReportGenerator:
                 "<strong>Recommendation:</strong> Incorporate fixes into the next scheduled sprint."
             )
 
-        insight += "</div>"
+        insight += _CLOSING_DIV
         return insight
+
+    def _format_finding_markdown(self, index: int, finding: "Finding") -> str:
+        """Format a single finding as Markdown."""
+        md = f"""### {index}. {finding.title}
+
+**Severity:** {finding.severity.value.upper()}
+**Affected Asset:** {finding.affected_asset}
+
+**Description:**
+{finding.description}
+
+"""
+        if finding.cve_id:
+            cvss_extra = ""
+            if finding.cvss_vector:
+                cvss_extra = f" | Vector: `{finding.cvss_vector}`"
+            md += f"**CVE:** {finding.cve_id} (CVSS: {finding.cvss_score}{cvss_extra})\n\n"
+        elif finding.cvss_vector:
+            md += f"**CVSS Vector:** `{finding.cvss_vector}`\n\n"
+
+        if finding.evidence:
+            md += f"""**Evidence:**
+```
+{finding.evidence}
+```
+
+"""
+
+        if finding.evidence_artifacts:
+            md += "**Evidence Artifacts:**\n\n"
+            for artifact in finding.evidence_artifacts:
+                md += f"```\n{artifact}\n```\n\n"
+
+        if finding.remediation:
+            md += f"**Remediation:**  \n{finding.remediation}\n\n"
+
+        md += "---\n\n"
+        return md
 
     def _generate_markdown(self) -> str:
         """Generate Markdown report."""
@@ -825,7 +914,30 @@ The assessment identified **{stats["total_findings"]} findings**, including:
 
 ---
 
-## Detailed Findings
+"""
+        if self.config.include_methodology:
+            md += """## Assessment Methodology
+
+The penetration test followed industry-standard methodologies:
+
+- **OWASP Testing Guide v4.2** — Web application security testing
+- **OSSTMM 3.0** — Open Source Security Testing Methodology
+- **PTES** — Penetration Testing Execution Standard
+- **NIST SP 800-115** — Technical Guide to Information Security Testing
+
+### Testing Phases
+
+1. **Reconnaissance:** Passive/active information gathering, subdomain enumeration
+2. **Scanning & Enumeration:** Port scanning, service detection, vulnerability scanning
+3. **Exploitation:** Controlled exploitation to confirm impact
+4. **Post-Exploitation:** Privilege escalation, lateral movement assessment
+5. **Reporting:** CVSS v3.1 scoring and remediation guidance
+
+---
+
+"""
+
+        md += """## Detailed Findings
 
 """
 
@@ -837,30 +949,7 @@ The assessment identified **{stats["total_findings"]} findings**, including:
         )
 
         for i, finding in enumerate(sorted_findings, 1):
-            md += f"""### {i}. {finding.title}
-
-**Severity:** {finding.severity.value.upper()}
-**Affected Asset:** {finding.affected_asset}
-
-**Description:**
-{finding.description}
-
-"""
-            if finding.cve_id:
-                md += f"**CVE:** {finding.cve_id} (CVSS: {finding.cvss_score})\n\n"
-
-            if finding.evidence:
-                md += f"""**Evidence:**
-```
-{finding.evidence}
-```
-
-"""
-
-            if finding.remediation:
-                md += f"**Remediation:**  \n{finding.remediation}\n\n"
-
-            md += "---\n\n"
+            md += self._format_finding_markdown(i, finding)
 
         md += f"""
 ## Report Information

@@ -20,14 +20,35 @@ Each tool has:
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import shlex
 import subprocess
 import threading as _tr_threading
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+
+def _run_coro_safe(coro: Coroutine, *, timeout: float = 300) -> Any:
+    """Run a coroutine from sync code, even inside an existing event loop.
+
+    Strategy:
+    1. Try ``asyncio.run()`` (cheapest — new loop, new thread-state).
+    2. If we're already inside a running loop, submit the coro to a
+       single-use background thread that creates its own loop.
+
+    This replaces the ad-hoc ``ThreadPoolExecutor`` fallbacks scattered
+    across the codebase and standardises the sync→async bridge.
+    """
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        # Already inside an event loop — delegate to a background thread
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=timeout)
 
 logger = logging.getLogger(__name__)
 
@@ -484,7 +505,15 @@ class ToolRegistry:
     async def _async_execute_shell(self, tool: Tool, target: str = "", **kwargs: Any) -> dict:
         """Execute shell tool asynchronously."""
         safe_target = shlex.quote(target) if target else ""
-        command = tool.command_template.format(target=safe_target, **kwargs)
+        safe_kwargs = {k: shlex.quote(str(v)) for k, v in kwargs.items()}
+        command = tool.command_template.format(target=safe_target, **safe_kwargs)
+
+        # Allowlist validation
+        from core.execution.command_allowlist import is_command_allowed
+
+        allowed, error = is_command_allowed(command)
+        if not allowed:
+            return {"success": False, "error": f"Blocked: {error}", "tool": tool.name}
 
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -505,7 +534,7 @@ class ToolRegistry:
             }
         except TimeoutError:
             return {"success": False, "error": "Timeout", "tool": tool.name}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return {"success": False, "error": str(e), "tool": tool.name}
 
     # =========================================================================
@@ -542,7 +571,15 @@ class ToolRegistry:
     def _execute_shell(self, tool: Tool, target: str, live_output: bool = True, **kwargs: Any) -> dict:
         """Execute a shell tool."""
         safe_target = shlex.quote(target) if target else ""
-        command = tool.command_template.format(target=safe_target, **kwargs)
+        safe_kwargs = {k: shlex.quote(str(v)) for k, v in kwargs.items()}
+        command = tool.command_template.format(target=safe_target, **safe_kwargs)
+
+        # Allowlist validation
+        from core.execution.command_allowlist import is_command_allowed
+
+        allowed, error = is_command_allowed(command)
+        if not allowed:
+            return {"success": False, "error": f"Blocked: {error}", "tool": tool.name}
 
         logger.info("Executing: %s", command)
 
@@ -592,9 +629,9 @@ class ToolRegistry:
                     process.kill()
                     process.wait(timeout=5)
                 except Exception:
-                    pass
+                    logger.debug("Failed to kill timed-out process", exc_info=True)
             return {"success": False, "error": "Timeout", "tool": tool.name}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             return {"success": False, "error": str(e), "tool": tool.name}
 
     def _execute_python(self, tool: Tool, target: str, **kwargs: Any) -> dict:
@@ -606,13 +643,7 @@ class ToolRegistry:
             result = tool.python_func(target, **kwargs)
             # If the result is a coroutine, run it synchronously
             if asyncio.iscoroutine(result):
-                try:
-                    result = asyncio.run(result)
-                except RuntimeError:
-                    # Already in an async context - use a new thread to run it
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        result = pool.submit(asyncio.run, result).result(timeout=120)
+                result = _run_coro_safe(result, timeout=120)
             return {
                 "success": True,
                 "output": result,
@@ -830,13 +861,13 @@ class ToolRegistry:
                 "windows_actions": windows_actions,
                 "note": "Provide a ShellInterface to PostExploitEngine to execute",
             }
-        except Exception as e:
+        except (ImportError, RuntimeError) as e:
             return {"success": False, "error": str(e)}
 
     def _run_evolve(self, target: str, **kwargs: Any) -> dict:
         """Generate new capability via Singularity engine and auto-register."""
         try:
-            from core.singularity import SingularityEngine
+            from core.singularity.engine import SingularityEngine
             engine = SingularityEngine()
             description = kwargs.get("description", f"Tool to analyze {target}")
             tool_name = kwargs.get("tool_name")
@@ -899,7 +930,7 @@ class ToolRegistry:
             from modules.subdomain import SubdomainEnumerator
 
             enumerator = SubdomainEnumerator()
-            results = asyncio.run(enumerator.enumerate(target))
+            results = _run_coro_safe(enumerator.enumerate(target))
             subdomains = [str(r) for r in results] if results else []
 
             return {
@@ -907,7 +938,7 @@ class ToolRegistry:
                 "subdomains_found": len(subdomains),
                 "subdomains": subdomains[:100],
             }
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             return {"success": False, "error": str(e)}
 
     def _run_nuclei_scan(self, target: str, **kwargs: Any) -> dict:
@@ -916,7 +947,7 @@ class ToolRegistry:
             from modules.nuclei import NucleiScanner
 
             scanner = NucleiScanner()
-            results = asyncio.run(scanner.scan(target))  # type: ignore[arg-type]
+            results = _run_coro_safe(scanner.scan(target))  # type: ignore[arg-type]
             findings = [str(r) for r in results] if results else []
 
             return {
@@ -924,7 +955,7 @@ class ToolRegistry:
                 "findings_count": len(findings),
                 "findings": findings[:50],
             }
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             return {"success": False, "error": str(e)}
 
     def _run_cve_lookup(self, target: str, **kwargs: Any) -> dict:
@@ -934,7 +965,7 @@ class ToolRegistry:
 
             db = CVEDatabase()
             query = kwargs.get("query", target)
-            results = asyncio.run(db.search_cves(query))
+            results = _run_coro_safe(db.search_cves(query))
             entries = [
                 {"id": r.cve_id, "description": r.description[:200], "severity": r.severity}
                 for r in results
@@ -945,7 +976,7 @@ class ToolRegistry:
                 "cve_count": len(entries),
                 "entries": entries[:20],
             }
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             return {"success": False, "error": str(e)}
 
 

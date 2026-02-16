@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\cvss_calculator.py
+# hypothesis_version: 6.151.6
+
+[0.0, 0.02, 0.029, 0.2, 0.22, 0.27, 0.44, 0.5, 0.55, 0.56, 0.62, 0.68, 0.77, 0.85, 1.08, 3.25, 3.9, 6.42, 6.9, 7.52, 8.22, 8.9, 10.0, 'A', 'C', 'CRITICAL', 'H', 'HIGH', 'L', 'LOW', 'MEDIUM', 'N', 'NONE', 'P', 'R', 'U', 'exploitability', 'impact', 'impact_sub_score']

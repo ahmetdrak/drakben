@@ -102,7 +102,7 @@ class TestPlanStep:
 # 3. Planner — initialization & dict conversion
 # ---------------------------------------------------------------------------
 class TestPlannerInit:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_init_graceful_without_memory(self, mock_mem):
         planner = Planner()
         assert planner.memory is None
@@ -115,7 +115,7 @@ class TestPlannerInit:
 
 
 class TestPlannerDictConversion:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_dict_to_step(self, _):
         planner = Planner()
         d = {
@@ -137,13 +137,13 @@ class TestPlannerDictConversion:
         assert step.status == StepStatus.PENDING
         assert step.params == {"timeout": 60}
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_dict_to_step_missing_required_field(self, _):
         planner = Planner()
         with pytest.raises(ValueError, match="Missing required"):
             planner._dict_to_step({"step_id": "s1"})
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_step_to_dict(self, _):
         planner = Planner()
         step = _make_step()
@@ -151,7 +151,7 @@ class TestPlannerDictConversion:
         assert d["step_id"] == "step_1"
         assert d["status"] == "pending"
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_roundtrip(self, _):
         planner = Planner()
         step = _make_step(step_id="test_rt", action="exploit")
@@ -165,7 +165,7 @@ class TestPlannerDictConversion:
 # 4. create_plan_from_strategy
 # ---------------------------------------------------------------------------
 class TestCreatePlanFromStrategy:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_creates_plan(self, _):
         planner = Planner()
         strategy = _make_strategy(steps=["port_scan", "vuln_scan"])
@@ -174,7 +174,7 @@ class TestCreatePlanFromStrategy:
         assert len(planner.steps) == 2
         assert planner.current_step_index == 0
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_step_dependencies_chained(self, _):
         planner = Planner()
         strategy = _make_strategy(steps=["port_scan", "service_scan", "vuln_scan"])
@@ -184,7 +184,7 @@ class TestCreatePlanFromStrategy:
         assert len(planner.steps[1].depends_on) == 1
         assert len(planner.steps[2].depends_on) == 1
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_tool_mapping(self, _):
         planner = Planner()
         strategy = _make_strategy(steps=["port_scan", "web_vuln_scan"])
@@ -204,7 +204,7 @@ class TestCreatePlanFromStrategy:
 # 5. create_plan_for_target
 # ---------------------------------------------------------------------------
 class TestCreatePlanForTarget:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_creates_4_step_plan(self, _):
         planner = Planner()
         plan_id = planner.create_plan_for_target("10.0.0.1")
@@ -219,7 +219,7 @@ class TestCreatePlanForTarget:
 # 6. create_plan_from_profile
 # ---------------------------------------------------------------------------
 class TestCreatePlanFromProfile:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_creates_from_profile(self, _):
         planner = Planner()
         profile = _make_profile(aggressiveness=0.8)
@@ -227,7 +227,7 @@ class TestCreatePlanFromProfile:
         assert plan_id.startswith("plan_")
         assert len(planner.steps) > 0
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_low_aggressiveness(self, _):
         planner = Planner()
         profile = _make_profile(aggressiveness=0.2, step_order=["recon", "scan"])
@@ -235,7 +235,7 @@ class TestCreatePlanFromProfile:
         actions = [s.action for s in planner.steps]
         assert "passive_recon" in actions  # Low aggression = passive
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_high_aggressiveness(self, _):
         planner = Planner()
         profile = _make_profile(aggressiveness=0.9, step_order=["recon", "exploit"])
@@ -244,7 +244,7 @@ class TestCreatePlanFromProfile:
         assert "port_scan" in actions  # High aggression = active scan
         assert "sqlmap_exploit" in actions  # High aggression = aggressive exploit
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_profile_with_params(self, _):
         planner = Planner()
         profile = _make_profile(
@@ -255,7 +255,7 @@ class TestCreatePlanFromProfile:
         assert planner.steps[0].params.get("timeout") == 120
         assert planner.steps[0].params.get("threads") == 8
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_empty_steps_fallback(self, _):
         planner = Planner()
         profile = _make_profile(step_order=[])
@@ -268,14 +268,14 @@ class TestCreatePlanFromProfile:
 # 7. get_next_step / mark_step_*
 # ---------------------------------------------------------------------------
 class TestPlanExecution:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_get_next_step_returns_first_pending(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1"), _make_step("s2")]
         step = planner.get_next_step()
         assert step.step_id == "s1"
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_get_next_step_skips_completed(self, _):
         planner = Planner()
         planner.steps = [
@@ -285,21 +285,21 @@ class TestPlanExecution:
         step = planner.get_next_step()
         assert step.step_id == "s2"
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_get_next_step_none_when_complete(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1", status=StepStatus.SUCCESS)]
         step = planner.get_next_step()
         assert step is None
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mark_step_executing(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1")]
         planner.mark_step_executing("s1")
         assert planner.steps[0].status == StepStatus.EXECUTING
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mark_step_success(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1")]
@@ -307,7 +307,7 @@ class TestPlanExecution:
         assert planner.steps[0].status == StepStatus.SUCCESS
         assert planner.steps[0].actual_outcome == "found 3 ports"
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mark_step_failed_retry(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1", max_retries=2, retry_count=0)]
@@ -315,7 +315,7 @@ class TestPlanExecution:
         assert should_replan is False  # Should retry, not replan yet
         assert planner.steps[0].status == StepStatus.PENDING
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mark_step_failed_exceeds_retries(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1", max_retries=1, retry_count=0)]
@@ -323,14 +323,14 @@ class TestPlanExecution:
         assert should_replan is True
         assert planner.steps[0].status == StepStatus.FAILED
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mark_step_failed_nonexistent(self, _):
         planner = Planner()
         planner.steps = []
         result = planner.mark_step_failed("ghost", "err")
         assert result is False
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_is_plan_complete_true(self, _):
         planner = Planner()
         planner.steps = [
@@ -339,7 +339,7 @@ class TestPlanExecution:
         ]
         assert planner.is_plan_complete() is True
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_is_plan_complete_false(self, _):
         planner = Planner()
         planner.steps = [_make_step("s1"), _make_step("s2")]
@@ -350,14 +350,14 @@ class TestPlanExecution:
 # 8. get_plan_status
 # ---------------------------------------------------------------------------
 class TestPlanStatus:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_empty_plan(self, _):
         planner = Planner()
         status = planner.get_plan_status()
         assert status["total_steps"] == 0
         assert status["completed"] == 0
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_mixed_status(self, _):
         planner = Planner()
         planner.current_plan_id = "plan_123"
@@ -380,13 +380,13 @@ class TestPlanStatus:
 # 9. replan — limits, failure analysis, tool switching
 # ---------------------------------------------------------------------------
 class TestReplan:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_replan_nonexistent_step(self, _):
         planner = Planner()
         planner.steps = []
         assert planner.replan("ghost") is False
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_replan_exceeds_per_step_limit(self, _):
         planner = Planner()
         step = _make_step("s1", error="some error")
@@ -397,7 +397,7 @@ class TestReplan:
         assert result is False  # Replan failed — limits exceeded
         assert step.status == StepStatus.SKIPPED
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_replan_exceeds_session_limit(self, _):
         planner = Planner()
         step = _make_step("s1", error="some error")
@@ -408,7 +408,7 @@ class TestReplan:
         assert result is False  # Replan failed — limits exceeded
         assert step.status == StepStatus.SKIPPED
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_replan_no_alternative_skips(self, _):
         planner = Planner()
         step = _make_step("s1", action="unknown_action", tool="unknown_tool", error="failed")
@@ -417,7 +417,7 @@ class TestReplan:
         assert result is False  # No alternative found = replan failed
         assert step.status == StepStatus.SKIPPED
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_analyze_failure_timeout(self, _):
         planner = Planner()
         step = _make_step(error="Connection timed out")
@@ -425,21 +425,21 @@ class TestReplan:
         assert ctx["is_timeout"] is True
         assert ctx["is_conn_refused"] is False
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_analyze_failure_connection_refused(self, _):
         planner = Planner()
         step = _make_step(error="Connection refused on port 80")
         ctx = planner._analyze_failure(step)
         assert ctx["is_conn_refused"] is True
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_analyze_failure_missing(self, _):
         planner = Planner()
         step = _make_step(error="nmap: command not found")
         ctx = planner._analyze_failure(step)
         assert ctx["is_missing"] is True
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_format_replan_reason(self, _):
         planner = Planner()
         assert "Timeout" in planner._format_replan_reason({"is_timeout": True, "is_missing": False})
@@ -451,7 +451,7 @@ class TestReplan:
 # 10. Dependency handling
 # ---------------------------------------------------------------------------
 class TestDependencyHandling:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_skip_step_with_failed_dependency(self, _):
         planner = Planner()
         s1 = _make_step("s1", status=StepStatus.FAILED)
@@ -461,7 +461,7 @@ class TestDependencyHandling:
         # s2 should be skipped because s1 failed
         assert step is None or step.status == StepStatus.SKIPPED
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_deps_satisfied_proceed(self, _):
         planner = Planner()
         s1 = _make_step("s1", status=StepStatus.SUCCESS)
@@ -475,20 +475,20 @@ class TestDependencyHandling:
 # 11. _find_alternative_tool
 # ---------------------------------------------------------------------------
 class TestFindAlternativeTool:
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_finds_alternative(self, _):
         planner = Planner()
         alt = planner._find_alternative_tool("vuln_scan", "nmap_vuln_scan")
         assert alt is not None
         assert alt != "nmap_vuln_scan"
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_no_alternative(self, _):
         planner = Planner()
         alt = planner._find_alternative_tool("nonexistent_action", "some_tool")
         assert alt is None
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_only_same_tool_returns_none(self, _):
         planner = Planner()
         # port_scan only has nmap_port_scan
@@ -510,14 +510,14 @@ class TestAdaptiveLearning:
             assert mock_mem.update_heuristic.call_count == 2
             assert step.params.get("timeout") == 120
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_no_memory_no_crash(self, _):
         planner = Planner()
         step = _make_step(error="timed out")
         planner._apply_adaptive_learning(step, {"is_timeout": True})
         # Should not raise
 
-    @patch("core.agent.planner.get_evolution_memory", side_effect=Exception("no db"))
+    @patch("core.agent.planner.get_evolution_memory", side_effect=RuntimeError("no db"))
     def test_non_timeout_no_adjustment(self, _):
         planner = Planner()
         step = _make_step(error="other error")

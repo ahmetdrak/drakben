@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\singularity\engine.py
+# hypothesis_version: 6.151.6
+
+[500, '.', 'Synthesis failed', '[^a-z0-9]+', '_', 'code', 'compile', 'ctypes', 'error', 'eval', 'exec', 'execfile', 'execv', 'execvp', 'execvpe', 'input', 'main', 'modules/dynamic', 'multiprocessing', 'os', 'popen', 'pty', 'python', 'remove', 'resource', 'rmdir', 'rmtree', 'run', 'shutil', 'signal', 'spawn', 'status', 'subprocess', 'system', 'unlink', 'utf-8']

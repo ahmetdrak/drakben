@@ -56,7 +56,7 @@ class DistributedStateManager:
         except ImportError:
             logger.warning("Redis library not installed. Running in standalone mode.")
             self.connected = False
-        except Exception as e:
+        except OSError as e:
             logger.warning(
                 "Redis connection failed: %s. Running in standalone mode.", e,
             )
@@ -82,7 +82,7 @@ class DistributedStateManager:
                     except (json.JSONDecodeError, TypeError):
                         return raw
                 return None
-            except Exception as e:
+            except OSError as e:
                 logger.warning("Redis get failed for %s: %s", full_key, e)
         # Fallback to local
         ns = self._local_state.get(namespace, {})
@@ -110,7 +110,7 @@ class DistributedStateManager:
                 else:
                     self.redis_client.set(full_key, serialized)
                 redis_success = True
-            except Exception as e:
+            except (OSError, TypeError) as e:
                 logger.warning("Redis set failed for %s: %s", full_key, e)
         # Always update local state as fallback/cache
         if namespace not in self._local_state:
@@ -132,7 +132,7 @@ class DistributedStateManager:
         if self.connected and self.redis_client:
             try:
                 self.redis_client.delete(full_key)
-            except Exception as e:
+            except OSError as e:
                 logger.warning("Redis delete failed for %s: %s", full_key, e)
         ns = self._local_state.get(namespace, {})
         ns.pop(key, None)
@@ -152,6 +152,6 @@ class DistributedStateManager:
             try:
                 raw_keys = list(self.redis_client.scan_iter(match=f"{prefix}*"))
                 return [k.replace(prefix, "") for k in raw_keys]
-            except Exception as e:
+            except OSError as e:
                 logger.warning("Redis keys failed: %s", e)
         return list(self._local_state.get(namespace, {}).keys())

@@ -126,7 +126,7 @@ class CodeValidator(IValidator):
         except TimeoutError:
             logger.error("Docker validation timed out after %ss", self.timeout)
             return False
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.exception("Docker validation failed: %s", e)
             return False
 
@@ -147,7 +147,7 @@ class CodeValidator(IValidator):
         try:
             tree = ast.parse(code)
             return all(self._check_ast_node(node) for node in ast.walk(tree))
-        except Exception as e:
+        except (SyntaxError, ValueError, TypeError) as e:
             logger.exception("Static analysis failed: %s", e)
             return False
 
@@ -222,7 +222,7 @@ class CodeValidator(IValidator):
         except subprocess.TimeoutExpired:
             logger.exception("Validation timed out")
             return False
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.exception("Validation error: %s", e)
             return False
         finally:
@@ -235,5 +235,5 @@ class CodeValidator(IValidator):
         try:
             if os.path.exists(f_path):
                 os.remove(f_path)
-        except Exception as e:
+        except OSError as e:
             logger.debug("Failed to cleanup temp file: %s", e)

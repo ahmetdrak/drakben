@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\intelligence\model_router.py
+# hypothesis_version: 6.151.6
+
+[0.0, 0.001, 0.003, 0.5, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0, 15.0, -500, -100, 500, 8192, 32000, 128000, '_model', 'balanced', 'balanced_routes', 'classify', 'claude-3-opus', 'claude-3.5-sonnet', 'code_gen', 'code_generation', 'complex_analysis', 'convert\\s*(to|into)', 'default', 'duration', 'exploit_plan', 'exploit_strategy', 'extract', 'fallbacks', 'fast', 'fast_routes', 'flash', 'format', 'gemma', 'gpt-4-turbo', 'gpt-4o', 'haiku', 'json_parse', 'list\\s*(the|all)', 'llama-3.1-8b', 'mini', 'model', 'performance_records', 'phi', 'powerful', 'powerful_routes', 'quality', 'reasoning', 'registered_models', 'routes', 'simple_parse', 'strategy', 'success', 'task', 'timestamp']

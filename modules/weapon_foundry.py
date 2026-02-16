@@ -649,8 +649,8 @@ def _inject() -> Any:
 
 try:
     _inject()
-except Exception:
-    pass
+except Exception as _exc:
+    import sys; print(f"[!] Injection failed: {{_exc}}", file=sys.stderr)
 """
 
 

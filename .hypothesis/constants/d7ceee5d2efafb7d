@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\logging_config.py
+# hypothesis_version: 6.151.6
+
+[1024, '\x1b[0m', '\x1b[31m', '\x1b[32m', '\x1b[33m', '\x1b[35m', '\x1b[36m', '%Y-%m-%d %H:%M:%S', 'CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'RESET', 'WARNING', 'args', 'created', 'drakben', 'drakben.log', 'drakben_error.log', 'exc_info', 'exc_text', 'exception', 'filename', 'funcName', 'function', 'level', 'levelname', 'levelno', 'line', 'lineno', 'logger', 'logs', 'message', 'module', 'msecs', 'msg', 'name', 'pathname', 'process', 'processName', 'relativeCreated', 'requests', 'stack_info', 'thread', 'threadName', 'timestamp', 'urllib3', 'utf-8']

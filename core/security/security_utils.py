@@ -52,7 +52,7 @@ class CredentialStore:
             # Test keyring access
             keyring.get_keyring()
             return True
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             return False
 
     def _derive_key(self, password: str, salt: bytes) -> bytes:
@@ -148,7 +148,7 @@ class CredentialStore:
 
         except ValueError:
             raise  # Re-raise ValueError for missing password
-        except Exception as e:
+        except (OSError, KeyError, TypeError, RuntimeError) as e:
             logger.exception("Failed to store credential: %s", e)
             return False
 
@@ -175,7 +175,7 @@ class CredentialStore:
             if not master_password:
                 master_password = os.environ.get("DRAKBEN_MASTER_PASSWORD")
                 if not master_password:
-                    logger.warning(
+                    logger.debug(
                         "Master password not provided for credential retrieval",
                     )
                     return None  # Graceful fail for retrieval
@@ -183,7 +183,7 @@ class CredentialStore:
             credentials = self._load_file(master_password)
             return credentials.get(key)
 
-        except Exception as e:
+        except (OSError, KeyError, ValueError, TypeError, RuntimeError) as e:
             logger.exception("Failed to retrieve credential: %s", e)
             return None
 
@@ -221,7 +221,7 @@ class CredentialStore:
                 f.write(salt)
                 f.write(encrypted)
             os.replace(tmp_path, self.storage_path)  # noqa: PTH105
-        except Exception:
+        except OSError:
             # Clean up temp file on failure
             if tmp_path is not None:
                 with contextlib.suppress(OSError):
@@ -565,7 +565,7 @@ class ProxyManager:
             if response.status_code == 200:
                 logger.info("Proxy working: %s:%s", proxy.host, proxy.port)
                 return True
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.warning("Proxy test failed: %s", e)
 
         return False

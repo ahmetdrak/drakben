@@ -284,8 +284,8 @@ class EvolutionMemory:
         """Ensure database connections are closed on garbage collection."""
         try:
             self.close()
-        except Exception:
-            pass
+        except (sqlite3.Error, OSError):
+            pass  # Destructor: logger may be unavailable during GC
 
     # ==================== ACTION RECORDING ====================
 

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\storage\structured_logger.py
+# hypothesis_version: 6.151.6
+
+[100, 500, '%Y%m%d_%H%M%S', '... (truncated)', 'ACTION', 'DrakbenStructured', 'a', 'args', 'error', 'green', 'logs', 'red', 'result', 'stderr', 'stdout', 'success', 'timestamp', 'tool', 'type', 'utf-8']

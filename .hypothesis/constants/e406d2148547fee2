@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\native\syscall_engine.py
+# hypothesis_version: 6.151.6
+
+[b'\x0f\x05\xc3', b'L\x8b\xd1', b'\xb8', 4096, 8192, 32768, 2035711, '<I', 'CreateThread failed', 'threading', 'windows']

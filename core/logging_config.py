@@ -128,7 +128,9 @@ def setup_logging(
     root_logger = logging.getLogger("drakben")
     root_logger.setLevel(getattr(logging, level.upper()))
 
-    # Clear existing handlers
+    # Close and clear existing handlers
+    for handler in root_logger.handlers[:]:
+        handler.close()
     root_logger.handlers.clear()
 
     # Console handler

@@ -549,7 +549,7 @@ class SecureCleanup:
             logger.debug("Securely deleted: %s", filepath)
             return True
 
-        except Exception:
+        except OSError:
             logger.exception("Secure delete failed for %s", filepath)
             return False
 
@@ -734,15 +734,22 @@ class SecureMemory:
     def secure_wipe_string_buffer(buffer_id: int, length: int) -> bool:
         """Attempt to wipe a string buffer at given memory address.
 
-        Note: This is best-effort due to Python's memory management.
-        Python strings are immutable, so this is inherently unreliable.
+        .. warning:: **SECURITY LIMITATION — NOT RELIABLE**
+
+            Python strings are *immutable*. The interpreter may have already
+            copied the content to other memory locations (interning, GC
+            compaction, OS page cache). ``ctypes.memset`` only overwrites the
+            *original* buffer — copies persist. This method provides **defense
+            in depth** but MUST NOT be relied upon as the sole protection for
+            secrets. Use ``bytearray`` + ``secure_wipe_bytes()`` for sensitive
+            data that truly needs to be scrubbed.
 
         Args:
             buffer_id: Memory address (from id())
             length: Length of buffer
 
         Returns:
-            True if wipe attempted
+            True if wipe attempted (NOT a guarantee of erasure)
 
         """
         try:
@@ -827,8 +834,8 @@ class RAMCleaner:
         """Wipe on destruction."""
         try:
             self.wipe_all()
-        except Exception:
-            pass
+        except (OSError, RuntimeError):
+            pass  # Destructor: logger may be unavailable during GC
 
 
 # Singleton

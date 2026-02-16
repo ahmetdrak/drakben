@@ -201,6 +201,7 @@ class TestCVEDatabaseIntegration:
             assert "keyword_index" in table_names
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::ResourceWarning")
     async def test_cpe_matching_async(self, tmp_path):
         """Test CPE-based matching (async)."""
         db_path = tmp_path / "test_cpe.db"

@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\ad_attacks.py
+# hypothesis_version: 6.151.6
+
+[b'20370913024805Z', 2.0, 106, 107, 127, 128, 160, 161, 162, 164, 165, 166, 167, 4096, '$krb5asrep$', '-dc-ip', '-format', '-no-pass', '04', 'AD login error: %s', 'Account Locked: %s', 'GetNPUsers.py', 'Impacket missing', 'STATUS_LOGON_FAILURE', 'User file not found', 'a003020117', 'big', 'count', 'error', 'hashcat', 'hashes', 'hybrid', 'impacket-GetNPUsers', 'krbtgt', 'logins', 'method', 'native_asreproast', 'native_packet', 'native_smb', 're.Match[str]', 'success', 'tool', 'utf-8']

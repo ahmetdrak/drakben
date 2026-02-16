@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\modules\dynamic_exploits\CVE-2023-44228.py
+# hypothesis_version: 6.151.6
+
+[200, 1024, 2048, 61616, '>H', '>I', 'ActiveMQ', 'CVE-2023-46604', 'Server', 'activemq', 'banner', 'cve', 'error', 'payload_url', 'port', 'replace', 'response_length', 'success', 'target', 'unknown', 'utf-8', 'version', 'vulnerable']

@@ -64,6 +64,8 @@ class LLMEngine:
         enable_rag: bool = True,
         enable_validation: bool = True,
         enable_token_management: bool = True,
+        enable_cache: bool = True,
+        cache_ttl: float = 300.0,
         max_history: int = 50,
     ) -> None:
         self._client = llm_client
@@ -89,6 +91,11 @@ class LLMEngine:
         if enable_rag:
             self._init_rag()
 
+        # ── Response Cache ──
+        self._cache = None
+        if enable_cache:
+            self._init_cache(cache_ttl)
+
         # ── Context Compressor (Intelligence v2) ──
         self._context_compressor: Any = None
         self._init_context_compressor()
@@ -105,6 +112,7 @@ class LLMEngine:
             "rag_enrichments": 0,
             "validation_repairs": 0,
             "tokens_saved_by_trim": 0,
+            "cache_hits": 0,
         }
 
         # Auto-init LLM client if needed
@@ -120,7 +128,7 @@ class LLMEngine:
             self._client = OpenRouterClient()
             if not self._model:
                 self._model = self._client.model
-        except Exception as exc:
+        except (ImportError, OSError) as exc:
             logger.debug("Could not auto-init LLM client: %s", exc)
 
     def _init_history(self, system_prompt: str, max_messages: int) -> None:
@@ -158,6 +166,14 @@ class LLMEngine:
         except ImportError:
             logger.debug("RAGPipeline unavailable — RAG disabled.")
 
+    def _init_cache(self, ttl: float) -> None:
+        """Initialize LLM response cache."""
+        try:
+            from core.llm.llm_cache import LLMCache
+            self._cache = LLMCache(default_ttl=ttl, max_size=512)
+        except ImportError:
+            logger.debug("LLMCache unavailable — caching disabled.")
+
     def _init_context_compressor(self) -> None:
         """Initialize ContextCompressor for intelligent message summarization."""
         try:
@@ -180,7 +196,7 @@ class LLMEngine:
                     models = self._client.available_models
                     if isinstance(models, list) and models:
                         self._model_router.auto_detect_models(models)
-                except Exception:
+                except (AttributeError, TypeError):
                     pass
         except ImportError:
             logger.debug("ModelRouter unavailable — routing disabled.")
@@ -217,7 +233,21 @@ class LLMEngine:
         routed_model = self._route_model(prompt)
         effective_system = self._enrich_system_prompt(prompt, system_prompt)
 
+        # ── Cache lookup ──
+        cache_key = None
+        if self._cache and not validate:
+            from core.llm.llm_cache import LLMCache
+            cache_key = LLMCache.make_key(prompt, effective_system, routed_model or "")
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self._stats["cache_hits"] += 1
+                return cached
+
         result = self._query_client(prompt, effective_system, timeout, routed_model)
+
+        # ── Cache store ──
+        if cache_key is not None and self._cache and isinstance(result, str):
+            self._cache.put(cache_key, result)
 
         if validate and self._validator:
             return self._validate_result(result, model_class)
@@ -232,7 +262,7 @@ class LLMEngine:
             decision = self._model_router.route(prompt)
             if decision and decision.model_id:
                 return decision.model_id
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
         return None
 
@@ -260,12 +290,14 @@ class LLMEngine:
             sig = inspect.signature(self._client.query)
             if "model" in sig.parameters:
                 return self._client.query(prompt, system, timeout=timeout, model=routed_model)
-        except Exception:
+        except (TypeError, ValueError):
             pass
         return self._client.query(prompt, system, timeout=timeout)
 
     def _validate_result(self, result: str, model_class: type | None) -> str | dict[str, Any]:
         """Validate and optionally repair LLM response."""
+        if not self._validator:
+            return result
         validated = self._validator.validate_response(result, model_class)
         if validated is not None:
             if self._validator.get_stats().get("repairs", 0) > 0:
@@ -428,7 +460,7 @@ class LLMEngine:
             return messages
         try:
             return self._context_compressor.compress_messages(messages)
-        except Exception as exc:
+        except (RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Context compression failed: %s", exc)
             return messages
 

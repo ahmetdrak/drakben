@@ -266,7 +266,7 @@ class DynamicInstaller:
                         "install_cmd": f"pip install {tool_name}",
                         "safety_score": "Unknown (Review Required)",
                     }
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.debug("PyPI search failed: %s", e)
 
         # 2. Search GitHub (Simulated for this environment without auth token)
@@ -395,7 +395,7 @@ class DependencyResolver:
                 # Extract version from first line
                 output = result.stdout.strip() or result.stderr.strip()
                 return output.split("\n")[0][:50]
-        except Exception as e:
+        except subprocess.SubprocessError as e:
             logger.debug("Version check failed: %s", e)
 
         return None
@@ -429,7 +429,7 @@ class DependencyResolver:
                     result["message"] = f"Installation failed: {proc.stderr[:200]}"
             except subprocess.TimeoutExpired:
                 result["message"] = "Installation timed out"
-            except Exception as e:
+            except (subprocess.SubprocessError, OSError) as e:
                 result["message"] = str(e)
             return True
         return False
@@ -459,7 +459,7 @@ class DependencyResolver:
                     if result["success"]
                     else proc.stderr[:200]
                 )
-            except Exception as e:
+            except (subprocess.SubprocessError, OSError) as e:
                 result["message"] = str(e)
             return True
         return False
@@ -504,7 +504,7 @@ class DependencyResolver:
                 else f"Install Failed: {proc.stderr}"
             )
             result["method"] = discovery["source"]
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             result["message"] = f"Dynamic Install Error: {e}"
         return result
 
@@ -975,13 +975,10 @@ class APIServer:
             self.running = True
             logger.info("API Server started on http://%s:%s", self.host, self.port)
 
-        except OSError as e:
+        except (OSError, RuntimeError) as e:
             logger.exception(
-                f"Failed to bind API server to {self.host}:{self.port} - {e}",
+                "Failed to start API server on %s:%s: %s", self.host, self.port, e,
             )
-            self.running = False
-        except Exception as e:
-            logger.exception("Failed to start API server: %s", e)
             self.running = False
 
     def stop(self) -> None:
@@ -992,7 +989,7 @@ class APIServer:
                 self.server.server_close()
                 self.running = False
                 logger.info("API server stopped")
-            except Exception as e:
+            except OSError as e:
                 logger.exception("Error stopping API server: %s", e)
 
 

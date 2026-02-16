@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\stop_controller.py
+# hypothesis_version: 6.151.6
+
+[1.0, 10.0, 'StopController reset', 'clean', 'cleanup_callbacks', 'close_databases', 'completed_phases', 'drain_processes', 'errors', 'export_json', 'flush_observability', 'join_threads', 'partial', 'poll', 'signal', 'status']

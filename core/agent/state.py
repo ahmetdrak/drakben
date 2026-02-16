@@ -3,6 +3,7 @@
 # REQUIRED: All modules access/update state ONLY through this API
 # Thread-safe implementation
 
+import contextlib
 import hashlib
 import logging
 import threading
@@ -245,7 +246,10 @@ class AgentState:
                             pass
                 self.credentials.clear()
         except Exception:
-            pass  # During shutdown, logger may not be available
+            # During shutdown, logger may not be available.
+            # Log at debug level if possible, never crash credential cleanup.
+            with contextlib.suppress(Exception):
+                logger.debug("Credential cleanup error (non-fatal)")
 
     def snapshot(self) -> dict:
         """Get state snapshot for LLM context.

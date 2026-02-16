@@ -266,8 +266,8 @@ class CloudScanner:
                             remediation="Verify bucket policy is intentional",
                             url=url,
                         ))
-            except Exception:
-                pass  # Network error, skip
+            except OSError as exc:
+                logger.debug("S3 bucket check failed for %s: %s", bucket, exc)
 
     async def _check_azure_blobs(self, target: str, result: CloudScanResult) -> None:
         """Check for publicly accessible Azure Blob containers."""
@@ -298,8 +298,8 @@ class CloudScanner:
                                     url=url,
                                 ))
                                 result.cloud_provider = "azure"
-                except Exception:
-                    pass
+                except OSError as exc:
+                    logger.debug("Azure blob check failed for %s/%s: %s", blob_url, container, exc)
 
     async def _check_gcp_buckets(self, target: str, result: CloudScanResult) -> None:
         """Check for publicly accessible GCP Cloud Storage buckets."""
@@ -328,8 +328,8 @@ class CloudScanner:
                                 url=url,
                             ))
                             result.cloud_provider = "gcp"
-            except Exception:
-                pass
+            except OSError as exc:
+                logger.debug("GCP bucket check failed for %s: %s", bucket_url, exc)
 
     async def _check_metadata_ssrf(self, _target: str, result: CloudScanResult) -> None:
         """Check if cloud metadata endpoints are accessible (SSRF indicator)."""
@@ -363,8 +363,8 @@ class CloudScanner:
                             ),
                             url=url,
                         ))
-            except Exception:
-                pass
+            except OSError as exc:
+                logger.debug("Metadata endpoint check failed for %s: %s", provider, exc)
 
     async def _check_cloud_headers(self, target: str, result: CloudScanResult) -> None:
         """Check HTTP response headers for cloud provider identification."""

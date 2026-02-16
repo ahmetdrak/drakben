@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\storage\database_manager.py
+# hypothesis_version: 6.151.6
+
+[0.1, 30.0, 'ALTER', 'CREATE', 'DELETE', 'DROP', 'INSERT', 'UPDATE', 'conn', 'drakben.db', 'locked']

@@ -564,13 +564,13 @@ class CVEDatabase:
                     ):
                         entry_data = json.loads(data)
                         return CVEEntry(
-                            cve_id=entry_data["cve_id"],
-                            description=entry_data["description"],
-                            cvss_score=entry_data["cvss_score"],
-                            cvss_vector=entry_data["cvss_vector"],
-                            severity=CVSSSeverity(entry_data["severity"]),
-                            published_date=entry_data["published_date"],
-                            last_modified=entry_data["last_modified"],
+                            cve_id=entry_data.get("cve_id", cve_id),
+                            description=entry_data.get("description", ""),
+                            cvss_score=entry_data.get("cvss_score", 0.0),
+                            cvss_vector=entry_data.get("cvss_vector", ""),
+                            severity=CVSSSeverity(entry_data.get("severity", "UNKNOWN")),
+                            published_date=entry_data.get("published_date", ""),
+                            last_modified=entry_data.get("last_modified", ""),
                             references=entry_data.get("references", []),
                             cpe_matches=entry_data.get("cpe_matches", []),
                             weaknesses=entry_data.get("weaknesses", []),
@@ -629,13 +629,13 @@ class CVEDatabase:
                     entry_data = json.loads(row[0])
                     results.append(
                         CVEEntry(
-                            cve_id=entry_data["cve_id"],
-                            description=entry_data["description"],
-                            cvss_score=entry_data["cvss_score"],
-                            cvss_vector=entry_data["cvss_vector"],
-                            severity=CVSSSeverity(entry_data["severity"]),
-                            published_date=entry_data["published_date"],
-                            last_modified=entry_data["last_modified"],
+                            cve_id=entry_data.get("cve_id", ""),
+                            description=entry_data.get("description", ""),
+                            cvss_score=entry_data.get("cvss_score", 0.0),
+                            cvss_vector=entry_data.get("cvss_vector", ""),
+                            severity=CVSSSeverity(entry_data.get("severity", "UNKNOWN")),
+                            published_date=entry_data.get("published_date", ""),
+                            last_modified=entry_data.get("last_modified", ""),
                             references=entry_data.get("references", []),
                             cpe_matches=entry_data.get("cpe_matches", []),
                             weaknesses=entry_data.get("weaknesses", []),
@@ -663,13 +663,13 @@ class CVEDatabase:
                     entry_data = json.loads(row[0])
                     results.append(
                         CVEEntry(
-                            cve_id=entry_data["cve_id"],
-                            description=entry_data["description"],
-                            cvss_score=entry_data["cvss_score"],
-                            cvss_vector=entry_data["cvss_vector"],
-                            severity=CVSSSeverity(entry_data["severity"]),
-                            published_date=entry_data["published_date"],
-                            last_modified=entry_data["last_modified"],
+                            cve_id=entry_data.get("cve_id", ""),
+                            description=entry_data.get("description", ""),
+                            cvss_score=entry_data.get("cvss_score", 0.0),
+                            cvss_vector=entry_data.get("cvss_vector", ""),
+                            severity=CVSSSeverity(entry_data.get("severity", "UNKNOWN")),
+                            published_date=entry_data.get("published_date", ""),
+                            last_modified=entry_data.get("last_modified", ""),
                             references=entry_data.get("references", []),
                             cpe_matches=entry_data.get("cpe_matches", []),
                             weaknesses=entry_data.get("weaknesses", []),

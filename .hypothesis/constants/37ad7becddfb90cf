@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\execution\sandbox_manager.py
+# hypothesis_version: 6.151.6
+
+[0.0, 300, 100000, '1.0', '512m', 'Docker is available', 'bridge', 'created', 'docker', 'error', 'exited', 'none', 'pending', 'python:3.11-slim', 'removed', 'replace', 'running', 'stopped', 'tail -f /dev/null', 'utf-8', 'version']

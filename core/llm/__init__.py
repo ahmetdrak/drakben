@@ -5,11 +5,15 @@ from __future__ import annotations
 
 __all__ = [
     "AsyncLLMClient",
+    "FallbackChain",
+    "LLMCache",
     "LLMEngine",
     "LLMOutputValidator",
     "MessageHistory",
+    "PromptRegistry",
     "RAGPipeline",
     "TokenCounter",
+    "get_prompt",
 ]
 
 # Lazy imports to avoid circular dependencies
@@ -20,6 +24,10 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "RAGPipeline": ("core.llm.rag_pipeline", "RAGPipeline"),
     "AsyncLLMClient": ("core.llm.async_client", "AsyncLLMClient"),
     "LLMEngine": ("core.llm.llm_engine", "LLMEngine"),
+    "LLMCache": ("core.llm.llm_cache", "LLMCache"),
+    "FallbackChain": ("core.llm.fallback_chain", "FallbackChain"),
+    "PromptRegistry": ("core.llm.prompt_registry", "PromptRegistry"),
+    "get_prompt": ("core.llm.prompt_registry", "get_prompt"),
 }
 
 

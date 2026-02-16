@@ -1,0 +1,4 @@
+# file: C:\Users\E-YAZILIM\Desktop\drakben\drakbendosyalar\core\agent\ra_tool_runner.py
+# hypothesis_version: 6.151.6
+
+[0.5, 180, 300, 443, 600, 1000, 2000, 8080, 8443, ',', '1-1000', '443', '80', '8443', 'Invalid file path', 'No code generated', 'Unknown error', '_dispatcher', 'action', 'args', 'ask_coder', 'brain', 'code', 'create_tool', 'cyan', 'dim', 'error', 'error_summary', 'exit_code', 'green', 'http', 'https', 'instruction', 'localhost', 'modify_file', 'nikto_web_scan', 'nmap_port_scan', 'nmap_service_scan', 'nmap_vuln_scan', 'output', 'port', 'ports', 'red', 'result', 'sqlmap_scan', 'stderr', 'stdout', 'success', 'target', 'timeout', 'unknown', 'url', 'w', 'yellow', '{ports}', '{port}', '{url}', '⚠️ Stderr', '📄 Output']

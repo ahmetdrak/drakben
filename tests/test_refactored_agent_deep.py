@@ -147,12 +147,13 @@ class TestSelectAndFilterProfile:
 
     def test_failure_returns_false(self):
         agent = _create_agent()
-        agent.refining_engine.select_strategy_and_profile.side_effect = Exception("no strat")
+        agent.refining_engine.select_strategy_and_profile.side_effect = RuntimeError("no strat")
         result = agent._select_and_filter_profile("10.0.0.1")
         assert result is False
 
     def test_none_strategy_returns_false(self):
         agent = _create_agent()
+        agent._scan_mode = "auto"
         agent.refining_engine.select_strategy_and_profile.return_value = (None, None)
         result = agent._select_and_filter_profile("10.0.0.1")
         assert result is False
@@ -471,7 +472,7 @@ class TestAttemptToolRecovery:
         agent = _create_agent()
         with patch(
             "core.intelligence.universal_adapter.get_universal_adapter",
-            side_effect=Exception("crash"),
+            side_effect=RuntimeError("crash"),
         ):
             result = agent._attempt_tool_recovery("nmap")
         assert result is False
@@ -677,7 +678,7 @@ class TestAttemptLlmRecovery:
     def test_handles_llm_error_gracefully(self):
         agent = _create_agent()
         agent.brain.llm_client = MagicMock()
-        agent.brain.llm_client.query.side_effect = Exception("LLM down")
+        agent.brain.llm_client.query.side_effect = RuntimeError("LLM down")
         agent.state = MagicMock()
         agent.state.target = "10.0.0.1"
         agent.state.phase = MagicMock()

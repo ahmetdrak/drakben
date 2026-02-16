@@ -321,22 +321,27 @@ pub extern "C" fn resolve_ssn(func_hash: u32) -> i32 {
 #[cfg(windows)]
 use std::sync::OnceLock;
 #[cfg(windows)]
+use std::sync::Mutex;
+#[cfg(windows)]
 use std::collections::HashMap;
 
 #[cfg(windows)]
-static SSN_CACHE: OnceLock<HashMap<u32, u32>> = OnceLock::new();
+static SSN_CACHE: OnceLock<Mutex<HashMap<u32, u32>>> = OnceLock::new();
 
 #[cfg(windows)]
 fn get_cached_ssn(func_hash: u32) -> Option<u32> {
-    SSN_CACHE.get().and_then(|cache| cache.get(&func_hash).copied())
+    SSN_CACHE
+        .get()
+        .and_then(|m| m.lock().ok())
+        .and_then(|cache| cache.get(&func_hash).copied())
 }
 
 #[cfg(windows)]
 fn cache_ssn(func_hash: u32, ssn: u32) {
-    // İlk çağrıda cache'i oluştur
-    let _ = SSN_CACHE.get_or_init(HashMap::new);
-    // Not: OnceLock ile HashMap thread-safe init oluyor
-    // Ama içine yazma için Mutex gerekir - basitlik için sadece okuma cache'i
+    let mtx = SSN_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(mut cache) = mtx.lock() {
+        cache.insert(func_hash, ssn);
+    }
 }
 
 /// Resolve SSN with caching support
